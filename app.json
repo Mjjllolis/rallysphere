@@ -1,4 +1,11 @@
 {
-  "name": "rallysphere",
-  "slug": "rallysphere"
+  "expo": {
+    "name": "rallysphere",
+    "slug": "rallysphere",
+    "scheme": "rallysphere",
+    "plugins": [
+      "expo-font",
+      "expo-secure-store"
+    ]
+  }
 }

@@ -16,3 +16,6 @@ A pub-sub alternative HOC to `react-router`'s `withRouter` HOC. It functions exa
 ## Use
 
 Use it the same way you would use `react-router`'s built-in `withRouter` HOC!
+
+
+##  npx expo start --clear
