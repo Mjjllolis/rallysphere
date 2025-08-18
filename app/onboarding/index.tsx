@@ -3,7 +3,8 @@ import { View, Text, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../../firebase/config';
+import { auth } from '../../lib/firebase/auth';
+import { getUserProfile, createUserProfile } from '../../lib/firebase/firestore-functions';
 
 type Role = 'player' | 'club';
 
@@ -12,7 +13,7 @@ export default function Onboarding() {
     useEffect(() => {
         const sub = onAuthStateChanged(auth, (user) => {
             if (user) {
-                router.replace('/(tabs)/home');
+                router.replace('/(tabs)');
             }
         });
         return sub;

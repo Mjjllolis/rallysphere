@@ -15,14 +15,14 @@ import {
 } from 'react-native';
 import { TextInput, Button, Card, ActivityIndicator } from 'react-native-paper';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { auth, db } from '../../firebase/config';
+import { auth } from '../../lib/firebase/auth';
+import { getUserProfile, createUserProfile } from '../../lib/firebase/firestore-functions';
 import {
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     updateProfile,
     sendPasswordResetEmail,
 } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 // Assets (match filename case)
 import BackgroundImg from '../../assets/Background.png';
@@ -88,15 +88,33 @@ export default function WelcomeAuth() {
 
         try {
             if (mode === 'signin') {
-                await signInWithEmailAndPassword(auth, email.trim(), pw);
+                const userCredential = await signInWithEmailAndPassword(auth, email.trim(), pw);
+                const user = userCredential.user;
+
+                // Check if user profile exists, create if not (for existing users)
+                const userProfile = await getUserProfile(user.uid);
+                if (!userProfile) {
+                    await createUserProfile({
+                        id: user.uid,
+                        email: user.email!,
+                        displayName: user.displayName || name || '',
+                        joinedClubs: [],
+                        eventsAttended: []
+                    });
+                }
             } else {
                 const cred = await createUserWithEmailAndPassword(auth, email.trim(), pw);
-                if (name) await updateProfile(cred.user, { displayName: name });
-                await setDoc(doc(db, 'users', cred.user.uid), {
-                    displayName: name || null,
-                    email: cred.user.email,
-                    role,
-                    createdAt: serverTimestamp(),
+                const user = cred.user;
+
+                if (name) await updateProfile(user, { displayName: name });
+
+                // Create user profile with our new structure
+                await createUserProfile({
+                    id: user.uid,
+                    email: user.email!,
+                    displayName: name || '',
+                    joinedClubs: [],
+                    eventsAttended: []
                 });
             }
             router.replace('/(tabs)');
