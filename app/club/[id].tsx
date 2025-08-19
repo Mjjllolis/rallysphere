@@ -273,9 +273,6 @@ export default function ClubHomePage() {
                                         <Title style={[styles.clubName, { color: colors.onSurface }]}>
                                             {club.clubName}
                                         </Title>
-                                        <Text style={[styles.clubSport, { color: colors.onSurfaceVariant }]}>
-                                            {club.sport}
-                                        </Text>
                                         <Text style={[styles.memberCount, { color: colors.onSurfaceVariant }]}>
                                             {club.clubMembers.length} members
                                         </Text>
@@ -300,9 +297,6 @@ export default function ClubHomePage() {
                                     <Title style={[styles.clubName, { color: colors.onPrimary }]}>
                                         {club.clubName}
                                     </Title>
-                                    <Text style={[styles.clubSport, { color: colors.onPrimary }]}>
-                                        {club.sport}
-                                    </Text>
                                     <Text style={[styles.memberCount, { color: colors.onPrimary }]}>
                                         {club.clubMembers.length} members
                                     </Text>
@@ -474,10 +468,6 @@ const styles = StyleSheet.create({
     clubName: {
         fontSize: 24,
         fontWeight: 'bold',
-    },
-    clubSport: {
-        fontSize: 16,
-        marginBottom: 4,
     },
     memberCount: {
         fontSize: 14,

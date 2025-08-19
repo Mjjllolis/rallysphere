@@ -75,7 +75,7 @@ export default function HomePage() {
 
     const filteredClubs = clubs.filter(club =>
         club.clubName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        club.sport.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        //club.sport.toLowerCase().includes(searchQuery.toLowerCase()) ||
         club.description.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
@@ -249,7 +249,7 @@ export default function HomePage() {
                     </Paragraph>
 
                     <View style={styles.clubDetails}>
-                        <View style={styles.detailRow}>
+                        {/* <View style={styles.detailRow}>
                             <MaterialCommunityIcons
                                 name="tennis-ball"
                                 size={16}
@@ -258,7 +258,7 @@ export default function HomePage() {
                             <Text style={[styles.detailText, { color: colors.onSurfaceVariant }]}>
                                 {club.sport}
                             </Text>
-                        </View>
+                        </View> */}
 
                         <View style={styles.detailRow}>
                             <MaterialCommunityIcons

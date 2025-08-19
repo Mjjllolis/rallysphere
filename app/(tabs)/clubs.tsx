@@ -64,8 +64,7 @@ export default function ClubsPage() {
     }, []);
 
     const filteredClubs = clubs.filter(club =>
-        club.clubName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        club.sport.toLowerCase().includes(searchQuery.toLowerCase())
+        club.clubName.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     const getRoleColor = (club: Club) => {
@@ -123,17 +122,6 @@ export default function ClubsPage() {
                     </Paragraph>
 
                     <View style={styles.clubDetails}>
-                        <View style={styles.detailRow}>
-                            <MaterialCommunityIcons
-                                name="tennis-ball"
-                                size={16}
-                                color={colors.onSurfaceVariant}
-                            />
-                            <Text style={[styles.detailText, { color: colors.onSurfaceVariant }]}>
-                                {club.sport}
-                            </Text>
-                        </View>
-
                         <View style={styles.detailRow}>
                             <MaterialCommunityIcons
                                 name="account-multiple"
@@ -285,7 +273,7 @@ export default function ClubsPage() {
             <FAB
                 icon="plus"
                 style={[styles.fab, { backgroundColor: colors.primary }]}
-                onPress={() => router.push('/create-club')}
+                onPress={() => router.push('/club/create')}
                 label="Create Club"
             />
         </View>
