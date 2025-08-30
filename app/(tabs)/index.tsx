@@ -82,9 +82,9 @@ export default function HomePage() {
     const getCategoryColor = (category: string) => {
         switch (category) {
             case 'tournament': return colors.primary;
-            case 'training': return '#4CAF50';
-            case 'championship': return '#FF9800';
-            case 'social': return '#9C27B0';
+            case 'training': return '#059669'; // Emerald
+            case 'championship': return '#D97706'; // Amber
+            case 'social': return '#7C3AED'; // Violet
             default: return colors.outline;
         }
     };
@@ -137,11 +137,19 @@ export default function HomePage() {
                             {event.title}
                         </Title>
                         <Chip
-                            mode="outlined"
-                            textStyle={{ color: getCategoryColor(event.category) }}
-                            style={{ borderColor: getCategoryColor(event.category) }}
+                            mode="flat"
+                            textStyle={{ 
+                                color: getCategoryColor(event.category),
+                                fontSize: 12,
+                                fontWeight: '600'
+                            }}
+                            style={{ 
+                                backgroundColor: getCategoryColor(event.category) + '15',
+                                height: 28
+                            }}
+                            compact
                         >
-                            {event.category}
+                            {event.category.charAt(0).toUpperCase() + event.category.slice(1)}
                         </Chip>
                     </View>
 
@@ -238,13 +246,29 @@ export default function HomePage() {
                             {club.clubName}
                         </Title>
                         {isJoined && (
-                            <Chip mode="flat" style={{ backgroundColor: colors.primaryContainer }}>
-                                {isAdmin ? 'Admin' : 'Joined'}
-                            </Chip>
+                            <Chip 
+                            mode="flat" 
+                                textStyle={{ 
+                                color: colors.primary,
+                                fontSize: 12,
+                                fontWeight: '600'
+                            }}
+                            style={{ 
+                                backgroundColor: colors.primaryContainer,
+                                height: 28
+                            }}
+                            compact
+                        >
+                            {isAdmin ? 'Admin' : 'Joined'}
+                        </Chip>
                         )}
                     </View>
 
-                    <Paragraph style={{ color: colors.onSurfaceVariant, marginBottom: 8 }}>
+                    <Paragraph style={{ 
+                        color: colors.onSurfaceVariant, 
+                        marginBottom: 12,
+                        lineHeight: 20
+                    }}>
                         {club.description}
                     </Paragraph>
 
@@ -449,46 +473,56 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     header: {
-        padding: 20,
-        paddingTop: 60,
-        elevation: 2,
+        padding: 24,
+        paddingTop: 64,
+        elevation: 3,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        borderBottomLeftRadius: 24,
+        borderBottomRightRadius: 24,
     },
     title: {
-        fontSize: 28,
-        fontWeight: 'bold',
+        fontSize: 32,
+        fontWeight: '700',
+        letterSpacing: -0.5,
     },
     searchContainer: {
-        padding: 16,
-        paddingBottom: 8,
+        padding: 20,
+        paddingBottom: 12,
     },
     tabContainer: {
         flexDirection: 'row',
-        marginHorizontal: 16,
-        marginBottom: 16,
-        borderRadius: 8,
+        marginHorizontal: 20,
+        marginBottom: 20,
+        borderRadius: 12,
         overflow: 'hidden',
+        elevation: 1,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
     },
     tab: {
         flex: 1,
-        padding: 12,
+        padding: 16,
         alignItems: 'center',
         justifyContent: 'center',
     },
     content: {
         flex: 1,
-        paddingHorizontal: 16,
+        paddingHorizontal: 20,
     },
     card: {
         marginBottom: 16,
+        borderRadius: 16,
         elevation: 2,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        marginHorizontal: 2,
     },
     cardHeader: {
         flexDirection: 'row',
@@ -527,8 +561,14 @@ const styles = StyleSheet.create({
     },
     fab: {
         position: 'absolute',
-        margin: 16,
+        margin: 24,
         right: 0,
         bottom: 0,
+        borderRadius: 16,
+        elevation: 6,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
     },
 });

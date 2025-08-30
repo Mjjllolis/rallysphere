@@ -203,7 +203,7 @@ export default function WelcomeAuth() {
                                     mode="outlined"
                                 />
 
-                                {err ? <Text style={{ color: '#D14343' }}>{err}</Text> : null}
+                                {err ? <Text style={styles.errorText}>{err}</Text> : null}
 
                                 <Button mode="contained" onPress={onSubmit} loading={busy} disabled={busy} style={{ marginTop: 8 }}>
                                     {cta}
@@ -249,4 +249,10 @@ const styles = StyleSheet.create({
     card: { borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.95)', overflow: 'hidden' },
     toggleRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
     title: { fontSize: 20, fontWeight: '700', marginBottom: 4 },
+    errorText: {
+        color: '#DC2626',
+        fontSize: 14,
+        marginBottom: 8,
+        textAlign: 'center',
+    },
 });

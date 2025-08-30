@@ -154,7 +154,7 @@ export default function ProfilePage() {
                             <MaterialCommunityIcons
                                 name="trophy"
                                 size={24}
-                                color="#FFD700"
+                                color={colors.primary}
                             />
                             <Text style={[styles.statNumber, { color: colors.onSurface }]}>
                                 {userStats.tournamentsWon}
@@ -170,7 +170,7 @@ export default function ProfilePage() {
                             <MaterialCommunityIcons
                                 name="star"
                                 size={24}
-                                color="#FF9800"
+                                color={colors.primary}
                             />
                             <Text style={[styles.statNumber, { color: colors.onSurface }]}>
                                 4.8
@@ -334,7 +334,7 @@ export default function ProfilePage() {
                     icon="logout"
                     buttonColor={colors.errorContainer}
                     textColor={colors.error}
-                    style={styles.signOutButton}
+                    style={[styles.signOutButton, { borderColor: colors.error }]}
                 >
                     Sign Out
                 </Button>
@@ -427,6 +427,6 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     signOutButton: {
-        borderColor: '#DC3545',
+        // borderColor will be set dynamically in the component
     },
 });

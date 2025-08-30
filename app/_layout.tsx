@@ -23,29 +23,40 @@ const ThemeContext = createContext<ThemeCtx>({
 });
 export const useThemeToggle = () => useContext(ThemeContext);
 
-// Brand colors (from your logo)
-const BRAND_BLUE = '#0085FF';
-const BRAND_BG_LIGHT = '#F5F8FF';
-const BRAND_BG_DARK = '#0A0A0A';
+// Brand colors (dark blue from logo)
+const BRAND_BLUE = '#1B365D'; // Dark blue from logo
+const BRAND_BLUE_LIGHT = '#2B4A73'; // Lighter variant for interaction states
+const BRAND_BG_LIGHT = '#F8FAFC';
+const BRAND_BG_DARK = '#0F172A';
 const BRAND_SURFACE_LIGHT = '#FFFFFF';
-const BRAND_SURFACE_DARK = '#1A1A1A';
-const BRAND_OUTLINE_LIGHT = '#D5E3FF';
-const BRAND_OUTLINE_DARK = '#2A3441';
+const BRAND_SURFACE_DARK = '#1E293B';
+const BRAND_OUTLINE_LIGHT = '#E2E8F0';
+const BRAND_OUTLINE_DARK = '#334155';
 
 const lightTheme = {
     ...MD3LightTheme,
     colors: {
         ...MD3LightTheme.colors,
         primary: BRAND_BLUE,
-        secondary: BRAND_BLUE,
+        primaryContainer: '#E1E7F1',
+        secondary: BRAND_BLUE_LIGHT,
         background: BRAND_BG_LIGHT,
         surface: BRAND_SURFACE_LIGHT,
-        surfaceVariant: '#EEF4FF',
+        surfaceVariant: '#F1F5F9',
         outline: BRAND_OUTLINE_LIGHT,
         onPrimary: '#FFFFFF',
-        onSurface: '#111827',
-        onBackground: '#111827',
-        onSurfaceVariant: '#6B7280',
+        onPrimaryContainer: BRAND_BLUE,
+        onSurface: '#0F172A',
+        onBackground: '#0F172A',
+        onSurfaceVariant: '#64748B',
+        elevation: {
+            level0: 'transparent',
+            level1: '#FFFFFF',
+            level2: '#F8FAFC',
+            level3: '#F1F5F9',
+            level4: '#E2E8F0',
+            level5: '#CBD5E1',
+        },
     },
 };
 
@@ -53,16 +64,26 @@ const darkTheme = {
     ...MD3DarkTheme,
     colors: {
         ...MD3DarkTheme.colors,
-        primary: BRAND_BLUE,
-        secondary: BRAND_BLUE,
+        primary: '#4F8CC9', // Lighter blue for dark theme accessibility
+        primaryContainer: '#1E3A52',
+        secondary: BRAND_BLUE_LIGHT,
         background: BRAND_BG_DARK,
         surface: BRAND_SURFACE_DARK,
-        surfaceVariant: '#2A2A2A',
+        surfaceVariant: '#334155',
         outline: BRAND_OUTLINE_DARK,
-        onPrimary: '#FFFFFF',
-        onSurface: '#F9FAFB',
-        onBackground: '#F9FAFB',
-        onSurfaceVariant: '#9CA3AF',
+        onPrimary: '#0F172A',
+        onPrimaryContainer: '#B8D4F0',
+        onSurface: '#F1F5F9',
+        onBackground: '#F8FAFC',
+        onSurfaceVariant: '#94A3B8',
+        elevation: {
+            level0: 'transparent',
+            level1: '#1E293B',
+            level2: '#334155',
+            level3: '#475569',
+            level4: '#64748B',
+            level5: '#94A3B8',
+        },
     },
 };
 

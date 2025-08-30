@@ -70,8 +70,8 @@ export default function ClubsPage() {
     const getRoleColor = (club: Club) => {
         if (!user) return colors.outline;
         if (club.clubOwner === user.uid) return colors.primary;
-        if (club.clubAdmins.includes(user.uid)) return '#FF9800';
-        return '#4CAF50';
+        if (club.clubAdmins.includes(user.uid)) return '#D97706'; // Amber
+        return '#059669'; // Emerald
     };
 
     const getUserRole = (club: Club) => {
@@ -105,11 +105,16 @@ export default function ClubsPage() {
                             <View style={styles.badges}>
                                 <Chip
                                     mode="flat"
-                                    textStyle={{ color: getRoleColor(club), fontSize: 12 }}
-                                    style={{
-                                        backgroundColor: getRoleColor(club) + '20',
-                                        height: 24
+                                    textStyle={{ 
+                                        color: getRoleColor(club), 
+                                        fontSize: 12,
+                                        fontWeight: '600'
                                     }}
+                                    style={{
+                                        backgroundColor: getRoleColor(club) + '15',
+                                        height: 28
+                                    }}
+                                    compact
                                 >
                                     {role.toUpperCase()}
                                 </Chip>
