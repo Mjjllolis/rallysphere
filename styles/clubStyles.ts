@@ -28,17 +28,21 @@ export const clubStyles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingTop: 60,
+        paddingTop: 50,
         paddingBottom: 10,
-        paddingHorizontal: 20,
+        paddingHorizontal: 16,
         position: 'absolute',
         top: 0,
         left: 0,
         right: 0,
         zIndex: 10,
+        borderRadius: 0,
+        borderBottomLeftRadius: 12,
+        borderBottomRightRadius: 12,
     },
     backButton: {
         margin: 0,
+        borderRadius: 20,
     },
     headerContainer: {
         marginBottom: 24,
@@ -58,6 +62,7 @@ export const clubStyles = StyleSheet.create({
         flex: 1,
         justifyContent: 'flex-end',
         padding: 24,
+        paddingLeft: 80, // Add padding to move logo away from back button
     },
     clubInfo: {
         flexDirection: 'row',

@@ -5,6 +5,22 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from 'react-native-paper';
 import { Platform } from 'react-native';
 
+// Disable focus outline globally
+if (Platform.OS === 'web') {
+    const style = document.createElement('style');
+    style.textContent = `
+        * {
+            -webkit-tap-highlight-color: transparent !important;
+            outline: none !important;
+        }
+        *:focus {
+            outline: none !important;
+            box-shadow: none !important;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
 export default function TabLayout() {
     const { colors } = useTheme();
 
@@ -20,14 +36,26 @@ export default function TabLayout() {
                     shadowOffset: { width: 0, height: -2 },
                     shadowOpacity: 0.1,
                     shadowRadius: 8,
-                    height: 60,
-                    paddingBottom: 8,
+                    height: 80,
+                    paddingBottom: 20,
                     paddingTop: 8,
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
                 },
                 tabBarActiveTintColor: colors.primary,
                 tabBarInactiveTintColor: colors.onSurfaceVariant,
                 headerShown: false, // This removes the double header
                 tabBarHideOnKeyboard: Platform.OS === 'android',
+                tabBarItemStyle: {
+                    borderRadius: 0,
+                    backgroundColor: 'transparent',
+                },
+                tabBarLabelStyle: {
+                    fontSize: 12,
+                    fontWeight: '500',
+                },
             }}
         >
             <Tabs.Screen

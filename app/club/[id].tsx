@@ -18,8 +18,6 @@ import {
     Avatar,
     Surface,
     IconButton,
-    Menu,
-    Portal,
 } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -48,7 +46,6 @@ export default function ClubHomePage() {
     const [events, setEvents] = useState<Event[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    const [menuVisible, setMenuVisible] = useState(false);
 
     const loadClubData = async () => {
         if (!id) return;
@@ -156,7 +153,6 @@ export default function ClubHomePage() {
         const isEventJoined = user && event.usersJoined.includes(user.uid);
         const isFull = event.maxParticipants && event.usersJoined.length >= event.maxParticipants;
         const categoryColor = getCategoryColor(event.category);
-        const [eventMenuVisible, setEventMenuVisible] = useState(false);
         const isEventAdmin = user && (event.createdBy === user.uid || isAdmin);
 
         return (
@@ -174,37 +170,6 @@ export default function ClubHomePage() {
                                     <Title style={[styles.eventTitle, { color: colors.onSurface }]}>
                                         {event.title}
                                     </Title>
-                                    {isEventAdmin && (
-                                        <Menu
-                                            visible={eventMenuVisible}
-                                            onDismiss={() => setEventMenuVisible(false)}
-                                            anchor={
-                                                <IconButton
-                                                    icon="dots-vertical"
-                                                    size={16}
-                                                    iconColor={colors.onSurfaceVariant}
-                                                    onPress={() => setEventMenuVisible(true)}
-                                                    style={styles.eventMenuButton}
-                                                />
-                                            }
-                                        >
-                                            <Menu.Item
-                                                onPress={() => {
-                                                    setEventMenuVisible(false);
-                                                    router.push(`/event/${event.id}/edit`);
-                                                }}
-                                                title="Edit Event"
-                                                leadingIcon="pencil"
-                                            />
-                                            <Menu.Item
-                                                onPress={() => {
-                                                    setEventMenuVisible(false);
-                                                }}
-                                                title="Delete Event"
-                                                leadingIcon="delete"
-                                            />
-                                        </Menu>
-                                    )}
                                 </View>
                                 <View style={styles.eventSubInfo}>
                                     <MaterialCommunityIcons
@@ -323,70 +288,19 @@ export default function ClubHomePage() {
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
                 }
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 100 }}
+                contentContainerStyle={{ paddingBottom: 120 }}
             >
-                {/* Top Navigation with Back Button and Menu */}
-                <View style={[styles.topNav, { backgroundColor: 'transparent' }]}>
+                {/* Top Navigation with Back Button */}
+                <View style={[styles.topNav, { backgroundColor: 'rgba(0,0,0,0.3)' }]}>
                     <IconButton
                         icon="arrow-left"
                         size={20}
-                        iconColor={colors.onSurface}
+                        iconColor={'white'}
                         onPress={() => router.back()}
                         style={styles.backButton}
-                        mode="contained-tonal"
-                        containerColor={colors.surface}
+                        mode="contained"
+                        containerColor="rgba(0,0,0,0.5)"
                     />
-                    {isAdmin && (
-                        <Portal>
-                            <Menu
-                                visible={menuVisible}
-                                onDismiss={() => setMenuVisible(false)}
-                                anchor={
-                                    <IconButton
-                                        icon="dots-vertical"
-                                        size={20}
-                                        iconColor={colors.onSurface}
-                                        onPress={() => setMenuVisible(true)}
-                                        mode="contained-tonal"
-                                        containerColor={colors.surface}
-                                    />
-                                }
-                            >
-                                <Menu.Item
-                                    onPress={() => {
-                                        setMenuVisible(false);
-                                        router.push(`/event/create?clubId=${club.id}`);
-                                    }}
-                                    title="Create Event"
-                                    leadingIcon="calendar-plus"
-                                />
-                                <Menu.Item
-                                    onPress={() => {
-                                        setMenuVisible(false);
-                                        router.push(`/club/${club.id}/edit`);
-                                    }}
-                                    title="Edit Club"
-                                    leadingIcon="pencil"
-                                />
-                                <Menu.Item
-                                    onPress={() => {
-                                        setMenuVisible(false);
-                                        router.push(`/club/${club.id}/manage`);
-                                    }}
-                                    title="Manage Members"
-                                    leadingIcon="account-cog"
-                                />
-                                <Menu.Item
-                                    onPress={() => {
-                                        setMenuVisible(false);
-                                        // Add delete functionality
-                                    }}
-                                    title="Delete Club"
-                                    leadingIcon="delete"
-                                />
-                            </Menu>
-                        </Portal>
-                    )}
                 </View>
 
                 {/* Enhanced Club Header */}

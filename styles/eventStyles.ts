@@ -19,17 +19,26 @@ export const eventStyles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingTop: 60,
+        paddingTop: 50,
         paddingBottom: 10,
-        paddingHorizontal: 20,
+        paddingHorizontal: 16,
         position: 'absolute',
         top: 0,
         left: 0,
         right: 0,
         zIndex: 10,
+        borderRadius: 0,
+        borderBottomLeftRadius: 12,
+        borderBottomRightRadius: 12,
     },
     backButton: {
         margin: 0,
+        borderRadius: 20,
+    },
+    contentContainer: {
+        paddingTop: 100, // Add padding to prevent overlap with navigation
+        paddingHorizontal: 16,
+        paddingBottom: 100, // Account for fixed action buttons
     },
     imageContainer: {
         width: width,
@@ -41,7 +50,6 @@ export const eventStyles = StyleSheet.create({
         height: '100%',
     },
     card: {
-        marginHorizontal: 16,
         marginBottom: 16,
         elevation: 2,
         shadowColor: '#000',
@@ -141,5 +149,24 @@ export const eventStyles = StyleSheet.create({
     fullEventText: {
         fontSize: 16,
         fontWeight: '500',
+    },
+    fixedActionButtons: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        padding: 16,
+        paddingBottom: 32,
+        elevation: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(0,0,0,0.1)',
+    },
+    fixedActionButton: {
+        marginBottom: 8,
+        borderRadius: 12,
     },
 });

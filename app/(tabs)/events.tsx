@@ -140,6 +140,23 @@ export default function EventsPage() {
 
         return (
             <Card style={[styles.card, { backgroundColor: colors.surface }]} mode="outlined">
+                {/* Event Header Image */}
+                <View style={styles.eventImageContainer}>
+                    <View style={[styles.eventImagePlaceholder, { backgroundColor: getCategoryColor(event.category) + '20' }]}>
+                        <MaterialCommunityIcons
+                            name={event.category === 'tournament' ? 'trophy' : 
+                                  event.category === 'training' ? 'dumbbell' :
+                                  event.category === 'social' ? 'account-group' : 'calendar'}
+                            size={40}
+                            color={getCategoryColor(event.category)}
+                        />
+                    </View>
+                    <View style={[styles.eventTimeOverlay, { backgroundColor: colors.surface + 'F0' }]}>
+                        <Text style={[styles.eventTimeText, { color: colors.onSurface }]}>
+                            {eventDateTime.time}
+                        </Text>
+                    </View>
+                </View>
                 <Card.Content>
                     <View style={styles.cardHeader}>
                         <View style={styles.eventInfo}>
@@ -214,7 +231,7 @@ export default function EventsPage() {
                                 color={colors.onSurfaceVariant}
                             />
                             <Text style={[styles.detailText, { color: colors.onSurfaceVariant }]}>
-                                {eventDateTime.date} at {eventDateTime.time}
+                                {eventDateTime.date}
                             </Text>
                         </View>
 
@@ -348,11 +365,12 @@ export default function EventsPage() {
 
             {/* Content */}
             <ScrollView
-                style={styles.content}
-                refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-                }
-                showsVerticalScrollIndicator={false}
+            style={styles.content}
+            refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 120 }}
             >
                 {filteredEvents.length > 0 ? (
                     filteredEvents.map(event => (
@@ -409,8 +427,6 @@ export default function EventsPage() {
                         </Text>
                     </View>
                 )}
-
-                <View style={{ height: 100 }} />
             </ScrollView>
         </View>
     );
@@ -522,5 +538,32 @@ const styles = StyleSheet.create({
         fontSize: 14,
         textAlign: 'center',
         lineHeight: 20,
+    },
+    eventImageContainer: {
+        height: 120,
+        backgroundColor: '#f5f5f5',
+        position: 'relative',
+    },
+    eventImagePlaceholder: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    eventTimeOverlay: {
+        position: 'absolute',
+        top: 12,
+        right: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+    },
+    eventTimeText: {
+        fontSize: 12,
+        fontWeight: 'bold',
     },
 });

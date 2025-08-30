@@ -13,7 +13,6 @@ import {
     Paragraph,
     Chip,
     Button,
-    FAB,
     Searchbar,
     useTheme,
     Badge
@@ -98,11 +97,13 @@ export default function ClubsPage() {
             <Card style={[styles.card, { backgroundColor: colors.surface }]} mode="outlined">
                 <Card.Content>
                     <View style={styles.cardHeader}>
-                        <View style={styles.clubInfo}>
-                            <Title style={[styles.cardTitle, { color: colors.onSurface }]}>
-                                {club.clubName}
-                            </Title>
-                            <View style={styles.badges}>
+                        <View style={styles.clubHeaderRow}>
+                            <View style={styles.clubTitleSection}>
+                                <Title style={[styles.cardTitle, { color: colors.onSurface }]}>
+                                    {club.clubName}
+                                </Title>
+                            </View>
+                            <View style={styles.adminBadgeContainer}>
                                 <Chip
                                     mode="flat"
                                     textStyle={{ 
@@ -204,12 +205,25 @@ export default function ClubsPage() {
         <View style={[styles.container, { backgroundColor: colors.background }]}>
             {/* Header */}
             <View style={[styles.header, { backgroundColor: colors.surface }]}>
-                <Text style={[styles.title, { color: colors.onSurface }]}>
-                    My Clubs
-                </Text>
-                <Text style={[styles.subtitle, { color: colors.onSurfaceVariant }]}>
-                    {filteredClubs.length} club{filteredClubs.length !== 1 ? 's' : ''}
-                </Text>
+                <View style={styles.headerRow}>
+                    <View style={styles.headerText}>
+                        <Text style={[styles.title, { color: colors.onSurface }]}>
+                            My Clubs
+                        </Text>
+                        <Text style={[styles.subtitle, { color: colors.onSurfaceVariant }]}>
+                            {filteredClubs.length} club{filteredClubs.length !== 1 ? 's' : ''}
+                        </Text>
+                    </View>
+                    <Button
+                        mode="contained"
+                        icon="plus"
+                        onPress={() => router.push('/club/create')}
+                        style={styles.headerButton}
+                        compact
+                    >
+                        Create
+                    </Button>
+                </View>
             </View>
 
             {/* Search Bar */}
@@ -229,6 +243,7 @@ export default function ClubsPage() {
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
                 }
                 showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 120 }}
             >
                 {filteredClubs.length > 0 ? (
                     filteredClubs.map(club => (
@@ -270,17 +285,7 @@ export default function ClubsPage() {
                         </Button>
                     </View>
                 )}
-
-                <View style={{ height: 100 }} />
             </ScrollView>
-
-            {/* Floating Action Button */}
-            <FAB
-                icon="plus"
-                style={[styles.fab, { backgroundColor: colors.primary }]}
-                onPress={() => router.push('/club/create')}
-                label="Create Club"
-            />
         </View>
     );
 }
@@ -305,6 +310,18 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
+    },
+    headerRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    headerText: {
+        flex: 1,
+    },
+    headerButton: {
+        borderRadius: 20,
+        minWidth: 100,
     },
     title: {
         fontSize: 28,
@@ -333,20 +350,25 @@ const styles = StyleSheet.create({
     cardHeader: {
         marginBottom: 8,
     },
-    clubInfo: {
+    clubHeaderRow: {
         flexDirection: 'row',
+        alignItems: 'center',
         justifyContent: 'space-between',
-        alignItems: 'flex-start',
     },
-    cardTitle: {
-        fontSize: 18,
+    clubTitleSection: {
+        flex: 1,
+    },
+    clubInfo: {
         flex: 1,
         marginRight: 8,
     },
-    badges: {
-        flexDirection: 'row',
+    cardTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+    },
+    adminBadgeContainer: {
         alignItems: 'center',
-        gap: 8,
+        justifyContent: 'center',
     },
     clubDetails: {
         gap: 8,
@@ -379,11 +401,5 @@ const styles = StyleSheet.create({
         fontSize: 14,
         textAlign: 'center',
         lineHeight: 20,
-    },
-    fab: {
-        position: 'absolute',
-        margin: 16,
-        right: 0,
-        bottom: 0,
     },
 });

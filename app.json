@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "rallysphere",
-    "slug": "rallysphere",
+    "name": "RallySphere",
+    "slug": "rally-sphere",
     "scheme": "rallysphere",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -16,13 +16,22 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rallysphere.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app uses the camera to capture and upload event photos.",
+        "NSPhotoLibraryUsageDescription": "This app accesses your photo library to select images for events and club profiles.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.rallysphere.app",
+      "versionCode": 2
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -31,6 +40,13 @@
       "expo-router",
       "expo-font",
       "expo-secure-store"
-    ]
+    ],
+    "owner": "ibemisha",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ee1b7bed-c9c2-4c0f-aee6-43e55c75b4d9"
+      }
+    }
   }
 }

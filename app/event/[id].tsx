@@ -217,23 +217,24 @@ export default function EventDetailsScreen() {
                 showsVerticalScrollIndicator={false}
             >
                 {/* Top Navigation with Back Button */}
-                <View style={[styles.topNav, { backgroundColor: 'transparent' }]}>
+                <View style={[styles.topNav, { backgroundColor: 'rgba(0,0,0,0.3)' }]}>
                     <IconButton
                         icon="arrow-left"
                         size={20}
-                        iconColor={colors.onSurface}
+                        iconColor={'white'}
                         onPress={() => router.back()}
                         style={styles.backButton}
-                        mode="contained-tonal"
-                        containerColor={colors.surface}
+                        mode="contained"
+                        containerColor="rgba(0,0,0,0.5)"
                     />
                     <IconButton
                         icon="share-variant"
                         size={20}
-                        iconColor={colors.onSurface}
+                        iconColor={'white'}
                         onPress={handleShareEvent}
-                        mode="contained-tonal"
-                        containerColor={colors.surface}
+                        style={styles.backButton}
+                        mode="contained"
+                        containerColor="rgba(0,0,0,0.5)"
                     />
                 </View>
 
@@ -248,8 +249,9 @@ export default function EventDetailsScreen() {
                     </View>
                 )}
 
-                {/* Event Header Card */}
-                <Card style={[styles.card, { backgroundColor: colors.surface }]} mode="outlined">
+                {/* Event Header Card with proper spacing */}
+                <View style={styles.contentContainer}>
+                    <Card style={[styles.card, { backgroundColor: colors.surface }]} mode="outlined">
                     <Card.Content style={styles.cardContent}>
                         <View style={styles.eventHeader}>
                             <View style={styles.eventTitleSection}>
@@ -449,83 +451,79 @@ export default function EventDetailsScreen() {
                     </Card>
                 )}
 
-                {/* Action Buttons */}
-                {!isEventPast && (
-                    <Card style={[styles.card, { backgroundColor: colors.surface }]} mode="outlined">
-                        <Card.Content style={styles.cardContent}>
-                            <View style={styles.actionButtons}>
-                                {canJoin && (
-                                    <Button
-                                        mode="contained"
-                                        onPress={handleJoinEvent}
-                                        loading={actionLoading}
-                                        disabled={actionLoading}
-                                        style={styles.actionButton}
-                                        icon="account-plus"
-                                    >
-                                        {event.cost > 0 ? `Join ($${(event.cost / 100).toFixed(2)})` : 'Join Event'}
-                                    </Button>
-                                )}
-
-                                {isJoined && (
-                                    <Button
-                                        mode="outlined"
-                                        onPress={handleLeaveEvent}
-                                        loading={actionLoading}
-                                        disabled={actionLoading}
-                                        style={styles.actionButton}
-                                        textColor={colors.error}
-                                        icon="account-minus"
-                                    >
-                                        Leave Event
-                                    </Button>
-                                )}
-
-                                {(isEventCreator || isClubAdminUser) && (
-                                    <Button
-                                        mode="contained"
-                                        onPress={() => router.push(`/event/${event.id}/manage`)}
-                                        style={styles.actionButton}
-                                        icon="cog"
-                                    >
-                                        Manage Event
-                                    </Button>
-                                )}
-
-                                {!club.clubMembers.includes(user?.uid || '') && (
-                                    <View style={styles.joinClubPrompt}>
-                                        <Text style={[styles.promptText, { color: colors.onSurfaceVariant }]}>
-                                            Join {club.clubName} to participate in events
-                                        </Text>
-                                        <Button
-                                            mode="outlined"
-                                            onPress={() => router.push(`/club/${club.id}`)}
-                                            style={{ marginTop: 8 }}
-                                        >
-                                            View Club
-                                        </Button>
-                                    </View>
-                                )}
-
-                                {isFull && !isJoined && (
-                                    <View style={styles.fullEventMessage}>
-                                        <MaterialCommunityIcons
-                                            name="account-alert"
-                                            size={24}
-                                            color={colors.onSurfaceVariant}
-                                        />
-                                        <Text style={[styles.fullEventText, { color: colors.onSurfaceVariant }]}>
-                                            This event is full
-                                        </Text>
-                                    </View>
-                                )}
-                            </View>
-                        </Card.Content>
-                    </Card>
-                )}
-
-                <View style={{ height: 100 }} />
+                </View>
             </ScrollView>
+            
+            {/* Fixed Action Buttons */}
+            {!isEventPast && (
+                <View style={[styles.fixedActionButtons, { backgroundColor: colors.surface }]}>
+                    {canJoin && (
+                        <Button
+                            mode="contained"
+                            onPress={handleJoinEvent}
+                            loading={actionLoading}
+                            disabled={actionLoading}
+                            style={styles.fixedActionButton}
+                            icon="account-plus"
+                        >
+                            {event.cost > 0 ? `Join (${(event.cost / 100).toFixed(2)})` : 'Join Event'}
+                        </Button>
+                    )}
+
+                    {isJoined && (
+                        <Button
+                            mode="outlined"
+                            onPress={handleLeaveEvent}
+                            loading={actionLoading}
+                            disabled={actionLoading}
+                            style={styles.fixedActionButton}
+                            textColor={colors.error}
+                            icon="account-minus"
+                        >
+                            Leave Event
+                        </Button>
+                    )}
+
+                    {(isEventCreator || isClubAdminUser) && (
+                        <Button
+                            mode="contained"
+                            onPress={() => router.push(`/event/${event.id}/manage`)}
+                            style={styles.fixedActionButton}
+                            icon="cog"
+                        >
+                            Manage Event
+                        </Button>
+                    )}
+
+                    {!club.clubMembers.includes(user?.uid || '') && (
+                        <View style={styles.joinClubPrompt}>
+                            <Text style={[styles.promptText, { color: colors.onSurfaceVariant }]}>
+                                Join {club.clubName} to participate in events
+                            </Text>
+                            <Button
+                                mode="outlined"
+                                onPress={() => router.push(`/club/${club.id}`)}
+                                style={{ marginTop: 8 }}
+                            >
+                                View Club
+                            </Button>
+                        </View>
+                    )}
+
+                    {isFull && !isJoined && (
+                        <View style={styles.fullEventMessage}>
+                            <MaterialCommunityIcons
+                                name="account-alert"
+                                size={24}
+                                color={colors.onSurfaceVariant}
+                            />
+                            <Text style={[styles.fullEventText, { color: colors.onSurfaceVariant }]}>
+                                This event is full
+                            </Text>
+                        </View>
+                    )}
+                </View>
+            )}
         </View>
     );
 }
