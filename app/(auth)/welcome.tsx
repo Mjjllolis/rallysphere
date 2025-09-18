@@ -1,271 +1,149 @@
-// app/(auth)/welcome.tsx
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+// app/(auth)/welcome.tsx - Simplified Welcome Screen
+import React, { useState } from 'react';
 import {
     View,
-    KeyboardAvoidingView,
-    Platform,
-    ImageBackground,
-    Image,
-    StyleSheet,
     Text,
-    Animated,
-    Easing,
-    UIManager,
-    LayoutAnimation,
+    StyleSheet,
+    Alert,
+    ScrollView,
 } from 'react-native';
-import { TextInput, Button, Card, ActivityIndicator } from 'react-native-paper';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { emailSignIn, emailSignUp, updateUserProfile, sendPasswordReset } from '../../lib/firebase/auth';
-import { getUserProfile, createUserProfile } from '../../lib/firebase/firestore-functions';
-
-// Assets (match filename case)
-import BackgroundImg from '../../assets/Background.png';
-import LogoImg from '../../assets/Logo.png';
+import {
+    TextInput,
+    Button,
+    Card,
+    Title,
+} from 'react-native-paper';
+import { useRouter } from 'expo-router';
+import { signUpWithEmail, signInWithEmail } from '../../lib/firebase';
 
 type Mode = 'signin' | 'signup';
 
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-    UIManager.setLayoutAnimationEnabledExperimental(true);
-}
-
-export default function WelcomeAuth() {
-    const { r } = useLocalSearchParams<{ r?: 'player' | 'club' }>();
-    const role = r === 'club' ? 'club' : 'player';
-
+export default function Welcome() {
     const [mode, setMode] = useState<Mode>('signup');
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
-    const [pw, setPw] = useState('');
-    const [showPw, setShowPw] = useState(false);
-    const [err, setErr] = useState<string | null>(null);
-    const [busy, setBusy] = useState(false);
+    const [password, setPassword] = useState('');
+    const [loading, setLoading] = useState(false);
+    
     const router = useRouter();
 
-    // Animations
-    const scale = useRef(new Animated.Value(1)).current;
-    const opacity = useRef(new Animated.Value(1)).current;
-
-    const runModeAnim = () => {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-        Animated.parallel([
-            Animated.sequence([
-                Animated.timing(scale, { toValue: 0.98, duration: 120, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-                Animated.timing(scale, { toValue: 1, duration: 180, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-            ]),
-            Animated.sequence([
-                Animated.timing(opacity, { toValue: 0.85, duration: 120, useNativeDriver: true }),
-                Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
-            ]),
-        ]).start();
-    };
-
-    useEffect(() => {
-        runModeAnim();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [mode]);
-
-    const title = useMemo(() => (mode === 'signin' ? 'Welcome back' : 'Create your account'), [mode]);
-    const cta = mode === 'signin' ? 'Sign In' : 'Sign Up';
-
     const onSubmit = async () => {
-        setErr(null);
-        setBusy(true);
-
-        // gentle pulse while loading
-        const pulse = Animated.loop(
-            Animated.sequence([
-                Animated.timing(scale, { toValue: 0.99, duration: 200, useNativeDriver: true }),
-                Animated.timing(scale, { toValue: 1.0, duration: 200, useNativeDriver: true }),
-            ])
-        );
-        pulse.start();
-
+        setLoading(true);
         try {
             if (mode === 'signin') {
-                const userCredential = await emailSignIn(email.trim(), pw);
-                const user = userCredential.user;
-
-                // Check if user profile exists, create if not (for existing users)
-                const userProfile = await getUserProfile(user.uid);
-                if (!userProfile) {
-                    await createUserProfile({
-                        id: user.uid,
-                        email: user.email!,
-                        displayName: user.displayName || name || '',
-                        joinedClubs: [],
-                        eventsAttended: []
-                    });
-                }
+                await signInWithEmail(email.trim(), password);
             } else {
-                const cred = await emailSignUp(email.trim(), pw);
-                const user = cred.user;
-
-                if (name) await updateUserProfile(user, { displayName: name });
-
-                // Create user profile with our new structure
-                await createUserProfile({
-                    id: user.uid,
-                    email: user.email!,
-                    displayName: name || '',
-                    joinedClubs: [],
-                    eventsAttended: []
-                });
+                await signUpWithEmail(email.trim(), password);
             }
             router.replace('/(tabs)');
-        } catch (e: any) {
-            let errorMessage = e?.message ?? 'Something went wrong';
-            
-            // Handle common Firebase errors
-            if (e?.code === 'auth/email-already-in-use') {
-                errorMessage = 'An account with this email already exists.';
-            } else if (e?.code === 'auth/invalid-email') {
-                errorMessage = 'Invalid email address.';
-            } else if (e?.code === 'auth/weak-password') {
-                errorMessage = 'Password is too weak.';
-            } else if (e?.code === 'auth/user-not-found') {
-                errorMessage = 'No account found with this email.';
-            } else if (e?.code === 'auth/wrong-password' || e?.code === 'auth/invalid-credential') {
-                errorMessage = 'Incorrect password.';
-            } else if (e?.code === 'auth/too-many-requests') {
-                errorMessage = 'Too many attempts. Please try again later.';
-            } else if (e?.code === 'auth/network-request-failed') {
-                errorMessage = 'Network error. Please check your connection.';
-            }
-            
-            setErr(errorMessage);
+        } catch (error: any) {
+            Alert.alert('Error', error.message || 'Authentication failed');
         } finally {
-            pulse.stop();
-            setBusy(false);
-            scale.setValue(1);
-        }
-    };
-
-    const onForgot = async () => {
-        if (!email) return setErr('Enter your email first.');
-        setErr(null);
-        try {
-            await sendPasswordReset(email.trim());
-            setErr('Password reset sent. Check your inbox.');
-        } catch (e: any) {
-            setErr(e?.message ?? 'Could not send reset email');
+            setLoading(false);
         }
     };
 
     return (
-        <ImageBackground source={BackgroundImg} style={styles.bg} resizeMode="cover">
-            {/* 40% white overlay so only the background lightens */}
-            <View style={styles.overlay} />
+        <ScrollView style={styles.container}>
+            <View style={styles.content}>
+                <Title style={styles.title}>RallySphere</Title>
+                
+                <Card style={styles.card} mode="outlined">
+                    <Card.Content>
+                        <View style={styles.toggleContainer}>
+                            <Button
+                                mode={mode === 'signin' ? 'contained' : 'outlined'}
+                                onPress={() => setMode('signin')}
+                                style={styles.toggleButton}
+                            >
+                                Sign In
+                            </Button>
+                            <Button
+                                mode={mode === 'signup' ? 'contained' : 'outlined'}
+                                onPress={() => setMode('signup')}
+                                style={styles.toggleButton}
+                            >
+                                Sign Up
+                            </Button>
+                        </View>
 
-            <KeyboardAvoidingView style={styles.flex} behavior={Platform.select({ ios: 'padding', android: undefined })}>
-                <View style={styles.container}>
-                    {/* Logo */}
-                    <View style={styles.logoContainer}>
-                        <Image source={LogoImg} style={styles.logo} resizeMode="contain" />
-                    </View>
-
-                    {/* Animated Card */}
-                    <Animated.View style={{ transform: [{ scale }], opacity }}>
-                        <Card mode="elevated" style={styles.card}>
-                            <Card.Content style={{ gap: 12 }}>
-                                {/* Toggle */}
-                                <View style={styles.toggleRow}>
-                                    <Button
-                                        mode={mode === 'signin' ? 'contained' : 'outlined'}
-                                        onPress={() => setMode('signin')}
-                                        style={{ flex: 1 }}
-                                    >
-                                        Sign In
-                                    </Button>
-                                    <Button
-                                        mode={mode === 'signup' ? 'contained' : 'outlined'}
-                                        onPress={() => setMode('signup')}
-                                        style={{ flex: 1 }}
-                                    >
-                                        Sign Up
-                                    </Button>
-                                </View>
-
-                                <Text style={styles.title}>{title}</Text>
-
-                                {mode === 'signup' && (
-                                    <TextInput
-                                        label="Name"
-                                        value={name}
-                                        onChangeText={setName}
-                                        autoCapitalize="words"
-                                        mode="outlined"
-                                    />
-                                )}
-
-                                <TextInput
-                                    label="Email"
-                                    value={email}
-                                    onChangeText={setEmail}
-                                    autoCapitalize="none"
-                                    autoCorrect={false}
-                                    keyboardType="email-address"
-                                    mode="outlined"
-                                />
-
-                                <TextInput
-                                    label="Password"
-                                    value={pw}
-                                    onChangeText={setPw}
-                                    secureTextEntry={!showPw}
-                                    right={<TextInput.Icon icon={showPw ? 'eye-off' : 'eye'} onPress={() => setShowPw(s => !s)} />}
-                                    mode="outlined"
-                                />
-
-                                {err ? <Text style={styles.errorText}>{err}</Text> : null}
-
-                                <Button mode="contained" onPress={onSubmit} loading={busy} disabled={busy} style={{ marginTop: 8 }}>
-                                    {cta}
-                                </Button>
-
-                                {mode === 'signin' && (
-                                    <Button mode="text" onPress={onForgot} disabled={busy}>
-                                        Forgot password?
-                                    </Button>
-                                )}
-                            </Card.Content>
-                        </Card>
-
-                        {/* Subtle loading indicator below card */}
-                        {busy && (
-                            <View style={{ alignItems: 'center', marginTop: 12 }}>
-                                <ActivityIndicator animating size="small" />
-                            </View>
+                        {mode === 'signup' && (
+                            <TextInput
+                                label="Full Name"
+                                value={name}
+                                onChangeText={setName}
+                                mode="outlined"
+                                style={styles.input}
+                                autoCapitalize="words"
+                            />
                         )}
-                    </Animated.View>
 
-                    {/* Footer */}
-                    <View style={{ alignItems: 'center', marginTop: 16 }}>
-                        <Text style={{ opacity: 0.6 }}>By continuing you agree to our Terms & Privacy.</Text>
-                    </View>
-                </View>
-            </KeyboardAvoidingView>
-        </ImageBackground>
+                        <TextInput
+                            label="Email"
+                            value={email}
+                            onChangeText={setEmail}
+                            mode="outlined"
+                            style={styles.input}
+                            autoCapitalize="none"
+                            keyboardType="email-address"
+                        />
+
+                        <TextInput
+                            label="Password"
+                            value={password}
+                            onChangeText={setPassword}
+                            mode="outlined"
+                            style={styles.input}
+                            secureTextEntry
+                        />
+
+                        <Button
+                            mode="contained"
+                            onPress={onSubmit}
+                            loading={loading}
+                            disabled={loading}
+                            style={styles.submitButton}
+                        >
+                            {loading ? 'Loading...' : (mode === 'signin' ? 'Sign In' : 'Sign Up')}
+                        </Button>
+                    </Card.Content>
+                </Card>
+            </View>
+        </ScrollView>
     );
 }
 
 const styles = StyleSheet.create({
-    flex: { flex: 1 },
-    bg: { flex: 1 },
-    // White at 40% opacity over the background image
-    overlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(255,255,255,0.4)',
+    container: {
+        flex: 1,
+        backgroundColor: '#F8FAFC',
     },
-    container: { flex: 1, padding: 24, justifyContent: 'center' },
-    logoContainer: { alignItems: 'center', marginBottom: 24 },
-    logo: { width: 200, height: 150 },
-    card: { borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.95)', overflow: 'hidden' },
-    toggleRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
-    title: { fontSize: 20, fontWeight: '700', marginBottom: 4 },
-    errorText: {
-        color: '#DC2626',
-        fontSize: 14,
-        marginBottom: 8,
+    content: {
+        padding: 20,
+        paddingTop: 100,
+    },
+    title: {
+        fontSize: 32,
+        fontWeight: 'bold',
         textAlign: 'center',
+        marginBottom: 40,
+        color: '#1B365D',
+    },
+    card: {
+        padding: 16,
+    },
+    toggleContainer: {
+        flexDirection: 'row',
+        marginBottom: 20,
+        gap: 10,
+    },
+    toggleButton: {
+        flex: 1,
+    },
+    input: {
+        marginBottom: 16,
+    },
+    submitButton: {
+        marginTop: 10,
     },
 });
