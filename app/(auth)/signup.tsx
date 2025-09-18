@@ -11,8 +11,7 @@ import {
     HelperText
 } from 'react-native-paper';
 import { useLocalSearchParams, useRouter, Link } from 'expo-router';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { auth } from '../../lib/firebase/auth';
+import { emailSignUp, updateUserProfile } from '../../lib/firebase/auth';
 import { createUserProfile } from '../../lib/firebase/firestore-functions';
 import { Timestamp } from 'firebase/firestore';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -86,12 +85,12 @@ export default function SignUp() {
         setLoading(true);
         try {
             // 1) Create auth user
-            const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+            const userCredential = await emailSignUp(email.trim(), password);
             const user = userCredential.user;
 
             // 2) Update profile with display name
             if (name.trim()) {
-                await updateProfile(user, { displayName: name.trim() });
+                await updateUserProfile(user, { displayName: name.trim() });
             }
 
             // 3) Create user profile in Firestore
@@ -108,11 +107,21 @@ export default function SignUp() {
             router.replace('/(tabs)');
         } catch (error: any) {
             console.error('Sign up error:', error);
-            Alert.alert(
-                'Sign Up Failed',
-                error.message || 'Failed to create account. Please try again.',
-                [{ text: 'OK' }]
-            );
+            
+            let errorMessage = 'Failed to create account. Please try again.';
+            if (error.code === 'auth/email-already-in-use') {
+                errorMessage = 'An account with this email already exists. Please sign in instead.';
+            } else if (error.code === 'auth/invalid-email') {
+                errorMessage = 'Invalid email address.';
+            } else if (error.code === 'auth/operation-not-allowed') {
+                errorMessage = 'Email/password accounts are not enabled.';
+            } else if (error.code === 'auth/weak-password') {
+                errorMessage = 'Password is too weak. Please choose a stronger password.';
+            } else if (error.code === 'auth/network-request-failed') {
+                errorMessage = 'Network error. Please check your connection.';
+            }
+
+            Alert.alert('Sign Up Failed', errorMessage, [{ text: 'OK' }]);
         } finally {
             setLoading(false);
         }

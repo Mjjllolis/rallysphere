@@ -15,14 +15,8 @@ import {
 } from 'react-native';
 import { TextInput, Button, Card, ActivityIndicator } from 'react-native-paper';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { auth } from '../../lib/firebase/auth';
+import { emailSignIn, emailSignUp, updateUserProfile, sendPasswordReset } from '../../lib/firebase/auth';
 import { getUserProfile, createUserProfile } from '../../lib/firebase/firestore-functions';
-import {
-    signInWithEmailAndPassword,
-    createUserWithEmailAndPassword,
-    updateProfile,
-    sendPasswordResetEmail,
-} from 'firebase/auth';
 
 // Assets (match filename case)
 import BackgroundImg from '../../assets/Background.png';
@@ -88,7 +82,7 @@ export default function WelcomeAuth() {
 
         try {
             if (mode === 'signin') {
-                const userCredential = await signInWithEmailAndPassword(auth, email.trim(), pw);
+                const userCredential = await emailSignIn(email.trim(), pw);
                 const user = userCredential.user;
 
                 // Check if user profile exists, create if not (for existing users)
@@ -103,10 +97,10 @@ export default function WelcomeAuth() {
                     });
                 }
             } else {
-                const cred = await createUserWithEmailAndPassword(auth, email.trim(), pw);
+                const cred = await emailSignUp(email.trim(), pw);
                 const user = cred.user;
 
-                if (name) await updateProfile(user, { displayName: name });
+                if (name) await updateUserProfile(user, { displayName: name });
 
                 // Create user profile with our new structure
                 await createUserProfile({
@@ -119,7 +113,26 @@ export default function WelcomeAuth() {
             }
             router.replace('/(tabs)');
         } catch (e: any) {
-            setErr(e?.message ?? 'Something went wrong');
+            let errorMessage = e?.message ?? 'Something went wrong';
+            
+            // Handle common Firebase errors
+            if (e?.code === 'auth/email-already-in-use') {
+                errorMessage = 'An account with this email already exists.';
+            } else if (e?.code === 'auth/invalid-email') {
+                errorMessage = 'Invalid email address.';
+            } else if (e?.code === 'auth/weak-password') {
+                errorMessage = 'Password is too weak.';
+            } else if (e?.code === 'auth/user-not-found') {
+                errorMessage = 'No account found with this email.';
+            } else if (e?.code === 'auth/wrong-password' || e?.code === 'auth/invalid-credential') {
+                errorMessage = 'Incorrect password.';
+            } else if (e?.code === 'auth/too-many-requests') {
+                errorMessage = 'Too many attempts. Please try again later.';
+            } else if (e?.code === 'auth/network-request-failed') {
+                errorMessage = 'Network error. Please check your connection.';
+            }
+            
+            setErr(errorMessage);
         } finally {
             pulse.stop();
             setBusy(false);
@@ -131,7 +144,7 @@ export default function WelcomeAuth() {
         if (!email) return setErr('Enter your email first.');
         setErr(null);
         try {
-            await sendPasswordResetEmail(auth, email.trim());
+            await sendPasswordReset(email.trim());
             setErr('Password reset sent. Check your inbox.');
         } catch (e: any) {
             setErr(e?.message ?? 'Could not send reset email');

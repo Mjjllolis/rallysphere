@@ -3,8 +3,12 @@ import React, { useEffect, useMemo, useState, createContext, useContext } from '
 import { Slot } from 'expo-router';
 import { Provider as PaperProvider, MD3LightTheme, MD3DarkTheme } from 'react-native-paper';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { auth } from '../lib/firebase/auth';
+import { auth } from '../lib/firebase/config';
 import * as SecureStore from 'expo-secure-store';
+import * as SplashScreen from 'expo-splash-screen';
+
+// Prevent auto-hiding splash screen
+SplashScreen.preventAutoHideAsync();
 
 type AuthCtx = { user: User | null; ready: boolean };
 const AuthContext = createContext<AuthCtx>({ user: null, ready: false });
@@ -128,15 +132,26 @@ export default function RootLayout() {
     // Auth state listener
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
+            console.log('Auth state changed:', user ? `User: ${user.uid}` : 'No user');
             setUser(user);
             setAuthReady(true);
         });
         return unsubscribe;
     }, []);
 
+    // Hide splash screen when app is ready
+    useEffect(() => {
+        if (authReady && !themeLoading) {
+            SplashScreen.hideAsync();
+        }
+    }, [authReady, themeLoading]);
+
     const theme = isDark ? darkTheme : lightTheme;
 
-    if (!authReady || themeLoading) return null;
+    // Show nothing while loading
+    if (!authReady || themeLoading) {
+        return null;
+    }
 
     return (
         <AuthContext.Provider value={{ user, ready: authReady }}>

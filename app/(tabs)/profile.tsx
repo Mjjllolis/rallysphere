@@ -21,9 +21,8 @@ import {
 } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth, useThemeToggle } from '../_layout';
-import { signOut } from 'firebase/auth';
-import { auth } from '../../lib/firebase/auth';
-import { getUserProfile, createUserProfile } from '../../lib/firebase/firestore-functions';
+import { signOutUser } from '../../lib/firebase/auth';
+import { getUserProfile } from '../../lib/firebase/firestore-functions';
 import { router } from 'expo-router';
 
 export default function ProfilePage() {
@@ -36,8 +35,12 @@ export default function ProfilePage() {
     useEffect(() => {
         const fetchProfile = async () => {
             if (user?.uid) {
-                const profile = await getUserProfile(user.uid);
-                setUserProfile(profile);
+                try {
+                    const profile = await getUserProfile(user.uid);
+                    setUserProfile(profile);
+                } catch (error) {
+                    console.error('Error fetching user profile:', error);
+                }
             }
         };
         fetchProfile();
@@ -54,10 +57,11 @@ export default function ProfilePage() {
                     style: 'destructive',
                     onPress: async () => {
                         try {
-                            await signOut(auth);
+                            await signOutUser();
                             router.replace('/(auth)/welcome');
                         } catch (error) {
                             console.error('Sign out error:', error);
+                            Alert.alert('Error', 'Failed to sign out. Please try again.');
                         }
                     }
                 }
@@ -69,12 +73,12 @@ export default function ProfilePage() {
         return email.substring(0, 2).toUpperCase();
     };
 
-    // Mock user stats
+    // Calculate user stats from profile data
     const userStats = {
-        clubsJoined: 2,
-        eventsAttended: 8,
-        tournamentsWon: 1,
-        memberSince: '2024-12-01'
+        clubsJoined: userProfile?.joinedClubs?.length || 0,
+        eventsAttended: userProfile?.eventsAttended?.length || 0,
+        tournamentsWon: 1, // Mock data for now
+        memberSince: userProfile?.createdAt?.toDate()
     };
 
     return (
@@ -90,7 +94,7 @@ export default function ProfilePage() {
                     style={{ backgroundColor: colors.primary }}
                 />
                 <Text style={[styles.name, { color: colors.onSurface }]}>
-                    {user?.displayName || user?.email?.split('@')[0] || 'Player'}
+                    {user?.displayName || userProfile?.displayName || user?.email?.split('@')[0] || 'Player'}
                 </Text>
                 <Text style={[styles.email, { color: colors.onSurfaceVariant }]}>
                     {user?.email}
@@ -104,12 +108,14 @@ export default function ProfilePage() {
                         })}
                     </Text>
                 )}
-                <Text style={[styles.memberSince, { color: colors.onSurfaceVariant }]}>
-                    Member since {userProfile?.createdAt?.toDate().toLocaleDateString('en-US', {
-                        month: 'long',
-                        year: 'numeric'
-                    }) || 'Recently'}
-                </Text>
+                {userStats.memberSince && (
+                    <Text style={[styles.memberSince, { color: colors.onSurfaceVariant }]}>
+                        Member since {userStats.memberSince.toLocaleDateString('en-US', {
+                            month: 'long',
+                            year: 'numeric'
+                        })}
+                    </Text>
+                )}
             </View>
 
             {/* Stats Cards */}

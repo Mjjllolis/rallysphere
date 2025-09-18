@@ -31,8 +31,17 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env
 
 # typescript
 *.tsbuildinfo
 
 app-example
+
+# Firebase backup files
+*.backup
+
+# Editor files
+*.swp
+*.swo
+*~
