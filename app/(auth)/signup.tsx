@@ -1,6 +1,6 @@
 // app/(auth)/signup.tsx
 import React, { useState } from 'react';
-import { View, StyleSheet, Alert, ScrollView, Platform } from 'react-native';
+import { View, StyleSheet, Alert, ScrollView } from 'react-native';
 import {
     TextInput,
     Button,
@@ -11,10 +11,7 @@ import {
     HelperText
 } from 'react-native-paper';
 import { useLocalSearchParams, useRouter, Link } from 'expo-router';
-import { emailSignUp, updateUserProfile } from '../../lib/firebase/auth';
-import { createUserProfile } from '../../lib/firebase/firestore-functions';
-import { Timestamp } from 'firebase/firestore';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { signUpWithEmail } from '../../lib/firebase';
 
 type Role = 'player' | 'club';
 type Params = { r?: Role };
@@ -27,14 +24,11 @@ export default function SignUp() {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [birthday, setBirthday] = useState(new Date());
-    const [showDatePicker, setShowDatePicker] = useState(false);
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({
         name: '',
         email: '',
-        password: '',
-        birthday: ''
+        password: ''
     });
 
     const router = useRouter();
@@ -59,20 +53,11 @@ export default function SignUp() {
         return '';
     };
 
-    const validateBirthday = (birthday: Date) => {
-        const today = new Date();
-        const age = today.getFullYear() - birthday.getFullYear();
-        if (age < 13) return 'You must be at least 13 years old';
-        if (age > 120) return 'Please enter a valid birthday';
-        return '';
-    };
-
     const validateForm = () => {
         const newErrors = {
             name: validateName(name),
             email: validateEmail(email),
-            password: validatePassword(password),
-            birthday: validateBirthday(birthday)
+            password: validatePassword(password)
         };
 
         setErrors(newErrors);
@@ -84,26 +69,10 @@ export default function SignUp() {
 
         setLoading(true);
         try {
-            // 1) Create auth user
-            const userCredential = await emailSignUp(email.trim(), password);
-            const user = userCredential.user;
-
-            // 2) Update profile with display name
-            if (name.trim()) {
-                await updateUserProfile(user, { displayName: name.trim() });
-            }
-
-            // 3) Create user profile in Firestore
-            await createUserProfile({
-                id: user.uid,
-                email: user.email!,
-                displayName: name.trim(),
-                birthday: Timestamp.fromDate(birthday),
-                joinedClubs: [],
-                eventsAttended: []
-            });
-
-            // 4) Navigate to main app
+            // Create auth user
+            await signUpWithEmail(email.trim(), password);
+            
+            // Navigate to main app
             router.replace('/(tabs)');
         } catch (error: any) {
             console.error('Sign up error:', error);
@@ -125,22 +94,6 @@ export default function SignUp() {
         } finally {
             setLoading(false);
         }
-    };
-
-    const onDateChange = (event: any, selectedDate?: Date) => {
-        setShowDatePicker(Platform.OS === 'ios');
-        if (selectedDate) {
-            setBirthday(selectedDate);
-            setErrors(prev => ({ ...prev, birthday: validateBirthday(selectedDate) }));
-        }
-    };
-
-    const formatDate = (date: Date) => {
-        return date.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
     };
 
     return (
@@ -224,46 +177,6 @@ export default function SignUp() {
                             </HelperText>
                         ) : null}
                     </View>
-
-                    {/* Birthday Input */}
-                    <View style={styles.inputContainer}>
-                        <TextInput
-                            label="Birthday *"
-                            value={formatDate(birthday)}
-                            onFocus={() => setShowDatePicker(true)}
-                            mode="outlined"
-                            editable={false}
-                            right={
-                                <TextInput.Icon
-                                    icon="calendar"
-                                    onPress={() => setShowDatePicker(true)}
-                                />
-                            }
-                            error={!!errors.birthday}
-                            style={styles.input}
-                        />
-                        {errors.birthday ? (
-                            <HelperText type="error" visible={!!errors.birthday}>
-                                {errors.birthday}
-                            </HelperText>
-                        ) : (
-                            <HelperText type="info">
-                                You must be at least 13 years old to join
-                            </HelperText>
-                        )}
-                    </View>
-
-                    {/* Date Picker */}
-                    {showDatePicker && (
-                        <DateTimePicker
-                            value={birthday}
-                            mode="date"
-                            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                            onChange={onDateChange}
-                            maximumDate={new Date()}
-                            minimumDate={new Date(1900, 0, 1)}
-                        />
-                    )}
 
                     {/* Sign Up Button */}
                     <Button

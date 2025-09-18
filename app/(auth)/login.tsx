@@ -11,9 +11,7 @@ import {
     HelperText
 } from 'react-native-paper';
 import { useLocalSearchParams, useRouter, Link } from 'expo-router';
-import { emailSignIn } from '../../lib/firebase/auth';
-import { getUserProfile, createUserProfile } from '../../lib/firebase/firestore-functions';
-import { auth } from '../../lib/firebase/config';
+import { signInWithEmail } from '../../lib/firebase';
 
 type Role = 'player' | 'club';
 type Params = { r?: Role };
@@ -61,24 +59,10 @@ export default function Login() {
 
         setLoading(true);
         try {
-            // 1) Sign in user
-            const userCredential = await emailSignIn(email.trim(), password);
-            const user = userCredential.user;
-
-            // 2) Check if user profile exists, create if not (for existing users)
-            const userProfile = await getUserProfile(user.uid);
-            if (!userProfile) {
-                // Create basic profile for existing users
-                await createUserProfile({
-                    id: user.uid,
-                    email: user.email!,
-                    displayName: user.displayName || '',
-                    joinedClubs: [],
-                    eventsAttended: []
-                });
-            }
-
-            // 3) Navigate to main app
+            // Sign in user
+            await signInWithEmail(email.trim(), password);
+            
+            // Navigate to main app
             router.replace('/(tabs)');
         } catch (error: any) {
             console.error('Login error:', error);
