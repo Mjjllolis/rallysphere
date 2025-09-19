@@ -1,0 +1,58 @@
+// Firestore Security Rules
+// Copy these rules to Firebase Console → Firestore Database → Rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users can read/write their own profile
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Clubs rules
+    match /clubs/{clubId} {
+      // Anyone can read public clubs
+      allow read: if resource.data.isPublic == true;
+      // Members can read private clubs
+      allow read: if request.auth != null && request.auth.uid in resource.data.members;
+      // Only authenticated users can create clubs
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.createdBy;
+      // Only admins can update clubs
+      allow update: if request.auth != null && request.auth.uid in resource.data.admins;
+      // Only admins can delete clubs
+      allow delete: if request.auth != null && request.auth.uid in resource.data.admins;
+    }
+    
+    // Events rules
+    match /events/{eventId} {
+      // Anyone can read public events
+      allow read: if resource.data.isPublic == true;
+      // Club members can read private events
+      allow read: if request.auth != null;
+      // Only authenticated users can create events
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.createdBy;
+      // Only event creator and club admins can update events
+      allow update: if request.auth != null && 
+        (request.auth.uid == resource.data.createdBy);
+      // Only event creator and club admins can delete events
+      allow delete: if request.auth != null && 
+        (request.auth.uid == resource.data.createdBy);
+    }
+    
+    // Club join requests
+    match /clubJoinRequests/{requestId} {
+      // Users can read their own requests
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      // Club admins can read requests for their clubs
+      allow read: if request.auth != null && 
+        exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
+        request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.admins;
+      // Users can create join requests
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      // Club admins can update requests (approve/reject)
+      allow update: if request.auth != null && 
+        exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
+        request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.admins;
+    }
+  }
+}

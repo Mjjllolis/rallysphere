@@ -113,7 +113,6 @@ export default function RootLayout() {
   const [authLoading, setAuthLoading] = useState(true);
   const [isDark, setIsDark] = useState(false);
   const [themeLoading, setThemeLoading] = useState(true);
-  const [authError, setAuthError] = useState<string | null>(null);
 
   // Load theme preference
   useEffect(() => {
@@ -138,30 +137,18 @@ export default function RootLayout() {
     await setStoredTheme(newTheme ? "dark" : "light");
   };
 
-  // Auth state listener with timeout
+  // Auth state listener
   useEffect(() => {
     console.log('Setting up Firebase auth listener...');
     
-    // Set up auth state listener
     const unsubscribe = onAuthStateChange((user) => {
       console.log('Auth state changed:', user ? `User: ${user.email}` : 'No user');
       setUser(user);
       setAuthLoading(false);
-      setAuthError(null);
     });
     
-    // Set a timeout to prevent infinite loading
-    const timeoutId = setTimeout(() => {
-      console.log('Auth initialization timeout - proceeding without auth');
-      setAuthLoading(false);
-      setAuthError('Auth initialization timeout');
-    }, 10000); // 10 second timeout
-    
     // Cleanup function
-    return () => {
-      clearTimeout(timeoutId);
-      unsubscribe();
-    };
+    return unsubscribe;
   }, []);
 
   // Hide splash screen when ready
@@ -188,7 +175,7 @@ export default function RootLayout() {
   }
   
   // Log final state
-  console.log('Layout ready - User:', user ? user.email : 'No user', 'Error:', authError);
+  console.log('Layout ready - User:', user ? user.email : 'No user');
 
   return (
     <AuthContext.Provider value={{ user, isLoading: authLoading }}>

@@ -1,0 +1,36 @@
+// Firebase Storage Security Rules
+// Copy these rules to Firebase Console → Storage → Rules
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // User avatars - users can only upload their own avatar
+    match /users/avatars/{userId}_avatar.jpg {
+      allow read: if true; // Anyone can read avatars
+      allow write: if request.auth != null && request.auth.uid == userId
+        && request.resource.size < 5 * 1024 * 1024 // Max 5MB
+        && request.resource.contentType.matches('image/.*'); // Only images
+    }
+    
+    // Club images - only club admins can upload
+    match /clubs/{allPaths=**} {
+      allow read: if true; // Anyone can read club images
+      allow write: if request.auth != null 
+        && request.resource.size < 10 * 1024 * 1024 // Max 10MB
+        && request.resource.contentType.matches('image/.*'); // Only images
+    }
+    
+    // Event images - only event creators can upload
+    match /events/{allPaths=**} {
+      allow read: if true; // Anyone can read event images
+      allow write: if request.auth != null 
+        && request.resource.size < 10 * 1024 * 1024 // Max 10MB
+        && request.resource.contentType.matches('image/.*'); // Only images
+    }
+    
+    // Deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
