@@ -1,255 +1,136 @@
-// app/(auth)/login.tsx
+// app/(auth)/login.tsx - Super simple version
 import React, { useState } from 'react';
-import { View, StyleSheet, Alert, ScrollView } from 'react-native';
+import { View, StyleSheet, Alert } from 'react-native';
 import {
-    TextInput,
-    Button,
-    Text,
-    useTheme,
-    Card,
-    Title,
-    HelperText
+  Text,
+  TextInput,
+  Button,
+  Card
 } from 'react-native-paper';
-import { useLocalSearchParams, useRouter, Link } from 'expo-router';
-import { signInWithEmail } from '../../lib/firebase';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
+import { signIn } from '../../lib/firebase';
 
-type Role = 'player' | 'club';
-type Params = { r?: Role };
+export default function LoginScreen() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-export default function Login() {
-    const { colors } = useTheme();
-    const { r } = useLocalSearchParams<Params>();
-    const role: Role = r === 'club' ? 'club' : 'player';
+  console.log('LoginScreen rendering - super simple');
 
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [errors, setErrors] = useState({
-        email: '',
-        password: ''
-    });
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
 
-    const router = useRouter();
+    setLoading(true);
+    try {
+      const result = await signIn(email.trim(), password);
+      if (result.success) {
+        router.replace('/(tabs)');
+      } else {
+        Alert.alert('Login Failed', result.error || 'Invalid email or password');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      Alert.alert('Error', 'An unexpected error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    // Validation functions
-    const validateEmail = (email: string) => {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!email.trim()) return 'Email is required';
-        if (!emailRegex.test(email.trim())) return 'Please enter a valid email';
-        return '';
-    };
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.content}>
+        <Text variant="headlineMedium" style={styles.title}>
+          Sign In
+        </Text>
 
-    const validatePassword = (password: string) => {
-        if (!password) return 'Password is required';
-        return '';
-    };
+        <Card style={styles.card}>
+          <Card.Content style={styles.cardContent}>
+            <TextInput
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+              mode="outlined"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              style={styles.input}
+            />
 
-    const validateForm = () => {
-        const newErrors = {
-            email: validateEmail(email),
-            password: validatePassword(password)
-        };
+            <TextInput
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              mode="outlined"
+              secureTextEntry
+              style={styles.input}
+            />
 
-        setErrors(newErrors);
-        return !Object.values(newErrors).some(error => error !== '');
-    };
+            <Button
+              mode="contained"
+              onPress={handleLogin}
+              loading={loading}
+              disabled={loading}
+              style={styles.button}
+              buttonColor="#4F8CC9"
+            >
+              Sign In
+            </Button>
 
-    const onLogin = async () => {
-        if (!validateForm()) return;
+            <Button
+              mode="text"
+              onPress={() => router.push('/(auth)/signup')}
+              style={styles.linkButton}
+            >
+              Don't have an account? Sign Up
+            </Button>
 
-        setLoading(true);
-        try {
-            // Sign in user
-            await signInWithEmail(email.trim(), password);
-            
-            // Navigate to main app
-            router.replace('/(tabs)');
-        } catch (error: any) {
-            console.error('Login error:', error);
-
-            let errorMessage = 'Login failed. Please try again.';
-            if (error.code === 'auth/user-not-found') {
-                errorMessage = 'No account found with this email address.';
-            } else if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-                errorMessage = 'Incorrect password.';
-            } else if (error.code === 'auth/invalid-email') {
-                errorMessage = 'Invalid email address.';
-            } else if (error.code === 'auth/user-disabled') {
-                errorMessage = 'This account has been disabled.';
-            } else if (error.code === 'auth/too-many-requests') {
-                errorMessage = 'Too many failed attempts. Please try again later.';
-            } else if (error.code === 'auth/network-request-failed') {
-                errorMessage = 'Network error. Please check your connection.';
-            }
-
-            Alert.alert('Login Failed', errorMessage, [{ text: 'OK' }]);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <ScrollView
-            style={[styles.container, { backgroundColor: colors.background }]}
-            contentContainerStyle={styles.content}
-            keyboardShouldPersistTaps="handled"
-        >
-            <Card style={[styles.card, { backgroundColor: colors.surface }]} mode="outlined">
-                <Card.Content style={styles.cardContent}>
-                    <Title style={[styles.title, { color: colors.onSurface }]}>
-                        Welcome Back
-                    </Title>
-                    <Text style={[styles.subtitle, { color: colors.onSurfaceVariant }]}>
-                        Sign in to your RallySphere account
-                    </Text>
-
-                    {/* Email Input */}
-                    <View style={styles.inputContainer}>
-                        <TextInput
-                            label="Email Address"
-                            value={email}
-                            onChangeText={(text) => {
-                                setEmail(text);
-                                setErrors(prev => ({ ...prev, email: validateEmail(text) }));
-                            }}
-                            mode="outlined"
-                            autoCapitalize="none"
-                            keyboardType="email-address"
-                            autoComplete="email"
-                            error={!!errors.email}
-                            style={styles.input}
-                        />
-                        {errors.email ? (
-                            <HelperText type="error" visible={!!errors.email}>
-                                {errors.email}
-                            </HelperText>
-                        ) : null}
-                    </View>
-
-                    {/* Password Input */}
-                    <View style={styles.inputContainer}>
-                        <TextInput
-                            label="Password"
-                            value={password}
-                            onChangeText={(text) => {
-                                setPassword(text);
-                                setErrors(prev => ({ ...prev, password: validatePassword(text) }));
-                            }}
-                            mode="outlined"
-                            secureTextEntry
-                            autoComplete="password"
-                            error={!!errors.password}
-                            style={styles.input}
-                        />
-                        {errors.password ? (
-                            <HelperText type="error" visible={!!errors.password}>
-                                {errors.password}
-                            </HelperText>
-                        ) : null}
-                    </View>
-
-                    {/* Login Button */}
-                    <Button
-                        mode="contained"
-                        onPress={onLogin}
-                        loading={loading}
-                        disabled={loading}
-                        style={styles.button}
-                        contentStyle={styles.buttonContent}
-                    >
-                        {loading ? 'Signing In...' : 'Sign In'}
-                    </Button>
-
-                    {/* Forgot Password Link */}
-                    <View style={styles.forgotContainer}>
-                        <Text style={[styles.forgotText, { color: colors.primary }]}>
-                            Forgot Password?
-                        </Text>
-                    </View>
-
-                    {/* Sign Up Link */}
-                    <View style={styles.signUpContainer}>
-                        <Text style={[styles.signUpText, { color: colors.onSurfaceVariant }]}>
-                            Don't have an account?{' '}
-                        </Text>
-                        <Link
-                            href={{ pathname: '/(auth)/signup', params: { r: role } }}
-                            style={[styles.signUpLink, { color: colors.primary }]}
-                        >
-                            Create Account
-                        </Link>
-                    </View>
-                </Card.Content>
-            </Card>
-        </ScrollView>
-    );
+            <Button
+              mode="text"
+              onPress={() => router.back()}
+              style={styles.linkButton}
+            >
+              Back to Welcome
+            </Button>
+          </Card.Content>
+        </Card>
+      </View>
+    </SafeAreaView>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    content: {
-        flexGrow: 1,
-        justifyContent: 'center',
-        padding: 20,
-    },
-    card: {
-        elevation: 4,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-    },
-    cardContent: {
-        gap: 16,
-        paddingVertical: 24,
-    },
-    title: {
-        fontSize: 28,
-        fontWeight: 'bold',
-        textAlign: 'center',
-        marginBottom: 8,
-    },
-    subtitle: {
-        fontSize: 16,
-        textAlign: 'center',
-        marginBottom: 24,
-        lineHeight: 22,
-    },
-    inputContainer: {
-        marginBottom: 8,
-    },
-    input: {
-        backgroundColor: 'transparent',
-    },
-    button: {
-        marginTop: 16,
-        marginBottom: 8,
-    },
-    buttonContent: {
-        paddingVertical: 8,
-    },
-    forgotContainer: {
-        alignItems: 'center',
-        marginTop: 8,
-        marginBottom: 16,
-    },
-    forgotText: {
-        fontSize: 16,
-        fontWeight: '500',
-    },
-    signUpContainer: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginTop: 16,
-    },
-    signUpText: {
-        fontSize: 16,
-    },
-    signUpLink: {
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
+  container: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  content: {
+    flex: 1,
+    padding: 20,
+    justifyContent: 'center',
+  },
+  title: {
+    textAlign: 'center',
+    marginBottom: 32,
+    color: '#1B365D',
+    fontWeight: 'bold',
+  },
+  card: {
+    elevation: 4,
+  },
+  cardContent: {
+    padding: 24,
+  },
+  input: {
+    marginBottom: 16,
+  },
+  button: {
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  linkButton: {
+    marginBottom: 8,
+  },
 });
