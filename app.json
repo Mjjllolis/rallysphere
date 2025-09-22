@@ -37,13 +37,13 @@
       "eas": {
         "projectId": "ee1b7bed-c9c2-4c0f-aee6-43e55c75b4d9"
       },
-      "EXPO_PUBLIC_API_KEY": "AIzaSyCBfDrHXkGK0ZkiGziSbzjv3nQSclPZQkw",
-      "EXPO_PUBLIC_AUTH_DOMAIN": "ralleytests.firebaseapp.com",
-      "EXPO_PUBLIC_PROJECT_ID": "ralleytests",
-      "EXPO_PUBLIC_STORAGE_BUCKET": "ralleytests.appspot.com",
-      "EXPO_PUBLIC_MESSAGING_SENDER_ID": "773175678881",
-      "EXPO_PUBLIC_APP_ID": "1:773175678881:web:cf6b87e584f86e672d5de0",
-      "EXPO_PUBLIC_MEASUREMENT_ID": "G-14QXXVJKZG"
+      "EXPO_PUBLIC_API_KEY": "AIzaSyDXRHfV-RjRvXH8E7d07XTZi7bv07la7hY",
+      "EXPO_PUBLIC_AUTH_DOMAIN": "rally-sphere.firebaseapp.com",
+      "EXPO_PUBLIC_PROJECT_ID": "rally-sphere",
+      "EXPO_PUBLIC_STORAGE_BUCKET": "rally-sphere.firebasestorage.app",
+      "EXPO_PUBLIC_MESSAGING_SENDER_ID": "335059242542",
+      "EXPO_PUBLIC_APP_ID": "1:335059242542:web:63a9fe021cbebebb8599bf",
+      "EXPO_PUBLIC_MEASUREMENT_ID": "G-H2R70NP5NE"
     }
   }
 }
