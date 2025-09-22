@@ -1,24 +1,24 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-		"target": "esnext",
-		"module": "esnext",
-		"jsx": "react-jsx",
-		"strict": true,
-		"moduleResolution": "node",
-		"resolveJsonModule": true,
-		"allowJs": true,
-		"noEmit": true,
-		"isolatedModules": true,
-		"esModuleInterop": true,
-		"baseUrl": ".",
-		"paths": {
-			"@/*": ["*"],
-			"@lib/*": ["lib/*"]
-		},
-		"types": ["expo", "react", "react-native"],
-		"skipLibCheck": true
-	},
+    "target": "esnext",
+    "module": "esnext",
+    "jsx": "react-jsx",
+    "strict": true,
+    "moduleResolution": "bundler", // ✅ must be "bundler" (not "node") so Firebase v12 types resolve
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "esModuleInterop": true, // ✅ needed so imports like firebase/auth work cleanly
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["*"],
+      "@lib/*": ["lib/*"]
+    },
+    "types": ["expo", "react", "react-native"],
+    "skipLibCheck": true // ✅ prevents .d.ts conflicts — important with Expo + Firebase
+  },
   "include": [
     "**/*.ts",
     "**/*.tsx",

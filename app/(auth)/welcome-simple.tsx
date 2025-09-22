@@ -1,20 +1,13 @@
-// app/(auth)/welcome-simple.tsx - Just logo, title, and buttons
 import React from 'react';
 import { View, StyleSheet, Image, Platform } from 'react-native';
-import {
-  Text,
-  Button,
-  Card,
-  useTheme
-} from 'react-native-paper';
+import { Text, Button, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { Video } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function WelcomeScreen() {
   const theme = useTheme();
-
-  console.log('WelcomeScreen rendering - simple version');
 
   const handleGetStarted = () => {
     console.log('Get Started pressed');
@@ -28,59 +21,66 @@ export default function WelcomeScreen() {
 
   return (
     <View style={styles.container}>
+      {/* BG video */}
+      <Video
+        source={require('../../assets/bgWelcome.mp4')}
+        style={[StyleSheet.absoluteFill, styles.video]}
+        resizeMode="cover"
+        shouldPlay
+        isLooping
+        isMuted
+      />
+
+      {/* Gradient overlay for readability */}
       <LinearGradient
-        colors={['#0F172A', '#1E293B', '#334155']}
-        style={styles.background}
-      >
-        <SafeAreaView style={styles.safeArea}>
-          <View style={styles.content}>
-            {/* Header with Logo */}
-            <View style={styles.header}>
-              <View style={styles.logoContainer}>
-                <Image
-                  source={require('../../assets/Logo.png')}
-                  style={styles.logo}
-                  resizeMode="contain"
-                />
-              </View>
+        colors={['rgba(0,0,0,0.4)', 'rgba(0,0,0,0.9)']}
+        style={StyleSheet.absoluteFill}
+      />
 
-              <Text variant="headlineMedium" style={styles.title}>
-                All-in-One Platform for{'\n'}Clubs and Players
-              </Text>
-              
-              <Text variant="bodyLarge" style={styles.description}>
-                Manage games, coaching, events, memberships, analytics, and merch—all from your phone or computer.
-              </Text>
-            </View>
+      <SafeAreaView style={styles.safeArea}>
+        {/* Top Logo + Title */}
+        <View style={styles.header}>
+          <Image
+            source={require('../../assets/Logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+          <Text variant="headlineMedium" style={styles.title}>
+            All-in-One Platform for{'\n'}Clubs and Players
+          </Text>
+        </View>
 
-            {/* Action Card - Just Buttons */}
-            <Card style={styles.actionCard}>
-              <Card.Content style={styles.cardContent}>
-                <Button
-                  mode="contained"
-                  onPress={handleGetStarted}
-                  style={styles.primaryButton}
-                  contentStyle={styles.buttonContent}
-                  buttonColor="#4F8CC9"
-                  textColor="#FFFFFF"
-                >
-                  Get Started
-                </Button>
+        {/* Footer Actions */}
+        <View style={styles.footer}>
+          <Button
+            mode="outlined"
+            onPress={handleSignIn}
+            style={styles.signInButton}
+            contentStyle={styles.buttonContent}
+            textColor="#FFFFFF"
+          >
+            Sign In
+          </Button>
 
-                <Button
-                  mode="outlined"
-                  onPress={handleSignIn}
-                  style={styles.secondaryButton}
-                  contentStyle={styles.buttonContent}
-                  textColor="#4F8CC9"
-                >
-                  Sign In
-                </Button>
-              </Card.Content>
-            </Card>
-          </View>
-        </SafeAreaView>
-      </LinearGradient>
+          <Button
+            mode="contained"
+            onPress={handleGetStarted}
+            style={styles.getStartedButton}
+            contentStyle={styles.buttonContent}
+            buttonColor="#4F8CC9"
+            textColor="#FFFFFF"
+          >
+            Get Started
+          </Button>
+
+          <Text style={styles.terms}>
+            By continuing, you agree to RallySphere's{' '}
+            <Text style={styles.link}>Privacy Notice</Text>,{' '}
+            <Text style={styles.link}>Terms of Use</Text>{'\n'}
+            <Text style={styles.link}>End Users' License Agreement</Text>
+          </Text>
+        </View>
+      </SafeAreaView>
     </View>
   );
 }
@@ -88,72 +88,58 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#000',
   },
-  background: {
-    flex: 1,
+  video: {
+    opacity: 1,
   },
   safeArea: {
     flex: 1,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: 20,
-    paddingTop: Platform.OS === 'ios' ? 40 : 20,
+    justifyContent: 'space-between',
   },
   header: {
     alignItems: 'center',
-    marginBottom: 60,
-  },
-  logoContainer: {
-    marginBottom: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginTop: Platform.OS === 'ios' ? 40 : 20,
   },
   logo: {
     width: 220,
     height: 130,
-    maxWidth: 300,
+    marginBottom: 24,
   },
   title: {
     fontWeight: 'bold',
-    marginBottom: 20,
     textAlign: 'center',
     color: '#FFFFFF',
-    lineHeight: 36,
-  },
-  description: {
-    textAlign: 'center',
-    lineHeight: 26,
+    lineHeight: 32,
+    fontSize: 22,
     paddingHorizontal: 20,
-    color: '#B8D4F0',
   },
-  actionCard: {
-    elevation: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
+  footer: {
+    paddingHorizontal: 24,
+    paddingBottom: 40,
   },
-  cardContent: {
-    padding: 40,
-  },
-  primaryButton: {
+  signInButton: {
     marginBottom: 16,
     borderRadius: 12,
-    elevation: 4,
-  },
-  secondaryButton: {
-    borderRadius: 12,
+    borderColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: '#4F8CC9',
+  },
+  getStartedButton: {
+    marginBottom: 16,
+    borderRadius: 12,
   },
   buttonContent: {
     paddingVertical: 14,
+  },
+  terms: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 18,
+  },
+  link: {
+    textDecorationLine: 'underline',
+    color: '#B8D4F0',
   },
 });
