@@ -201,6 +201,7 @@ export default function ClubsPage() {
             onPress={() => setActiveTab('my-clubs')}
             style={styles.tabButton}
             compact
+            icon={activeTab === 'my-clubs' ? 'account-group' : 'account-group-outline'}
           >
             My Clubs ({myClubs.length})
           </Button>
@@ -209,10 +210,32 @@ export default function ClubsPage() {
             onPress={() => setActiveTab('discover')}
             style={styles.tabButton}
             compact
+            icon={activeTab === 'discover' ? 'compass' : 'compass-outline'}
           >
             Discover
           </Button>
         </View>
+        
+        {/* Create Club Button */}
+        <Button
+          mode="contained"
+          onPress={() => router.push('/club/create')}
+          style={styles.createButton}
+          icon="plus"
+          buttonColor={theme.colors.primary}
+        >
+          Create Club
+        </Button>
+        
+        {/* Temporary Storage Test Button */}
+        <Button
+          mode="outlined"
+          onPress={() => router.push('/test-storage')}
+          style={[styles.createButton, { marginTop: 8 }]}
+          icon="wrench"
+        >
+          Test Storage
+        </Button>
       </View>
 
       {activeTab === 'discover' && (
@@ -316,11 +339,7 @@ export default function ClubsPage() {
         )}
       </ScrollView>
 
-      <FAB
-        icon="plus"
-        style={[styles.fab, { backgroundColor: theme.colors.primary }]}
-        onPress={() => router.push('/club/create')}
-      />
+
 
       <JoinClubModal
         visible={joinModalVisible}
@@ -352,6 +371,9 @@ const styles = StyleSheet.create({
   },
   tabButton: {
     flex: 1,
+  },
+  createButton: {
+    marginTop: 12,
   },
   filtersContainer: {
     paddingHorizontal: 20,
@@ -397,9 +419,5 @@ const styles = StyleSheet.create({
   discoverButton: {
     marginTop: 8,
   },
-  fab: {
-    position: 'absolute',
-    bottom: 16,
-    right: 16,
-  },
+
 });

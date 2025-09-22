@@ -1,5 +1,5 @@
-// app/club/create.tsx
-import React, { useState } from 'react';
+// app/club/edit/[id].tsx
+import React, { useState, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, Alert, Image } from 'react-native';
 import { 
   Text, 
@@ -15,10 +15,11 @@ import {
   Menu
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { createClub, uploadImage } from '../../lib/firebase';
-import { useAuth } from '../_layout';
+import { getClub, updateClub, uploadImage, testStorageConnection } from '../../../lib/firebase';
+import { useAuth } from '../../_layout';
+import type { Club } from '../../../lib/firebase';
 
 const SPORTS = [
   'Basketball', 'Football', 'Soccer', 'Tennis', 'Baseball', 'Volleyball',
@@ -32,11 +33,16 @@ const TAGS = [
   'Weekly Meetings', 'Monthly Events', 'Fundraising', 'Networking'
 ];
 
-export default function CreateClubScreen() {
+export default function EditClubScreen() {
   const theme = useTheme();
   const { user } = useAuth();
+  const { id } = useLocalSearchParams();
+  const clubId = id as string;
+  
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [showSportsMenu, setShowSportsMenu] = useState(false);
+  const [club, setClub] = useState<Club | null>(null);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -53,6 +59,62 @@ export default function CreateClubScreen() {
   const [isPublic, setIsPublic] = useState(true);
   const [coverImage, setCoverImage] = useState<string | null>(null);
   const [logo, setLogo] = useState<string | null>(null);
+  const [originalCoverImage, setOriginalCoverImage] = useState<string | null>(null);
+  const [originalLogo, setOriginalLogo] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (clubId) {
+      loadClub();
+    }
+  }, [clubId]);
+
+  const loadClub = async () => {
+    try {
+      setInitialLoading(true);
+      const result = await getClub(clubId);
+      
+      if (result.success && result.club) {
+        const clubData = result.club;
+        setClub(clubData);
+        
+        // Check if user is admin
+        if (!user || !clubData.admins.includes(user.uid)) {
+          Alert.alert('Access Denied', 'You are not authorized to edit this club.', [
+            { text: 'OK', onPress: () => router.back() }
+          ]);
+          return;
+        }
+        
+        // Populate form with existing data
+        setFormData({
+          name: clubData.name || '',
+          description: clubData.description || '',
+          sport: clubData.category || '',
+          contactEmail: clubData.contactEmail || '',
+          website: clubData.socialLinks?.website || '',
+          instagram: clubData.socialLinks?.instagram || '',
+          twitter: clubData.socialLinks?.twitter || '',
+          discord: clubData.socialLinks?.discord || '',
+        });
+        
+        setSelectedTags(clubData.tags || []);
+        setIsPublic(clubData.isPublic);
+        setCoverImage(clubData.coverImage || null);
+        setLogo(clubData.logo || null);
+        setOriginalCoverImage(clubData.coverImage || null);
+        setOriginalLogo(clubData.logo || null);
+      } else {
+        Alert.alert('Error', 'Club not found', [
+          { text: 'OK', onPress: () => router.back() }
+        ]);
+      }
+    } catch (error) {
+      console.error('Error loading club:', error);
+      Alert.alert('Error', 'Failed to load club data');
+    } finally {
+      setInitialLoading(false);
+    }
+  };
 
   const updateFormData = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -76,7 +138,7 @@ export default function CreateClubScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: 'images', // Use string instead of enum
+        mediaTypes: 'images',
         allowsEditing: true,
         aspect: type === 'cover' ? [16, 9] : [1, 1],
         quality: 0.8,
@@ -111,52 +173,52 @@ export default function CreateClubScreen() {
     return true;
   };
 
-  const handleCreateClub = async () => {
+  const handleUpdateClub = async () => {
     if (!validateForm()) return;
-    if (!user) {
-      Alert.alert('Error', 'You must be logged in to create a club');
-      return;
-    }
+    if (!user || !club) return;
 
     setLoading(true);
     try {
-      let coverImageUrl: string | undefined;
-      let logoUrl: string | undefined;
+      // Test storage first
+      console.log('Testing storage before upload...');
+      const storageTest = await testStorageConnection();
+      if (!storageTest.success) {
+        Alert.alert('Storage Error', `Storage test failed: ${storageTest.error}`);
+        setLoading(false);
+        return;
+      }
+      console.log('Storage test passed!');
+      
+      let coverImageUrl = originalCoverImage;
+      let logoUrl = originalLogo;
 
-      // Try to upload images if selected, but don't fail if upload fails
-      if (coverImage) {
+      // Upload new cover image if changed
+      if (coverImage && coverImage !== originalCoverImage) {
+        console.log('Uploading new cover image...');
         const coverPath = `clubs/covers/${Date.now()}_cover.jpg`;
-        coverImageUrl = await uploadImage(coverImage, coverPath) || undefined;
-        if (!coverImageUrl) {
-          // Warn user but continue without image
-          Alert.alert(
-            'Image Upload Failed', 
-            'Cover image could not be uploaded. Continue creating club without image?',
-            [
-              { text: 'Cancel', style: 'cancel', onPress: () => { setLoading(false); return; } },
-              { text: 'Continue', style: 'default' }
-            ]
-          );
+        const uploadedCoverUrl = await uploadImage(coverImage, coverPath);
+        if (uploadedCoverUrl) {
+          coverImageUrl = uploadedCoverUrl;
+          console.log('Cover image uploaded successfully');
+        } else {
+          Alert.alert('Upload Failed', 'Failed to upload cover image');
         }
       }
 
-      if (logo) {
+      // Upload new logo if changed
+      if (logo && logo !== originalLogo) {
+        console.log('Uploading new logo...');
         const logoPath = `clubs/logos/${Date.now()}_logo.jpg`;
-        logoUrl = await uploadImage(logo, logoPath) || undefined;
-        if (!logoUrl) {
-          // Warn user but continue without logo
-          Alert.alert(
-            'Image Upload Failed', 
-            'Logo could not be uploaded. Continue creating club without logo?',
-            [
-              { text: 'Cancel', style: 'cancel', onPress: () => { setLoading(false); return; } },
-              { text: 'Continue', style: 'default' }
-            ]
-          );
+        const uploadedLogoUrl = await uploadImage(logo, logoPath);
+        if (uploadedLogoUrl) {
+          logoUrl = uploadedLogoUrl;
+          console.log('Logo uploaded successfully');
+        } else {
+          Alert.alert('Upload Failed', 'Failed to upload logo');
         }
       }
 
-      // Clean up the data - remove undefined values
+      // Clean up the social links data
       const socialLinks: any = {};
       if (formData.website.trim()) socialLinks.website = formData.website.trim();
       if (formData.instagram.trim()) socialLinks.instagram = formData.instagram.trim();
@@ -167,54 +229,63 @@ export default function CreateClubScreen() {
         name: formData.name.trim(),
         description: formData.description.trim(),
         category: formData.sport,
-        createdBy: user.uid,
         isPublic,
+        tags: selectedTags.length > 0 ? selectedTags : [],
+        socialLinks: Object.keys(socialLinks).length > 0 ? socialLinks : undefined,
       };
 
-      // Only add optional fields if they have values
-      if (formData.contactEmail.trim()) {
-        clubData.contactEmail = formData.contactEmail.trim();
+      // Only update optional fields if they have values or were cleared
+      if (formData.contactEmail.trim() || club.contactEmail) {
+        clubData.contactEmail = formData.contactEmail.trim() || null;
       }
-      if (coverImageUrl) {
-        clubData.coverImage = coverImageUrl;
+      if (coverImageUrl || club.coverImage) {
+        clubData.coverImage = coverImageUrl || null;
       }
-      if (logoUrl) {
-        clubData.logo = logoUrl;
-      }
-      if (selectedTags.length > 0) {
-        clubData.tags = selectedTags;
-      }
-      if (Object.keys(socialLinks).length > 0) {
-        clubData.socialLinks = socialLinks;
+      if (logoUrl || club.logo) {
+        clubData.logo = logoUrl || null;
       }
 
-      const result = await createClub(clubData);
+      const result = await updateClub(clubId, clubData);
       if (result.success) {
         Alert.alert(
           'Success!', 
-          'Your club has been created successfully!',
+          'Club updated successfully!',
           [{ 
             text: 'OK', 
-            onPress: () => router.push(`/club/${result.clubId}`)
+            onPress: () => router.push(`/club/${clubId}`)
           }]
         );
       } else {
-        Alert.alert('Error', result.error || 'Failed to create club');
+        Alert.alert('Error', result.error || 'Failed to update club');
       }
     } catch (error) {
-      console.error('Create club error:', error);
+      console.error('Update club error:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setLoading(false);
     }
   };
 
+  if (initialLoading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <Appbar.Header>
+          <Appbar.BackAction onPress={() => router.back()} />
+          <Appbar.Content title="Edit Club" />
+        </Appbar.Header>
+        <View style={styles.loadingContainer}>
+          <Text variant="bodyLarge">Loading club data...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* App Bar with Back Button */}
       <Appbar.Header>
         <Appbar.BackAction onPress={() => router.back()} />
-        <Appbar.Content title="Create Club" />
+        <Appbar.Content title="Edit Club" />
       </Appbar.Header>
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
@@ -222,10 +293,10 @@ export default function CreateClubScreen() {
       >
         <View style={styles.header}>
           <Text variant="headlineMedium" style={[styles.title, { color: theme.colors.primary }]}>
-            Create a Club
+            Edit Club
           </Text>
           <Text variant="bodyMedium" style={[styles.subtitle, { color: theme.colors.onSurface }]}>
-            Start building your community
+            Update your club information
           </Text>
         </View>
 
@@ -435,13 +506,13 @@ export default function CreateClubScreen() {
 
             <Button
               mode="contained"
-              onPress={handleCreateClub}
+              onPress={handleUpdateClub}
               loading={loading}
               disabled={loading}
-              style={styles.createButton}
+              style={styles.updateButton}
               contentStyle={styles.buttonContent}
             >
-              Create Club
+              Update Club
             </Button>
           </Card.Content>
         </Card>
@@ -453,6 +524,11 @@ export default function CreateClubScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   scrollContent: {
     flexGrow: 1,
@@ -551,14 +627,6 @@ const styles = StyleSheet.create({
   sportSelectorContent: {
     flexDirection: 'row-reverse',
   },
-  categoryContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 16,
-  },
-  categoryChip: {
-    margin: 4,
-  },
   tagsHint: {
     marginBottom: 12,
   },
@@ -583,7 +651,7 @@ const styles = StyleSheet.create({
   divider: {
     marginVertical: 20,
   },
-  createButton: {
+  updateButton: {
     marginTop: 8,
   },
   buttonContent: {

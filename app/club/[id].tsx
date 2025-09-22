@@ -9,7 +9,7 @@ import {
   IconButton,
   Divider,
   useTheme,
-  FAB
+  Appbar
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -148,6 +148,11 @@ export default function ClubDetailScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* App Bar with Back Button */}
+      <Appbar.Header>
+        <Appbar.BackAction onPress={() => router.back()} />
+        <Appbar.Content title={club.name} titleStyle={{ fontSize: 18 }} />
+      </Appbar.Header>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Cover Image */}
         {club.coverImage && (
@@ -197,6 +202,17 @@ export default function ClubDetailScreen() {
                   style={styles.leaveButton}
                 >
                   Leave Club
+                </Button>
+              )}
+              
+              {isAdmin && (
+                <Button
+                  mode="contained-tonal"
+                  onPress={() => router.push(`/club/edit/${club.id}`)}
+                  style={styles.editButton}
+                  icon="pencil"
+                >
+                  Edit Club
                 </Button>
               )}
             </View>
@@ -307,39 +323,59 @@ export default function ClubDetailScreen() {
         {upcomingEvents.length > 0 && (
           <Card style={styles.eventsCard}>
             <Card.Content style={styles.eventsContent}>
-              <Text variant="titleLarge" style={styles.eventsTitle}>
-                Upcoming Events
-              </Text>
-              {upcomingEvents.slice(0, 3).map((event) => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  isAttending={user ? event.attendees.includes(user.uid) : false}
-                  isWaitlisted={user ? event.waitlist.includes(user.uid) : false}
-                />
-              ))}
-              {upcomingEvents.length > 3 && (
-                <Button
-                  mode="outlined"
-                  onPress={() => router.push('/(tabs)/events')}
-                  style={styles.viewAllButton}
-                >
-                  View All Events
-                </Button>
+              <View style={styles.eventsHeader}>
+                <Text variant="titleLarge" style={styles.eventsTitle}>
+                  Upcoming Events
+                </Text>
+                {isAdmin && (
+                  <Button
+                    mode="contained"
+                    onPress={() => router.push(`/event/create?clubId=${club.id}`)}
+                    icon="plus"
+                    compact
+                  >
+                    Create Event
+                  </Button>
+                )}
+              </View>
+              {upcomingEvents.length > 0 ? (
+                <>
+                  {upcomingEvents.slice(0, 3).map((event) => (
+                    <EventCard
+                      key={event.id}
+                      event={event}
+                      isAttending={user ? event.attendees.includes(user.uid) : false}
+                      isWaitlisted={user ? event.waitlist.includes(user.uid) : false}
+                    />
+                  ))}
+                  {upcomingEvents.length > 3 && (
+                    <Button
+                      mode="outlined"
+                      onPress={() => router.push('/(tabs)/events')}
+                      style={styles.viewAllButton}
+                    >
+                      View All Events
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <View style={styles.noEventsContainer}>
+                  <Text variant="bodyMedium" style={styles.noEventsText}>
+                    No upcoming events yet
+                  </Text>
+                  {isAdmin && (
+                    <Text variant="bodySmall" style={styles.noEventsHint}>
+                      Create your first event to get started!
+                    </Text>
+                  )}
+                </View>
               )}
             </Card.Content>
           </Card>
         )}
       </ScrollView>
 
-      {/* Create Event FAB */}
-      {isAdmin && (
-        <FAB
-          icon="plus"
-          style={[styles.fab, { backgroundColor: theme.colors.primary }]}
-          onPress={() => router.push(`/event/create?clubId=${club.id}`)}
-        />
-      )}
+
 
       <JoinClubModal
         visible={joinModalVisible}
@@ -407,6 +443,10 @@ const styles = StyleSheet.create({
   leaveButton: {
     alignSelf: 'flex-start',
   },
+  editButton: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+  },
   description: {
     marginBottom: 16,
     lineHeight: 24,
@@ -461,16 +501,30 @@ const styles = StyleSheet.create({
   eventsContent: {
     padding: 20,
   },
+  eventsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   eventsTitle: {
     fontWeight: 'bold',
-    marginBottom: 16,
+    flex: 1,
+  },
+  noEventsContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  noEventsText: {
+    marginBottom: 8,
+    opacity: 0.7,
+  },
+  noEventsHint: {
+    opacity: 0.5,
+    textAlign: 'center',
   },
   viewAllButton: {
     marginTop: 16,
   },
-  fab: {
-    position: 'absolute',
-    bottom: 16,
-    right: 16,
-  },
+
 });
