@@ -1,6 +1,6 @@
 // app/event/create.tsx
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, Alert, Image } from 'react-native';
+import { View, ScrollView, StyleSheet, Alert, Image, Dimensions } from 'react-native';
 import { 
   Text, 
   TextInput, 
@@ -8,26 +8,21 @@ import {
   Card,
   useTheme,
   Switch,
-  Chip,
   IconButton,
   Divider,
-  Menu,
-  List,
-  Appbar
+  Surface
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { createEvent, uploadImage, getClubs } from '../../lib/firebase';
+import { createEvent, uploadImage, getClub } from '../../lib/firebase';
 import { useAuth } from '../_layout';
+import { LinearGradient } from 'expo-linear-gradient';
 import type { Club } from '../../lib/firebase';
 
-const EVENT_TAGS = [
-  'Workshop', 'Meeting', 'Social', 'Competition', 'Conference',
-  'Fundraiser', 'Volunteer', 'Networking', 'Performance', 'Game Night'
-];
+const { height } = Dimensions.get('window');
 
 export default function CreateEventScreen() {
   const theme = useTheme();
@@ -36,8 +31,7 @@ export default function CreateEventScreen() {
   const clubId = params.clubId as string;
   
   const [loading, setLoading] = useState(false);
-  const [userClubs, setUserClubs] = useState<Club[]>([]);
-  const [showClubMenu, setShowClubMenu] = useState(false);
+  const [club, setClub] = useState<Club | null>(null);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
@@ -46,46 +40,30 @@ export default function CreateEventScreen() {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    clubId: clubId || '',
-    clubName: '',
     location: '',
-    virtualLink: '',
     maxAttendees: '',
     ticketPrice: '',
     currency: 'USD',
   });
   
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [isVirtual, setIsVirtual] = useState(false);
   const [isPublic, setIsPublic] = useState(true);
-  const [requiresApproval, setRequiresApproval] = useState(false);
   const [coverImage, setCoverImage] = useState<string | null>(null);
   
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date(Date.now() + 2 * 60 * 60 * 1000)); // 2 hours later
 
   useEffect(() => {
-    loadUserClubs();
-  }, [user]);
+    if (clubId) {
+      loadClubData();
+    }
+  }, [clubId]);
 
-  const loadUserClubs = async () => {
-    if (!user) return;
+  const loadClubData = async () => {
+    if (!clubId) return;
     
-    const result = await getClubs(user.uid);
-    if (result.success) {
-      setUserClubs(result.clubs);
-      
-      // If clubId is provided, find and set the club name
-      if (clubId) {
-        const selectedClub = result.clubs.find(club => club.id === clubId);
-        if (selectedClub) {
-          setFormData(prev => ({
-            ...prev,
-            clubId: selectedClub.id,
-            clubName: selectedClub.name
-          }));
-        }
-      }
+    const result = await getClub(clubId);
+    if (result.success && result.club) {
+      setClub(result.club);
     }
   };
 
@@ -93,26 +71,8 @@ export default function CreateEventScreen() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const toggleTag = (tag: string) => {
-    setSelectedTags(prev => 
-      prev.includes(tag) 
-        ? prev.filter(t => t !== tag)
-        : [...prev, tag]
-    );
-  };
-
-  const selectClub = (club: Club) => {
-    setFormData(prev => ({
-      ...prev,
-      clubId: club.id,
-      clubName: club.name
-    }));
-    setShowClubMenu(false);
-  };
-
   const pickImage = async () => {
     try {
-      // Request permissions first
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission Required', 'We need camera roll permissions to select images.');
@@ -120,7 +80,7 @@ export default function CreateEventScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: 'images', // Use string instead of enum
+        mediaTypes: 'images',
         allowsEditing: true,
         aspect: [16, 9],
         quality: 0.8,
@@ -144,16 +104,12 @@ export default function CreateEventScreen() {
       Alert.alert('Error', 'Event description is required');
       return false;
     }
-    if (!formData.clubId) {
-      Alert.alert('Error', 'Please select a club');
+    if (!clubId || !club) {
+      Alert.alert('Error', 'Club information is missing');
       return false;
     }
-    if (!isVirtual && !formData.location.trim()) {
-      Alert.alert('Error', 'Location is required for in-person events');
-      return false;
-    }
-    if (isVirtual && !formData.virtualLink.trim()) {
-      Alert.alert('Error', 'Virtual link is required for virtual events');
+    if (!formData.location.trim()) {
+      Alert.alert('Error', 'Location is required');
       return false;
     }
     if (endDate <= startDate) {
@@ -165,7 +121,7 @@ export default function CreateEventScreen() {
 
   const handleCreateEvent = async () => {
     if (!validateForm()) return;
-    if (!user) {
+    if (!user || !club) {
       Alert.alert('Error', 'You must be logged in to create an event');
       return;
     }
@@ -174,7 +130,6 @@ export default function CreateEventScreen() {
     try {
       let coverImageUrl: string | undefined;
 
-      // Upload cover image if selected
       if (coverImage) {
         const imagePath = `events/covers/${Date.now()}_cover.jpg`;
         coverImageUrl = await uploadImage(coverImage, imagePath) || undefined;
@@ -183,18 +138,14 @@ export default function CreateEventScreen() {
       const eventData = {
         title: formData.title.trim(),
         description: formData.description.trim(),
-        clubId: formData.clubId,
-        clubName: formData.clubName,
+        clubId: clubId,
+        clubName: club.name,
         createdBy: user.uid,
         startDate: new Date(startDate),
         endDate: new Date(endDate),
-        location: isVirtual ? 'Virtual' : formData.location.trim(),
-        isVirtual,
-        virtualLink: isVirtual ? formData.virtualLink.trim() : undefined,
+        location: formData.location.trim(),
         maxAttendees: formData.maxAttendees ? parseInt(formData.maxAttendees) : undefined,
         coverImage: coverImageUrl,
-        tags: selectedTags.length > 0 ? selectedTags : undefined,
-        requiresApproval,
         isPublic,
         ticketPrice: formData.ticketPrice ? parseFloat(formData.ticketPrice) : undefined,
         currency: formData.ticketPrice ? formData.currency : undefined,
@@ -225,7 +176,6 @@ export default function CreateEventScreen() {
     setShowStartDatePicker(false);
     if (selectedDate) {
       setStartDate(selectedDate);
-      // Auto-update end date to be 2 hours later
       setEndDate(new Date(selectedDate.getTime() + 2 * 60 * 60 * 1000));
     }
   };
@@ -236,7 +186,6 @@ export default function CreateEventScreen() {
       const newStartDate = new Date(startDate);
       newStartDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
       setStartDate(newStartDate);
-      // Auto-update end time
       const newEndDate = new Date(newStartDate.getTime() + 2 * 60 * 60 * 1000);
       setEndDate(newEndDate);
     }
@@ -259,180 +208,88 @@ export default function CreateEventScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* App Bar with Back Button */}
-      <Appbar.Header>
-        <Appbar.BackAction onPress={() => router.back()} />
-        <Appbar.Content title="Create Event" />
-      </Appbar.Header>
+  <SafeAreaView style={[styles.container, { backgroundColor: 'white' }]}>
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <Text variant="headlineMedium" style={[styles.title, { color: theme.colors.primary }]}>
-            Create Event
-          </Text>
-          <Text variant="bodyMedium" style={[styles.subtitle, { color: theme.colors.onSurface }]}>
-            Plan something amazing for your community
-          </Text>
-        </View>
+        {/* Hero Header - compact style */}
+        <LinearGradient
+          colors={['#2C5282', '#2A4B7C']}
+          style={styles.heroHeader}
+        >
+          <IconButton 
+            icon="arrow-left" 
+            size={24}
+            onPress={() => router.back()}
+            style={styles.backButton}
+            iconColor="white"
+          />
+          <View style={styles.heroContent}>
+            <Text style={styles.heroTitle}>Create Event</Text>
+          </View>
+          
+          {/* White Rounded Bottom - bevel effect */}
+          <View style={[styles.headerBottom, { backgroundColor: 'white' }]} />
+        </LinearGradient>
 
-        <Card style={styles.card}>
-          <Card.Content style={styles.cardContent}>
-            {/* Cover Image */}
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              Event Cover Image
-            </Text>
-            
-            <View style={styles.imageSection}>
-              <View style={styles.coverImageContainer}>
-                {coverImage ? (
-                  <Image source={{ uri: coverImage }} style={styles.coverImage} />
-                ) : (
-                  <View style={[styles.imagePlaceholder, { backgroundColor: theme.colors.surfaceVariant }]}>
-                    <Text style={{ color: theme.colors.onSurfaceVariant }}>16:9 aspect ratio</Text>
-                  </View>
-                )}
-                <IconButton
-                  icon="camera"
-                  mode="contained"
-                  onPress={pickImage}
-                  style={styles.imageButton}
-                />
+        <View style={styles.content}>
+          {/* Cover Image Section */}
+          <Card style={styles.formCard} mode="elevated">
+            <Card.Content style={styles.cardContent}>
+              <Text variant="headlineSmall" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
+                Event Cover Image
+              </Text>
+              
+              <View style={styles.imageSection}>
+                <Surface style={styles.coverImageContainer} elevation={1}>
+                  {coverImage ? (
+                    <Image source={{ uri: coverImage }} style={styles.coverImage} />
+                  ) : (
+                    <View style={[styles.imagePlaceholder, { backgroundColor: theme.colors.surfaceVariant }]}>
+                      <IconButton icon="image" size={32} iconColor={theme.colors.onSurfaceVariant} />
+                      <Text style={{ color: theme.colors.onSurfaceVariant, marginTop: 8 }}>16:9 aspect ratio</Text>
+                    </View>
+                  )}
+                  <Surface style={styles.imageButtonContainer} elevation={3}>
+                    <IconButton
+                      icon="camera"
+                      mode="contained"
+                      onPress={pickImage}
+                      size={20}
+                    />
+                  </Surface>
+                </Surface>
               </View>
-            </View>
+            </Card.Content>
+          </Card>
 
-            <Divider style={styles.divider} />
+          {/* Basic Information */}
+          <Card style={styles.formCard} mode="elevated">
+            <Card.Content style={styles.cardContent}>
+              <Text variant="headlineSmall" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
+                Event Details
+              </Text>
 
-            {/* Basic Information */}
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              Event Details
-            </Text>
-
-            <TextInput
-              label="Event Title *"
-              value={formData.title}
-              onChangeText={(value) => updateFormData('title', value)}
-              mode="outlined"
-              style={styles.input}
-            />
-
-            <TextInput
-              label="Description *"
-              value={formData.description}
-              onChangeText={(value) => updateFormData('description', value)}
-              mode="outlined"
-              multiline
-              numberOfLines={4}
-              style={styles.input}
-              placeholder="What's this event about? What should attendees expect?"
-            />
-
-            {/* Club Selection */}
-            <Text variant="bodyMedium" style={styles.fieldLabel}>Select Club *</Text>
-            <Menu
-              visible={showClubMenu}
-              onDismiss={() => setShowClubMenu(false)}
-              anchor={
-                <Button 
-                  mode="outlined" 
-                  onPress={() => setShowClubMenu(true)}
-                  style={styles.clubSelector}
-                  contentStyle={styles.clubSelectorContent}
-                  icon="chevron-down"
-                >
-                  {formData.clubName || 'Select a club'}
-                </Button>
-              }
-            >
-              {userClubs.map((club) => (
-                <Menu.Item
-                  key={club.id}
-                  onPress={() => selectClub(club)}
-                  title={club.name}
-                />
-              ))}
-            </Menu>
-
-            <Divider style={styles.divider} />
-
-            {/* Date and Time */}
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              Date & Time
-            </Text>
-
-            <View style={styles.dateTimeSection}>
-              <Text variant="bodyMedium" style={styles.fieldLabel}>Start Date & Time *</Text>
-              <View style={styles.dateTimeRow}>
-                <Button
-                  mode="outlined"
-                  onPress={() => setShowStartDatePicker(true)}
-                  style={[styles.dateTimeButton, styles.dateButton]}
-                >
-                  {startDate.toLocaleDateString()}
-                </Button>
-                <Button
-                  mode="outlined"
-                  onPress={() => setShowStartTimePicker(true)}
-                  style={[styles.dateTimeButton, styles.timeButton]}
-                >
-                  {startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </Button>
-              </View>
-            </View>
-
-            <View style={styles.dateTimeSection}>
-              <Text variant="bodyMedium" style={styles.fieldLabel}>End Date & Time *</Text>
-              <View style={styles.dateTimeRow}>
-                <Button
-                  mode="outlined"
-                  onPress={() => setShowEndDatePicker(true)}
-                  style={[styles.dateTimeButton, styles.dateButton]}
-                >
-                  {endDate.toLocaleDateString()}
-                </Button>
-                <Button
-                  mode="outlined"
-                  onPress={() => setShowEndTimePicker(true)}
-                  style={[styles.dateTimeButton, styles.timeButton]}
-                >
-                  {endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </Button>
-              </View>
-            </View>
-
-            <Divider style={styles.divider} />
-
-            {/* Location */}
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              Location
-            </Text>
-
-            <View style={styles.switchContainer}>
-              <View style={styles.switchContent}>
-                <Text variant="bodyLarge">Virtual Event</Text>
-                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                  This event will be held online
-                </Text>
-              </View>
-              <Switch
-                value={isVirtual}
-                onValueChange={setIsVirtual}
-              />
-            </View>
-
-            {isVirtual ? (
               <TextInput
-                label="Virtual Link *"
-                value={formData.virtualLink}
-                onChangeText={(value) => updateFormData('virtualLink', value)}
+                label="Event Title *"
+                value={formData.title}
+                onChangeText={(value) => updateFormData('title', value)}
                 mode="outlined"
                 style={styles.input}
-                placeholder="e.g., Zoom, Google Meet, Discord link"
-                left={<TextInput.Icon icon="video" />}
               />
-            ) : (
+
+              <TextInput
+                label="Description *"
+                value={formData.description}
+                onChangeText={(value) => updateFormData('description', value)}
+                mode="outlined"
+                multiline
+                numberOfLines={4}
+                style={styles.input}
+                placeholder="What's this event about? What should attendees expect?"
+              />
+
               <TextInput
                 label="Location *"
                 value={formData.location}
@@ -442,102 +299,124 @@ export default function CreateEventScreen() {
                 placeholder="e.g., Student Center Room 201"
                 left={<TextInput.Icon icon="map-marker" />}
               />
-            )}
+            </Card.Content>
+          </Card>
 
-            <Divider style={styles.divider} />
+          {/* Date and Time */}
+          <Card style={styles.formCard} mode="elevated">
+            <Card.Content style={styles.cardContent}>
+              <Text variant="headlineSmall" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
+                Date & Time
+              </Text>
 
-            {/* Additional Options */}
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              Additional Options
-            </Text>
-
-            <View style={styles.row}>
-              <TextInput
-                label="Max Attendees"
-                value={formData.maxAttendees}
-                onChangeText={(value) => updateFormData('maxAttendees', value)}
-                mode="outlined"
-                keyboardType="numeric"
-                style={[styles.input, styles.halfInput]}
-                placeholder="Leave empty for unlimited"
-              />
-              <TextInput
-                label="Ticket Price"
-                value={formData.ticketPrice}
-                onChangeText={(value) => updateFormData('ticketPrice', value)}
-                mode="outlined"
-                keyboardType="decimal-pad"
-                style={[styles.input, styles.halfInput]}
-                placeholder="0.00"
-                left={<TextInput.Icon icon="currency-usd" />}
-              />
-            </View>
-
-            {/* Tags */}
-            <Text variant="bodyMedium" style={styles.fieldLabel}>Event Tags</Text>
-            <Text variant="bodySmall" style={[styles.tagsHint, { color: theme.colors.onSurfaceVariant }]}>
-              Help people discover your event
-            </Text>
-
-            <View style={styles.tagsContainer}>
-              {EVENT_TAGS.map((tag) => (
-                <Chip
-                  key={tag}
-                  selected={selectedTags.includes(tag)}
-                  onPress={() => toggleTag(tag)}
-                  style={styles.tagChip}
-                  showSelectedOverlay
-                >
-                  {tag}
-                </Chip>
-              ))}
-            </View>
-
-            <Divider style={styles.divider} />
-
-            {/* Privacy Settings */}
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              Privacy & Approval
-            </Text>
-
-            <View style={styles.switchContainer}>
-              <View style={styles.switchContent}>
-                <Text variant="bodyLarge">Public Event</Text>
-                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                  Anyone can discover and join this event
-                </Text>
+              <View style={styles.dateTimeSection}>
+                <Text variant="bodyMedium" style={styles.fieldLabel}>Start Date & Time *</Text>
+                <View style={styles.dateTimeRow}>
+                  <Button
+                    mode="outlined"
+                    onPress={() => setShowStartDatePicker(true)}
+                    style={[styles.dateTimeButton, styles.dateButton]}
+                  >
+                    {startDate.toLocaleDateString()}
+                  </Button>
+                  <Button
+                    mode="outlined"
+                    onPress={() => setShowStartTimePicker(true)}
+                    style={[styles.dateTimeButton, styles.timeButton]}
+                  >
+                    {startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </Button>
+                </View>
               </View>
-              <Switch
-                value={isPublic}
-                onValueChange={setIsPublic}
-              />
-            </View>
 
-            <View style={styles.switchContainer}>
-              <View style={styles.switchContent}>
-                <Text variant="bodyLarge">Requires Approval</Text>
-                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                  You'll need to approve attendees manually
-                </Text>
+              <View style={styles.dateTimeSection}>
+                <Text variant="bodyMedium" style={styles.fieldLabel}>End Date & Time *</Text>
+                <View style={styles.dateTimeRow}>
+                  <Button
+                    mode="outlined"
+                    onPress={() => setShowEndDatePicker(true)}
+                    style={[styles.dateTimeButton, styles.dateButton]}
+                  >
+                    {endDate.toLocaleDateString()}
+                  </Button>
+                  <Button
+                    mode="outlined"
+                    onPress={() => setShowEndTimePicker(true)}
+                    style={[styles.dateTimeButton, styles.timeButton]}
+                  >
+                    {endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </Button>
+                </View>
               </View>
-              <Switch
-                value={requiresApproval}
-                onValueChange={setRequiresApproval}
-              />
-            </View>
+            </Card.Content>
+          </Card>
 
-            <Button
-              mode="contained"
-              onPress={handleCreateEvent}
-              loading={loading}
-              disabled={loading}
-              style={styles.createButton}
-              contentStyle={styles.buttonContent}
-            >
-              Create Event
-            </Button>
-          </Card.Content>
-        </Card>
+          {/* Additional Options */}
+          <Card style={styles.formCard} mode="elevated">
+            <Card.Content style={styles.cardContent}>
+              <Text variant="headlineSmall" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
+                Additional Options
+              </Text>
+
+              <View style={styles.row}>
+                <View style={styles.halfInputContainer}>
+                  <TextInput
+                    label="Max Attendees"
+                    value={formData.maxAttendees}
+                    onChangeText={(value) => updateFormData('maxAttendees', value)}
+                    mode="outlined"
+                    keyboardType="numeric"
+                    style={styles.input}
+                    placeholder="Leave empty for unlimited"
+                  />
+                </View>
+                <View style={styles.halfInputContainer}>
+                  <TextInput
+                    label="Ticket Price"
+                    value={formData.ticketPrice}
+                    onChangeText={(value) => updateFormData('ticketPrice', value)}
+                    mode="outlined"
+                    keyboardType="decimal-pad"
+                    style={styles.input}
+                    placeholder="0.00"
+                    left={<TextInput.Icon icon="currency-usd" />}
+                  />
+                </View>
+              </View>
+
+              {/* Privacy Settings */}
+              <Divider style={styles.divider} />
+              
+              <Text variant="titleMedium" style={styles.subsectionTitle}>
+                Privacy Settings
+              </Text>
+
+              <View style={styles.switchContainer}>
+                <View style={styles.switchContent}>
+                  <Text variant="bodyLarge">Public Event</Text>
+                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                    Anyone can discover and join this event
+                  </Text>
+                </View>
+                <Switch
+                  value={isPublic}
+                  onValueChange={setIsPublic}
+                />
+              </View>
+
+              <Button
+                mode="contained"
+                onPress={handleCreateEvent}
+                loading={loading}
+                disabled={loading}
+                style={styles.createButton}
+                contentStyle={styles.buttonContent}
+              >
+                Create Event
+              </Button>
+            </Card.Content>
+          </Card>
+        </View>
 
         {/* Date/Time Pickers */}
         {showStartDatePicker && (
@@ -581,30 +460,63 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  heroHeader: {
+    height: 120,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 40,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  backButton: {
+    position: 'absolute',
+    left: 20,
+    top: 50,
+    zIndex: 10,
+  },
+  heroContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 10,
+  },
+  heroTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'white',
+    textAlign: 'center',
+  },
+  headerBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 30,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+  },
   scrollContent: {
     flexGrow: 1,
+  },
+  content: {
+    flex: 1,
     padding: 20,
-    paddingBottom: 40,
+    paddingTop: 20,
   },
-  header: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  title: {
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  subtitle: {
-    textAlign: 'center',
-    opacity: 0.8,
-  },
-  card: {
-    elevation: 4,
+  formCard: {
+    marginBottom: 20,
+    borderRadius: 16,
+    elevation: 2,
   },
   cardContent: {
-    padding: 24,
+    padding: 20,
   },
   sectionTitle: {
+    marginBottom: 24,
+    fontWeight: 'bold',
+  },
+  subsectionTitle: {
     marginBottom: 16,
     fontWeight: 'bold',
   },
@@ -612,48 +524,44 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   coverImageContainer: {
-    height: 120,
+    height: 140,
     position: 'relative',
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   coverImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 8,
   },
   imagePlaceholder: {
     width: '100%',
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 8,
     borderWidth: 2,
     borderStyle: 'dashed',
+    borderRadius: 12,
   },
-  imageButton: {
+  imageButtonContainer: {
     position: 'absolute',
-    bottom: 8,
-    right: 8,
+    bottom: 12,
+    right: 12,
+    borderRadius: 20,
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 12,
+  },
+  halfInputContainer: {
+    flex: 1,
   },
   input: {
     marginBottom: 16,
   },
-  halfInput: {
-    flex: 0.48,
-  },
   fieldLabel: {
     marginBottom: 8,
-    fontWeight: '500',
-  },
-  clubSelector: {
-    marginBottom: 16,
-    justifyContent: 'flex-start',
-  },
-  clubSelectorContent: {
-    flexDirection: 'row-reverse',
+    fontWeight: '600',
   },
   dateTimeSection: {
     marginBottom: 16,
@@ -661,9 +569,10 @@ const styles = StyleSheet.create({
   dateTimeRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 12,
   },
   dateTimeButton: {
-    flex: 0.48,
+    flex: 1,
   },
   dateButton: {
     // Additional styling for date button if needed
@@ -675,30 +584,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 24,
+    paddingVertical: 8,
   },
   switchContent: {
     flex: 1,
     marginRight: 16,
   },
-  tagsHint: {
-    marginBottom: 12,
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 16,
-  },
-  tagChip: {
-    margin: 4,
-  },
   divider: {
-    marginVertical: 20,
+    marginVertical: 24,
   },
   createButton: {
-    marginTop: 8,
+    marginTop: 16,
+    borderRadius: 12,
   },
   buttonContent: {
-    paddingVertical: 8,
+    paddingVertical: 12,
   },
 });

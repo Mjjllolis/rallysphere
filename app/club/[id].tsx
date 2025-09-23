@@ -9,7 +9,8 @@ import {
   IconButton,
   Divider,
   useTheme,
-  Appbar
+  Menu,
+  Surface
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -30,6 +31,7 @@ export default function ClubDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [joinModalVisible, setJoinModalVisible] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
 
   useEffect(() => {
     if (clubId) {
@@ -147,17 +149,75 @@ export default function ClubDetailScreen() {
   });
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* App Bar with Back Button */}
-      <Appbar.Header>
-        <Appbar.BackAction onPress={() => router.back()} />
-        <Appbar.Content title={club.name} titleStyle={{ fontSize: 18 }} />
-      </Appbar.Header>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Cover Image */}
-        {club.coverImage && (
-          <Image source={{ uri: club.coverImage }} style={styles.coverImage} />
-        )}
+        {/* Cover Image with Overlay Controls */}
+        <View style={styles.coverContainer}>
+          {club.coverImage ? (
+            <Image source={{ uri: club.coverImage }} style={styles.coverImage} />
+          ) : (
+            <View style={[styles.coverImage, { backgroundColor: theme.colors.surfaceVariant }]} />
+          )}
+          
+          {/* Back Button */}
+          <Surface style={styles.backButton} elevation={3}>
+            <IconButton
+              icon="arrow-left"
+              iconColor="rgba(0,0,0,0.8)"
+              size={24}
+              onPress={() => router.back()}
+            />
+          </Surface>
+
+          {/* Menu Button */}
+          {(isJoined || isAdmin) && (
+            <Surface style={styles.menuButton} elevation={3}>
+              <Menu
+                visible={menuVisible}
+                onDismiss={() => setMenuVisible(false)}
+                anchor={
+                  <IconButton
+                    icon="dots-vertical"
+                    iconColor="rgba(0,0,0,0.8)"
+                    size={24}
+                    onPress={() => setMenuVisible(true)}
+                  />
+                }
+              >
+                {isAdmin && (
+                  <>
+                    <Menu.Item
+                      onPress={() => {
+                        setMenuVisible(false);
+                        router.push(`/club/edit/${club.id}`);
+                      }}
+                      title="Edit Club"
+                      leadingIcon="pencil"
+                    />
+                    <Menu.Item
+                      onPress={() => {
+                        setMenuVisible(false);
+                        router.push(`/event/create?clubId=${club.id}`);
+                      }}
+                      title="Create Event"
+                      leadingIcon="plus"
+                    />
+                  </>
+                )}
+                {isJoined && (
+                  <Menu.Item
+                    onPress={() => {
+                      setMenuVisible(false);
+                      handleLeaveClub();
+                    }}
+                    title="Leave Club"
+                    leadingIcon="exit-to-app"
+                  />
+                )}
+              </Menu>
+            </Surface>
+          )}
+        </View>
 
         {/* Club Header */}
         <Card style={styles.headerCard}>
@@ -191,28 +251,6 @@ export default function ClubDetailScreen() {
                   style={styles.joinButton}
                 >
                   Join Club
-                </Button>
-              )}
-              
-              {isJoined && (
-                <Button
-                  mode="outlined"
-                  onPress={handleLeaveClub}
-                  loading={actionLoading}
-                  style={styles.leaveButton}
-                >
-                  Leave Club
-                </Button>
-              )}
-              
-              {isAdmin && (
-                <Button
-                  mode="contained-tonal"
-                  onPress={() => router.push(`/club/edit/${club.id}`)}
-                  style={styles.editButton}
-                  icon="pencil"
-                >
-                  Edit Club
                 </Button>
               )}
             </View>
@@ -319,63 +357,60 @@ export default function ClubDetailScreen() {
           </Card.Content>
         </Card>
 
-        {/* Upcoming Events */}
-        {upcomingEvents.length > 0 && (
-          <Card style={styles.eventsCard}>
-            <Card.Content style={styles.eventsContent}>
-              <View style={styles.eventsHeader}>
-                <Text variant="titleLarge" style={styles.eventsTitle}>
-                  Upcoming Events
-                </Text>
-                {isAdmin && (
+        {/* Events Section - Always Show */}
+        <Card style={styles.eventsCard}>
+          <Card.Content style={styles.eventsContent}>
+            <View style={styles.eventsHeader}>
+              <Text variant="titleLarge" style={styles.eventsTitle}>
+                Events
+              </Text>
+              {isAdmin && (
+                <Button
+                  mode="contained"
+                  onPress={() => router.push(`/event/create?clubId=${club.id}`)}
+                  icon="plus"
+                  compact
+                >
+                  Create Event
+                </Button>
+              )}
+            </View>
+            
+            {events.length > 0 ? (
+              <>
+                {events.slice(0, 5).map((event) => (
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    isAttending={user ? event.attendees.includes(user.uid) : false}
+                    isWaitlisted={user ? event.waitlist.includes(user.uid) : false}
+                  />
+                ))}
+                {events.length > 5 && (
                   <Button
-                    mode="contained"
-                    onPress={() => router.push(`/event/create?clubId=${club.id}`)}
-                    icon="plus"
-                    compact
+                    mode="outlined"
+                    onPress={() => router.push('/(tabs)/events')}
+                    style={styles.viewAllButton}
                   >
-                    Create Event
+                    View All Events
                   </Button>
                 )}
-              </View>
-              {upcomingEvents.length > 0 ? (
-                <>
-                  {upcomingEvents.slice(0, 3).map((event) => (
-                    <EventCard
-                      key={event.id}
-                      event={event}
-                      isAttending={user ? event.attendees.includes(user.uid) : false}
-                      isWaitlisted={user ? event.waitlist.includes(user.uid) : false}
-                    />
-                  ))}
-                  {upcomingEvents.length > 3 && (
-                    <Button
-                      mode="outlined"
-                      onPress={() => router.push('/(tabs)/events')}
-                      style={styles.viewAllButton}
-                    >
-                      View All Events
-                    </Button>
-                  )}
-                </>
-              ) : (
-                <View style={styles.noEventsContainer}>
-                  <Text variant="bodyMedium" style={styles.noEventsText}>
-                    No upcoming events yet
+              </>
+            ) : (
+              <View style={styles.noEventsContainer}>
+                <Text variant="bodyMedium" style={styles.noEventsText}>
+                  No events yet
+                </Text>
+                {isAdmin && (
+                  <Text variant="bodySmall" style={styles.noEventsHint}>
+                    Create your first event to get started!
                   </Text>
-                  {isAdmin && (
-                    <Text variant="bodySmall" style={styles.noEventsHint}>
-                      Create your first event to get started!
-                    </Text>
-                  )}
-                </View>
-              )}
-            </Card.Content>
-          </Card>
-        )}
+                )}
+              </View>
+            )}
+          </Card.Content>
+        </Card>
       </ScrollView>
-
-
 
       <JoinClubModal
         visible={joinModalVisible}
@@ -385,7 +420,7 @@ export default function ClubDetailScreen() {
         requiresApproval={!club.isPublic}
         loading={actionLoading}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -401,14 +436,41 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  coverContainer: {
+    position: 'relative',
+    height: 200,
+  },
   coverImage: {
     width: '100%',
-    height: 200,
+    height: '100%',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 60,
+    left: 16,
+    borderRadius: 25,
+    width: 50,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.9)',
+  },
+  menuButton: {
+    position: 'absolute',
+    top: 60,
+    right: 16,
+    borderRadius: 25,
+    width: 50,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.9)',
   },
   headerCard: {
     margin: 16,
-    marginTop: club => club.coverImage ? -40 : 16,
+    marginTop: -40,
     zIndex: 1,
+    borderRadius: 16,
   },
   headerContent: {
     padding: 20,
@@ -439,13 +501,6 @@ const styles = StyleSheet.create({
   },
   joinButton: {
     alignSelf: 'flex-start',
-  },
-  leaveButton: {
-    alignSelf: 'flex-start',
-  },
-  editButton: {
-    alignSelf: 'flex-start',
-    marginTop: 8,
   },
   description: {
     marginBottom: 16,
@@ -497,6 +552,7 @@ const styles = StyleSheet.create({
   eventsCard: {
     margin: 16,
     marginTop: 8,
+    borderRadius: 16,
   },
   eventsContent: {
     padding: 20,
@@ -526,5 +582,4 @@ const styles = StyleSheet.create({
   viewAllButton: {
     marginTop: 16,
   },
-
 });

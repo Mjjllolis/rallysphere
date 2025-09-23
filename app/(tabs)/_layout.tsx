@@ -55,6 +55,12 @@ export default function TabLayout() {
                     ),
                 }}
             />
+            <Tabs.Screen
+                name="create-club"
+                options={{
+                    href: null, // This hides the tab from the tab bar
+                }}
+            />
         </Tabs>
     );
 }
