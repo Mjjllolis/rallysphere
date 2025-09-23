@@ -1,6 +1,6 @@
-// app/club/create.tsx
+// app/(tabs)/create-club.tsx
 import React, { useState } from 'react';
-import { View, ScrollView, StyleSheet, Alert, Image } from 'react-native';
+import { View, ScrollView, StyleSheet, Alert, Image, Dimensions } from 'react-native';
 import { 
   Text, 
   TextInput, 
@@ -11,14 +11,17 @@ import {
   Chip,
   IconButton,
   Divider,
-  Appbar,
-  Menu
+  Menu,
+  Surface
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { createClub, uploadImage } from '../../lib/firebase';
 import { useAuth } from '../_layout';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const { width, height } = Dimensions.get('window');
 
 const SPORTS = [
   'Basketball', 'Football', 'Soccer', 'Tennis', 'Baseball', 'Volleyball',
@@ -28,8 +31,8 @@ const SPORTS = [
 ];
 
 const TAGS = [
-  'Beginner Friendly', 'Competitive', 'Social', 'Professional Development',
-  'Weekly Meetings', 'Monthly Events', 'Fundraising', 'Networking'
+  'Beginner Friendly', 'Competitive', 'Social', 'Recreational',
+  'Training Focused', 'Tournament Play', 'All Skill Levels', 'Advanced Players Only'
 ];
 
 export default function CreateClubScreen() {
@@ -37,11 +40,12 @@ export default function CreateClubScreen() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [showSportsMenu, setShowSportsMenu] = useState(false);
+  const [showTagsMenu, setShowTagsMenu] = useState(false);
   
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    sport: '',
+    sport: 'Pickleball', // Default sport - will add sport selection later
     contactEmail: '',
     website: '',
     instagram: '',
@@ -61,14 +65,13 @@ export default function CreateClubScreen() {
   const toggleTag = (tag: string) => {
     setSelectedTags(prev => 
       prev.includes(tag) 
-        ? prev.filter(t => t !== tag)
+        ? prev.filter(t => t !== tag) 
         : [...prev, tag]
     );
   };
 
   const pickImage = async (type: 'cover' | 'logo') => {
     try {
-      // Request permissions first
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission Required', 'We need camera roll permissions to select images.');
@@ -76,7 +79,7 @@ export default function CreateClubScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: 'images', // Use string instead of enum
+        mediaTypes: 'images',
         allowsEditing: true,
         aspect: type === 'cover' ? [16, 9] : [1, 1],
         quality: 0.8,
@@ -108,6 +111,7 @@ export default function CreateClubScreen() {
       Alert.alert('Error', 'Please select a sport');
       return false;
     }
+    // Note: Sport validation temporarily disabled since we're using Pickleball as default
     return true;
   };
 
@@ -123,12 +127,10 @@ export default function CreateClubScreen() {
       let coverImageUrl: string | undefined;
       let logoUrl: string | undefined;
 
-      // Try to upload images if selected, but don't fail if upload fails
       if (coverImage) {
         const coverPath = `clubs/covers/${Date.now()}_cover.jpg`;
         coverImageUrl = await uploadImage(coverImage, coverPath) || undefined;
         if (!coverImageUrl) {
-          // Warn user but continue without image
           Alert.alert(
             'Image Upload Failed', 
             'Cover image could not be uploaded. Continue creating club without image?',
@@ -144,7 +146,6 @@ export default function CreateClubScreen() {
         const logoPath = `clubs/logos/${Date.now()}_logo.jpg`;
         logoUrl = await uploadImage(logo, logoPath) || undefined;
         if (!logoUrl) {
-          // Warn user but continue without logo
           Alert.alert(
             'Image Upload Failed', 
             'Logo could not be uploaded. Continue creating club without logo?',
@@ -156,7 +157,6 @@ export default function CreateClubScreen() {
         }
       }
 
-      // Clean up the data - remove undefined values
       const socialLinks: any = {};
       if (formData.website.trim()) socialLinks.website = formData.website.trim();
       if (formData.instagram.trim()) socialLinks.instagram = formData.instagram.trim();
@@ -171,7 +171,6 @@ export default function CreateClubScreen() {
         isPublic,
       };
 
-      // Only add optional fields if they have values
       if (formData.contactEmail.trim()) {
         clubData.contactEmail = formData.contactEmail.trim();
       }
@@ -210,76 +209,100 @@ export default function CreateClubScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* App Bar with Back Button */}
-      <Appbar.Header>
-        <Appbar.BackAction onPress={() => router.back()} />
-        <Appbar.Content title="Create Club" />
-      </Appbar.Header>
+  <SafeAreaView style={[styles.container, { backgroundColor: 'white' }]}>
       <ScrollView 
+        style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <Text variant="headlineMedium" style={[styles.title, { color: theme.colors.primary }]}>
-            Create a Club
-          </Text>
-          <Text variant="bodyMedium" style={[styles.subtitle, { color: theme.colors.onSurface }]}>
-            Start building your community
-          </Text>
-        </View>
+        {/* Hero Header - compact style */}
+        <LinearGradient
+          colors={['#2C5282', '#2A4B7C']}
+          style={styles.heroHeader}
+        >
+          <IconButton 
+            icon="arrow-left" 
+            size={24}
+            onPress={() => router.back()}
+            style={styles.backButton}
+            iconColor="white"
+          />
+          <View style={styles.heroContent}>
+            <Text style={styles.heroTitle}>Create Club</Text>
+          </View>
+          
+          {/* White Rounded Bottom - bevel effect */}
+          <View style={[styles.headerBottom, { backgroundColor: 'white' }]} />
+        </LinearGradient>
 
-        <Card style={styles.card}>
-          <Card.Content style={styles.cardContent}>
-            {/* Cover Image */}
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              Club Images
-            </Text>
+        <View style={styles.content}>
+          {/* Images Section */}
+          <Card style={[styles.sectionCard, styles.imagesCard]} mode="elevated">
+            <Card.Content style={styles.cardContent}>
+              <Text variant="headlineSmall" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
+                Club Images
+              </Text>
+              <Text variant="bodyMedium" style={[styles.sectionDescription, { color: theme.colors.onSurfaceVariant }]}>
+                Make your club stand out with great visuals
+              </Text>
             
             <View style={styles.imageSection}>
               <Text variant="bodyMedium" style={styles.imageLabel}>Cover Image</Text>
-              <View style={[styles.imageContainer, styles.coverImageContainer]}>
+              <Surface style={[styles.imageContainer, styles.coverImageContainer]} elevation={1}>
                 {coverImage ? (
                   <Image source={{ uri: coverImage }} style={styles.coverImage} />
                 ) : (
                   <View style={[styles.imagePlaceholder, styles.coverImagePlaceholder, { backgroundColor: theme.colors.surfaceVariant }]}>
-                    <Text style={{ color: theme.colors.onSurfaceVariant }}>16:9 aspect ratio</Text>
+                    <IconButton icon="image" size={32} iconColor={theme.colors.onSurfaceVariant} />
+                    <Text style={{ color: theme.colors.onSurfaceVariant, marginTop: 8 }}>16:9 aspect ratio</Text>
                   </View>
                 )}
-                <IconButton
-                  icon="camera"
-                  mode="contained"
-                  onPress={() => pickImage('cover')}
-                  style={styles.imageButton}
-                />
-              </View>
+                <Surface style={styles.imageButtonContainer} elevation={3}>
+                  <IconButton
+                    icon="camera"
+                    mode="contained"
+                    onPress={() => pickImage('cover')}
+                    size={20}
+                  />
+                </Surface>
+              </Surface>
             </View>
 
             <View style={styles.imageSection}>
               <Text variant="bodyMedium" style={styles.imageLabel}>Logo</Text>
-              <View style={[styles.imageContainer, styles.logoContainer]}>
-                {logo ? (
-                  <Image source={{ uri: logo }} style={styles.logoImage} />
-                ) : (
-                  <View style={[styles.imagePlaceholder, styles.logoPlaceholder, { backgroundColor: theme.colors.surfaceVariant }]}>
-                    <Text style={{ color: theme.colors.onSurfaceVariant }}>Square</Text>
-                  </View>
-                )}
-                <IconButton
-                  icon="camera"
-                  mode="contained"
-                  onPress={() => pickImage('logo')}
-                  style={styles.imageButton}
-                />
+              <View style={styles.logoWrapper}>
+                <Surface style={[styles.imageContainer, styles.logoContainer]} elevation={1}>
+                  {logo ? (
+                    <Image source={{ uri: logo }} style={styles.logoImage} />
+                  ) : (
+                    <View style={[styles.imagePlaceholder, styles.logoPlaceholder, { backgroundColor: theme.colors.surfaceVariant }]}>
+                      <IconButton icon="account-circle" size={24} iconColor={theme.colors.onSurfaceVariant} />
+                      <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12 }}>Square</Text>
+                    </View>
+                  )}
+                  <Surface style={styles.logoButtonContainer} elevation={3}>
+                    <IconButton
+                      icon="camera"
+                      mode="contained"
+                      onPress={() => pickImage('logo')}
+                      size={16}
+                    />
+                  </Surface>
+                </Surface>
               </View>
             </View>
+            </Card.Content>
+          </Card>
 
-            <Divider style={styles.divider} />
-
-            {/* Basic Information */}
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              Basic Information
-            </Text>
+          {/* Basic Info Section */}
+          <Card style={[styles.sectionCard, styles.infoCard]} mode="elevated">
+            <Card.Content style={styles.cardContent}>
+              <Text variant="headlineSmall" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
+                Basic Information
+              </Text>
+              <Text variant="bodyMedium" style={[styles.sectionDescription, { color: theme.colors.onSurfaceVariant }]}>
+                Tell us about your club
+              </Text>
 
             <TextInput
               label="Club Name *"
@@ -300,7 +323,8 @@ export default function CreateClubScreen() {
               placeholder="What is your club about? What activities do you do?"
             />
 
-            {/* Sport Selection */}
+            {/* Sport Selection - Commented out for now, using Pickleball as default */}
+            {/* 
             <Text variant="bodyMedium" style={styles.fieldLabel}>Sport *</Text>
             <Menu
               visible={showSportsMenu}
@@ -328,6 +352,7 @@ export default function CreateClubScreen() {
                 />
               ))}
             </Menu>
+            */}
 
             <TextInput
               label="Contact Email"
@@ -338,13 +363,18 @@ export default function CreateClubScreen() {
               autoCapitalize="none"
               style={styles.input}
             />
+            </Card.Content>
+          </Card>
 
-            <Divider style={styles.divider} />
-
-            {/* Social Links */}
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              Social Links (Optional)
-            </Text>
+          {/* Social Links Section */}
+          <Card style={[styles.sectionCard, styles.socialCard]} mode="elevated">
+            <Card.Content style={styles.cardContent}>
+              <Text variant="headlineSmall" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
+                Social Links
+              </Text>
+              <Text variant="bodyMedium" style={[styles.sectionDescription, { color: theme.colors.onSurfaceVariant }]}>
+                Connect with your community (optional)
+              </Text>
 
             <TextInput
               label="Website"
@@ -368,50 +398,68 @@ export default function CreateClubScreen() {
             />
 
             <View style={styles.row}>
-              <TextInput
-                label="Twitter"
-                value={formData.twitter}
-                onChangeText={(value) => updateFormData('twitter', value)}
-                mode="outlined"
-                autoCapitalize="none"
-                style={[styles.input, styles.halfInput]}
-                left={<TextInput.Icon icon="twitter" />}
-                placeholder="@username"
-              />
-              <TextInput
-                label="Discord"
-                value={formData.discord}
-                onChangeText={(value) => updateFormData('discord', value)}
-                mode="outlined"
-                autoCapitalize="none"
-                style={[styles.input, styles.halfInput]}
-                placeholder="Invite link"
-              />
+              <View style={styles.halfInputContainer}>
+                <TextInput
+                  label="Twitter"
+                  value={formData.twitter}
+                  onChangeText={(value) => updateFormData('twitter', value)}
+                  mode="outlined"
+                  autoCapitalize="none"
+                  style={styles.input}
+                  left={<TextInput.Icon icon="twitter" />}
+                  placeholder="@username"
+                />
+              </View>
+              <View style={styles.halfInputContainer}>
+                <TextInput
+                  label="Discord"
+                  value={formData.discord}
+                  onChangeText={(value) => updateFormData('discord', value)}
+                  mode="outlined"
+                  autoCapitalize="none"
+                  style={styles.input}
+                  placeholder="Invite link"
+                />
+              </View>
             </View>
+            </Card.Content>
+          </Card>
 
-            <Divider style={styles.divider} />
+          {/* Tags & Settings Section */}
+          <Card style={[styles.sectionCard, styles.settingsCard]} mode="elevated">
+            <Card.Content style={styles.cardContent}>
+              <Text variant="headlineSmall" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
+                Club Settings
+              </Text>
+              <Text variant="bodyMedium" style={[styles.sectionDescription, { color: theme.colors.onSurfaceVariant }]}>
+                Customize your club preferences
+              </Text>
 
-            {/* Tags */}
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              Tags (Optional)
-            </Text>
-            <Text variant="bodySmall" style={[styles.tagsHint, { color: theme.colors.onSurfaceVariant }]}>
-              Help members find your club
-            </Text>
-
-            <View style={styles.tagsContainer}>
-              {TAGS.map((tag) => (
-                <Chip
-                  key={tag}
-                  selected={selectedTags.includes(tag)}
-                  onPress={() => toggleTag(tag)}
-                  style={styles.tagChip}
-                  showSelectedOverlay
+            <Text variant="bodyMedium" style={styles.fieldLabel}>Club Type</Text>
+            <Menu
+              visible={showTagsMenu}
+              onDismiss={() => setShowTagsMenu(false)}
+              anchor={
+                <Button 
+                  mode="outlined" 
+                  onPress={() => setShowTagsMenu(true)}
+                  style={styles.tagSelector}
+                  contentStyle={styles.tagSelectorContent}
+                  icon="chevron-down"
                 >
-                  {tag}
-                </Chip>
+                  {selectedTags.length > 0 ? selectedTags.join(', ') : 'Select club type(s)'}
+                </Button>
+              }
+            >
+              {TAGS.map((tag) => (
+                <Menu.Item
+                  key={tag}
+                  onPress={() => toggleTag(tag)}
+                  title={tag}
+                  leadingIcon={selectedTags.includes(tag) ? 'check' : undefined}
+                />
               ))}
-            </View>
+            </Menu>
 
             <Divider style={styles.divider} />
 
@@ -445,6 +493,7 @@ export default function CreateClubScreen() {
             </Button>
           </Card.Content>
         </Card>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -454,139 +503,178 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  heroHeader: {
+    height: 120,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 40,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  backButton: {
+    position: 'absolute',
+    left: 20,
+    top: 50,
+    zIndex: 10,
+  },
+  heroContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 10,
+  },
+  heroTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'white',
+    textAlign: 'center',
+  },
+  headerBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 30,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+  },
+  scrollView: {
+    flex: 1,
+  },
   scrollContent: {
     flexGrow: 1,
+  },
+  content: {
+    flex: 1,
     padding: 20,
-    paddingBottom: 40,
+    paddingTop: 20,
   },
-  header: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  title: {
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  subtitle: {
-    textAlign: 'center',
-    opacity: 0.8,
-  },
-  card: {
-    elevation: 4,
+  sectionCard: {
+    marginBottom: 20,
+    borderRadius: 16,
+    elevation: 2,
   },
   cardContent: {
     padding: 24,
   },
   sectionTitle: {
-    marginBottom: 16,
+    marginBottom: 8,
     fontWeight: 'bold',
   },
+  sectionDescription: {
+    marginBottom: 24,
+    lineHeight: 20,
+  },
   imageSection: {
-    marginBottom: 16,
+    marginBottom: 24,
   },
   imageLabel: {
-    marginBottom: 8,
-    fontWeight: '500',
+    marginBottom: 12,
+    fontWeight: '600',
   },
   imageContainer: {
-    position: 'relative',
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   coverImageContainer: {
-    height: 120,
-    marginBottom: 16,
+    height: 140,
+    position: 'relative',
+  },
+  logoWrapper: {
+    alignItems: 'center',
   },
   logoContainer: {
-    width: 100,
-    height: 100,
-    alignSelf: 'center',
+    width: 120,
+    height: 120,
+    position: 'relative',
   },
   coverImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 8,
   },
   logoImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 8,
   },
   imagePlaceholder: {
+    width: '100%',
+    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 8,
     borderWidth: 2,
     borderStyle: 'dashed',
+    borderRadius: 12,
   },
   coverImagePlaceholder: {
-    width: '100%',
-    height: '100%',
+    borderRadius: 12,
   },
   logoPlaceholder: {
-    width: '100%',
-    height: '100%',
+    borderRadius: 12,
   },
-  imageButton: {
+  imageButtonContainer: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    borderRadius: 20,
+  },
+  logoButtonContainer: {
     position: 'absolute',
     bottom: 8,
     right: 8,
+    borderRadius: 16,
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 12,
+  },
+  halfInputContainer: {
+    flex: 1,
   },
   input: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   halfInput: {
     flex: 0.48,
   },
   fieldLabel: {
-    marginBottom: 8,
-    fontWeight: '500',
+    marginBottom: 12,
+    fontWeight: '600',
   },
   sportSelector: {
-    marginBottom: 16,
+    marginBottom: 20,
     justifyContent: 'flex-start',
   },
   sportSelectorContent: {
     flexDirection: 'row-reverse',
   },
-  categoryContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 16,
+  tagSelector: {
+    marginBottom: 20,
+    justifyContent: 'flex-start',
   },
-  categoryChip: {
-    margin: 4,
-  },
-  tagsHint: {
-    marginBottom: 12,
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 16,
-  },
-  tagChip: {
-    margin: 4,
+  tagSelectorContent: {
+    flexDirection: 'row-reverse',
   },
   switchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 24,
+    paddingVertical: 8,
   },
   switchContent: {
     flex: 1,
     marginRight: 16,
   },
   divider: {
-    marginVertical: 20,
+    marginVertical: 24,
   },
   createButton: {
-    marginTop: 8,
+    marginTop: 16,
+    borderRadius: 12,
   },
   buttonContent: {
-    paddingVertical: 8,
+    paddingVertical: 12,
   },
 });

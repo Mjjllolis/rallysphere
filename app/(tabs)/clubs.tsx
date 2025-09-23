@@ -183,6 +183,17 @@ export default function ClubsPage() {
         <View style={styles.emptyState}>
           <Text variant="headlineSmall">Please log in to view clubs</Text>
         </View>
+        
+        {/* Create Club Button */}
+        <Button
+          mode="contained"
+          onPress={() => router.push('/(tabs)/create-club')}
+          style={styles.createButton}
+          icon="plus"
+          buttonColor={theme.colors.primary}
+        >
+          Create Club
+        </Button>
       </SafeAreaView>
     );
   }
@@ -219,7 +230,7 @@ export default function ClubsPage() {
         {/* Create Club Button */}
         <Button
           mode="contained"
-          onPress={() => router.push('/club/create')}
+          onPress={() => router.push('/(tabs)/create-club')}
           style={styles.createButton}
           icon="plus"
           buttonColor={theme.colors.primary}

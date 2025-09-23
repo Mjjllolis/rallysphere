@@ -3,13 +3,12 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert, RefreshControl } from 'react-native';
 import { 
   Text, 
-  FAB, 
   useTheme,
   Searchbar,
-  Chip,
   Button,
   Card,
-  SegmentedButtons
+  SegmentedButtons,
+  IconButton
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -17,11 +16,6 @@ import { useAuth } from '../_layout';
 import { getEvents, joinEvent, leaveEvent, getClubs } from '../../lib/firebase';
 import type { Event, Club } from '../../lib/firebase';
 import EventCard from '../../components/EventCard';
-
-const EVENT_TAGS = [
-  'All', 'Workshop', 'Meeting', 'Social', 'Competition', 'Conference',
-  'Fundraiser', 'Volunteer', 'Networking', 'Performance', 'Game Night'
-];
 
 const TIME_FILTERS = [
   { value: 'all', label: 'All' },
@@ -42,7 +36,6 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTag, setSelectedTag] = useState('All');
   const [timeFilter, setTimeFilter] = useState('all');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -54,7 +47,7 @@ export default function EventsPage() {
 
   useEffect(() => {
     filterEvents();
-  }, [allEvents, myEvents, searchQuery, selectedTag, timeFilter, activeTab]);
+  }, [allEvents, myEvents, searchQuery, timeFilter, activeTab]);
 
   const loadData = async () => {
     if (!user) return;
@@ -68,12 +61,12 @@ export default function EventsPage() {
         setUserClubs(clubsResult.clubs);
       }
       
-      // Load all public events
+      // Load all public events for discover tab
       const eventsResult = await getEvents();
       if (eventsResult.success) {
         setAllEvents(eventsResult.events);
         
-        // Filter events user is attending
+        // Filter events user is attending for my events tab
         const attendingEvents = eventsResult.events.filter(event => 
           event.attendees.includes(user.uid) || event.waitlist.includes(user.uid)
         );
@@ -94,13 +87,6 @@ export default function EventsPage() {
 
   const filterEvents = () => {
     let filtered = activeTab === 'discover' ? allEvents : myEvents;
-    
-    // Filter by tag
-    if (selectedTag !== 'All') {
-      filtered = filtered.filter(event => 
-        event.tags && event.tags.includes(selectedTag)
-      );
-    }
     
     // Filter by time
     if (timeFilter !== 'all') {
@@ -132,8 +118,7 @@ export default function EventsPage() {
         event.title.toLowerCase().includes(query) ||
         event.description.toLowerCase().includes(query) ||
         event.clubName.toLowerCase().includes(query) ||
-        event.location.toLowerCase().includes(query) ||
-        (event.tags && event.tags.some(tag => tag.toLowerCase().includes(query)))
+        event.location.toLowerCase().includes(query)
       );
     }
     
@@ -204,8 +189,6 @@ export default function EventsPage() {
     );
   };
 
-  const canCreateEvent = userClubs.length > 0;
-
   if (!user) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -219,29 +202,36 @@ export default function EventsPage() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={styles.header}>
+        <IconButton
+          icon="arrow-left"
+          size={24}
+          onPress={() => router.back()}
+          style={styles.backButton}
+        />
         <Text variant="headlineMedium" style={[styles.title, { color: theme.colors.onSurface }]}>
           Events
         </Text>
+        <View style={styles.spacer} />
+      </View>
         
-        {/* Tab Switcher */}
-        <View style={styles.tabContainer}>
-          <Button
-            mode={activeTab === 'discover' ? 'contained' : 'outlined'}
-            onPress={() => setActiveTab('discover')}
-            style={styles.tabButton}
-            compact
-          >
-            Discover
-          </Button>
-          <Button
-            mode={activeTab === 'my-events' ? 'contained' : 'outlined'}
-            onPress={() => setActiveTab('my-events')}
-            style={styles.tabButton}
-            compact
-          >
-            My Events ({myEvents.length})
-          </Button>
-        </View>
+      {/* Tab Switcher */}
+      <View style={styles.tabContainer}>
+        <Button
+          mode={activeTab === 'discover' ? 'contained' : 'outlined'}
+          onPress={() => setActiveTab('discover')}
+          style={styles.tabButton}
+          compact
+        >
+          Discover
+        </Button>
+        <Button
+          mode={activeTab === 'my-events' ? 'contained' : 'outlined'}
+          onPress={() => setActiveTab('my-events')}
+          style={styles.tabButton}
+          compact
+        >
+          My Events ({myEvents.length})
+        </Button>
       </View>
 
       <View style={styles.filtersContainer}>
@@ -260,30 +250,11 @@ export default function EventsPage() {
           buttons={TIME_FILTERS}
           style={styles.timeFilter}
         />
-        
-        {/* Tag Filter */}
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          style={styles.tagFilter}
-          contentContainerStyle={styles.tagContent}
-        >
-          {EVENT_TAGS.map((tag) => (
-            <Chip
-              key={tag}
-              selected={selectedTag === tag}
-              onPress={() => setSelectedTag(tag)}
-              style={styles.tagChip}
-              showSelectedOverlay
-            >
-              {tag}
-            </Chip>
-          ))}
-        </ScrollView>
       </View>
 
       <ScrollView
         style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
@@ -330,27 +301,6 @@ export default function EventsPage() {
           </Card>
         )}
       </ScrollView>
-
-      {canCreateEvent ? (
-        <FAB
-          icon="plus"
-          style={[styles.fab, { backgroundColor: theme.colors.primary }]}
-          onPress={() => router.push('/event/create')}
-        />
-      ) : (
-        <FAB
-          icon="plus"
-          style={[styles.fab, { backgroundColor: theme.colors.surfaceVariant }]}
-          onPress={() => Alert.alert(
-            'Create Event', 
-            'You need to be a member of at least one club to create events.',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'View Clubs', onPress: () => router.push('/(tabs)/clubs') }
-            ]
-          )}
-        />
-      )}
     </SafeAreaView>
   );
 }
@@ -360,16 +310,27 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 20,
     paddingBottom: 10,
   },
+  backButton: {
+    margin: 0,
+  },
+  spacer: {
+    width: 40, // Same width as back button to center the title
+  },
   title: {
     fontWeight: 'bold',
-    marginBottom: 16,
+    flex: 1,
+    textAlign: 'center',
   },
   tabContainer: {
     flexDirection: 'row',
     gap: 8,
+    paddingHorizontal: 20,
+    marginBottom: 10,
   },
   tabButton: {
     flex: 1,
@@ -384,17 +345,11 @@ const styles = StyleSheet.create({
   timeFilter: {
     marginBottom: 12,
   },
-  tagFilter: {
-    marginBottom: 8,
-  },
-  tagContent: {
-    paddingRight: 20,
-  },
-  tagChip: {
-    marginRight: 8,
-  },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 100,
   },
   emptyState: {
     flex: 1,
@@ -420,10 +375,5 @@ const styles = StyleSheet.create({
   },
   discoverButton: {
     marginTop: 8,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 16,
-    right: 16,
   },
 });
