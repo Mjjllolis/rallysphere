@@ -20,6 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { signIn } from '../../lib/firebase';
+import { Video } from 'expo-av';
 
 const { width, height } = Dimensions.get('window');
 
@@ -82,16 +83,31 @@ export default function LoginScreen() {
         <SafeAreaView style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="#2C5282" />
             
-            {/* Gradient Background */}
+            {/* Gradient Background
             <LinearGradient
                 colors={['#2C5282', '#2A4B7C', '#1A365D']}
                 style={styles.background}
             >
-                {/* Decorative Elements */}
+                Decorative Elements
                 <View style={styles.decorativeCircle1} />
                 <View style={styles.decorativeCircle2} />
                 <View style={styles.decorativeCircle3} />
-            </LinearGradient>
+            </LinearGradient> */}
+            {/* Gradient Background */}
+    <View style={styles.background}>
+
+    {/* Base black background */}
+    <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'black' }]} />
+        <Video
+                source={require('../../assets/BGSignIn.mp4')}
+                style={[StyleSheet.absoluteFill, styles.video]}
+                resizeMode="cover"
+                shouldPlay
+                isLooping
+                isMuted
+              />
+    </View>
+
 
             <View style={styles.content}>
                 <Animated.View 
@@ -114,7 +130,7 @@ export default function LoginScreen() {
                     </View>
 
                     {/* Main Card */}
-                    <Surface style={styles.card} elevation={8}>
+                    <Surface style={styles.card}>
                         <View style={styles.formContainer}>
                             <TextInput
                                 label="Email Address"
@@ -292,4 +308,12 @@ const styles = StyleSheet.create({
         fontSize: 14,
         textAlign: 'center',
     },
+    spot: {
+    position: 'absolute',
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    opacity: 1,
+    },
+
 });
