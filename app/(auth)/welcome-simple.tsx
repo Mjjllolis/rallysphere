@@ -76,7 +76,7 @@ export default function WelcomeScreen() {
           <Text style={styles.terms}>
             By continuing, you agree to RallySphere's{' '}
             <Text style={styles.link}>Privacy Notice</Text>,{' '}
-            <Text style={styles.link}>Terms of Use</Text>{'\n'}
+            <Text style={styles.link}>Terms of Use</Text>,{' '}
             <Text style={styles.link}>End Users' License Agreement</Text>
           </Text>
         </View>
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   buttonContent: {
-    paddingVertical: 14,
+    paddingVertical: 4,
   },
   terms: {
     fontSize: 12,

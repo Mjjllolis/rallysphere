@@ -12,7 +12,7 @@ export default function Index() {
         return null;
     }
     
-    const redirectPath = user ? '/(tabs)' : '/(auth)/welcome-simple';
+    const redirectPath = user ? '/(tabs)/home' : '/(auth)/welcome-simple';
     console.log('Index redirecting to:', redirectPath);
     
     return <Redirect href={redirectPath} />;
