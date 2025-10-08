@@ -1,18 +1,15 @@
 // app/(tabs)/create-club.tsx
 import React, { useState } from 'react';
-import { View, ScrollView, StyleSheet, Alert, Image, Dimensions } from 'react-native';
-import { 
-  Text, 
-  TextInput, 
-  Button, 
+import { View, ScrollView, StyleSheet, Alert, Image, TouchableOpacity } from 'react-native';
+import {
+  Text,
+  TextInput,
+  Button,
   Card,
   useTheme,
   Switch,
-  Chip,
   IconButton,
-  Divider,
-  Menu,
-  Surface
+  Menu
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -20,8 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { createClub, uploadImage } from '../../lib/firebase';
 import { useAuth } from '../_layout';
 import { LinearGradient } from 'expo-linear-gradient';
-
-const { width, height } = Dimensions.get('window');
+import BackButton from '../../components/BackButton';
 
 const SPORTS = [
   'Basketball', 'Football', 'Soccer', 'Tennis', 'Baseball', 'Volleyball',
@@ -41,18 +37,18 @@ export default function CreateClubScreen() {
   const [loading, setLoading] = useState(false);
   const [showSportsMenu, setShowSportsMenu] = useState(false);
   const [showTagsMenu, setShowTagsMenu] = useState(false);
-  
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    sport: 'Pickleball', // Default sport - will add sport selection later
+    sport: '',
     contactEmail: '',
     website: '',
     instagram: '',
     twitter: '',
     discord: '',
   });
-  
+
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [isPublic, setIsPublic] = useState(true);
   const [coverImage, setCoverImage] = useState<string | null>(null);
@@ -63,9 +59,9 @@ export default function CreateClubScreen() {
   };
 
   const toggleTag = (tag: string) => {
-    setSelectedTags(prev => 
-      prev.includes(tag) 
-        ? prev.filter(t => t !== tag) 
+    setSelectedTags(prev =>
+      prev.includes(tag)
+        ? prev.filter(t => t !== tag)
         : [...prev, tag]
     );
   };
@@ -108,10 +104,9 @@ export default function CreateClubScreen() {
       return false;
     }
     if (!formData.sport) {
-      Alert.alert('Error', 'Please select a sport');
+      Alert.alert('Error', 'Please select a category');
       return false;
     }
-    // Note: Sport validation temporarily disabled since we're using Pickleball as default
     return true;
   };
 
@@ -130,31 +125,11 @@ export default function CreateClubScreen() {
       if (coverImage) {
         const coverPath = `clubs/covers/${Date.now()}_cover.jpg`;
         coverImageUrl = await uploadImage(coverImage, coverPath) || undefined;
-        if (!coverImageUrl) {
-          Alert.alert(
-            'Image Upload Failed', 
-            'Cover image could not be uploaded. Continue creating club without image?',
-            [
-              { text: 'Cancel', style: 'cancel', onPress: () => { setLoading(false); return; } },
-              { text: 'Continue', style: 'default' }
-            ]
-          );
-        }
       }
 
       if (logo) {
         const logoPath = `clubs/logos/${Date.now()}_logo.jpg`;
         logoUrl = await uploadImage(logo, logoPath) || undefined;
-        if (!logoUrl) {
-          Alert.alert(
-            'Image Upload Failed', 
-            'Logo could not be uploaded. Continue creating club without logo?',
-            [
-              { text: 'Cancel', style: 'cancel', onPress: () => { setLoading(false); return; } },
-              { text: 'Continue', style: 'default' }
-            ]
-          );
-        }
       }
 
       const socialLinks: any = {};
@@ -190,10 +165,10 @@ export default function CreateClubScreen() {
       const result = await createClub(clubData);
       if (result.success) {
         Alert.alert(
-          'Success!', 
+          'Success!',
           'Your club has been created successfully!',
-          [{ 
-            text: 'OK', 
+          [{
+            text: 'OK',
             onPress: () => router.push(`/club/${result.clubId}`)
           }]
         );
@@ -209,377 +184,363 @@ export default function CreateClubScreen() {
   };
 
   return (
-  <SafeAreaView style={[styles.container, { backgroundColor: 'white' }]}>
-      <ScrollView 
-        style={styles.scrollView}
+    <View style={styles.container}>
+      <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        stickyHeaderIndices={[0]}
       >
-        {/* Hero Header - compact style */}
-        <LinearGradient
-          colors={['#2C5282', '#2A4B7C']}
-          style={styles.heroHeader}
-        >
-          <IconButton 
-            icon="arrow-left" 
-            size={24}
-            onPress={() => router.back()}
-            style={styles.backButton}
-            iconColor="white"
-          />
-          <View style={styles.heroContent}>
-            <Text style={styles.heroTitle}>Create Club</Text>
-          </View>
-          
-          {/* White Rounded Bottom - bevel effect */}
-          <View style={[styles.headerBottom, { backgroundColor: 'white' }]} />
-        </LinearGradient>
+        {/* Header with Gradient */}
+        <View>
+          <LinearGradient
+            colors={['#1B365D', '#2B4A73', '#3A5F8F']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.header}
+          >
+            <SafeAreaView edges={['top']}>
+              <View style={styles.headerContent}>
+                <BackButton color="white" backgroundColor="rgba(255,255,255,0.2)" />
+                <Text style={styles.headerTitle}>Create Club</Text>
+                <View style={styles.placeholder} />
+              </View>
+            </SafeAreaView>
+          </LinearGradient>
+        </View>
 
         <View style={styles.content}>
-          {/* Images Section */}
-          <Card style={[styles.sectionCard, styles.imagesCard]} mode="elevated">
+          {/* Cover Image Section */}
+          <Card style={styles.formCard} mode="elevated">
             <Card.Content style={styles.cardContent}>
-              <Text variant="headlineSmall" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
-                Club Images
-              </Text>
-              <Text variant="bodyMedium" style={[styles.sectionDescription, { color: theme.colors.onSurfaceVariant }]}>
-                Make your club stand out with great visuals
-              </Text>
-            
-            <View style={styles.imageSection}>
-              <Text variant="bodyMedium" style={styles.imageLabel}>Cover Image</Text>
-              <Surface style={[styles.imageContainer, styles.coverImageContainer]} elevation={1}>
-                {coverImage ? (
-                  <Image source={{ uri: coverImage }} style={styles.coverImage} />
-                ) : (
-                  <View style={[styles.imagePlaceholder, styles.coverImagePlaceholder, { backgroundColor: theme.colors.surfaceVariant }]}>
-                    <IconButton icon="image" size={32} iconColor={theme.colors.onSurfaceVariant} />
-                    <Text style={{ color: theme.colors.onSurfaceVariant, marginTop: 8 }}>16:9 aspect ratio</Text>
-                  </View>
-                )}
-                <Surface style={styles.imageButtonContainer} elevation={3}>
-                  <IconButton
-                    icon="camera"
-                    mode="contained"
-                    onPress={() => pickImage('cover')}
-                    size={20}
-                  />
-                </Surface>
-              </Surface>
-            </View>
+              <View style={styles.sectionHeader}>
+                <View style={styles.iconBadge}>
+                  <IconButton icon="image" size={20} iconColor="#1B365D" />
+                </View>
+                <Text variant="titleLarge" style={styles.sectionTitle}>Cover Image</Text>
+              </View>
 
-            <View style={styles.imageSection}>
-              <Text variant="bodyMedium" style={styles.imageLabel}>Logo</Text>
-              <View style={styles.logoWrapper}>
-                <Surface style={[styles.imageContainer, styles.logoContainer]} elevation={1}>
-                  {logo ? (
-                    <Image source={{ uri: logo }} style={styles.logoImage} />
+              <TouchableOpacity onPress={() => pickImage('cover')} activeOpacity={0.7}>
+                <LinearGradient
+                  colors={['#E1E7F1', '#D4DCE8']}
+                  style={styles.coverImageContainer}
+                >
+                  {coverImage ? (
+                    <Image source={{ uri: coverImage }} style={styles.coverImage} />
                   ) : (
-                    <View style={[styles.imagePlaceholder, styles.logoPlaceholder, { backgroundColor: theme.colors.surfaceVariant }]}>
-                      <IconButton icon="account-circle" size={24} iconColor={theme.colors.onSurfaceVariant} />
-                      <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12 }}>Square</Text>
+                    <View style={styles.imagePlaceholder}>
+                      <IconButton icon="camera-plus" size={40} iconColor="#1B365D" />
+                      <Text style={styles.imagePlaceholderText}>Tap to add cover image</Text>
+                      <Text style={styles.imageHint}>16:9 recommended</Text>
                     </View>
                   )}
-                  <Surface style={styles.logoButtonContainer} elevation={3}>
-                    <IconButton
-                      icon="camera"
-                      mode="contained"
-                      onPress={() => pickImage('logo')}
-                      size={16}
-                    />
-                  </Surface>
-                </Surface>
-              </View>
-            </View>
+                </LinearGradient>
+              </TouchableOpacity>
             </Card.Content>
           </Card>
 
-          {/* Basic Info Section */}
-          <Card style={[styles.sectionCard, styles.infoCard]} mode="elevated">
+          {/* Logo Section */}
+          <Card style={styles.formCard} mode="elevated">
             <Card.Content style={styles.cardContent}>
-              <Text variant="headlineSmall" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
-                Basic Information
-              </Text>
-              <Text variant="bodyMedium" style={[styles.sectionDescription, { color: theme.colors.onSurfaceVariant }]}>
-                Tell us about your club
-              </Text>
+              <View style={styles.sectionHeader}>
+                <View style={styles.iconBadge}>
+                  <IconButton icon="shield-account" size={20} iconColor="#1B365D" />
+                </View>
+                <Text variant="titleLarge" style={styles.sectionTitle}>Club Logo</Text>
+              </View>
 
-            <TextInput
-              label="Club Name *"
-              value={formData.name}
-              onChangeText={(value) => updateFormData('name', value)}
-              mode="outlined"
-              style={styles.input}
-            />
-
-            <TextInput
-              label="Description *"
-              value={formData.description}
-              onChangeText={(value) => updateFormData('description', value)}
-              mode="outlined"
-              multiline
-              numberOfLines={4}
-              style={styles.input}
-              placeholder="What is your club about? What activities do you do?"
-            />
-
-            {/* Sport Selection - Commented out for now, using Pickleball as default */}
-            {/* 
-            <Text variant="bodyMedium" style={styles.fieldLabel}>Sport *</Text>
-            <Menu
-              visible={showSportsMenu}
-              onDismiss={() => setShowSportsMenu(false)}
-              anchor={
-                <Button 
-                  mode="outlined" 
-                  onPress={() => setShowSportsMenu(true)}
-                  style={styles.sportSelector}
-                  contentStyle={styles.sportSelectorContent}
-                  icon="chevron-down"
-                >
-                  {formData.sport || 'Select a sport'}
-                </Button>
-              }
-            >
-              {SPORTS.map((sport) => (
-                <Menu.Item
-                  key={sport}
-                  onPress={() => {
-                    updateFormData('sport', sport);
-                    setShowSportsMenu(false);
-                  }}
-                  title={sport}
-                />
-              ))}
-            </Menu>
-            */}
-
-            <TextInput
-              label="Contact Email"
-              value={formData.contactEmail}
-              onChangeText={(value) => updateFormData('contactEmail', value)}
-              mode="outlined"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              style={styles.input}
-            />
+              <TouchableOpacity onPress={() => pickImage('logo')} activeOpacity={0.7}>
+                <View style={styles.logoWrapper}>
+                  <LinearGradient
+                    colors={['#E1E7F1', '#D4DCE8']}
+                    style={styles.logoContainer}
+                  >
+                    {logo ? (
+                      <Image source={{ uri: logo }} style={styles.logoImage} />
+                    ) : (
+                      <View style={styles.logoPlaceholder}>
+                        <IconButton icon="account-circle" size={40} iconColor="#1B365D" />
+                        <Text style={styles.logoHint}>Club Logo</Text>
+                      </View>
+                    )}
+                  </LinearGradient>
+                </View>
+              </TouchableOpacity>
             </Card.Content>
           </Card>
 
-          {/* Social Links Section */}
-          <Card style={[styles.sectionCard, styles.socialCard]} mode="elevated">
+          {/* Basic Information */}
+          <Card style={styles.formCard} mode="elevated">
             <Card.Content style={styles.cardContent}>
-              <Text variant="headlineSmall" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
-                Social Links
-              </Text>
-              <Text variant="bodyMedium" style={[styles.sectionDescription, { color: theme.colors.onSurfaceVariant }]}>
-                Connect with your community (optional)
-              </Text>
-
-            <TextInput
-              label="Website"
-              value={formData.website}
-              onChangeText={(value) => updateFormData('website', value)}
-              mode="outlined"
-              autoCapitalize="none"
-              style={styles.input}
-              left={<TextInput.Icon icon="web" />}
-            />
-
-            <TextInput
-              label="Instagram"
-              value={formData.instagram}
-              onChangeText={(value) => updateFormData('instagram', value)}
-              mode="outlined"
-              autoCapitalize="none"
-              style={styles.input}
-              left={<TextInput.Icon icon="instagram" />}
-              placeholder="@username"
-            />
-
-            <View style={styles.row}>
-              <View style={styles.halfInputContainer}>
-                <TextInput
-                  label="Twitter"
-                  value={formData.twitter}
-                  onChangeText={(value) => updateFormData('twitter', value)}
-                  mode="outlined"
-                  autoCapitalize="none"
-                  style={styles.input}
-                  left={<TextInput.Icon icon="twitter" />}
-                  placeholder="@username"
-                />
+              <View style={styles.sectionHeader}>
+                <View style={styles.iconBadge}>
+                  <IconButton icon="information" size={20} iconColor="#1B365D" />
+                </View>
+                <Text variant="titleLarge" style={styles.sectionTitle}>Club Details</Text>
               </View>
-              <View style={styles.halfInputContainer}>
-                <TextInput
-                  label="Discord"
-                  value={formData.discord}
-                  onChangeText={(value) => updateFormData('discord', value)}
-                  mode="outlined"
-                  autoCapitalize="none"
-                  style={styles.input}
-                  placeholder="Invite link"
-                />
-              </View>
-            </View>
-            </Card.Content>
-          </Card>
 
-          {/* Tags & Settings Section */}
-          <Card style={[styles.sectionCard, styles.settingsCard]} mode="elevated">
-            <Card.Content style={styles.cardContent}>
-              <Text variant="headlineSmall" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
-                Club Settings
-              </Text>
-              <Text variant="bodyMedium" style={[styles.sectionDescription, { color: theme.colors.onSurfaceVariant }]}>
-                Customize your club preferences
-              </Text>
-
-            <Text variant="bodyMedium" style={styles.fieldLabel}>Club Type</Text>
-            <Menu
-              visible={showTagsMenu}
-              onDismiss={() => setShowTagsMenu(false)}
-              anchor={
-                <Button 
-                  mode="outlined" 
-                  onPress={() => setShowTagsMenu(true)}
-                  style={styles.tagSelector}
-                  contentStyle={styles.tagSelectorContent}
-                  icon="chevron-down"
-                >
-                  {selectedTags.length > 0 ? selectedTags.join(', ') : 'Select club type(s)'}
-                </Button>
-              }
-            >
-              {TAGS.map((tag) => (
-                <Menu.Item
-                  key={tag}
-                  onPress={() => toggleTag(tag)}
-                  title={tag}
-                  leadingIcon={selectedTags.includes(tag) ? 'check' : undefined}
-                />
-              ))}
-            </Menu>
-
-            <Divider style={styles.divider} />
-
-            {/* Privacy Settings */}
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              Privacy Settings
-            </Text>
-
-            <View style={styles.switchContainer}>
-              <View style={styles.switchContent}>
-                <Text variant="bodyLarge">Public Club</Text>
-                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                  Anyone can discover and join this club
-                </Text>
-              </View>
-              <Switch
-                value={isPublic}
-                onValueChange={setIsPublic}
+              <TextInput
+                label="Club Name *"
+                value={formData.name}
+                onChangeText={(value) => updateFormData('name', value)}
+                mode="outlined"
+                style={styles.input}
               />
-            </View>
 
-            <Button
-              mode="contained"
-              onPress={handleCreateClub}
-              loading={loading}
-              disabled={loading}
-              style={styles.createButton}
-              contentStyle={styles.buttonContent}
-            >
-              Create Club
-            </Button>
-          </Card.Content>
-        </Card>
+              <TextInput
+                label="Description *"
+                value={formData.description}
+                onChangeText={(value) => updateFormData('description', value)}
+                mode="outlined"
+                multiline
+                numberOfLines={4}
+                style={styles.input}
+                placeholder="What is your club about? What activities do you do?"
+              />
+
+              <Text variant="bodyLarge" style={styles.fieldLabel}>Category *</Text>
+              <Menu
+                visible={showSportsMenu}
+                onDismiss={() => setShowSportsMenu(false)}
+                anchor={
+                  <TouchableOpacity
+                    style={styles.categorySelector}
+                    onPress={() => setShowSportsMenu(true)}
+                  >
+                    <Text style={styles.categorySelectorText}>
+                      {formData.sport || 'Select a category...'}
+                    </Text>
+                    <IconButton icon="chevron-down" size={20} />
+                  </TouchableOpacity>
+                }
+              >
+                {SPORTS.map((sport) => (
+                  <Menu.Item
+                    key={sport}
+                    onPress={() => {
+                      updateFormData('sport', sport);
+                      setShowSportsMenu(false);
+                    }}
+                    title={sport}
+                  />
+                ))}
+              </Menu>
+
+              <TextInput
+                label="Contact Email"
+                value={formData.contactEmail}
+                onChangeText={(value) => updateFormData('contactEmail', value)}
+                mode="outlined"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                style={styles.input}
+                left={<TextInput.Icon icon="email" />}
+              />
+            </Card.Content>
+          </Card>
+
+          {/* Social Links */}
+          <Card style={styles.formCard} mode="elevated">
+            <Card.Content style={styles.cardContent}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.iconBadge}>
+                  <IconButton icon="link-variant" size={20} iconColor="#1B365D" />
+                </View>
+                <Text variant="titleLarge" style={styles.sectionTitle}>Social Links</Text>
+              </View>
+
+              <TextInput
+                label="Website"
+                value={formData.website}
+                onChangeText={(value) => updateFormData('website', value)}
+                mode="outlined"
+                autoCapitalize="none"
+                style={styles.input}
+                left={<TextInput.Icon icon="web" />}
+              />
+
+              <TextInput
+                label="Instagram"
+                value={formData.instagram}
+                onChangeText={(value) => updateFormData('instagram', value)}
+                mode="outlined"
+                autoCapitalize="none"
+                style={styles.input}
+                left={<TextInput.Icon icon="instagram" />}
+                placeholder="@username"
+              />
+
+              <TextInput
+                label="Twitter"
+                value={formData.twitter}
+                onChangeText={(value) => updateFormData('twitter', value)}
+                mode="outlined"
+                autoCapitalize="none"
+                style={styles.input}
+                left={<TextInput.Icon icon="twitter" />}
+                placeholder="@username"
+              />
+
+              <TextInput
+                label="Discord"
+                value={formData.discord}
+                onChangeText={(value) => updateFormData('discord', value)}
+                mode="outlined"
+                autoCapitalize="none"
+                style={styles.input}
+                placeholder="Invite link"
+              />
+            </Card.Content>
+          </Card>
+
+          {/* Settings */}
+          <Card style={styles.formCard} mode="elevated">
+            <Card.Content style={styles.cardContent}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.iconBadge}>
+                  <IconButton icon="cog" size={20} iconColor="#1B365D" />
+                </View>
+                <Text variant="titleLarge" style={styles.sectionTitle}>Club Settings</Text>
+              </View>
+
+              <Text variant="bodyLarge" style={styles.fieldLabel}>Club Type</Text>
+              <Menu
+                visible={showTagsMenu}
+                onDismiss={() => setShowTagsMenu(false)}
+                anchor={
+                  <TouchableOpacity
+                    style={styles.categorySelector}
+                    onPress={() => setShowTagsMenu(true)}
+                  >
+                    <Text style={styles.categorySelectorText}>
+                      {selectedTags.length > 0 ? selectedTags.join(', ') : 'Select club type(s)...'}
+                    </Text>
+                    <IconButton icon="chevron-down" size={20} />
+                  </TouchableOpacity>
+                }
+              >
+                {TAGS.map((tag) => (
+                  <Menu.Item
+                    key={tag}
+                    onPress={() => toggleTag(tag)}
+                    title={tag}
+                    leadingIcon={selectedTags.includes(tag) ? 'check' : undefined}
+                  />
+                ))}
+              </Menu>
+
+              <View style={styles.switchRow}>
+                <View style={styles.switchContent}>
+                  <Text variant="bodyLarge" style={styles.switchLabel}>Public Club</Text>
+                  <Text variant="bodySmall" style={styles.switchDescription}>
+                    Anyone can discover and join
+                  </Text>
+                </View>
+                <Switch value={isPublic} onValueChange={setIsPublic} />
+              </View>
+            </Card.Content>
+          </Card>
+
+          <Button
+            mode="contained"
+            onPress={handleCreateClub}
+            loading={loading}
+            disabled={loading}
+            style={styles.createButton}
+            contentStyle={styles.buttonContent}
+          >
+            Create Club
+          </Button>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f5f5f5',
   },
-  heroHeader: {
-    height: 120,
+  header: {
+    paddingBottom: 16,
+  },
+  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 40,
-    position: 'relative',
-    overflow: 'hidden',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  backButton: {
-    position: 'absolute',
-    left: 20,
-    top: 50,
-    zIndex: 10,
-  },
-  heroContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingTop: 10,
-  },
-  heroTitle: {
+  headerTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: 'white',
-    textAlign: 'center',
   },
-  headerBottom: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 30,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-  },
-  scrollView: {
-    flex: 1,
+  placeholder: {
+    width: 40,
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: 40,
   },
   content: {
-    flex: 1,
-    padding: 20,
-    paddingTop: 20,
+    padding: 16,
   },
-  sectionCard: {
-    marginBottom: 20,
+  formCard: {
+    marginBottom: 16,
     borderRadius: 16,
     elevation: 2,
+    backgroundColor: 'white',
   },
   cardContent: {
-    padding: 24,
+    padding: 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  iconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E1E7F1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
   sectionTitle: {
-    marginBottom: 8,
     fontWeight: 'bold',
-  },
-  sectionDescription: {
-    marginBottom: 24,
-    lineHeight: 20,
-  },
-  imageSection: {
-    marginBottom: 24,
-  },
-  imageLabel: {
-    marginBottom: 12,
-    fontWeight: '600',
-  },
-  imageContainer: {
-    borderRadius: 12,
-    overflow: 'hidden',
+    color: '#1B365D',
   },
   coverImageContainer: {
-    height: 140,
-    position: 'relative',
+    height: 160,
+    borderRadius: 12,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  coverImage: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+  },
+  imagePlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  imagePlaceholderText: {
+    fontSize: 16,
+    color: '#1B365D',
+    fontWeight: '600',
+    marginTop: 8,
+  },
+  imageHint: {
+    fontSize: 12,
+    color: '#1B365D',
+    opacity: 0.7,
+    marginTop: 4,
   },
   logoWrapper: {
     alignItems: 'center',
@@ -587,92 +548,77 @@ const styles = StyleSheet.create({
   logoContainer: {
     width: 120,
     height: 120,
-    position: 'relative',
-  },
-  coverImage: {
-    width: '100%',
-    height: '100%',
+    borderRadius: 60,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   logoImage: {
     width: '100%',
     height: '100%',
-  },
-  imagePlaceholder: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderRadius: 12,
-  },
-  coverImagePlaceholder: {
-    borderRadius: 12,
+    position: 'absolute',
   },
   logoPlaceholder: {
-    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  imageButtonContainer: {
-    position: 'absolute',
-    bottom: 12,
-    right: 12,
-    borderRadius: 20,
-  },
-  logoButtonContainer: {
-    position: 'absolute',
-    bottom: 8,
-    right: 8,
-    borderRadius: 16,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  halfInputContainer: {
-    flex: 1,
+  logoHint: {
+    fontSize: 12,
+    color: '#1B365D',
+    opacity: 0.7,
+    marginTop: 4,
   },
   input: {
-    marginBottom: 20,
-  },
-  halfInput: {
-    flex: 0.48,
+    marginBottom: 12,
+    borderRadius: 12,
   },
   fieldLabel: {
-    marginBottom: 12,
     fontWeight: '600',
+    marginBottom: 8,
+    color: '#1B365D',
   },
-  sportSelector: {
-    marginBottom: 20,
-    justifyContent: 'flex-start',
-  },
-  sportSelectorContent: {
-    flexDirection: 'row-reverse',
-  },
-  tagSelector: {
-    marginBottom: 20,
-    justifyContent: 'flex-start',
-  },
-  tagSelectorContent: {
-    flexDirection: 'row-reverse',
-  },
-  switchContainer: {
+  categorySelector: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 12,
+    paddingHorizontal: 16,
     paddingVertical: 8,
+    minHeight: 56,
+    marginBottom: 12,
+  },
+  categorySelectorText: {
+    fontSize: 16,
+    flex: 1,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E1E7F1',
+    marginTop: 8,
   },
   switchContent: {
     flex: 1,
     marginRight: 16,
   },
-  divider: {
-    marginVertical: 24,
+  switchLabel: {
+    fontWeight: '600',
+    color: '#1B365D',
+  },
+  switchDescription: {
+    color: '#666',
+    marginTop: 2,
   },
   createButton: {
-    marginTop: 16,
+    marginTop: 8,
+    marginBottom: 20,
     borderRadius: 12,
+    backgroundColor: '#1B365D',
   },
   buttonContent: {
     paddingVertical: 12,

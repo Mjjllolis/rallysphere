@@ -5,9 +5,7 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Platform,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type TopTabsProps = {
   activeTab: string;
@@ -15,11 +13,10 @@ type TopTabsProps = {
 };
 
 export default function TopTabs({ activeTab, setActiveTab }: TopTabsProps) {
-  const insets = useSafeAreaInsets();
-  const tabs = ['Editors’ Pick', 'For You', 'Trending', 'Following'];
+  const tabs = ["Editors' Pick", 'For You', 'Trending', 'Following'];
 
   return (
-    <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
+    <View style={styles.container}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -47,35 +44,33 @@ export default function TopTabs({ activeTab, setActiveTab }: TopTabsProps) {
 }
 
 const styles = StyleSheet.create({
-  headerContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    backgroundColor: 'transparent',
+  container: {
+    paddingVertical: 8,
+    paddingHorizontal: 8,
   },
   tabsRow: {
-    paddingHorizontal: 16, // remove or lower this to push tabs closer to edges
+    paddingHorizontal: 4,
+    gap: 8,
   },
   tab: {
     height: 36,
-    paddingHorizontal: 16,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    marginRight: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    marginRight: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
   activeTab: {
-    backgroundColor: '#111',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
   },
   tabText: {
-    fontSize: 13,
-    color: '#333',
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   activeTabText: {
-    color: '#fff',
-    fontWeight: '600',
+    color: '#000',
+    fontWeight: '700',
   },
 });

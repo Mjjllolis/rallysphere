@@ -132,6 +132,21 @@ export interface ClubJoinRequest {
   respondedBy?: string;
 }
 
+export interface FeaturedEvent {
+  id: string;
+  eventId: string;
+  pricePerDay: number;
+  startDate: Timestamp;
+  endDate: Timestamp;
+  totalCost: number;
+  status: 'active' | 'scheduled' | 'expired';
+  createdBy: string;
+  createdAt: Timestamp;
+  placement: 'home_feed' | 'category_feed' | 'search_results' | 'all';
+  impressions?: number;
+  clicks?: number;
+}
+
 // --- 3. Firebase Configuration ---
 // Try environment variables first, fall back to Constants
 const getFirebaseConfig = () => {
@@ -527,13 +542,73 @@ export const createEvent = async (eventData: Omit<Event, 'id' | 'createdAt' | 'u
       attendees: [],
       waitlist: []
     };
-    
+
     const docRef = await addDoc(collection(db, 'events'), event);
-    
+
     return { success: true, eventId: docRef.id };
   } catch (error: any) {
     console.error('Error creating event:', error);
     return { success: false, error: error.message };
+  }
+};
+
+// Get all events (public or for a specific club) with optional featured events
+export const getAllEvents = async (includeFeatured: boolean = false) => {
+  try {
+    const q = query(
+      collection(db, 'events'),
+      where('isPublic', '==', true)
+    );
+
+    const querySnapshot = await getDocs(q);
+    const events: Event[] = [];
+
+    querySnapshot.forEach((doc) => {
+      events.push({ id: doc.id, ...doc.data() } as Event);
+    });
+
+    // Sort by start date
+    events.sort((a, b) => {
+      const dateA = a.startDate?.toDate ? a.startDate.toDate() : new Date(a.startDate);
+      const dateB = b.startDate?.toDate ? b.startDate.toDate() : new Date(b.startDate);
+      return dateA.getTime() - dateB.getTime();
+    });
+
+    // If includeFeatured, get active featured events and merge them
+    if (includeFeatured) {
+      const featuredResult = await getActiveFeaturedEvents('home_feed');
+      if (featuredResult.success && featuredResult.featured.length > 0) {
+        // Get the actual event data for featured events
+        const featuredEventIds = featuredResult.featured.map(f => f.eventId);
+        const featuredEvents = events.filter(e => featuredEventIds.includes(e.id));
+        const nonFeaturedEvents = events.filter(e => !featuredEventIds.includes(e.id));
+
+        // Interleave featured events (every 3rd event is featured)
+        const mergedEvents: Event[] = [];
+        let featuredIndex = 0;
+
+        nonFeaturedEvents.forEach((event, index) => {
+          mergedEvents.push(event);
+          if ((index + 1) % 3 === 0 && featuredIndex < featuredEvents.length) {
+            mergedEvents.push(featuredEvents[featuredIndex]);
+            featuredIndex++;
+          }
+        });
+
+        // Add remaining featured events at the end
+        while (featuredIndex < featuredEvents.length) {
+          mergedEvents.push(featuredEvents[featuredIndex]);
+          featuredIndex++;
+        }
+
+        return { success: true, events: mergedEvents };
+      }
+    }
+
+    return { success: true, events };
+  } catch (error: any) {
+    console.error('Error getting all events:', error);
+    return { success: false, error: error.message, events: [] };
   }
 };
 
@@ -623,6 +698,69 @@ export const leaveEvent = async (eventId: string, userId: string) => {
   } catch (error: any) {
     console.error('Error leaving event:', error);
     return { success: false, error: error.message };
+  }
+};
+
+export const getEventById = async (eventId: string) => {
+  try {
+    const eventDoc = await getDoc(doc(db, 'events', eventId));
+
+    if (!eventDoc.exists()) {
+      return { success: false, error: 'Event not found' };
+    }
+
+    const data = eventDoc.data();
+    const event: Event = {
+      id: eventDoc.id,
+      ...data
+    } as Event;
+
+    return { success: true, event };
+  } catch (error: any) {
+    console.error('Error getting event:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const bookmarkEvent = async (eventId: string, userId: string) => {
+  try {
+    const userDoc = doc(db, 'users', userId);
+    await updateDoc(userDoc, {
+      bookmarkedEvents: arrayUnion(eventId)
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error bookmarking event:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const unbookmarkEvent = async (eventId: string, userId: string) => {
+  try {
+    const userDoc = doc(db, 'users', userId);
+    await updateDoc(userDoc, {
+      bookmarkedEvents: arrayRemove(eventId)
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error unbookmarking event:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const getUserBookmarks = async (userId: string) => {
+  try {
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    if (!userDoc.exists()) {
+      return { success: false, error: 'User not found', bookmarks: [] };
+    }
+
+    const data = userDoc.data();
+    const bookmarks = data.bookmarkedEvents || [];
+    return { success: true, bookmarks };
+  } catch (error: any) {
+    console.error('Error getting bookmarks:', error);
+    return { success: false, error: error.message, bookmarks: [] };
   }
 };
 
@@ -852,21 +990,21 @@ export const subscribeToEvents = (clubId: string, callback: (events: Event[]) =>
       collection(db, 'events'),
       where('clubId', '==', clubId)
     );
-    
+
     // Use onSnapshot for real-time updates if possible
     return onSnapshot(q, (querySnapshot) => {
       const events: Event[] = [];
       querySnapshot.forEach((doc) => {
         events.push({ id: doc.id, ...doc.data() } as Event);
       });
-      
+
       // Sort in JavaScript
       events.sort((a, b) => {
         const dateA = a.startDate?.toDate ? a.startDate.toDate() : new Date(a.startDate);
         const dateB = b.startDate?.toDate ? b.startDate.toDate() : new Date(b.startDate);
         return dateA.getTime() - dateB.getTime();
       });
-      
+
       callback(events);
     }, (error) => {
       console.error('Error in events subscription:', error);
@@ -881,19 +1019,132 @@ export const subscribeToEvents = (clubId: string, callback: (events: Event[]) =>
           console.error('Error in events polling:', error);
         }
       };
-      
+
       // Initial load
       pollEvents();
-      
+
       // Poll every 30 seconds
       const interval = setInterval(pollEvents, 30000);
-      
+
       // Return cleanup function
       return () => clearInterval(interval);
     });
   } catch (error) {
     console.error('Error setting up events subscription:', error);
     return () => {};
+  }
+};
+
+// --- Featured Event Functions ---
+export const createFeaturedEvent = async (featuredData: Omit<FeaturedEvent, 'id' | 'createdAt' | 'status' | 'totalCost'>) => {
+  try {
+    // Calculate total cost based on date range
+    const startDate = featuredData.startDate.toDate ? featuredData.startDate.toDate() : new Date(featuredData.startDate);
+    const endDate = featuredData.endDate.toDate ? featuredData.endDate.toDate() : new Date(featuredData.endDate);
+    const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const totalCost = days * featuredData.pricePerDay;
+
+    // Determine status based on dates
+    const now = new Date();
+    let status: 'active' | 'scheduled' | 'expired';
+    if (now >= startDate && now <= endDate) {
+      status = 'active';
+    } else if (now < startDate) {
+      status = 'scheduled';
+    } else {
+      status = 'expired';
+    }
+
+    const featured = {
+      ...featuredData,
+      totalCost,
+      status,
+      createdAt: serverTimestamp(),
+      impressions: 0,
+      clicks: 0
+    };
+
+    const docRef = await addDoc(collection(db, 'featuredEvents'), featured);
+
+    return { success: true, featuredId: docRef.id };
+  } catch (error: any) {
+    console.error('Error creating featured event:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const getActiveFeaturedEvents = async (placement?: 'home_feed' | 'category_feed' | 'search_results' | 'all') => {
+  try {
+    const now = new Date();
+    let q;
+
+    if (placement && placement !== 'all') {
+      q = query(
+        collection(db, 'featuredEvents'),
+        where('status', '==', 'active'),
+        where('placement', 'in', [placement, 'all'])
+      );
+    } else {
+      q = query(
+        collection(db, 'featuredEvents'),
+        where('status', '==', 'active')
+      );
+    }
+
+    const querySnapshot = await getDocs(q);
+    const featured: FeaturedEvent[] = [];
+
+    querySnapshot.forEach((doc) => {
+      const data = { id: doc.id, ...doc.data() } as FeaturedEvent;
+      // Double-check dates in case status is stale
+      const endDate = data.endDate.toDate ? data.endDate.toDate() : new Date(data.endDate);
+      if (endDate >= now) {
+        featured.push(data);
+      }
+    });
+
+    return { success: true, featured };
+  } catch (error: any) {
+    console.error('Error getting featured events:', error);
+    return { success: false, error: error.message, featured: [] };
+  }
+};
+
+export const trackFeaturedImpression = async (featuredId: string) => {
+  try {
+    const featuredRef = doc(db, 'featuredEvents', featuredId);
+    const featuredDoc = await getDoc(featuredRef);
+
+    if (featuredDoc.exists()) {
+      const currentImpressions = featuredDoc.data().impressions || 0;
+      await updateDoc(featuredRef, {
+        impressions: currentImpressions + 1
+      });
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error tracking impression:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const trackFeaturedClick = async (featuredId: string) => {
+  try {
+    const featuredRef = doc(db, 'featuredEvents', featuredId);
+    const featuredDoc = await getDoc(featuredRef);
+
+    if (featuredDoc.exists()) {
+      const currentClicks = featuredDoc.data().clicks || 0;
+      await updateDoc(featuredRef, {
+        clicks: currentClicks + 1
+      });
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error tracking click:', error);
+    return { success: false, error: error.message };
   }
 };
 
@@ -904,12 +1155,13 @@ export const subscribeToEvents = (clubId: string, callback: (events: Event[]) =>
 export { auth, db, storage, app };
 
 // --- 13. Export all types for convenience ---
-export type { 
-  User, 
-  UserProfile, 
-  Club, 
-  Event, 
-  ClubJoinRequest, 
+export type {
+  User,
+  UserProfile,
+  Club,
+  Event,
+  ClubJoinRequest,
+  FeaturedEvent,
   Timestamp,
   FirebaseUser
 };

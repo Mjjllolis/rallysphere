@@ -1,9 +1,9 @@
 // app/event/[id].tsx
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert, Image, Linking } from 'react-native';
-import { 
-  Text, 
-  Button, 
+import {
+  Text,
+  Button,
   Card,
   Chip,
   IconButton,
@@ -16,6 +16,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../_layout';
 import { getEvents, joinEvent, leaveEvent } from '../../lib/firebase';
 import type { Event } from '../../lib/firebase';
+import BackButton from '../../components/BackButton';
 
 export default function EventDetailScreen() {
   const theme = useTheme();
@@ -142,11 +143,11 @@ export default function EventDetailScreen() {
 
   if (loading || !event) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <View style={styles.loadingContainer}>
           <Text variant="bodyLarge">Loading...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -158,11 +159,23 @@ export default function EventDetailScreen() {
   const isFull = event.maxAttendees && event.attendees.length >= event.maxAttendees;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Cover Image */}
+        {/* Cover Image with Back Button */}
         {event.coverImage && (
-          <Image source={{ uri: event.coverImage }} style={styles.coverImage} />
+          <View style={styles.coverImageContainer}>
+            <Image source={{ uri: event.coverImage }} style={styles.coverImage} />
+            <View style={styles.backButtonContainer}>
+              <BackButton />
+            </View>
+          </View>
+        )}
+
+        {/* Back Button (if no cover image) */}
+        {!event.coverImage && (
+          <View style={styles.backButtonContainer}>
+            <BackButton color="#1B365D" backgroundColor="rgba(27, 54, 93, 0.1)" />
+          </View>
         )}
 
         {/* Event Header */}
@@ -331,7 +344,7 @@ export default function EventDetailScreen() {
           </Card>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -347,9 +360,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  coverImageContainer: {
+    position: 'relative',
+  },
   coverImage: {
     width: '100%',
     height: 200,
+  },
+  backButtonContainer: {
+    position: 'absolute',
+    top: 50,
+    left: 16,
+    zIndex: 10,
   },
   headerCard: {
     margin: 16,

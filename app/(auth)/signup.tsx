@@ -80,7 +80,7 @@ export default function SignupScreen() {
             const result = await signUp(email.trim(), password, profile);
             if (result.success) {
                 Alert.alert('Success', 'Account created successfully!', [
-                    { text: 'OK', onPress: () => router.replace('/(tabs)') }
+                    { text: 'OK', onPress: () => router.replace('/(tabs)/home') }
                 ]);
             } else {
                 Alert.alert('Error', result.error || 'Signup failed');
