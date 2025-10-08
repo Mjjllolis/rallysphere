@@ -4,6 +4,7 @@ import { View, StyleSheet } from 'react-native';
 import { Text, IconButton, Divider, useTheme, TouchableRipple } from 'react-native-paper';
 import Modal from 'react-native-modal';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 
 interface CreateModalProps {
   visible: boolean;
@@ -16,15 +17,15 @@ export default function CreateModal({ visible, onClose }: CreateModalProps) {
   const options = [
     {
       icon: 'calendar-plus',
-      label: 'Event',
+      label: 'New Event',
       onPress: () => {
         onClose();
-        // 🔗 Replace with router.push('/event/create')
+        router.push('/(tabs)/create-event');
       },
     },
     {
       icon: 'square-edit-outline',
-      label: 'Post',
+      label: 'New Post',
       onPress: () => {
         onClose();
         // 🔗 Replace with router.push('/post/create')
@@ -32,10 +33,10 @@ export default function CreateModal({ visible, onClose }: CreateModalProps) {
     },
     {
       icon: 'account-group-outline',
-      label: 'New Community',
+      label: 'New Club',
       onPress: () => {
         onClose();
-        // 🔗 Replace with router.push('/create-club')
+        router.push('/(tabs)/create-club');
       },
     },
   ];
