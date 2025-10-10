@@ -1,14 +1,15 @@
 // components/ClubCard.tsx
 import React from 'react';
-import { View, StyleSheet, Image } from 'react-native';
-import { 
-  Card, 
-  Text, 
-  Button, 
+import { View, StyleSheet, Image, ImageBackground } from 'react-native';
+import {
+  Card,
+  Text,
+  Button,
   Chip,
   useTheme,
   IconButton
 } from 'react-native-paper';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import type { Club } from '../lib/firebase';
 
@@ -20,12 +21,12 @@ interface ClubCardProps {
   loading?: boolean;
 }
 
-export default function ClubCard({ 
-  club, 
-  isJoined = false, 
-  onJoin, 
+export default function ClubCard({
+  club,
+  isJoined = false,
+  onJoin,
   onLeave,
-  loading = false 
+  loading = false
 }: ClubCardProps) {
   const theme = useTheme();
 
@@ -43,164 +44,132 @@ export default function ClubCard({
 
   return (
     <Card style={styles.card} onPress={handlePress}>
-      {club.coverImage && (
-        <Card.Cover source={{ uri: club.coverImage }} style={styles.coverImage} />
-      )}
-      
-      <Card.Content style={styles.content}>
-        <View style={styles.header}>
-          <View style={styles.titleSection}>
-            {club.logo && (
-              <Image source={{ uri: club.logo }} style={styles.logo} />
-            )}
-            <View style={styles.titleText}>
-              <Text variant="titleMedium" style={styles.clubName} numberOfLines={1}>
-                {club.name}
-              </Text>
-              <Text variant="bodySmall" style={[styles.category, { color: theme.colors.primary }]}>
-                {club.category}
-              </Text>
+      <ImageBackground
+        source={club.coverImage ? { uri: club.coverImage } : undefined}
+        style={styles.coverImage}
+        imageStyle={styles.backgroundImage}
+      >
+        <LinearGradient
+          colors={['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.8)']}
+          style={styles.gradient}
+        >
+          <View style={styles.overlayContent}>
+            <View style={styles.header}>
+              {club.logo && (
+                <Image source={{ uri: club.logo }} style={styles.logo} />
+              )}
+              <View style={styles.titleSection}>
+                <Text variant="headlineSmall" style={styles.clubName} numberOfLines={2}>
+                  {club.name}
+                </Text>
+                <Text variant="bodySmall" style={styles.category}>
+                  {club.category} • {club.members.length} member{club.members.length !== 1 ? 's' : ''}
+                </Text>
+              </View>
             </View>
-          </View>
-          
-          {(onJoin || onLeave) && (
-            <Button
-              mode={isJoined ? "outlined" : "contained"}
-              compact
-              loading={loading}
-              onPress={handleJoinLeave}
-              style={styles.joinButton}
-            >
-              {isJoined ? "Leave" : "Join"}
-            </Button>
-          )}
-        </View>
 
-        <Text variant="bodyMedium" style={styles.description} numberOfLines={2}>
-          {club.description}
-        </Text>
-
-        <View style={styles.footer}>
-          <View style={styles.info}>
-            {club.location && (
-              <View style={styles.infoItem}>
-                <Text variant="bodySmall" style={[styles.infoText, { color: theme.colors.onSurfaceVariant }]}>
-                  📍 {club.location}
-                </Text>
+            {club.tags && club.tags.length > 0 && (
+              <View style={styles.tags}>
+                {club.tags.slice(0, 3).map((tag) => (
+                  <Chip
+                    key={tag}
+                    compact
+                    style={styles.tag}
+                    textStyle={styles.tagText}
+                  >
+                    {tag}
+                  </Chip>
+                ))}
               </View>
             )}
-            {club.university && (
-              <View style={styles.infoItem}>
-                <Text variant="bodySmall" style={[styles.infoText, { color: theme.colors.onSurfaceVariant }]}>
-                  🏫 {club.university}
-                </Text>
+
+            {(onJoin || onLeave) && (
+              <View style={styles.actions}>
+                <Button
+                  mode={isJoined ? "outlined" : "contained"}
+                  loading={loading}
+                  onPress={handleJoinLeave}
+                  style={styles.joinButton}
+                  buttonColor={isJoined ? 'transparent' : theme.colors.primary}
+                  textColor={isJoined ? '#fff' : undefined}
+                >
+                  {isJoined ? "Joined" : "Join"}
+                </Button>
               </View>
             )}
           </View>
-
-          <Text variant="bodySmall" style={[styles.memberCount, { color: theme.colors.onSurfaceVariant }]}>
-            {club.members.length} member{club.members.length !== 1 ? 's' : ''}
-          </Text>
-        </View>
-
-        {club.tags && club.tags.length > 0 && (
-          <View style={styles.tags}>
-            {club.tags.slice(0, 3).map((tag) => (
-              <Chip key={tag} compact style={styles.tag}>
-                {tag}
-              </Chip>
-            ))}
-            {club.tags.length > 3 && (
-              <Text variant="bodySmall" style={[styles.moreTags, { color: theme.colors.onSurfaceVariant }]}>
-                +{club.tags.length - 3} more
-              </Text>
-            )}
-          </View>
-        )}
-      </Card.Content>
+        </LinearGradient>
+      </ImageBackground>
     </Card>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    marginVertical: 8,
+    marginVertical: 10,
     marginHorizontal: 16,
-    elevation: 2,
+    elevation: 8,
+    borderRadius: 16,
+    overflow: 'hidden',
   },
   coverImage: {
-    height: 120,
+    height: 220,
+    width: '100%',
   },
-  content: {
+  backgroundImage: {
+    borderRadius: 16,
+  },
+  gradient: {
+    flex: 1,
+    justifyContent: 'flex-end',
     padding: 16,
+  },
+  overlayContent: {
+    gap: 12,
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  titleSection: {
-    flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
-    marginRight: 12,
+    gap: 12,
   },
   logo: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
-  titleText: {
+  titleSection: {
     flex: 1,
   },
   clubName: {
     fontWeight: 'bold',
-    marginBottom: 2,
+    color: '#fff',
+    marginBottom: 4,
   },
   category: {
-    fontWeight: '500',
-    textTransform: 'uppercase',
+    color: 'rgba(255,255,255,0.9)',
     fontSize: 12,
-  },
-  joinButton: {
-    alignSelf: 'flex-start',
-  },
-  description: {
-    marginBottom: 12,
-    lineHeight: 20,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginBottom: 8,
-  },
-  info: {
-    flex: 1,
-  },
-  infoItem: {
-    marginBottom: 2,
-  },
-  infoText: {
-    fontSize: 12,
-  },
-  memberCount: {
-    fontSize: 12,
-    fontWeight: '500',
   },
   tags: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    alignItems: 'center',
+    gap: 6,
   },
   tag: {
-    marginRight: 6,
-    marginBottom: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 12,
   },
-  moreTags: {
-    fontSize: 12,
-    fontStyle: 'italic',
+  tagText: {
+    color: '#fff',
+    fontSize: 11,
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  joinButton: {
+    flex: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
   },
 });

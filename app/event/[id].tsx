@@ -1,6 +1,6 @@
 // app/event/[id].tsx
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Image, Linking, ImageBackground, Dimensions } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Image, Linking, ImageBackground, Dimensions, TouchableOpacity } from 'react-native';
 import {
   Text,
   Button,
@@ -164,7 +164,7 @@ export default function EventDetailScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Hero Header */}
         <ImageBackground
           source={event.coverImage ? { uri: event.coverImage } : undefined}
@@ -248,8 +248,8 @@ export default function EventDetailScreen() {
                   style={styles.heroActionButton}
                   contentStyle={styles.heroActionButtonContent}
                   labelStyle={styles.heroActionButtonLabel}
-                  buttonColor={isAttending || isWaitlisted ? 'transparent' : theme.colors.primary}
-                  textColor={isAttending || isWaitlisted ? '#fff' : undefined}
+                  buttonColor={isAttending || isWaitlisted ? 'transparent' : '#4F8CC9'}
+                  textColor={isAttending || isWaitlisted ? '#fff' : '#fff'}
                 >
                   {isWaitlisted ? 'Leave Waitlist' : isAttending ? 'Leave Event' : isFull ? 'Event Full' : 'Join Event'}
                 </Button>
@@ -365,7 +365,7 @@ export default function EventDetailScreen() {
             <View style={styles.section}>
               <Card style={styles.virtualCard}>
                 <Card.Content style={styles.virtualContent}>
-                  <IconButton icon="video" size={48} iconColor={theme.colors.primary} />
+                  <IconButton icon="video" size={48} iconColor="#4F8CC9" />
                   <Text variant="titleLarge" style={styles.virtualTitle}>
                     Join Virtual Event
                   </Text>
@@ -374,6 +374,7 @@ export default function EventDetailScreen() {
                     onPress={openVirtualLink}
                     icon="open-in-new"
                     style={styles.virtualButton}
+                    buttonColor="#4F8CC9"
                   >
                     Open Meeting Link
                   </Button>
@@ -435,6 +436,9 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollContent: {
+    flexGrow: 1,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -473,13 +477,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   statusChipAttending: {
-    backgroundColor: 'rgba(76, 175, 80, 0.3)',
+    backgroundColor: 'rgba(100, 200, 100, 0.25)',
   },
   statusChipWaitlist: {
-    backgroundColor: 'rgba(255, 193, 7, 0.3)',
+    backgroundColor: 'rgba(255, 200, 0, 0.25)',
   },
   statusChipPast: {
-    backgroundColor: 'rgba(158, 158, 158, 0.3)',
+    backgroundColor: 'rgba(150, 150, 150, 0.25)',
   },
   statusChipText: {
     color: '#fff',
@@ -522,7 +526,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
+    minHeight: '100%',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     marginTop: -24,
@@ -599,6 +604,27 @@ const styles = StyleSheet.create({
   topicChip: {
     borderRadius: 20,
   },
+  attendeeScroll: {
+    paddingRight: 20,
+  },
+  attendeeAvatar: {
+    marginRight: 12,
+  },
+  avatarCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#60A5FA',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  waitlistAvatar: {
+    backgroundColor: '#94A3B8',
+  },
+  avatarText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
   membersList: {
     gap: 0,
   },
@@ -617,18 +643,6 @@ const styles = StyleSheet.create({
     gap: 12,
     flex: 1,
     minWidth: 0,
-  },
-  avatarCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#60A5FA',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: {
-    color: '#fff',
-    fontWeight: 'bold',
   },
   memberId: {
     flex: 1,

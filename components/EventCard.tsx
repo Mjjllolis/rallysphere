@@ -32,7 +32,7 @@ export default function EventCard({
   const theme = useTheme();
 
   const handlePress = () => {
-    router.push(`/event/${event.id}`);
+    router.push(`/(tabs)/event-detail?id=${event.id}`);
   };
 
   const handleJoinLeave = async () => {

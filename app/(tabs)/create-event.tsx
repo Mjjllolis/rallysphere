@@ -182,11 +182,11 @@ export default function CreateEventScreen() {
       const result = await createEvent(eventData);
       if (result.success) {
         Alert.alert(
-          'Success!', 
+          'Success!',
           'Your event has been created successfully!',
-          [{ 
-            text: 'OK', 
-            onPress: () => router.push(`/event/${result.eventId}`)
+          [{
+            text: 'OK',
+            onPress: () => router.push(`/(tabs)/event-detail?id=${result.eventId}`)
           }]
         );
       } else {

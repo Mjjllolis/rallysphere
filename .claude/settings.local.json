@@ -4,7 +4,11 @@
       "Bash(npx expo install:*)",
       "Bash(npm install:*)",
       "Bash(ls:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npx expo:*)",
+      "Read(//Users/mishawnlolis/Downloads/**)",
+      "Bash(mv:*)",
+      "Bash(tail:*)"
     ],
     "deny": [],
     "ask": []

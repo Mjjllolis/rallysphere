@@ -7,7 +7,7 @@ import CreateModal from "../event/createModal";
 import { Image, StyleSheet, Animated, Dimensions } from "react-native";
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const TAB_COUNT = 5; // Home, Tickets, Clubs, Create, Profile
+const TAB_COUNT = 5; // Home, Events, Clubs, Create, Profile
 const TAB_WIDTH = SCREEN_WIDTH / TAB_COUNT;
 
 // Animated tab icon component
@@ -77,7 +77,7 @@ export default function TabLayout() {
 
   const openModal = () => setIsModalVisible(true);
   const closeModal = () => setIsModalVisible(false);
-  const TicketIcon = require("../../assets/ticket.png");
+  const EventIcon = require("../../assets/ticket.png");
 
   return (
     <>
@@ -129,11 +129,11 @@ export default function TabLayout() {
         />
 
         <Tabs.Screen
-          name="tickets"
+          name="events"
           options={{
-            title: "Tickets",
+            title: "Events",
             tabBarIcon: ({ color, focused }) => (
-              <AnimatedImageIcon source={TicketIcon} color={color} focused={focused} />
+              <AnimatedTabIcon name="calendar-month" color={color} focused={focused} />
             ),
           }}
         />
