@@ -228,7 +228,7 @@ export default function ClubDetailScreen() {
                         <Menu.Item
                           onPress={() => {
                             setMenuVisible(false);
-                            router.push(`/event/create?clubId=${club.id}`);
+                            router.push(`/(tabs)/create-event?clubId=${club.id}`);
                           }}
                           title="Create Event"
                           leadingIcon="plus"

@@ -391,7 +391,11 @@ export const getClubs = async (userId?: string) => {
         isPublic: data.isPublic,
         tags: data.tags,
         contactEmail: data.contactEmail,
-        socialLinks: data.socialLinks
+        socialLinks: data.socialLinks,
+        // Stripe Connect fields
+        stripeAccountId: data.stripeAccountId,
+        stripeAccountStatus: data.stripeAccountStatus,
+        stripeOnboardingComplete: data.stripeOnboardingComplete
       };
       clubs.push(club);
     });
@@ -413,7 +417,7 @@ export const getClubs = async (userId?: string) => {
 export const getClub = async (clubId: string) => {
   try {
     const clubDoc = await getDoc(doc(db, 'clubs', clubId));
-    
+
     if (clubDoc.exists()) {
       const data = clubDoc.data();
       const club: Club = {
@@ -431,7 +435,11 @@ export const getClub = async (clubId: string) => {
         isPublic: data.isPublic,
         tags: data.tags,
         contactEmail: data.contactEmail,
-        socialLinks: data.socialLinks
+        socialLinks: data.socialLinks,
+        // Stripe Connect fields
+        stripeAccountId: data.stripeAccountId,
+        stripeAccountStatus: data.stripeAccountStatus,
+        stripeOnboardingComplete: data.stripeOnboardingComplete
       };
       return { success: true, club };
     }
@@ -952,11 +960,13 @@ export const subscribeToClubs = (userId: string, callback: (clubs: Club[]) => vo
           members: data.clubMembers || data.members || [],
           admins: data.clubAdmins || data.admins || [],
           isPublic: data.isPublic,
-          location: data.location,
-          university: data.university,
           tags: data.tags,
           contactEmail: data.contactEmail,
-          socialLinks: data.socialLinks
+          socialLinks: data.socialLinks,
+          // Stripe Connect fields
+          stripeAccountId: data.stripeAccountId,
+          stripeAccountStatus: data.stripeAccountStatus,
+          stripeOnboardingComplete: data.stripeOnboardingComplete
         };
         clubs.push(club);
       });

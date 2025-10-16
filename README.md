@@ -155,6 +155,64 @@ EXPO_PUBLIC_FIREBASE_API_KEY=your_api_key_here
 STRIPE_SECRET_KEY=sk_test_your_key_here
 ```
 
+## Stripe Connect Setup
+
+RallySphere uses Stripe Connect to allow clubs to receive payouts from paid events. Before clubs can accept payments, you need to enable Stripe Connect in your Stripe account.
+
+### Enable Stripe Connect
+
+1. Log in to your [Stripe Dashboard](https://dashboard.stripe.com/)
+2. Make sure you're in **Test Mode** (toggle in the top right)
+3. Navigate to **Connect** in the left sidebar
+   - Or go directly to: https://dashboard.stripe.com/test/connect/accounts/overview
+4. Click **Get Started** to enable Stripe Connect
+5. Fill out the required information:
+   - **Platform name**: RallySphere (or your app name)
+   - **Platform URL**: Your app URL or website
+   - **Support email**: Your support email
+
+### Configure Connect Settings
+
+1. Go to **Connect** → **Settings**
+2. Under **Branding**:
+   - Add your platform name
+   - Upload a platform icon/logo
+   - Set your brand color
+3. Under **Express accounts**:
+   - Ensure account onboarding is enabled
+   - Required capabilities should include "Transfers"
+
+### How It Works
+
+When a club admin sets up payouts in your app:
+
+1. User taps "Connect Stripe" in the club settings
+2. App calls Firebase Function to create a Stripe Connect Express account
+3. Function returns an onboarding URL
+4. App opens the URL in the device browser
+5. User completes Stripe's onboarding process (identity verification, bank details, etc.)
+6. Stripe redirects back to your app via deep link: `rallysphere://stripe-connect/return`
+7. App checks account status and displays connection success
+
+### Testing the Flow
+
+1. Enable Stripe Connect in test mode (steps above)
+2. In your app, navigate to a club you admin
+3. Tap "Connect Stripe" or "Set up payouts"
+4. Complete the test onboarding in the browser
+5. Use Stripe's test data:
+   - SSN: `000-00-0000`
+   - Bank routing: `110000000`
+   - Bank account: `000123456789`
+
+### Revenue Split
+
+- **90%** goes to the club (after Stripe processing fees)
+- **10%** platform fee
+- Stripe processing fees: 2.9% + $0.30 per transaction
+
+Clubs receive payouts automatically via Stripe's standard payout schedule (typically 2 business days).
+
 ## Development
 
 ### Running Tests

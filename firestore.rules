@@ -13,14 +13,22 @@ service cloud.firestore {
     match /clubs/{clubId} {
       // Anyone can read public clubs
       allow read: if resource.data.isPublic == true;
-      // Members can read private clubs
-      allow read: if request.auth != null && request.auth.uid in resource.data.members;
+      // Members can read private clubs (check both clubMembers and members for backwards compatibility)
+      allow read: if request.auth != null &&
+        (request.auth.uid in resource.data.get('clubMembers', []) ||
+         request.auth.uid in resource.data.get('members', []));
       // Only authenticated users can create clubs
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.createdBy;
-      // Only admins can update clubs
-      allow update: if request.auth != null && request.auth.uid in resource.data.admins;
+      allow create: if request.auth != null &&
+        (request.auth.uid == request.resource.data.createdBy ||
+         request.auth.uid == request.resource.data.clubOwner);
+      // Only admins can update clubs (check both clubAdmins and admins)
+      allow update: if request.auth != null &&
+        (request.auth.uid in resource.data.get('clubAdmins', []) ||
+         request.auth.uid in resource.data.get('admins', []));
       // Only admins can delete clubs
-      allow delete: if request.auth != null && request.auth.uid in resource.data.admins;
+      allow delete: if request.auth != null &&
+        (request.auth.uid in resource.data.get('clubAdmins', []) ||
+         request.auth.uid in resource.data.get('admins', []));
     }
     
     // Events rules
@@ -39,20 +47,40 @@ service cloud.firestore {
         (request.auth.uid == resource.data.createdBy);
     }
     
+    // Featured events - read-only for all authenticated users
+    match /featuredEvents/{featuredId} {
+      // Anyone authenticated can read featured events
+      allow read: if request.auth != null;
+      // Only authenticated users can create featured events
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.createdBy;
+      // Only creator can update/delete
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.createdBy;
+    }
+
+    // Payments - users can only read their own payments
+    match /payments/{paymentId} {
+      // Users can read their own payments
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      // Only server (Firebase Functions) can write payments
+      allow write: if false;
+    }
+
     // Club join requests
     match /clubJoinRequests/{requestId} {
       // Users can read their own requests
       allow read: if request.auth != null && request.auth.uid == resource.data.userId;
       // Club admins can read requests for their clubs
-      allow read: if request.auth != null && 
+      allow read: if request.auth != null &&
         exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
-        request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.admins;
+        (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
+         request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []));
       // Users can create join requests
       allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
       // Club admins can update requests (approve/reject)
-      allow update: if request.auth != null && 
+      allow update: if request.auth != null &&
         exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
-        request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.admins;
+        (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
+         request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []));
     }
   }
 }

@@ -17,7 +17,14 @@
       "Bash(firebase deploy:*)",
       "Bash(npx firebase deploy:*)",
       "Bash(textutil:*)",
-      "Bash(firebase functions:log:*)"
+      "Bash(firebase functions:log:*)",
+      "Bash(firebase functions:config:get:*)",
+      "Bash(npm --prefix functions run build)",
+      "Bash(firebase firestore:get:*)",
+      "Bash(node check-club.js)",
+      "Bash(firebase functions:list:*)",
+      "Bash(gcloud functions add-invoker-policy-binding:*)",
+      "Bash(firebase functions:config:set:*)"
     ],
     "deny": [],
     "ask": []

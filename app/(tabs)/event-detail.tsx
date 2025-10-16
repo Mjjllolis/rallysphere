@@ -17,9 +17,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../_layout';
-import { getEvents, joinEvent, leaveEvent } from '../../lib/firebase';
+import { getEventById, joinEvent, leaveEvent } from '../../lib/firebase';
 import type { Event } from '../../lib/firebase';
 import BackButton from '../../components/BackButton';
+import { createCheckoutSession } from '../../lib/stripe';
 
 const { width } = Dimensions.get('window');
 
@@ -43,17 +44,14 @@ export default function EventDetailScreen() {
   const loadEventData = async () => {
     try {
       setLoading(true);
-      
-      // Load all events and find the specific one
-      const eventsResult = await getEvents();
-      if (eventsResult.success) {
-        const foundEvent = eventsResult.events.find(e => e.id === eventId);
-        if (foundEvent) {
-          setEvent(foundEvent);
-        } else {
-          Alert.alert('Error', 'Event not found');
-          router.back();
-        }
+
+      // Load the specific event by ID
+      const result = await getEventById(eventId);
+      if (result.success && result.event) {
+        setEvent(result.event);
+      } else {
+        Alert.alert('Error', 'Event not found');
+        router.back();
       }
     } catch (error) {
       console.error('Error loading event data:', error);
@@ -65,7 +63,33 @@ export default function EventDetailScreen() {
 
   const handleJoinEvent = async () => {
     if (!user || !event) return;
-    
+
+    // If event has a ticket price, redirect to Stripe Checkout
+    if (event.ticketPrice && event.ticketPrice > 0) {
+      setActionLoading(true);
+      try {
+        const result = await createCheckoutSession({
+          eventId: event.id,
+          ticketPrice: event.ticketPrice,
+          currency: event.currency || 'usd',
+        });
+
+        if (result.success && result.checkoutUrl) {
+          // Open Stripe Checkout in browser
+          await Linking.openURL(result.checkoutUrl);
+        } else {
+          Alert.alert('Error', result.error || 'Failed to start payment process');
+        }
+      } catch (error) {
+        console.error('Error starting checkout:', error);
+        Alert.alert('Error', 'An unexpected error occurred');
+      } finally {
+        setActionLoading(false);
+      }
+      return;
+    }
+
+    // Free event - join directly
     setActionLoading(true);
     try {
       const result = await joinEvent(event.id, user.uid);
@@ -280,7 +304,15 @@ export default function EventDetailScreen() {
                   buttonColor={isAttending || isWaitlisted ? 'transparent' : theme.colors.primary}
                   textColor={isAttending || isWaitlisted ? '#fff' : undefined}
                 >
-                  {isWaitlisted ? 'Leave Waitlist' : isAttending ? 'Leave Event' : isFull ? 'Event Full' : 'Join Event'}
+                  {isWaitlisted
+                    ? 'Leave Waitlist'
+                    : isAttending
+                    ? 'Leave Event'
+                    : isFull
+                    ? 'Event Full'
+                    : event.ticketPrice
+                    ? `Buy Ticket - $${event.ticketPrice}`
+                    : 'Join Event'}
                 </Button>
               )}
             </View>

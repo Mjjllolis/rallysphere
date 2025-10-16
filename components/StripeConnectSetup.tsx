@@ -30,6 +30,7 @@ export default function StripeConnectSetup({ club, isAdmin, onStatusChange }: St
     setChecking(true);
     try {
       const result = await checkStripeAccountStatus(club.stripeAccountId);
+
       if (result.success) {
         setAccountStatus(result);
 
@@ -40,10 +41,12 @@ export default function StripeConnectSetup({ club, isAdmin, onStatusChange }: St
             stripeAccountStatus: 'active',
           });
           onStatusChange?.();
+          Alert.alert('Success!', 'Your Stripe account is now active and ready to receive payments!');
         }
       }
     } catch (error) {
       console.error('Error checking status:', error);
+      Alert.alert('Error', 'Failed to check account status. Please try again.');
     } finally {
       setChecking(false);
     }
@@ -80,8 +83,11 @@ export default function StripeConnectSetup({ club, isAdmin, onStatusChange }: St
 
           Alert.alert(
             'Continue in Browser',
-            'Complete the Stripe onboarding process in your browser. When finished, return here and tap "Check Status" to verify.',
-            [{ text: 'OK' }]
+            'Complete the Stripe onboarding process in your browser. When finished, return here to check your account status.',
+            [{ text: 'OK', onPress: () => {
+              // Trigger parent refresh
+              onStatusChange?.();
+            }}]
           );
         } else {
           Alert.alert('Error', 'Cannot open onboarding link');
