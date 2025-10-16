@@ -276,6 +276,43 @@ export default function ProfilePage() {
           </Card.Content>
         </Card>
 
+        {/* Legal Section */}
+        <Card style={styles.settingsCard}>
+          <Card.Content style={styles.settingsContent}>
+            <Text variant="titleLarge" style={styles.settingsTitle}>
+              Legal
+            </Text>
+
+            <List.Item
+              title="Terms and Conditions"
+              description="Review our terms of service"
+              left={props => <List.Icon {...props} icon="file-document-outline" />}
+              right={props => <List.Icon {...props} icon="chevron-right" />}
+              onPress={() => router.push('/legal/terms')}
+            />
+
+            <Divider />
+
+            <List.Item
+              title="Privacy Policy"
+              description="How we handle your data"
+              left={props => <List.Icon {...props} icon="shield-lock-outline" />}
+              right={props => <List.Icon {...props} icon="chevron-right" />}
+              onPress={() => router.push('/legal/privacy')}
+            />
+
+            <Divider />
+
+            <List.Item
+              title="Cookie Policy"
+              description="Our use of cookies and tracking"
+              left={props => <List.Icon {...props} icon="cookie-outline" />}
+              right={props => <List.Icon {...props} icon="chevron-right" />}
+              onPress={() => router.push('/legal/cookies')}
+            />
+          </Card.Content>
+        </Card>
+
         {/* Sign Out Button */}
         <Card style={styles.signOutCard}>
           <Card.Content style={styles.signOutContent}>

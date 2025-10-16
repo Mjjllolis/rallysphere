@@ -92,6 +92,10 @@ export interface Club {
     twitter?: string;
     discord?: string;
   };
+  // Stripe Connect for payouts
+  stripeAccountId?: string;
+  stripeAccountStatus?: 'pending' | 'active' | 'disabled';
+  stripeOnboardingComplete?: boolean;
 }
 
 export interface Event {
@@ -522,6 +526,16 @@ export const updateClub = async (clubId: string, clubData: any) => {
     }
     if (clubData.isPublic !== undefined) {
       updateData.isPublic = clubData.isPublic;
+    }
+    // Stripe Connect fields
+    if (clubData.stripeAccountId !== undefined) {
+      updateData.stripeAccountId = clubData.stripeAccountId;
+    }
+    if (clubData.stripeAccountStatus !== undefined) {
+      updateData.stripeAccountStatus = clubData.stripeAccountStatus;
+    }
+    if (clubData.stripeOnboardingComplete !== undefined) {
+      updateData.stripeOnboardingComplete = clubData.stripeOnboardingComplete;
     }
 
     await updateDoc(doc(db, 'clubs', clubId), updateData);

@@ -234,6 +234,26 @@ export default function Welcome() {
                             >
                                 {mode === 'signin' ? 'Sign In' : 'Create Account'}
                             </Button>
+
+                            {/* Legal Links */}
+                            <View style={styles.legalContainer}>
+                                <Text style={styles.legalText}>
+                                    By continuing, you agree to our
+                                </Text>
+                                <View style={styles.legalLinks}>
+                                    <TouchableOpacity onPress={() => router.push('/legal/terms')}>
+                                        <Text style={styles.legalLink}>Terms of Use</Text>
+                                    </TouchableOpacity>
+                                    <Text style={styles.legalSeparator}> • </Text>
+                                    <TouchableOpacity onPress={() => router.push('/legal/privacy')}>
+                                        <Text style={styles.legalLink}>Privacy Policy</Text>
+                                    </TouchableOpacity>
+                                    <Text style={styles.legalSeparator}> • </Text>
+                                    <TouchableOpacity onPress={() => router.push('/legal/cookies')}>
+                                        <Text style={styles.legalLink}>Cookie Policy</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
                         </View>
                     </Surface>
 
@@ -383,6 +403,32 @@ const styles = StyleSheet.create({
     submitButtonLabel: {
         fontSize: 16,
         fontWeight: '600',
+    },
+    legalContainer: {
+        marginTop: 16,
+        alignItems: 'center',
+    },
+    legalText: {
+        fontSize: 12,
+        color: '#64748B',
+        marginBottom: 6,
+        textAlign: 'center',
+    },
+    legalLinks: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+    },
+    legalLink: {
+        fontSize: 12,
+        color: '#2C5282',
+        fontWeight: '600',
+        textDecorationLine: 'underline',
+    },
+    legalSeparator: {
+        fontSize: 12,
+        color: '#64748B',
     },
     footer: {
         flexDirection: 'row',

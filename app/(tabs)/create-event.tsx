@@ -587,7 +587,21 @@ export default function CreateEventScreen() {
                 style={styles.input}
                 placeholder="Free"
                 left={<TextInput.Icon icon="currency-usd" />}
+                disabled={!club?.stripeOnboardingComplete}
               />
+              {!club?.stripeOnboardingComplete && (
+                <View style={styles.warningBox}>
+                  <IconButton icon="alert-circle" size={20} iconColor="#F59E0B" />
+                  <View style={{ flex: 1 }}>
+                    <Text variant="bodyMedium" style={{ color: '#F59E0B', fontWeight: 'bold' }}>
+                      Connect Stripe to accept payments
+                    </Text>
+                    <Text variant="bodySmall" style={{ color: '#92400E', marginTop: 4 }}>
+                      Set up payouts in club settings to create paid events
+                    </Text>
+                  </View>
+                </View>
+              )}
 
               <View style={styles.switchRow}>
                 <View style={styles.switchContent}>
@@ -784,5 +798,16 @@ const styles = StyleSheet.create({
   },
   buttonContent: {
     paddingVertical: 12,
+  },
+  warningBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: -8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#FCD34D',
   },
 });

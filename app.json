@@ -30,7 +30,18 @@
     "web": {
       "favicon": "./assets/Logo.png"
     },
-    "plugins": ["expo-router", "expo-font", "expo-secure-store"],
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-secure-store",
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.rallysphere.app",
+          "enableGooglePay": true
+        }
+      ]
+    ],
     "owner": "ibemisha",
     "extra": {
       "router": {},
@@ -43,7 +54,8 @@
       "EXPO_PUBLIC_STORAGE_BUCKET": "rally-sphere.firebasestorage.app",
       "EXPO_PUBLIC_MESSAGING_SENDER_ID": "335059242542",
       "EXPO_PUBLIC_APP_ID": "1:335059242542:web:63a9fe021cbebebb8599bf",
-      "EXPO_PUBLIC_MEASUREMENT_ID": "G-H2R70NP5NE"
+      "EXPO_PUBLIC_MEASUREMENT_ID": "G-H2R70NP5NE",
+      "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51SFhMjBbmMSsSxvp7PQxILJkMFcfUCKEIAjQaFBLhAW7f1BtPO1f0f7hCo5qQfxN5M41LY88CzHY8W5Pv6yPqVwN00Fn7PvEMT"
     }
   }
 }

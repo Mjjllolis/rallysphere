@@ -6,6 +6,19 @@ import { Provider as PaperProvider, MD3LightTheme, MD3DarkTheme } from 'react-na
 import { onAuthStateChange, type User } from '../lib/firebase';
 import * as SecureStore from 'expo-secure-store';
 import * as SplashScreen from 'expo-splash-screen';
+import Constants from 'expo-constants';
+
+// Conditionally import Stripe - will be undefined until native modules are built
+let StripeProvider: any = null;
+let initializeStripe: any = null;
+try {
+  const stripeModule = require('@stripe/stripe-react-native');
+  StripeProvider = stripeModule.StripeProvider;
+  const stripeLib = require('../lib/stripe');
+  initializeStripe = stripeLib.initializeStripe;
+} catch (error) {
+  console.warn('Stripe not available - rebuild app with: npx expo prebuild');
+}
 
 // Prevent auto-hiding splash screen
 SplashScreen.preventAutoHideAsync();
@@ -169,6 +182,23 @@ export default function RootLayout() {
   const [authLoading, setAuthLoading] = useState(true);
   const [isDark, setIsDark] = useState(false);
   const [themeLoading, setThemeLoading] = useState(true);
+  const [stripeInitialized, setStripeInitialized] = useState(false);
+
+  // Initialize Stripe (only if available)
+  useEffect(() => {
+    if (initializeStripe) {
+      const init = async () => {
+        const result = await initializeStripe();
+        setStripeInitialized(result.success);
+        if (!result.success) {
+          console.error('Failed to initialize Stripe:', result.error);
+        }
+      };
+      init();
+    } else {
+      setStripeInitialized(false);
+    }
+  }, []);
 
   // Load theme preference
   useEffect(() => {
@@ -223,22 +253,38 @@ export default function RootLayout() {
   }, [authLoading, themeLoading]);
 
   const theme = isDark ? darkTheme : lightTheme;
+  const publishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
+    Constants.expoConfig?.extra?.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
 
   // Show loading state while initializing
   if (authLoading || themeLoading) {
     console.log('Still loading - Auth:', authLoading, 'Theme:', themeLoading);
     return null; // This will show the splash screen
   }
-  
+
   // Log final state
   console.log('Layout ready - User:', user ? user.email : 'No user');
+
+  const content = (
+    <PaperProvider theme={theme}>
+      <Slot />
+    </PaperProvider>
+  );
 
   return (
     <AuthContext.Provider value={{ user, isLoading: authLoading }}>
       <ThemeContext.Provider value={{ isDark, toggleTheme, isLoading: themeLoading }}>
-        <PaperProvider theme={theme}>
-          <Slot />
-        </PaperProvider>
+        {StripeProvider ? (
+          <StripeProvider
+            publishableKey={publishableKey}
+            merchantIdentifier="merchant.com.rallysphere"
+            urlScheme="rallysphere"
+          >
+            {content}
+          </StripeProvider>
+        ) : (
+          content
+        )}
       </ThemeContext.Provider>
     </AuthContext.Provider>
   );

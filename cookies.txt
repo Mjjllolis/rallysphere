@@ -1,0 +1,77 @@
+COOKIE POLICY
+www.rallysphere.com
+Effective date: 16th September 2025
+1. Introduction
+RallySphere LLC (“RallySphere,” “we,” “our,” or “us”) uses cookies and similar tracking technologies on our mobile application and website at www.rallysphere.com (the “Platform”). This Cookie Policy explains what cookies are, how we use them, and your options for managing cookie preferences.
+By continuing to use the Platform, you agree to the use of cookies in accordance with this Policy, unless you disable them through your browser or device settings.
+
+2. What Are Cookies?
+Cookies are small text files placed on your device when you visit a website or use an application. They allow us to recognize your device, remember your preferences, and enhance your overall experience.
+Cookies may be first-party cookies (set by RallySphere) or third-party cookies (set by third-party service providers such as analytics or advertising partners).
+
+3. Types of Cookies We Use
+	•	Strictly Necessary Cookies
+	•	Essential for the operation of the Platform.
+	•	Enable functions such as account login, security, and transaction processing.
+	•	Cannot be disabled in our systems.
+	•	Performance & Analytics Cookies
+	•	Collect information about how Users interact with the Platform.
+	•	Help us understand usage patterns, improve functionality, and fix issues.
+	•	Examples include Google Analytics or other traffic measurement tools.
+	•	Functional Cookies
+	•	Allow us to remember User preferences such as language, location, and notification settings.
+	•	Enhance personalization of the Platform experience.
+	•	Advertising & Targeting Cookies
+	•	Used to deliver relevant advertisements and track campaign effectiveness.
+	•	May be set by RallySphere or third-party partners.
+	•	Allow us to measure ad performance and limit repetition.
+	•	Social Media Cookies
+	•	Enable integration with social networks and allow Users to share content easily.
+	•	May track your browsing across different platforms.
+
+4. Similar Technologies
+In addition to cookies, RallySphere may use:
+	•	Pixels/Web Beacons: Small image files embedded in emails or pages to track engagement.
+	•	Device Identifiers: Mobile-specific identifiers used for app analytics and push notifications.
+	•	Local Storage: Data stored directly in your browser or app cache for faster loading.
+
+5. How We Use Cookies
+We use cookies and similar technologies to:
+	•	Authenticate Users and secure accounts.
+	•	Process payments and enable transactions.
+	•	Analyze traffic and usage trends.
+	•	Improve the functionality and performance of the Platform.
+	•	Deliver targeted advertisements and promotional campaigns.
+	•	Personalize content and recommend events or matches.
+	•	Measure the success of events, promotions, and sponsorships.
+
+6. Third-Party Cookies
+Some cookies on our Platform are placed by trusted third-party partners, including:
+	•	Payment Processors (Stripe) – to facilitate secure transactions.
+	•	Analytics Providers (e.g., Google Analytics) – to monitor usage and performance.
+	•	Advertising Networks – to deliver targeted ads and measure campaign effectiveness.
+Third-party cookies are subject to the privacy policies of those providers.
+
+7. Cookie Duration
+Cookies may be stored on your device for different periods of time:
+	•	Session Cookies: Temporary cookies that expire once you close your browser or app.
+	•	Persistent Cookies: Remain on your device until they expire or are manually deleted.
+
+8. Your Choices & Managing Cookies
+You have several options for managing cookies:
+	•	Browser Settings: Most browsers allow you to block or delete cookies. Instructions can usually be found under the “Help” or “Settings” menu.
+	•	Mobile Settings: Mobile devices may allow you to manage app tracking or reset advertising identifiers.
+	•	Opt-Out Tools: Some third-party providers offer opt-out options, such as Google Analytics Opt-Out.
+Please note that disabling certain cookies may affect the functionality and performance of the Platform.
+
+9. Do Not Track (DNT)
+RallySphere does not currently respond to “Do Not Track” browser signals, as there is no consistent industry standard. Users may still manage cookies and preferences as outlined in Section 8.
+
+10. Updates to This Cookie Policy
+We may update this Cookie Policy from time to time to reflect changes in law, technology, or our business practices. Updates will be posted on the Platform with a revised “Last Updated” date.
+Continued use of the Platform after updates are posted constitutes acceptance of the revised Cookie Policy.
+
+11. Contact Information
+If you have questions or concerns about our use of cookies, please contact us at:
+RallySphere LLC Texas, United States Email: 
+
