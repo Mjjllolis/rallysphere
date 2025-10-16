@@ -24,7 +24,8 @@
       "Bash(node check-club.js)",
       "Bash(firebase functions:list:*)",
       "Bash(gcloud functions add-invoker-policy-binding:*)",
-      "Bash(firebase functions:config:set:*)"
+      "Bash(firebase functions:config:set:*)",
+      "Bash(git log:*)"
     ],
     "deny": [],
     "ask": []

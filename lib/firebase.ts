@@ -156,7 +156,7 @@ export interface FeaturedEvent {
 const getFirebaseConfig = () => {
   const extra = Constants.expoConfig?.extra as Extra | undefined;
   
-  return {
+  const config = {
     apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || extra?.EXPO_PUBLIC_API_KEY,
     authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || extra?.EXPO_PUBLIC_AUTH_DOMAIN,
     projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || extra?.EXPO_PUBLIC_PROJECT_ID,
@@ -165,6 +165,13 @@ const getFirebaseConfig = () => {
     appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || extra?.EXPO_PUBLIC_APP_ID,
     measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID || extra?.EXPO_PUBLIC_MEASUREMENT_ID,
   };
+
+  // Validate that required config values are present
+  if (!config.apiKey) {
+    throw new Error('Firebase API Key is missing. Please set EXPO_PUBLIC_FIREBASE_API_KEY in your .env file.');
+  }
+
+  return config;
 };
 
 const firebaseConfig = getFirebaseConfig();
