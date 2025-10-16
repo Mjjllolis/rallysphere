@@ -1,0 +1,173 @@
+PRIVACY POLICY
+www.rallysphere.com
+Effective date: 16th September 2025
+1. Introduction & Scope
+RallySphere LLC (“RallySphere,” “Company,” “we,” “our,” or “us”) respects your privacy and is committed to protecting the personal information you share with us. This Privacy Policy explains how we collect, use, disclose, and safeguard information in connection with the RallySphere mobile application, our website located at www.rallysphere.com, and all related products, features, and services (collectively, the “Platform”).
+This Privacy Policy applies to all individuals who access or use the Platform, including players, clubs, event organizers, and visitors. By using the Platform, you agree to the terms of this Privacy Policy. If you do not agree, you must discontinue use of the Platform.
+Users outside the United States acknowledge that their Personal Data may be transferred to and processed in the United States, and agree that their use of the Platform remains subject to this Privacy Policy and U.S. law.
+
+2. Definitions
+For purposes of this Privacy Policy:
+	•	“Personal Data” means any information that identifies or can reasonably be used to identify an individual, such as name, email address, or payment details.
+	•	“Processing” means any operation performed on Personal Data, including collection, storage, use, transfer, or deletion.
+	•	“Controller” refers to RallySphere LLC, which determines the purposes and means of Processing Personal Data.
+	•	“Service Providers” means third-party vendors engaged by RallySphere to assist in providing the Platform, including payment processors, hosting services, and analytics providers.
+	•	“AI Features” means RallySphere’s artificial intelligence tools, including partner matching, performance tracking, and video analytics.
+
+
+3. Data Controller Information
+RallySphere LLC is the entity responsible for the collection and use of Personal Data under this Privacy Policy.
+	•	Entity: RallySphere LLC
+	•	Jurisdiction: Texas, United States
+	•	Contact for Privacy Inquiries: support@rallysphere.com
+If you are located in the European Economic Area (EEA) or United Kingdom, RallySphere may designate a data protection representative in the future, which will be reflected in an updated version of this Policy.
+
+4. Information We Collect from Users
+We collect the following categories of information that you provide directly:
+	•	Account Information: Name, email address, username, password, player profile details, and club or group profile data.
+	•	Event Information: Event listings, RSVPs, attendance records, and communications related to events.
+	•	Payment Information: Billing details necessary to process transactions, which are securely handled by Stripe and other payment processors. RallySphere does not store credit card or bank account numbers.
+	•	AI Analytics Data: Video content, performance metrics, and training data processed through our AI features.
+	•	Gamification Data: RallyCredits, XP points, achievements, and engagement history.
+	•	Communications: Messages you send to RallySphere or to other Users through the Platform.
+RallySphere does not intentionally collect sensitive categories of Personal Data (such as health information, government IDs, or biometric identifiers). Users should not submit such information through the Platform.
+
+5. Information Collected Automatically
+When you use the Platform, we automatically collect certain technical and usage data, including:
+	•	Device information, operating system, and browser type.
+	•	Internet Protocol (IP) address and geolocation data (approximate).
+	•	Access times, log data, and usage patterns.
+	•	Pages viewed, clicks, and navigation history.
+	•	Information collected through cookies, pixels, and similar technologies (see Section 10 below).
+This information is used for Platform functionality, security, fraud detection, analytics, and improving user experience.
+
+6. Information Collected from Third Parties
+We may collect information about you from third-party sources, including:
+	•	Payment Processors: Transaction confirmations, billing details, and fraud prevention data provided by Stripe or similar providers.
+	•	Event Organizers: Organizers may provide participant details, including names and contact information, to facilitate event management.
+	•	Social or App Integrations: If you choose to link third-party accounts (such as Apple or Google), RallySphere may receive information permitted by those providers.
+All information obtained from third parties will be treated in accordance with this Privacy Policy.
+
+7. How We Use Your Information
+RallySphere processes Personal Data for the following purposes:
+	•	To create, maintain, and secure User accounts.
+	•	To facilitate event creation, RSVPs, and participation.
+	•	To process payments and disbursements through Stripe.
+	•	To operate gamification features, including RallyCredits and XP tracking.
+	•	To provide AI-powered tools for partner matching, video analytics, and performance tracking.
+	•	To improve the functionality and security of the Platform.
+	•	To provide customer support and respond to inquiries.
+	•	To deliver marketing communications, subject to opt-out preferences.
+	•	To comply with legal obligations, enforce our Terms of Service, and prevent fraud.
+
+8. AI Analytics & Data Processing
+Certain features of the Platform rely on AI-based technologies.
+	•	Scope of Processing: RallySphere may process video uploads, gameplay footage, and performance data to generate insights for Users.
+	•	Limitations: AI outputs are intended for informational and entertainment purposes. They do not constitute professional advice or performance guarantees.
+	•	Data Handling: Uploaded videos may be stored temporarily for analysis and then deleted or anonymized. RallySphere does not use AI features for biometric identification.
+	•	User Consent: By using AI features, Users consent to the processing of their data for these purposes.
+
+9. Payment Processing
+Payments made through the Platform are handled exclusively by Stripe and other authorized payment processors.
+	•	Sensitive Data: RallySphere does not collect or store full credit card numbers, banking details, or security codes.
+	•	Processing Role: Payment processors act as independent controllers or processors of your financial data under their own privacy policies.
+	•	Fraud & Compliance: RallySphere may receive limited payment-related information (e.g., confirmation of successful transactions, failure notices, or fraud alerts) to maintain transaction integrity and regulatory compliance.
+Users should review Stripe’s Privacy Policy for details on how payment data is handled.
+
+10. Cookies & Tracking Technologies
+We use cookies, pixels, and similar tracking technologies to enhance the functionality of the Platform and improve User experience.
+	•	Types of Cookies:
+	•	Strictly Necessary: Required for core functionality, such as authentication and security.
+	•	Analytics: Help us understand usage patterns and improve performance.
+	•	Marketing: May be used to deliver relevant promotions, subject to User consent.
+	•	User Controls: You may adjust your browser or device settings to block or delete cookies, though this may limit Platform functionality.
+	•	Third-Party Tracking: Certain analytics and advertising partners may also use cookies, which are governed by their respective privacy policies.
+A separate Cookie Policy is published with further details.
+11. Data Sharing & Disclosure
+We may share your Personal Data in the following limited circumstances:
+	•	With Event Organizers: When you register for or attend an event, relevant details (such as your name, RSVP status, and contact information) may be shared with the Organizer for event management purposes.
+	•	With Service Providers: We engage third-party vendors, including Stripe for payments, hosting providers, analytics platforms, and customer support tools, who process data on our behalf under contractual confidentiality and security obligations.
+	•	With Affiliates and Business Partners: We may share data with affiliated entities or trusted partners in connection with Platform functionality and promotional activities, subject to consent where required by law.
+	•	For Legal Compliance: We may disclose data if required by law, legal process, or government request, or to protect the rights, property, or safety of RallySphere, our Users, or others.
+We do not sell Personal Data for monetary consideration.
+
+12. Data Retention
+We retain Personal Data for as long as necessary to fulfill the purposes described in this Privacy Policy or as required by law.
+	•	Account Data: Retained while an account is active and for a reasonable period thereafter.
+	•	Transaction Records: Retained to comply with financial and regulatory obligations.
+	•	AI Analytics Data: Retained only as long as necessary to generate results; may be deleted or anonymized thereafter.
+	•	Deleted Accounts: Upon verified request, account-related Personal Data will be deleted or anonymized, subject to data we are legally required to retain.
+
+13. International Data Transfers
+RallySphere is based in the United States. Personal Data may be transferred to, stored in, or processed in the U.S. or other jurisdictions where we or our Service Providers operate.
+For Users located outside the U.S., this may mean data is subject to different privacy protections than in your home country. Where required by law, we implement safeguards such as standard contractual clauses to protect cross-border transfers.
+Where required, RallySphere relies on mechanisms such as the EU Standard Contractual Clauses (SCCs) or equivalent safeguards recognized under applicable law to legitimize international data transfers.
+
+14. Data Security
+We implement technical, administrative, and organizational safeguards designed to protect Personal Data against unauthorized access, disclosure, alteration, or destruction.
+While we take reasonable measures to secure information, no system or transmission over the internet is entirely secure. Users acknowledge the inherent risks of transmitting data online.
+
+15. Children’s Privacy (COPPA Compliance)
+The Platform is not directed to children under 13. We do not knowingly collect Personal Data from children under 13.
+	•	13–17-Year-Old Users: Individuals between 13 and 17 may use the Platform only under the supervision of a parent or legal guardian who consents to this Privacy Policy.
+	•	Parental Requests: Parents or guardians who believe their child has provided information without consent may contact us to request deletion.
+
+16. User Rights – U.S. (CCPA/State Privacy Laws)
+If you are a resident of California or another state with similar laws, you may have the following rights:
+	•	Right to Know: Request disclosure of the categories and specific pieces of Personal Data collected.
+	•	Right to Delete: Request deletion of Personal Data, subject to exceptions.
+	•	Right to Opt-Out: Request that we do not “sell” or “share” Personal Data as defined under CCPA.
+	•	Non-Discrimination: You will not be penalized for exercising your rights.
+Requests may be submitted to support@rallysphere.com, and we may verify your identity before fulfilling them.
+
+17. User Rights – EU/EEA (GDPR)
+If you are located in the European Economic Area or United Kingdom, you are entitled to the following rights under GDPR:
+	•	Right of access to Personal Data.
+	•	Right to rectification of inaccurate or incomplete data.
+	•	Right to erasure (“right to be forgotten”).
+	•	Right to restrict or object to processing.
+	•	Right to data portability.
+	•	Right to withdraw consent at any time.
+	•	Right to lodge a complaint with a supervisory authority.
+These rights can be exercised by contacting support@rallysphere.com.
+
+18. Managing Your Information
+Users may update or correct account information through their account settings. Account deletion requests may be submitted by contacting us directly.
+Certain information, such as transaction records, may be retained for compliance or legitimate business purposes even after an account is deleted.
+
+19. Marketing Communications
+We may send promotional emails, notifications, or updates regarding the Platform.
+	•	Consent: Marketing communications will only be sent in accordance with applicable laws and consent requirements.
+	•	Opt-Out: Users may opt out at any time by following the unsubscribe instructions in emails or adjusting notification settings.
+Even if you opt out of marketing, we may still send administrative or transactional messages.
+
+20. Third-Party Links & Services
+The Platform may contain links to external websites or integrate with third-party services. RallySphere is not responsible for the privacy practices or content of third-party websites.
+We encourage Users to review the privacy policies of any third-party service they interact with.
+
+21. Business Transfers & Corporate Changes
+In the event of a merger, acquisition, reorganization, or sale of assets, Personal Data may be transferred as part of the business transaction.
+Any successor entity will be required to honor this Privacy Policy or provide equivalent protections.
+
+22. Legal Compliance & Disclosure
+We may disclose Personal Data if we believe in good faith that such disclosure is necessary to:
+	•	Comply with applicable laws or legal process.
+	•	Enforce our Terms of Service or other agreements.
+	•	Protect the rights, property, or safety of RallySphere, our Users, or others.
+	•	Investigate fraud, abuse, or security issues.
+
+23. Changes to This Privacy Policy
+We may update this Privacy Policy from time to time to reflect changes in technology, laws, or business operations.
+	•	Notice: Material changes will be communicated by posting an updated version on the Platform and, where required, by email.
+	•	Effective Date: The updated Policy becomes effective when posted, unless otherwise specified.
+Users are encouraged to review the Privacy Policy periodically.
+
+24. Governing Law
+This Privacy Policy shall be governed by and construed in accordance with the laws of the State of Texas, United States, without regard to its conflict of law principles.
+Users outside the United States acknowledge that any disputes arising from this Privacy Policy will be subject to U.S. law and jurisdiction.
+Users located outside the United States, including Costa Rica, agree that any disputes relating to this Privacy Policy shall be governed exclusively by U.S. law and resolved in Texas, United States
+
+25. Contact Information
+If you have questions, requests, or concerns about this Privacy Policy or RallySphere’s data practices, you may contact us at:
+RallySphere LLC Texas, United States Email: support@rallysphere.com
+

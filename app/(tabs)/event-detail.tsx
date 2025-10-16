@@ -10,7 +10,8 @@ import {
   Divider,
   useTheme,
   List,
-  Surface
+  Surface,
+  Menu
 } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -31,6 +32,7 @@ export default function EventDetailScreen() {
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
 
   useEffect(() => {
     if (eventId) {
@@ -175,7 +177,7 @@ export default function EventDetailScreen() {
             colors={['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.95)']}
             style={styles.heroGradient}
           >
-            {/* Back Button */}
+            {/* Back Button and Menu */}
             <View style={styles.topControl}>
               <Surface style={styles.controlButton} elevation={2}>
                 <IconButton
@@ -185,6 +187,33 @@ export default function EventDetailScreen() {
                   onPress={() => router.back()}
                 />
               </Surface>
+
+              {/* Menu for additional options */}
+              {user && (isAttending || isWaitlisted) && (
+                <Menu
+                  visible={menuVisible}
+                  onDismiss={() => setMenuVisible(false)}
+                  anchor={
+                    <Surface style={styles.controlButton} elevation={2}>
+                      <IconButton
+                        icon="dots-vertical"
+                        iconColor="#fff"
+                        size={24}
+                        onPress={() => setMenuVisible(true)}
+                      />
+                    </Surface>
+                  }
+                >
+                  <Menu.Item
+                    onPress={() => {
+                      setMenuVisible(false);
+                      handleLeaveEvent();
+                    }}
+                    title={isWaitlisted ? "Leave Waitlist" : "Leave Event"}
+                    leadingIcon="exit-to-app"
+                  />
+                </Menu>
+              )}
             </View>
 
             {/* Event Info Overlay */}
@@ -453,6 +482,9 @@ const styles = StyleSheet.create({
   },
   topControl: {
     paddingHorizontal: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   controlButton: {
     borderRadius: 25,

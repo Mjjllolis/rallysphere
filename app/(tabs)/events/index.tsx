@@ -7,6 +7,7 @@ import { useAuth } from '../../_layout';
 import { getEvents, joinEvent, leaveEvent } from '../../../lib/firebase';
 import type { Event } from '../../../lib/firebase';
 import EventCard from '../../../components/EventCard';
+import PaymentSheet from '../../../components/PaymentSheet';
 
 export default function EventsScreen() {
   const theme = useTheme();
@@ -22,6 +23,8 @@ export default function EventsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
   useEffect(() => {
     loadEvents();
@@ -72,6 +75,21 @@ export default function EventsScreen() {
       return;
     }
 
+    // Find the event
+    const event = allEvents.find(e => e.id === eventId);
+    if (!event) {
+      Alert.alert('Error', 'Event not found');
+      return;
+    }
+
+    // If event has a ticket price, show payment sheet
+    if (event.ticketPrice && event.ticketPrice > 0) {
+      setSelectedEvent(event);
+      setPaymentSheetVisible(true);
+      return;
+    }
+
+    // Otherwise, join event directly (free event)
     setActionLoading(eventId);
     try {
       const result = await joinEvent(eventId, user.uid);
@@ -87,6 +105,11 @@ export default function EventsScreen() {
     } finally {
       setActionLoading(null);
     }
+  };
+
+  const handlePaymentSuccess = async () => {
+    // Reload events to reflect the updated attendee list
+    await loadEvents();
   };
 
   const handleLeaveEvent = async (eventId: string) => {
@@ -261,6 +284,18 @@ export default function EventsScreen() {
             </Card.Content>
           </Card>
         </View>
+      )}
+
+      {selectedEvent && (
+        <PaymentSheet
+          visible={paymentSheetVisible}
+          event={selectedEvent}
+          onDismiss={() => {
+            setPaymentSheetVisible(false);
+            setSelectedEvent(null);
+          }}
+          onSuccess={handlePaymentSuccess}
+        />
       )}
     </SafeAreaView>
   );

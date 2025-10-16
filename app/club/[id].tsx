@@ -220,6 +220,14 @@ export default function ClubDetailScreen() {
                         <Menu.Item
                           onPress={() => {
                             setMenuVisible(false);
+                            router.push(`/club/${club.id}/payouts`);
+                          }}
+                          title="Manage Payouts"
+                          leadingIcon="bank"
+                        />
+                        <Menu.Item
+                          onPress={() => {
+                            setMenuVisible(false);
                             router.push(`/event/create?clubId=${club.id}`);
                           }}
                           title="Create Event"

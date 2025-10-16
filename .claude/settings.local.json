@@ -8,7 +8,16 @@
       "Bash(npx expo:*)",
       "Read(//Users/mishawnlolis/Downloads/**)",
       "Bash(mv:*)",
-      "Bash(tail:*)"
+      "Bash(tail:*)",
+      "Bash(chmod:*)",
+      "Bash(firebase login:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run build)",
+      "Bash(cat:*)",
+      "Bash(firebase deploy:*)",
+      "Bash(npx firebase deploy:*)",
+      "Bash(textutil:*)",
+      "Bash(firebase functions:log:*)"
     ],
     "deny": [],
     "ask": []

@@ -1,0 +1,186 @@
+TERMS AND CONDITIONS
+www.rallysphere.com
+Effective date: 16th September 2025
+Welcome to RallySphere
+Welcome to RallySphere, the all-in-one sports and community engagement platform built for players, clubs, and organizers. These Terms and Conditions (the “Terms”) govern your use of our website, mobile application, and related services (collectively, the “Platform”).
+By choosing to use RallySphere, you are joining a growing community of athletes, clubs, and sports enthusiasts who rely on our technology to organize events, track performance, and connect with one another. To keep that community safe, fair, and legally protected, we require all Users to carefully review and accept these Terms.
+This document sets out the legal obligations of both RallySphere LLC (“RallySphere,” “Company,” “we,” “our,” or “us”) and you, the User (“you,” “your,” or “User”). It explains your rights and responsibilities, how transactions and payments work, and the limitations that apply to your use of our services. It also incorporates, by reference, our Privacy Policy, Cookie Policy, and any other supplemental terms applicable to specific features.
+If you do not agree with any part of these Terms, you must immediately stop using the Platform. Your continued access or use of RallySphere constitutes your binding acceptance of these Terms in their entirety.
+1. Introduction & Acceptance of Terms
+These Terms and Conditions (“Terms”) form a binding legal agreement between you (“User,” “you,” or “your”) and RallySphere LLC, a limited liability company organized under the laws of the State of Texas, United States (“RallySphere,” “Company,” “we,” “our,” or “us”).
+By accessing or using the RallySphere mobile application, website located at www.rallysphere.com, or any related services, features, content, or applications (collectively, the “Platform”), you acknowledge that you have read, understood, and agree to be bound by these Terms. If you do not agree with any provision of these Terms, you must not access or use the Platform.
+These Terms apply to all users of the Platform, including but not limited to individual players, clubs, coaches, event organizers, and visitors browsing the Platform. Additional terms and policies, such as our Privacy Policy, Cookie Policy, and Organizer Guidelines, are incorporated herein by reference and form part of this agreement.
+Use of the Platform constitutes acceptance of these Terms, which remain in full force until terminated in accordance with Section 20 below.
+2. Definitions
+For clarity, the following capitalized terms shall have the meanings ascribed below:
+	•	“Platform” refers to RallySphere’s mobile application, website, and all associated services.
+	•	“User” means any individual or entity accessing or using the Platform, including but not limited to players, clubs, and organizers.
+	•	“Organizer” means a club, facility, or individual who creates, lists, or manages events or activities through the Platform.
+	•	“RallyCredits” means non-monetary, virtual rewards issued by RallySphere to Users for engagement and activity.
+	•	“Content” means all data, text, graphics, photos, videos, and materials uploaded, posted, or otherwise made available by Users on the Platform.
+	•	“AI Features” means RallySphere’s artificial intelligence-driven tools, including but not limited to partner matching, performance analytics, and video analysis.
+	•	“Service Fees” means the fees retained by RallySphere in connection with transactions processed through the Platform.
+3. Eligibility & Account Registration
+To access certain features of the Platform, Users must create an account. By registering, you represent and warrant that:
+	•	You are at least 13 years of age. If you are between 13 and 18, you may only use the Platform under the supervision of a parent or legal guardian who agrees to be bound by these Terms. Users under 13 are strictly prohibited from accessing the Platform.
+	•	You have full power, capacity, and authority to enter into these Terms and, where applicable, to bind any legal entity on whose behalf you access the Platform.
+	•	You will provide accurate, current, and complete information during the registration process and maintain the accuracy of such information thereafter.
+Users are responsible for maintaining the confidentiality of login credentials and are fully liable for all activities that occur under their account. RallySphere shall not be liable for any loss or damage arising from unauthorized use of an account.
+We reserve the right to suspend, restrict, or terminate accounts at our sole discretion if we believe that information provided is inaccurate, incomplete, misleading, or if a User violates any part of these Terms.
+4. Platform Services & Scope
+RallySphere provides a digital ecosystem for recreational sports with a focus on pickleball and related activities. Through the Platform, Users may:
+	•	Create and manage personal player profiles.
+	•	Establish and promote club and group profiles.
+	•	Organize, list, and RSVP to events.
+	•	Access AI-driven partner matching and video analytics tools.
+	•	Track performance data, statistics, and engagement history.
+	•	Earn RallyCredits and other gamification-based rewards.
+	•	Purchase merchandise or gear through integrated third-party services.
+	•	Utilize analytics and reporting features to enhance engagement.
+	•	Enable group chat and messaging functions to facilitate communication between Users, subject to these Terms and the Code of Conduct.
+	•	Provide access to the Platform internationally, including outside the United States, while operated under U.S. law. Foreign Users are responsible for ensuring their use complies with local laws.
+The Platform is intended to facilitate community engagement, event management, and performance tracking. RallySphere does not own, manage, or control events listed on the Platform and assumes no responsibility for the conduct of Organizers, Users, or participants.
+RallySphere may, in its sole discretion, add, remove, or modify Platform features at any time without notice. Continued use of the Platform following modifications constitutes acceptance of such changes.
+5. User Responsibilities & Code of Conduct
+By using the Platform, you agree to act responsibly, respectfully, and in compliance with applicable laws. Users shall not:
+	•	Provide false, misleading, or fraudulent information.
+	•	Harass, threaten, or abuse other Users, Organizers, or RallySphere staff.
+	•	Post or transmit content that is obscene, defamatory, hateful, or otherwise objectionable.
+	•	Use the Platform for unauthorized commercial purposes, advertising, or solicitation.
+	•	Interfere with or disrupt the functionality, security, or integrity of the Platform.
+	•	Attempt to scrape, harvest, or extract data from the Platform without express written consent.
+	•	Violate any applicable sports facility rules, event regulations, or local, state, or federal laws.
+Users acknowledge that participation in physical sporting activities inherently involves risk. RallySphere does not supervise, direct, or control Users’ activities and assumes no responsibility for personal injury, property damage, or disputes arising out of such participation.
+Violation of this Code of Conduct may result in suspension or termination of access to the Platform, without refund.
+Communications Disclaimer: RallySphere provides chat and messaging tools for convenience but does not actively monitor all communications. Users are solely responsible for their own messages. RallySphere reserves the right, but not the obligation, to remove, block, or report communications that violate these Terms or applicable law.
+6. Organizer & Club Responsibilities
+Organizers and clubs using the Platform to list or manage events agree to:
+	•	Provide accurate, complete, and timely information regarding events, facilities, schedules, and pricing.
+	•	Establish and clearly communicate refund, cancellation, and rescheduling policies to participants.
+	•	Ensure compliance with all applicable laws, facility rules, safety regulations, and governing sports body standards.
+	•	Maintain insurance coverage where required by law or venue policies.
+	•	Handle disputes, refunds, and participant communications in a timely and professional manner.
+Organizers acknowledge and agree that RallySphere is not a party to any transaction between Organizers and participants. RallySphere disclaims all liability arising out of Organizer representations, cancellations, injuries, or disputes.
+
+7. Payments, Fees & Billing
+Transactions processed through the Platform are powered by Stripe and other approved third-party payment processors. By using the Platform, you agree to be bound by Stripe’s terms and policies in addition to these Terms.
+	•	Transaction Fees: RallySphere charges a transaction fee on each booking, merchandise purchase, or other paid activity conducted through the Platform. The applicable fee is disclosed at the point of transaction and is automatically deducted before funds are remitted to the Organizer.
+	•	Billing Authorization: By submitting payment information, you authorize RallySphere and its payment processors to charge your designated payment method for all amounts due, including applicable fees, taxes, and charges.
+	•	Service Fees: RallySphere’s Service Fees are non-refundable, except in cases of proven duplicate charges or confirmed Platform error.
+	•	Currency: All transactions are processed in U.S. Dollars (USD) unless otherwise indicated.
+	•	Future Payment Methods: RallySphere may, at its discretion, enable additional payment options, including digital wallets and cryptocurrencies, at a later stage.
+Users acknowledge that RallySphere does not hold funds on behalf of Organizers. Funds are disbursed directly to Organizers via Stripe, subject to Stripe’s timelines, policies, and account verification requirements. RallySphere is not responsible for delays, holds, or reversals imposed by payment processors.
+8. Refunds & Cancellations
+Event participation, bookings, and purchases conducted through the Platform are subject to the refund and cancellation policies established by the Organizer. RallySphere does not set, control, or administer such policies and shall not be liable for any disputes relating to refunds or cancellations.
+	•	Organizer Policies: Each Organizer is solely responsible for defining and communicating refund terms to participants.
+	•	Service Fees: RallySphere’s Service Fees are strictly non-refundable, except in cases of duplicate charges or verified errors caused by the Platform.
+	•	Disputes: Any dispute regarding an event, product, or service—including requests for refunds or chargebacks—must be directed to the Organizer.
+	•	Platform Errors: In the rare instance of confirmed billing errors or duplicate transactions caused by RallySphere’s system, RallySphere will provide a corrective refund of the affected amount.
+By using the Platform, Users agree that RallySphere’s role is limited to facilitating payments and providing digital infrastructure. RallySphere is not responsible for Organizer misrepresentation, cancellations, or participant dissatisfaction.
+9. Virtual Rewards & RallyCredits
+The Platform may include gamification features, including the awarding of RallyCredits, XP points, achievements, or other digital rewards.
+	•	No Cash Value: RallyCredits and other rewards have no monetary value, are non-transferable, and cannot be redeemed for cash or cash equivalents.
+	•	Restricted Use: RallyCredits are for use exclusively within the Platform for features determined by RallySphere.
+	•	Modification or Termination: RallySphere reserves the right to modify, suspend, or discontinue the RallyCredits program at any time without liability to Users.
+	•	Fraudulent Use: RallySphere may revoke RallyCredits or other rewards if obtained through fraud, abuse, or violation of these Terms.
+Users acknowledge that RallyCredits are a promotional tool and do not constitute property or contractual rights.
+10. Merchandise & Third-Party Integrations
+The Platform may offer access to merchandise, gear, or services through integrated third-party vendors.
+	•	Third-Party Responsibility: RallySphere does not manufacture, ship, or warrant merchandise sold through the Platform. Any purchase constitutes a contract directly between the User and the third-party vendor.
+	•	No Warranty: RallySphere disclaims all liability for the quality, safety, or fitness of third-party goods or services.
+	•	Disputes: Any disputes relating to merchandise must be resolved directly with the third-party vendor.
+	•	Integration Services: Certain features, including payment processing, analytics, or event promotion, may rely on third-party integrations. Users acknowledge that such services are subject to the third party’s terms, not RallySphere’s.
+RallySphere’s role is limited to facilitating access and does not extend to vendor obligations or product performance.
+11. User Content & Intellectual Property Rights
+Users may upload, post, or transmit Content, including text, photos, videos, and other materials, through the Platform.
+	•	Ownership: Users retain ownership of their Content.
+	•	License to RallySphere: By submitting Content, Users grant RallySphere a worldwide, non-exclusive, royalty-free, transferable, sublicensable license to use, reproduce, distribute, display, and create derivative works of such Content for the purposes of operating, promoting, and improving the Platform.
+	•	User Responsibility: Users represent and warrant that they have the necessary rights and permissions to submit Content and that such Content does not infringe any third-party rights.
+	•	Monitoring: RallySphere reserves the right, but not the obligation, to monitor, edit, or remove Content that violates these Terms or applicable law.
+	•	Prohibited Content: Users may not upload or distribute Content that is unlawful, defamatory, obscene, hateful, or otherwise objectionable.
+	•	License to RallySphere: By submitting Content, Users grant RallySphere a worldwide, non-exclusive, royalty-free, transferable, sublicensable license to use, reproduce, adapt, publish, publicly display, and distribute such Content—including names, likenesses, and photographs—for the purposes of operating, promoting, and marketing RallySphere, including on social media, advertising campaigns, and other commercial channels. To the extent permitted by law, Users waive any moral rights they may have in such Content.
+RallySphere does not endorse, guarantee, or assume responsibility for any Content submitted by Users.
+12. RallySphere Intellectual Property
+The Platform, including but not limited to its software, databases, user interface, AI models, trademarks, trade names, logos, and overall design, is the exclusive property of RallySphere and its licensors.
+	•	Ownership: All intellectual property rights in the Platform are owned or licensed by RallySphere.
+	•	Restrictions: Users may not copy, reproduce, modify, reverse engineer, distribute, sell, or exploit any part of the Platform without RallySphere’s prior written consent.
+	•	Trademarks: The RallySphere name and logo are trademarks of RallySphere LLC. Unauthorized use of RallySphere’s trademarks is strictly prohibited.
+	•	Reservation of Rights: Except for the limited license granted to Users to access and use the Platform, RallySphere reserves all rights not expressly granted under these Terms.
+Violation of RallySphere’s intellectual property rights may result in immediate termination of access and potential legal action.
+13. AI Tools & Analytics Disclaimer
+RallySphere provides AI-powered features, including partner matching, performance tracking, and video analytics.
+	•	Informational Use Only: AI outputs are provided for informational and entertainment purposes. They are not professional coaching, training, or fitness advice.
+	•	No Guarantee of Accuracy: RallySphere makes no warranty regarding the accuracy, reliability, or completeness of AI-generated insights. Results may vary based on data quality, user input, and system limitations.
+	•	No Liability: Users assume full responsibility for reliance on AI tools. RallySphere shall not be liable for decisions made based on AI outputs, including but not limited to training methods, gameplay strategies, or event participation.
+	•	Evolving Technology: Users acknowledge that AI features are experimental and subject to change, refinement, or removal at RallySphere’s discretion.
+By using AI features, Users expressly agree to these limitations and disclaimers.
+14. Data & Privacy
+Your use of the Platform is also governed by RallySphere’s Privacy Policy, which is incorporated into these Terms by reference. The Privacy Policy explains how RallySphere collects, uses, and protects User data.
+	•	Collection: RallySphere collects personal data (such as account information, event participation, and analytics) as described in the Privacy Policy.
+	•	Payments: Payment information is processed by Stripe and is not stored directly by RallySphere.
+	•	Consent: By using the Platform, Users consent to RallySphere’s collection and use of personal data consistent with the Privacy Policy.
+	•	Security: While RallySphere implements reasonable safeguards to protect data, no system is entirely secure. Users accept the risk of data transmission over the internet.
+	•	Compliance: Users are responsible for ensuring compliance with applicable privacy laws in their jurisdiction. RallySphere currently serves the U.S. market but may expand globally in the future.
+Users are encouraged to review the Privacy Policy in full to understand how their data is handled.
+15. Third-Party Services & Links
+The Platform may contain links to third-party websites or services, and may integrate with third-party providers, including payment processors, analytics tools, and merchandise vendors.
+	•	No Control: RallySphere does not control and is not responsible for the availability, accuracy, or content of third-party websites or services.
+	•	User Responsibility: Accessing third-party sites or services is at your own risk and subject to the terms and policies of those providers.
+	•	Integrations: Features such as payments (via Stripe), app-store subscriptions, or analytics may require Users to accept additional third-party terms. RallySphere is not liable for failures or misconduct by such third parties.
+16. Disclaimers of Warranties
+The Platform and all services are provided “as is” and “as available,” without warranties of any kind, whether express, implied, or statutory.
+	•	No Guarantee: RallySphere makes no representation or warranty that the Platform will be uninterrupted, secure, error-free, or free of harmful components.
+	•	Results Disclaimer: RallySphere does not warrant that use of the Platform, including AI tools and analytics, will result in specific outcomes such as improved athletic performance, increased event attendance, or successful matchmaking.
+	•	Merchantability & Fitness: To the fullest extent permitted by law, RallySphere disclaims all warranties of merchantability, fitness for a particular purpose, title, and non-infringement.
+Users assume all risks associated with reliance on the Platform.
+17. Limitation of Liability
+To the maximum extent permitted by law:
+	•	RallySphere shall not be liable for any indirect, incidental, consequential, or punitive damages, including loss of profits, data, goodwill, or business opportunities, arising from use of the Platform.
+	•	RallySphere is not liable for disputes between Users, event cancellations, personal injuries sustained during sporting activities, or reliance on AI analytics.
+	•	RallySphere’s total liability to any User for any claim arising under these Terms shall not exceed the total amount of Service Fees paid by the User to RallySphere in the twelve (12) months preceding the claim.
+This limitation applies regardless of legal theory, whether in contract, tort, negligence, or otherwise.
+18. Indemnification
+Users agree to indemnify, defend, and hold harmless RallySphere, its officers, directors, employees, agents, and affiliates from and against any claims, liabilities, damages, losses, costs, and expenses (including attorneys’ fees) arising out of or related to:
+	•	Your violation of these Terms or applicable law.
+	•	Your misuse of the Platform or AI features.
+	•	Your Content, including claims of intellectual property infringement or violation of third-party rights.
+	•	Disputes between you and any other User or Organizer.
+RallySphere reserves the right to assume the exclusive defense of any matter subject to indemnification, in which case you agree to cooperate.
+19. Prohibited Uses
+In addition to the conduct restrictions outlined in Section 5, Users may not:
+	•	Attempt to hack, probe, or test the vulnerability of the Platform.
+	•	Circumvent security measures or access systems without authorization.
+	•	Use bots, crawlers, or automated systems to access or scrape data.
+	•	Engage in resale, redistribution, or commercial exploitation of the Platform without written consent.
+	•	Upload viruses, malware, or harmful code.
+	•	Misrepresent affiliation with RallySphere.
+	•	Use chat or messaging features to transmit spam, harassment, threats, obscene or illegal material, or to impersonate others.
+Violations may result in immediate account suspension, legal action, and referral to law enforcement.
+20. Termination & Suspension
+RallySphere reserves the right, in its sole discretion, to suspend, limit, or terminate User accounts or access to the Platform at any time, with or without notice, for:
+	•	Violation of these Terms.
+	•	Misuse of Platform features or AI tools.
+	•	Non-payment of fees.
+	•	Suspected fraudulent, illegal, or abusive activity.
+Upon termination, all licenses granted to Users shall immediately cease. RallySphere shall not be liable for the consequences of termination, though obligations relating to fees, indemnification, and limitation of liability shall survive.
+21. Changes to Services & Terms
+RallySphere may update or modify the Platform and these Terms from time to time.
+	•	Notice: Material changes will be communicated via the Platform, email, or other reasonable methods.
+	•	Continued Use: Continued use of the Platform after changes take effect constitutes acceptance of the revised Terms.
+	•	Version Control: Users are encouraged to review the Terms periodically for updates.
+22. Governing Law & Jurisdiction
+These Terms shall be governed by and interpreted under the laws of the State of Texas, United States, without regard to conflict of law rules. Subject to Section 23 (Dispute Resolution & Arbitration), any dispute arising out of or relating to these Terms or the Platform shall be brought exclusively in the state or federal courts located in Texas. By using the Platform, you consent to the personal jurisdiction and venue of such courts.
+RallySphere operates the Platform from the United States. Users located outside the United States, including but not limited to Users in Costa Rica, may access the Platform; however, their use remains subject to these Terms and U.S. law. RallySphere makes no representation that the Platform is lawful or appropriate for use in any particular jurisdiction, and Users are solely responsible for compliance with local laws in their country of residence.
+23. Dispute Resolution & Arbitration
+To the fullest extent permitted by law, any dispute, controversy, or claim arising out of or relating to these Terms or the Platform shall be resolved by binding arbitration administered by the American Arbitration Association (“AAA”) in accordance with its Consumer Arbitration Rules, which are incorporated by reference into this Section.
+	•	Individual Claims Only: All proceedings shall be conducted solely on an individual basis. Users waive any right to participate in a class action, collective action, or other representative proceeding.
+	•	Venue: Unless otherwise agreed by the parties, arbitration shall take place in Texas, United States. Users located outside the United States, including in Costa Rica, agree that arbitration shall still be conducted under U.S. law and administered by the AAA.
+	•	Exceptions: Either party may bring an action in court for (a) injunctive relief, or (b) protection or enforcement of intellectual property rights, without first engaging in arbitration.
+	•	Survival: This arbitration agreement shall be interpreted broadly to cover all disputes arising from these Terms or the Platform, and it shall survive termination of these Terms and closure of any User account.
+24. Severability & Survival
+If any provision of these Terms is held to be invalid or unenforceable, the remaining provisions shall remain in full force and effect.
+The following sections shall survive termination of these Terms: Intellectual Property (Sections 11–12), AI Disclaimer (Section 13), Limitations of Liability (Section 17), Indemnification (Section 18), Governing Law & Arbitration (Sections 22–23), and this Section 24.
+25. Contact Information
+Questions, concerns, or notices regarding these Terms should be directed to:
+RallySphere LLC Texas, United States Email: support@rallysphere.com
+
