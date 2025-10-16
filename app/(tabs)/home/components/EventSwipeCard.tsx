@@ -6,7 +6,8 @@ import {
   Dimensions,
   TouchableOpacity,
   Pressable,
-  Alert
+  Alert,
+  Linking
 } from 'react-native';
 import { Text, Chip, IconButton, useTheme } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -14,6 +15,7 @@ import { router } from 'expo-router';
 import type { Event } from '../../../../lib/firebase';
 import { useAuth } from '../../../_layout';
 import { joinEvent, getEventById, bookmarkEvent, unbookmarkEvent, getUserBookmarks } from '../../../../lib/firebase';
+import { createCheckoutSession } from '../../../../lib/stripe';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -88,6 +90,32 @@ export default function EventSwipeCard({
       return;
     }
 
+    // If event has a ticket price, redirect to Stripe Checkout
+    if (event.ticketPrice && event.ticketPrice > 0) {
+      setIsJoining(true);
+      try {
+        const result = await createCheckoutSession({
+          eventId: event.id,
+          ticketPrice: event.ticketPrice,
+          currency: event.currency || 'usd',
+        });
+
+        if (result.success && result.checkoutUrl) {
+          // Open Stripe Checkout in browser
+          await Linking.openURL(result.checkoutUrl);
+        } else {
+          Alert.alert('Error', result.error || 'Failed to start payment process');
+        }
+      } catch (error) {
+        console.error('Error starting checkout:', error);
+        Alert.alert('Error', 'An unexpected error occurred');
+      } finally {
+        setIsJoining(false);
+      }
+      return;
+    }
+
+    // Free event - join directly
     setIsJoining(true);
     try {
       const result = await joinEvent(event.id, user.uid);
@@ -282,7 +310,13 @@ export default function EventSwipeCard({
                 fontWeight: 'bold'
               }}
             >
-              {isJoining ? 'Joining...' : isFull ? 'Full' : 'Quick Join'}
+              {isJoining
+                ? 'Joining...'
+                : isFull
+                ? 'Full'
+                : event.ticketPrice
+                ? `Buy Ticket - $${event.ticketPrice}`
+                : 'Quick Join'}
             </Text>
           </TouchableOpacity>
         )}
@@ -327,6 +361,7 @@ export default function EventSwipeCard({
           <Text style={styles.actionText}>Info</Text>
         </TouchableOpacity>
       </View>
+
     </Pressable>
   );
 }

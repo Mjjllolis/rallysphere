@@ -1,7 +1,7 @@
 // app/_layout.tsx
 import React, { useEffect, useState, createContext, useContext } from 'react';
-import { Platform } from 'react-native';
-import { Slot } from 'expo-router';
+import { Platform, Linking, Alert } from 'react-native';
+import { Slot, useRouter } from 'expo-router';
 import { Provider as PaperProvider, MD3LightTheme, MD3DarkTheme } from 'react-native-paper';
 import { onAuthStateChange, type User } from '../lib/firebase';
 import * as SecureStore from 'expo-secure-store';
@@ -183,6 +183,7 @@ export default function RootLayout() {
   const [isDark, setIsDark] = useState(false);
   const [themeLoading, setThemeLoading] = useState(true);
   const [stripeInitialized, setStripeInitialized] = useState(false);
+  const router = useRouter();
 
   // Initialize Stripe (only if available)
   useEffect(() => {
@@ -226,16 +227,88 @@ export default function RootLayout() {
   // Auth state listener
   useEffect(() => {
     console.log('Setting up Firebase auth listener...');
-    
+
     const unsubscribe = onAuthStateChange((user) => {
       console.log('Auth state changed:', user ? `User: ${user.email}` : 'No user');
       setUser(user);
       setAuthLoading(false);
     });
-    
+
     // Cleanup function
     return unsubscribe;
   }, []);
+
+  // Deep link handler for Stripe payment callbacks
+  useEffect(() => {
+    const handleDeepLink = (event: { url: string }) => {
+      const url = event.url;
+      console.log('Deep link received:', url);
+
+      // Handle payment success
+      if (url.includes('payment-success')) {
+        const urlParams = new URLSearchParams(url.split('?')[1]);
+        const eventId = urlParams.get('event_id');
+
+        Alert.alert(
+          'Payment Successful!',
+          'You have successfully purchased your ticket. You are now registered for the event.',
+          [
+            {
+              text: 'View Event',
+              onPress: () => {
+                if (eventId) {
+                  router.push(`/(tabs)/event-detail?id=${eventId}`);
+                }
+              },
+            },
+            {
+              text: 'OK',
+              style: 'cancel',
+            },
+          ]
+        );
+      }
+
+      // Handle payment cancellation
+      if (url.includes('payment-cancel')) {
+        const urlParams = new URLSearchParams(url.split('?')[1]);
+        const eventId = urlParams.get('event_id');
+
+        Alert.alert(
+          'Payment Cancelled',
+          'Your payment was cancelled. You can try again anytime.',
+          [
+            {
+              text: 'Try Again',
+              onPress: () => {
+                if (eventId) {
+                  router.push(`/(tabs)/event-detail?id=${eventId}`);
+                }
+              },
+            },
+            {
+              text: 'OK',
+              style: 'cancel',
+            },
+          ]
+        );
+      }
+    };
+
+    // Listen for deep links when app is already open
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+
+    // Check if app was opened via deep link
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleDeepLink({ url });
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [router]);
 
   // Hide splash screen when ready
   useEffect(() => {
