@@ -14,7 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import type { Event } from '../../../../lib/firebase';
 import { useAuth } from '../../../_layout';
-import { joinEvent, getEventById, bookmarkEvent, unbookmarkEvent, getUserBookmarks } from '../../../../lib/firebase';
+import { joinEvent, getEventById, bookmarkEvent, unbookmarkEvent, getUserBookmarks, likeEvent, unlikeEvent, getUserLikes } from '../../../../lib/firebase';
 import { createCheckoutSession } from '../../../../lib/stripe';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -38,6 +38,8 @@ export default function EventSwipeCard({
   const [isJoining, setIsJoining] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
+  const [isLiked, setIsLiked] = useState(false);
+  const [likeLoading, setLikeLoading] = useState(false);
 
   useEffect(() => {
     setEvent(initialEvent);
@@ -46,6 +48,7 @@ export default function EventSwipeCard({
   useEffect(() => {
     if (user) {
       loadBookmarkStatus();
+      loadLikeStatus();
     }
   }, [user, event.id]);
 
@@ -54,6 +57,14 @@ export default function EventSwipeCard({
     const result = await getUserBookmarks(user.uid);
     if (result.success) {
       setIsBookmarked(result.bookmarks.includes(event.id));
+    }
+  };
+
+  const loadLikeStatus = async () => {
+    if (!user) return;
+    const result = await getUserLikes(user.uid);
+    if (result.success) {
+      setIsLiked(result.likes.includes(event.id));
     }
   };
 
@@ -166,6 +177,41 @@ export default function EventSwipeCard({
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setBookmarkLoading(false);
+    }
+  };
+
+  const handleLike = async () => {
+    if (!user) {
+      Alert.alert('Sign In Required', 'Please sign in to like events');
+      return;
+    }
+
+    setLikeLoading(true);
+    try {
+      if (isLiked) {
+        const result = await unlikeEvent(event.id, user.uid);
+        if (result.success) {
+          setIsLiked(false);
+          // Refresh event data to update like count
+          await refreshEventData();
+        } else {
+          Alert.alert('Error', result.error || 'Failed to unlike event');
+        }
+      } else {
+        const result = await likeEvent(event.id, user.uid);
+        if (result.success) {
+          setIsLiked(true);
+          // Refresh event data to update like count
+          await refreshEventData();
+        } else {
+          Alert.alert('Error', result.error || 'Failed to like event');
+        }
+      }
+    } catch (error) {
+      console.error('Error liking event:', error);
+      Alert.alert('Error', 'An unexpected error occurred');
+    } finally {
+      setLikeLoading(false);
     }
   };
 
@@ -313,10 +359,10 @@ export default function EventSwipeCard({
               {isJoining
                 ? 'Joining...'
                 : isFull
-                ? 'Full'
-                : event.ticketPrice
-                ? `Buy Ticket - $${event.ticketPrice}`
-                : 'Quick Join'}
+                  ? 'Full'
+                  : event.ticketPrice
+                    ? `Buy Ticket - $${event.ticketPrice}`
+                    : 'Quick Join'}
             </Text>
           </TouchableOpacity>
         )}
@@ -324,6 +370,21 @@ export default function EventSwipeCard({
 
       {/* Right Side Actions */}
       <View style={styles.rightActions}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={handleLike}
+          disabled={likeLoading}
+        >
+          <IconButton
+            icon={isLiked ? "heart" : "heart-outline"}
+            iconColor={isLiked ? "#FF4458" : "#fff"}
+            size={28}
+          />
+          <Text style={styles.actionText}>
+            {event.likes && event.likes.length > 0 ? event.likes.length : 'Like'}
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={styles.actionButton}
           onPress={handleBookmark}
@@ -335,14 +396,6 @@ export default function EventSwipeCard({
             size={28}
           />
           <Text style={styles.actionText}>Save</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => Alert.alert('Feature coming soon', 'Like functionality will be added soon')}
-        >
-          <IconButton icon="heart-outline" iconColor="#fff" size={28} />
-          <Text style={styles.actionText}>Like</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
