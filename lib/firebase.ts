@@ -115,6 +115,7 @@ export interface Event {
   maxAttendees?: number;
   attendees: string[];
   waitlist: string[];
+  likes: string[];
   coverImage?: string;
   tags?: string[];
   requiresApproval: boolean;
@@ -562,14 +563,15 @@ export const updateClub = async (clubId: string, clubData: any) => {
 };
 
 // --- 8. Event Functions ---
-export const createEvent = async (eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt' | 'attendees' | 'waitlist'>) => {
+export const createEvent = async (eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt' | 'attendees' | 'waitlist' | 'likes'>) => {
   try {
     const event = {
       ...eventData,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       attendees: [],
-      waitlist: []
+      waitlist: [],
+      likes: []
     };
 
     const docRef = await addDoc(collection(db, 'events'), event);
@@ -790,6 +792,66 @@ export const getUserBookmarks = async (userId: string) => {
   } catch (error: any) {
     console.error('Error getting bookmarks:', error);
     return { success: false, error: error.message, bookmarks: [] };
+  }
+};
+//--------------------Handldle Like----------------------//
+export const likeEvent = async (eventId: string, userId: string) => {
+  try {
+    // Add to user's liked events
+    const userDoc = doc(db, 'users', userId);
+    await updateDoc(userDoc, {
+      likedEvents: arrayUnion(eventId)
+    });
+
+    // Add user to event's likes array
+    const eventDoc = doc(db, 'events', eventId);
+    await updateDoc(eventDoc, {
+      likes: arrayUnion(userId),
+      updatedAt: serverTimestamp()
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error liking event:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const unlikeEvent = async (eventId: string, userId: string) => {
+  try {
+    // Remove from user's liked events
+    const userDoc = doc(db, 'users', userId);
+    await updateDoc(userDoc, {
+      likedEvents: arrayRemove(eventId)
+    });
+
+    // Remove user from event's likes array
+    const eventDoc = doc(db, 'events', eventId);
+    await updateDoc(eventDoc, {
+      likes: arrayRemove(userId),
+      updatedAt: serverTimestamp()
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error unliking event:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const getUserLikes = async (userId: string) => {
+  try {
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    if (!userDoc.exists()) {
+      return { success: false, error: 'User not found', likes: [] };
+    }
+
+    const data = userDoc.data();
+    const likes = data.likedEvents || [];
+    return { success: true, likes };
+  } catch (error: any) {
+    console.error('Error getting likes:', error);
+    return { success: false, error: error.message, likes: [] };
   }
 };
 
