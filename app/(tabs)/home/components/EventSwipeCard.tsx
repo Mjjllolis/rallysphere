@@ -7,7 +7,9 @@ import {
   TouchableOpacity,
   Pressable,
   Alert,
-  Linking
+  Linking,
+  Share,
+  Platform
 } from 'react-native';
 import { Text, Chip, IconButton, useTheme } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -222,6 +224,42 @@ export default function EventSwipeCard({
     router.push(`/(tabs)/event-detail?id=${event.id}`);
   };
 
+  // Generate link with id
+  const getShareUrl = () => {
+    return `https://rallysphere.app/event/${event.id}`;
+  };
+
+  const handleShare = async () => {
+    try {
+      const shareUrl = getShareUrl();
+      const message = Platform.OS === 'ios'
+        ? `Check out this event: ${event.title} by ${event.clubName}`
+        : `Check out this event: ${event.title} by ${event.clubName}\n\n${shareUrl}`;
+
+      const result = await Share.share({
+        message,
+        url: shareUrl,
+        title: event.title,
+      });
+
+      if (result.action === Share.sharedAction) {
+        if (result.activityType) {
+          console.log('Shared via:', result.activityType); //works for IOS
+        } else {
+          // shared
+          console.log('Content shared'); //android we dont get type
+        }
+      } else if (result.action === Share.dismissedAction) {
+        // dismissed
+        console.log('Share dismissed');
+      }
+    } catch (error) {
+      console.error('Error sharing:', error);
+      Alert.alert('Error', 'Failed to share event');
+    }
+  };
+
+
   const isAttending = user ? event.attendees.includes(user.uid) : false;
   const isWaitlisted = user ? event.waitlist.includes(user.uid) : false;
   const isFull = event.maxAttendees && event.attendees.length >= event.maxAttendees;
@@ -400,7 +438,7 @@ export default function EventSwipeCard({
 
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => Alert.alert('Feature coming soon', 'Share functionality will be added soon')}
+          onPress={handleShare}
         >
           <IconButton icon="share-variant" iconColor="#fff" size={28} />
           <Text style={styles.actionText}>Share</Text>
