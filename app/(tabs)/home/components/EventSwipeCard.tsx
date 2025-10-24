@@ -462,6 +462,8 @@ const styles = StyleSheet.create({
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
     backgroundColor: '#000',
+    borderRadius: 30,
+    overflow: 'hidden',
   },
   media: {
     width: '100%',
