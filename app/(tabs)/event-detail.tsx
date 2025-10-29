@@ -20,7 +20,7 @@ import { useAuth } from '../_layout';
 import { getEventById, joinEvent, leaveEvent } from '../../lib/firebase';
 import type { Event } from '../../lib/firebase';
 import BackButton from '../../components/BackButton';
-import { createCheckoutSession } from '../../lib/stripe';
+import PaymentSheet from '../../components/PaymentSheet';
 
 const { width } = Dimensions.get('window');
 
@@ -34,6 +34,7 @@ export default function EventDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
 
   useEffect(() => {
     if (eventId) {
@@ -64,28 +65,9 @@ export default function EventDetailScreen() {
   const handleJoinEvent = async () => {
     if (!user || !event) return;
 
-    // If event has a ticket price, redirect to Stripe Checkout
+    // If event has a ticket price, show native payment sheet
     if (event.ticketPrice && event.ticketPrice > 0) {
-      setActionLoading(true);
-      try {
-        const result = await createCheckoutSession({
-          eventId: event.id,
-          ticketPrice: event.ticketPrice,
-          currency: event.currency || 'usd',
-        });
-
-        if (result.success && result.checkoutUrl) {
-          // Open Stripe Checkout in browser
-          await Linking.openURL(result.checkoutUrl);
-        } else {
-          Alert.alert('Error', result.error || 'Failed to start payment process');
-        }
-      } catch (error) {
-        console.error('Error starting checkout:', error);
-        Alert.alert('Error', 'An unexpected error occurred');
-      } finally {
-        setActionLoading(false);
-      }
+      setPaymentSheetVisible(true);
       return;
     }
 
@@ -109,6 +91,11 @@ export default function EventDetailScreen() {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handlePaymentSuccess = async () => {
+    // Refresh event data after successful payment
+    await loadEventData();
   };
 
   const handleLeaveEvent = async () => {
@@ -485,6 +472,16 @@ export default function EventDetailScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Payment Sheet Modal */}
+      {event && (
+        <PaymentSheet
+          visible={paymentSheetVisible}
+          event={event}
+          onDismiss={() => setPaymentSheetVisible(false)}
+          onSuccess={handlePaymentSuccess}
+        />
+      )}
     </View>
   );
 }

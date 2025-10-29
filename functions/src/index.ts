@@ -235,21 +235,21 @@ export const createPaymentIntent = functions.https.onCall(
     }
 
     // Calculate fees
-    const PLATFORM_FEE_PERCENTAGE = 0.10; // 10%
+    const PLATFORM_FEE_PERCENTAGE = 0.10; // 10% of ticket price
     const STRIPE_FEE_PERCENTAGE = 0.029; // 2.9%
     const STRIPE_FEE_FIXED = 0.30; // $0.30
 
-    // Calculate Stripe processing fee
+    // Calculate Stripe processing fee on ticket price
     const stripeFee = (ticketPrice * STRIPE_FEE_PERCENTAGE) + STRIPE_FEE_FIXED;
 
-    // Total amount to charge user (ticket + stripe fee, tax calculated on frontend)
+    // Platform fee is 10% of ticket price only (not including Stripe fees)
+    const platformFee = ticketPrice * PLATFORM_FEE_PERCENTAGE;
+
+    // Total amount to charge user (ticket + stripe fee)
     const totalAmount = ticketPrice + stripeFee;
 
-    // Platform fee is 10% of total collected
-    const platformFee = totalAmount * PLATFORM_FEE_PERCENTAGE;
-
-    // Amount club receives (total - platform fee - actual stripe fee paid)
-    const clubAmount = totalAmount - platformFee - stripeFee;
+    // Amount club receives (90% of ticket price)
+    const clubAmount = ticketPrice - platformFee;
 
     // Create payment intent with Stripe
     const stripe = getStripe();
