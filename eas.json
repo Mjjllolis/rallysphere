@@ -15,8 +15,13 @@
       }
     },
     "production": {
+      "node": "22.14.0",
+      "env": {
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+      },
       "ios": {
-        "autoIncrement": "buildNumber"
+        "autoIncrement": "buildNumber",
+        "cocoapods": "1.15.2"
       },
       "android": {
         "autoIncrement": "versionCode"
