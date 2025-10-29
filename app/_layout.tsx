@@ -8,16 +8,19 @@ import * as SecureStore from 'expo-secure-store';
 import * as SplashScreen from 'expo-splash-screen';
 import Constants from 'expo-constants';
 
-// Conditionally import Stripe - will be undefined until native modules are built
+// Conditionally import Stripe - only on native platforms
 let StripeProvider: any = null;
 let initializeStripe: any = null;
-try {
-  const stripeModule = require('@stripe/stripe-react-native');
-  StripeProvider = stripeModule.StripeProvider;
-  const stripeLib = require('../lib/stripe');
-  initializeStripe = stripeLib.initializeStripe;
-} catch (error) {
-  console.warn('Stripe not available - rebuild app with: npx expo prebuild');
+
+if (Platform.OS !== 'web') {
+  try {
+    const stripeModule = require('@stripe/stripe-react-native');
+    StripeProvider = stripeModule.StripeProvider;
+    const stripeLib = require('../lib/stripe');
+    initializeStripe = stripeLib.initializeStripe;
+  } catch (error) {
+    console.warn('Stripe not available - rebuild app with: npx expo prebuild');
+  }
 }
 
 // Prevent auto-hiding splash screen

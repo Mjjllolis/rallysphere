@@ -1,11 +1,37 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, Alert, Platform, TouchableOpacity, Animated, Dimensions, ScrollView, Modal } from 'react-native';
-import { Button, Text, ActivityIndicator, useTheme, Divider } from 'react-native-paper';
-import { CardField, useStripe, usePaymentSheet } from '@stripe/stripe-react-native';
-import { createPaymentIntent } from '../lib/stripe';
+import { Button, Text, ActivityIndicator, useTheme, Divider, TextInput } from 'react-native-paper';
 import type { Event } from '../lib/firebase';
 import { db, auth } from '../lib/firebase';
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
+
+// Conditionally import Stripe based on platform
+let CardField: any = null;
+let useStripe: any = () => ({ confirmPayment: null, presentApplePay: null, confirmApplePayPayment: null, initGooglePay: null, presentGooglePay: null });
+let usePaymentSheet: any = () => ({ initPaymentSheet: null, presentPaymentSheet: null });
+let createPaymentIntent: any = null;
+let loadStripe: any = null;
+let stripePromise: any = null;
+
+if (Platform.OS === 'web') {
+  // Web: Use Stripe.js
+  const { loadStripe: load } = require('@stripe/stripe-js');
+  loadStripe = load;
+  const publishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+  if (publishableKey) {
+    stripePromise = loadStripe(publishableKey);
+  }
+  const { createPaymentIntent: create } = require('../lib/stripe');
+  createPaymentIntent = create;
+} else {
+  // Native: Use Stripe React Native
+  const stripeModule = require('@stripe/stripe-react-native');
+  CardField = stripeModule.CardField;
+  useStripe = stripeModule.useStripe;
+  usePaymentSheet = stripeModule.usePaymentSheet;
+  const stripeLib = require('../lib/stripe');
+  createPaymentIntent = stripeLib.createPaymentIntent;
+}
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -18,8 +44,16 @@ interface PaymentSheetProps {
 
 export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: PaymentSheetProps) {
   const theme = useTheme();
-  const stripe = useStripe();
-  const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
+
+  // State for web payment form
+  const [cardNumber, setCardNumber] = useState('');
+  const [expiry, setExpiry] = useState('');
+  const [cvc, setCvc] = useState('');
+  const [cardholderName, setCardholderName] = useState('');
+
+  // Initialize Stripe for native
+  const stripe = Platform.OS !== 'web' ? useStripe() : null;
+  const { initPaymentSheet, presentPaymentSheet } = Platform.OS !== 'web' ? usePaymentSheet() : { initPaymentSheet: null, presentPaymentSheet: null };
   const [loading, setLoading] = useState(false);
   const [cardComplete, setCardComplete] = useState(false);
   const [feeBreakdown, setFeeBreakdown] = useState<any>(null);
@@ -409,6 +443,42 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
     }
   };
 
+  const handleWebPayment = async () => {
+    if (!event.ticketPrice) return;
+
+    setLoading(true);
+
+    try {
+      // Import createCheckoutSession from stripe lib
+      const { createCheckoutSession } = require('../lib/stripe');
+
+      // Get current URL origin for redirect
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+
+      // Create Stripe Checkout Session with web-friendly URLs
+      const result = await createCheckoutSession({
+        eventId: event.id,
+        ticketPrice: event.ticketPrice,
+        currency: event.currency || 'usd',
+        successUrl: `${origin}/payment-success?session_id={CHECKOUT_SESSION_ID}&event_id=${event.id}`,
+        cancelUrl: `${origin}/payment-cancel?event_id=${event.id}`,
+      });
+
+      if (!result.success || !result.checkoutUrl) {
+        Alert.alert('Error', result.error || 'Failed to initialize payment');
+        setLoading(false);
+        return;
+      }
+
+      // Redirect to Stripe Checkout
+      window.location.href = result.checkoutUrl;
+    } catch (error: any) {
+      console.error('Web payment error:', error);
+      Alert.alert('Error', error.message || 'An unexpected error occurred');
+      setLoading(false);
+    }
+  };
+
   const formatPrice = (price: number, currency: string = 'USD') => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -506,7 +576,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
             {/* Continue to Payment Button */}
             <TouchableOpacity
               style={[styles.continueButton, { backgroundColor: theme.colors.primary }]}
-              onPress={handleMorePaymentOptions}
+              onPress={Platform.OS === 'web' ? handleWebPayment : handleMorePaymentOptions}
               disabled={loading}
             >
               {loading ? (
@@ -515,7 +585,10 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
                 <>
                   <Text style={styles.continueButtonText}>Continue to Payment</Text>
                   <Text style={styles.continueButtonSubtext}>
-                    Apple Pay, Card, Link & more options available
+                    {Platform.OS === 'web'
+                      ? 'Secure payment via Stripe'
+                      : 'Apple Pay, Card, Link & more options available'
+                    }
                   </Text>
                 </>
               )}
@@ -531,6 +604,17 @@ const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  webMessage: {
+    margin: 'auto',
+    padding: 32,
+    borderRadius: 16,
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
   },
   sheet: {
     position: 'absolute',

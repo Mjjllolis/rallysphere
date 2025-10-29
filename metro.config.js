@@ -12,4 +12,18 @@ config.resolver.alias = {
   '@hooks': `${__dirname}/hooks`,
 };
 
+// Block @stripe/stripe-react-native on web to prevent bundling errors
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (platform === 'web' && moduleName === '@stripe/stripe-react-native') {
+    // Return an empty module for web
+    return {
+      filePath: require.resolve('./lib/stripe-web-stub.js'),
+      type: 'sourceFile',
+    };
+  }
+
+  // Use default resolver for everything else
+  return context.resolveRequest(context, moduleName, platform);
+};
+
 module.exports = config;

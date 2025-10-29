@@ -324,7 +324,7 @@ export const createCheckoutSession = functions.https.onCall(
       );
     }
 
-    const {eventId, ticketPrice, currency = "usd"} = data;
+    const {eventId, ticketPrice, currency = "usd", successUrl, cancelUrl} = data;
 
     // Validate input
     if (!eventId || !ticketPrice) {
@@ -384,6 +384,11 @@ export const createCheckoutSession = functions.https.onCall(
 
       // Create Stripe Checkout Session
       const stripe = getStripe();
+
+      // Use provided URLs or fall back to deep link scheme for native apps
+      const defaultSuccessUrl = `rallysphere://payment-success?session_id={CHECKOUT_SESSION_ID}&event_id=${eventId}`;
+      const defaultCancelUrl = `rallysphere://payment-cancel?event_id=${eventId}`;
+
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         line_items: [
@@ -400,8 +405,8 @@ export const createCheckoutSession = functions.https.onCall(
           },
         ],
         mode: "payment",
-        success_url: `rallysphere://payment-success?session_id={CHECKOUT_SESSION_ID}&event_id=${eventId}`,
-        cancel_url: `rallysphere://payment-cancel?event_id=${eventId}`,
+        success_url: successUrl || defaultSuccessUrl,
+        cancel_url: cancelUrl || defaultCancelUrl,
         metadata: {
           eventId,
           clubId: event.clubId,
