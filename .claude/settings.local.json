@@ -29,7 +29,11 @@
       "mcp__ide__getDiagnostics",
       "Bash(awk:*)",
       "Bash(pkill:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(emulator:*)",
+      "Bash(adb devices:*)",
+      "Bash($HOME/Library/Android/sdk/platform-tools/adb devices)",
+      "Bash(eas login:*)"
     ],
     "deny": [],
     "ask": []
