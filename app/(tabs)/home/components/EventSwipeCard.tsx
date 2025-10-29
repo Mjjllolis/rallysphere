@@ -17,7 +17,7 @@ import { router } from 'expo-router';
 import type { Event } from '../../../../lib/firebase';
 import { useAuth } from '../../../_layout';
 import { joinEvent, getEventById, bookmarkEvent, unbookmarkEvent, getUserBookmarks, likeEvent, unlikeEvent, getUserLikes } from '../../../../lib/firebase';
-import { createCheckoutSession } from '../../../../lib/stripe';
+import PaymentSheet from '../../../../components/PaymentSheet';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -42,6 +42,7 @@ export default function EventSwipeCard({
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [likeLoading, setLikeLoading] = useState(false);
+  const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
 
   useEffect(() => {
     setEvent(initialEvent);
@@ -103,28 +104,9 @@ export default function EventSwipeCard({
       return;
     }
 
-    // If event has a ticket price, redirect to Stripe Checkout
+    // If event has a ticket price, show native payment sheet
     if (event.ticketPrice && event.ticketPrice > 0) {
-      setIsJoining(true);
-      try {
-        const result = await createCheckoutSession({
-          eventId: event.id,
-          ticketPrice: event.ticketPrice,
-          currency: event.currency || 'usd',
-        });
-
-        if (result.success && result.checkoutUrl) {
-          // Open Stripe Checkout in browser
-          await Linking.openURL(result.checkoutUrl);
-        } else {
-          Alert.alert('Error', result.error || 'Failed to start payment process');
-        }
-      } catch (error) {
-        console.error('Error starting checkout:', error);
-        Alert.alert('Error', 'An unexpected error occurred');
-      } finally {
-        setIsJoining(false);
-      }
+      setPaymentSheetVisible(true);
       return;
     }
 
@@ -149,6 +131,11 @@ export default function EventSwipeCard({
     } finally {
       setIsJoining(false);
     }
+  };
+
+  const handlePaymentSuccess = async () => {
+    // Refresh event data after successful payment
+    await refreshEventData();
   };
 
   const handleBookmark = async () => {
@@ -453,6 +440,13 @@ export default function EventSwipeCard({
         </TouchableOpacity>
       </View>
 
+      {/* Payment Sheet Modal */}
+      <PaymentSheet
+        visible={paymentSheetVisible}
+        event={event}
+        onDismiss={() => setPaymentSheetVisible(false)}
+        onSuccess={handlePaymentSuccess}
+      />
     </Pressable>
   );
 }

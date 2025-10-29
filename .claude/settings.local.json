@@ -25,7 +25,11 @@
       "Bash(firebase functions:list:*)",
       "Bash(gcloud functions add-invoker-policy-binding:*)",
       "Bash(firebase functions:config:set:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(awk:*)",
+      "Bash(pkill:*)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []
