@@ -4,7 +4,10 @@ import { Tabs } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTheme } from "react-native-paper";
 import CreateModal from "../event/createModal";
-import { Image, StyleSheet, Animated, Dimensions } from "react-native";
+import { Image, StyleSheet, Animated, Dimensions, View } from "react-native";
+import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Defs, RadialGradient, Stop, Rect, Path } from 'react-native-svg';
+import { BlurView } from 'expo-blur';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const TAB_COUNT = 5; // Home, Events, Clubs, Create, Profile
@@ -81,20 +84,66 @@ export default function TabLayout() {
 
   return (
     <>
-      <Tabs
-        screenOptions={{
-          tabBarActiveTintColor: colors.primary,
-          tabBarInactiveTintColor: colors.onSurfaceVariant,
-          tabBarStyle: {
-            backgroundColor: colors.surface,
-            borderTopColor: colors.outline,
-            borderTopWidth: 1,
-            height: 85,
-            paddingBottom: 15,
-            paddingTop: 10,
-            paddingLeft: 0,
-            paddingRight: 0,
-          },
+      <View style={{ position: 'relative', flex: 1 }}>
+        <Tabs
+          screenOptions={{
+            tabBarActiveTintColor: colors.primary,
+            tabBarInactiveTintColor: colors.onSurfaceVariant,
+            tabBarStyle: {
+              backgroundColor: 'transparent',
+              borderTopColor: 'transparent',
+              borderTopWidth: 0,
+              height: 85,
+              paddingBottom: 15,
+              paddingTop: 10,
+              paddingLeft: 0,
+              paddingRight: 0,
+              position: 'absolute',
+            },
+            tabBarBackground: () => (
+              <View
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  overflow: 'hidden',
+                }}
+              >
+                {/* making center circle blur */}
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: -305,
+                    left: 0,
+                    width: SCREEN_WIDTH,
+                    height: 400,
+                  }}
+                >
+                  <BlurView
+                    intensity={50}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: SCREEN_WIDTH,
+                      height: 400,
+                    }}
+                  />
+                  <Svg width={SCREEN_WIDTH} height={400} style={{ position: 'absolute' }}>
+                    <Defs>
+                      <RadialGradient id="circleMask" cx="50%" cy="50%" rx="60%" ry="40%">
+                        <Stop offset="0%" stopColor="transparent" stopOpacity="0" />
+                        <Stop offset="30%" stopColor="transparent" stopOpacity="0" />
+                        <Stop offset="100%" stopColor="black" stopOpacity="1" />
+                      </RadialGradient>
+                    </Defs>
+                    <Rect x="0" y="0" width={SCREEN_WIDTH} height={400} fill="url(#circleMask)" />
+                  </Svg>
+                </View>
+              </View>
+            ),
           tabBarItemStyle: {
             width: TAB_WIDTH,
             justifyContent: 'center',
@@ -138,16 +187,6 @@ export default function TabLayout() {
           }}
         />
 
-        <Tabs.Screen
-          name="clubs"
-          options={{
-            title: "Clubs",
-            tabBarIcon: ({ color, focused }) => (
-              <AnimatedTabIcon name="account-group" color={color} focused={focused} />
-            ),
-          }}
-        />
-
         {/* ✅ Custom Create Button */}
         <Tabs.Screen
           name="create"
@@ -162,6 +201,16 @@ export default function TabLayout() {
               e.preventDefault(); // 🧱 stops navigation
               openModal(); // 🎉 opens bottom modal
             },
+          }}
+        />
+
+        <Tabs.Screen
+          name="clubs"
+          options={{
+            title: "Clubs",
+            tabBarIcon: ({ color, focused }) => (
+              <AnimatedTabIcon name="account-group" color={color} focused={focused} />
+            ),
           }}
         />
 
@@ -196,6 +245,53 @@ export default function TabLayout() {
           }}
         />
       </Tabs>
+
+        {/* shimmer line on top of tab bar */}
+        <LinearGradient
+          colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.3)', 'rgba(255,255,255,0)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={{
+            position: 'absolute',
+            bottom: 85,
+            left: 0,
+            right: 0,
+            height: 1,
+          }}
+        />
+
+        {/* SVG flicks for top of tab bar */}
+        <Svg
+          width="30"
+          height="30"
+          viewBox="0 0 30 30"
+          style={{
+            position: 'absolute',
+            bottom: 85,
+            left: 0,
+          }}
+        >
+          <Path
+            d="M 0 30 L 0 0 Q 0 30 30 30 Z"
+            fill="#000000"
+          />
+        </Svg>
+        <Svg
+          width="30"
+          height="30"
+          viewBox="0 0 30 30"
+          style={{
+            position: 'absolute',
+            bottom: 85,
+            right: 0,
+          }}
+        >
+          <Path
+            d="M 30 30 L 30 0 Q 30 30 0 30 Z"
+            fill="#000000"
+          />
+        </Svg>
+      </View>
 
       <CreateModal visible={isModalVisible} onClose={closeModal} />
     </>

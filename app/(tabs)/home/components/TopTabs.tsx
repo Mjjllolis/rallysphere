@@ -13,7 +13,7 @@ type TopTabsProps = {
 };
 
 export default function TopTabs({ activeTab, setActiveTab }: TopTabsProps) {
-  const tabs = ["Editors' Pick", 'For You', 'Trending', 'Following'];
+  const tabs = ["Editors' Pick", 'For You', 'Following', 'Saved'];
 
   return (
     <View style={styles.container}>
