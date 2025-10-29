@@ -4,6 +4,7 @@ import { View, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import TopTabs from './components/TopTabs';
 import HomeFeed from './components/HomeFeed';
+import SavedFeed from './components/SavedFeed';
 
 export default function HomeLayout() {
   const [activeTab, setActiveTab] = useState("Editors' Pick");
@@ -14,10 +15,10 @@ export default function HomeLayout() {
         return <HomeFeed />;
       case 'For You':
         return <HomeFeed />;
-      case 'Trending':
-        return <HomeFeed />;
       case 'Following':
         return <HomeFeed />;
+      case 'Saved':
+        return <SavedFeed />;
       default:
         return <HomeFeed />;
     }

@@ -7,14 +7,16 @@ import {
   TouchableOpacity,
   Pressable,
   Alert,
-  Linking
+  Linking,
+  Share,
+  Platform
 } from 'react-native';
 import { Text, Chip, IconButton, useTheme } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import type { Event } from '../../../../lib/firebase';
 import { useAuth } from '../../../_layout';
-import { joinEvent, getEventById, bookmarkEvent, unbookmarkEvent, getUserBookmarks } from '../../../../lib/firebase';
+import { joinEvent, getEventById, bookmarkEvent, unbookmarkEvent, getUserBookmarks, likeEvent, unlikeEvent, getUserLikes } from '../../../../lib/firebase';
 import { createCheckoutSession } from '../../../../lib/stripe';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -38,6 +40,8 @@ export default function EventSwipeCard({
   const [isJoining, setIsJoining] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
+  const [isLiked, setIsLiked] = useState(false);
+  const [likeLoading, setLikeLoading] = useState(false);
 
   useEffect(() => {
     setEvent(initialEvent);
@@ -46,6 +50,7 @@ export default function EventSwipeCard({
   useEffect(() => {
     if (user) {
       loadBookmarkStatus();
+      loadLikeStatus();
     }
   }, [user, event.id]);
 
@@ -54,6 +59,14 @@ export default function EventSwipeCard({
     const result = await getUserBookmarks(user.uid);
     if (result.success) {
       setIsBookmarked(result.bookmarks.includes(event.id));
+    }
+  };
+
+  const loadLikeStatus = async () => {
+    if (!user) return;
+    const result = await getUserLikes(user.uid);
+    if (result.success) {
+      setIsLiked(result.likes.includes(event.id));
     }
   };
 
@@ -169,12 +182,83 @@ export default function EventSwipeCard({
     }
   };
 
+  const handleLike = async () => {
+    if (!user) {
+      Alert.alert('Sign In Required', 'Please sign in to like events');
+      return;
+    }
+
+    setLikeLoading(true);
+    try {
+      if (isLiked) {
+        const result = await unlikeEvent(event.id, user.uid);
+        if (result.success) {
+          setIsLiked(false);
+          // Refresh event data to update like count
+          await refreshEventData();
+        } else {
+          Alert.alert('Error', result.error || 'Failed to unlike event');
+        }
+      } else {
+        const result = await likeEvent(event.id, user.uid);
+        if (result.success) {
+          setIsLiked(true);
+          // Refresh event data to update like count
+          await refreshEventData();
+        } else {
+          Alert.alert('Error', result.error || 'Failed to like event');
+        }
+      }
+    } catch (error) {
+      console.error('Error liking event:', error);
+      Alert.alert('Error', 'An unexpected error occurred');
+    } finally {
+      setLikeLoading(false);
+    }
+  };
+
   const handleCardPress = () => {
     if (isFeatured && onFeaturedClick) {
       onFeaturedClick();
     }
     router.push(`/(tabs)/event-detail?id=${event.id}`);
   };
+
+  // Generate link with id
+  const getShareUrl = () => {
+    return `https://rallysphere.app/event/${event.id}`;
+  };
+
+  const handleShare = async () => {
+    try {
+      const shareUrl = getShareUrl();
+      const message = Platform.OS === 'ios'
+        ? `Check out this event: ${event.title} by ${event.clubName}`
+        : `Check out this event: ${event.title} by ${event.clubName}\n\n${shareUrl}`;
+
+      const result = await Share.share({
+        message,
+        url: shareUrl,
+        title: event.title,
+      });
+
+      if (result.action === Share.sharedAction) {
+        if (result.activityType) {
+          console.log('Shared via:', result.activityType); //works for IOS
+        } else {
+          // shared
+          console.log('Content shared'); //android we dont get type
+        }
+      } else if (result.action === Share.dismissedAction) {
+        // dismissed
+        console.log('Share dismissed');
+      }
+    } catch (error) {
+      console.error('Error sharing:', error);
+      Alert.alert('Error', 'Failed to share event');
+    }
+  };
+
 
   const isAttending = user ? event.attendees.includes(user.uid) : false;
   const isWaitlisted = user ? event.waitlist.includes(user.uid) : false;
@@ -313,10 +397,10 @@ export default function EventSwipeCard({
               {isJoining
                 ? 'Joining...'
                 : isFull
-                ? 'Full'
-                : event.ticketPrice
-                ? `Buy Ticket - $${event.ticketPrice}`
-                : 'Quick Join'}
+                  ? 'Full'
+                  : event.ticketPrice
+                    ? `Buy Ticket - $${event.ticketPrice}`
+                    : 'Quick Join'}
             </Text>
           </TouchableOpacity>
         )}
@@ -324,6 +408,21 @@ export default function EventSwipeCard({
 
       {/* Right Side Actions */}
       <View style={styles.rightActions}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={handleLike}
+          disabled={likeLoading}
+        >
+          <IconButton
+            icon={isLiked ? "heart" : "heart-outline"}
+            iconColor={isLiked ? "#FF4458" : "#fff"}
+            size={28}
+          />
+          <Text style={styles.actionText}>
+            {event.likes && event.likes.length > 0 ? event.likes.length : 'Like'}
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={styles.actionButton}
           onPress={handleBookmark}
@@ -339,15 +438,7 @@ export default function EventSwipeCard({
 
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => Alert.alert('Feature coming soon', 'Like functionality will be added soon')}
-        >
-          <IconButton icon="heart-outline" iconColor="#fff" size={28} />
-          <Text style={styles.actionText}>Like</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => Alert.alert('Feature coming soon', 'Share functionality will be added soon')}
+          onPress={handleShare}
         >
           <IconButton icon="share-variant" iconColor="#fff" size={28} />
           <Text style={styles.actionText}>Share</Text>
@@ -371,6 +462,8 @@ const styles = StyleSheet.create({
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
     backgroundColor: '#000',
+    borderRadius: 30,
+    overflow: 'hidden',
   },
   media: {
     width: '100%',
