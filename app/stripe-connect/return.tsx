@@ -27,6 +27,8 @@ export default function StripeConnectReturn() {
       if (!clubResult.success || !clubResult.club) {
         setError('Club not found');
         setLoading(false);
+        // Redirect back to club after 2 seconds
+        setTimeout(() => handleContinue(), 2000);
         return;
       }
 
@@ -35,6 +37,8 @@ export default function StripeConnectReturn() {
       if (!club.stripeAccountId) {
         setError('No Stripe account found for this club');
         setLoading(false);
+        // Redirect back to club after 2 seconds
+        setTimeout(() => handleContinue(), 2000);
         return;
       }
 
@@ -49,12 +53,18 @@ export default function StripeConnectReturn() {
         });
 
         setSuccess(true);
+        // Redirect to club after 3 seconds on success (give user time to read success message)
+        setTimeout(() => handleContinue(), 3000);
       } else {
         setError('Onboarding not complete. Please finish the setup process.');
+        // Redirect back to club after 2 seconds
+        setTimeout(() => handleContinue(), 2000);
       }
     } catch (err: any) {
       console.error('Error verifying onboarding:', err);
       setError(err.message || 'Failed to verify onboarding status');
+      // Redirect back to club after 2 seconds
+      setTimeout(() => handleContinue(), 2000);
     } finally {
       setLoading(false);
     }
@@ -72,17 +82,7 @@ export default function StripeConnectReturn() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <Card style={styles.card}>
         <Card.Content style={styles.content}>
-          {loading ? (
-            <>
-              <ActivityIndicator size="large" color={theme.colors.primary} />
-              <Text variant="titleLarge" style={styles.title}>
-                Verifying Setup...
-              </Text>
-              <Text variant="bodyMedium" style={styles.subtitle}>
-                Please wait while we verify your Stripe account
-              </Text>
-            </>
-          ) : success ? (
+          {success ? (
             <>
               <View style={styles.successIcon}>
                 <Text style={{ fontSize: 64 }}>✓</Text>
@@ -93,32 +93,26 @@ export default function StripeConnectReturn() {
               <Text variant="bodyMedium" style={styles.subtitle}>
                 Your club is now ready to accept payments and receive payouts through Stripe.
               </Text>
+              <Text variant="bodySmall" style={[styles.subtitle, { opacity: 0.6, fontStyle: 'italic' }]}>
+                Returning to club page...
+              </Text>
               <Button
                 mode="contained"
                 onPress={handleContinue}
                 style={styles.button}
               >
-                Go to Club
+                Go to Club Now
               </Button>
             </>
           ) : (
             <>
-              <View style={styles.errorIcon}>
-                <Text style={{ fontSize: 64 }}>⚠️</Text>
-              </View>
-              <Text variant="headlineSmall" style={[styles.title, { color: theme.colors.error }]}>
-                Setup Incomplete
+              <ActivityIndicator size="large" color={theme.colors.primary} />
+              <Text variant="titleLarge" style={styles.title}>
+                Please wait for connection...
               </Text>
               <Text variant="bodyMedium" style={styles.subtitle}>
-                {error || 'There was an issue completing your setup. Please try again.'}
+                Returning to club page
               </Text>
-              <Button
-                mode="outlined"
-                onPress={handleContinue}
-                style={styles.button}
-              >
-                Return to Club
-              </Button>
             </>
           )}
         </Card.Content>
