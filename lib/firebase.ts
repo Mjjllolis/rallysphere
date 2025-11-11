@@ -69,6 +69,20 @@ export interface UserProfile {
   lastName: string;
   bio?: string;
   avatar?: string;
+  savedAddresses?: ShippingAddress[];
+}
+
+export interface ShippingAddress {
+  id: string;
+  fullName: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country: string;
+  phone: string;
+  isDefault: boolean;
 }
 
 export interface Club {
@@ -150,6 +164,60 @@ export interface FeaturedEvent {
   placement: 'home_feed' | 'category_feed' | 'search_results' | 'all';
   impressions?: number;
   clicks?: number;
+}
+
+export interface StoreItemVariant {
+  id: string;
+  name: string;  // e.g., "Size", "Color"
+  options: string[];  // e.g., ["S", "M", "L"] or ["Red", "Blue"]
+}
+
+export interface StoreItem {
+  id: string;
+  clubId: string;
+  clubName: string;
+  name: string;
+  description: string;
+  images: string[];  // URLs to Firebase Storage
+  price: number;
+  taxRate: number;  // percentage
+  shippingCost: number | null;  // null if pickup only
+  allowPickup: boolean;
+  pickupOnly: boolean;
+  inventory: number;
+  sold: number;
+  variants: StoreItemVariant[];
+  isActive: boolean;
+  createdBy: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface StoreOrder {
+  id: string;
+  itemId: string;
+  clubId: string;
+  clubName: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  itemName: string;
+  itemImage?: string;
+  quantity: number;
+  selectedVariants: { [variantName: string]: string };  // e.g., {"Size": "M", "Color": "Blue"}
+  price: number;
+  tax: number;
+  shipping: number;
+  totalAmount: number;
+  deliveryMethod: 'shipping' | 'pickup';
+  shippingAddress?: ShippingAddress;
+  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'picked_up' | 'cancelled';
+  paymentIntentId: string;
+  stripeSessionId?: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  shippedAt?: Timestamp;
+  deliveredAt?: Timestamp;
 }
 
 // --- 3. Firebase Configuration ---
@@ -1241,13 +1309,403 @@ export const trackFeaturedClick = async (featuredId: string) => {
   }
 };
 
-// --- 11. Legacy Support - Backward compatibility exports ---
+// --- 11. RallyStore Functions ---
+
+/**
+ * Create a new store item
+ */
+export const createStoreItem = async (item: Omit<StoreItem, 'id' | 'createdAt' | 'updatedAt' | 'sold'>) => {
+  try {
+    const itemRef = collection(db, 'storeItems');
+    const docRef = await addDoc(itemRef, {
+      ...item,
+      sold: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+
+    return { success: true, itemId: docRef.id };
+  } catch (error: any) {
+    console.error('Error creating store item:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Update a store item
+ */
+export const updateStoreItem = async (itemId: string, updates: Partial<StoreItem>) => {
+  try {
+    const itemRef = doc(db, 'storeItems', itemId);
+    await updateDoc(itemRef, {
+      ...updates,
+      updatedAt: serverTimestamp()
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error updating store item:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Get a single store item
+ */
+export const getStoreItem = async (itemId: string) => {
+  try {
+    const itemRef = doc(db, 'storeItems', itemId);
+    const itemDoc = await getDoc(itemRef);
+
+    if (!itemDoc.exists()) {
+      return { success: false, error: 'Item not found' };
+    }
+
+    const item = { id: itemDoc.id, ...itemDoc.data() } as StoreItem;
+    return { success: true, item };
+  } catch (error: any) {
+    console.error('Error getting store item:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Get all store items for a club
+ */
+export const getClubStoreItems = async (clubId: string, activeOnly: boolean = false) => {
+  try {
+    const itemsRef = collection(db, 'storeItems');
+    let q = query(itemsRef, where('clubId', '==', clubId), orderBy('createdAt', 'desc'));
+
+    if (activeOnly) {
+      q = query(itemsRef, where('clubId', '==', clubId), where('isActive', '==', true), orderBy('createdAt', 'desc'));
+    }
+
+    const querySnapshot = await getDocs(q);
+    const items: StoreItem[] = [];
+
+    querySnapshot.forEach((doc) => {
+      items.push({ id: doc.id, ...doc.data() } as StoreItem);
+    });
+
+    return { success: true, items };
+  } catch (error: any) {
+    console.error('Error getting club store items:', error);
+    return { success: false, error: error.message, items: [] };
+  }
+};
+
+/**
+ * Get all active store items (for global store view)
+ */
+export const getAllStoreItems = async () => {
+  try {
+    const itemsRef = collection(db, 'storeItems');
+    const q = query(itemsRef, where('isActive', '==', true), orderBy('createdAt', 'desc'));
+
+    const querySnapshot = await getDocs(q);
+    const items: StoreItem[] = [];
+
+    querySnapshot.forEach((doc) => {
+      items.push({ id: doc.id, ...doc.data() } as StoreItem);
+    });
+
+    return { success: true, items };
+  } catch (error: any) {
+    console.error('Error getting all store items:', error);
+    return { success: false, error: error.message, items: [] };
+  }
+};
+
+/**
+ * Delete a store item
+ */
+export const deleteStoreItem = async (itemId: string) => {
+  try {
+    const itemRef = doc(db, 'storeItems', itemId);
+    const itemDoc = await getDoc(itemRef);
+
+    if (!itemDoc.exists()) {
+      return { success: false, error: 'Item not found' };
+    }
+
+    const itemData = itemDoc.data() as StoreItem;
+
+    // Delete images from storage
+    if (itemData.images && itemData.images.length > 0) {
+      for (const imageUrl of itemData.images) {
+        try {
+          const imageRef = ref(storage, imageUrl);
+          await deleteObject(imageRef);
+        } catch (error) {
+          console.warn('Failed to delete image:', imageUrl);
+        }
+      }
+    }
+
+    // Delete the item document
+    await updateDoc(itemRef, { isActive: false });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error deleting store item:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Create a store order
+ */
+export const createStoreOrder = async (order: Omit<StoreOrder, 'id' | 'createdAt' | 'updatedAt'>) => {
+  try {
+    const orderRef = collection(db, 'storeOrders');
+    const docRef = await addDoc(orderRef, {
+      ...order,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+
+    // Update item sold count
+    const itemRef = doc(db, 'storeItems', order.itemId);
+    const itemDoc = await getDoc(itemRef);
+
+    if (itemDoc.exists()) {
+      const currentSold = itemDoc.data().sold || 0;
+      await updateDoc(itemRef, {
+        sold: currentSold + order.quantity
+      });
+    }
+
+    return { success: true, orderId: docRef.id };
+  } catch (error: any) {
+    console.error('Error creating store order:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Update store order status
+ */
+export const updateStoreOrderStatus = async (
+  orderId: string,
+  status: StoreOrder['status'],
+  additionalUpdates?: Partial<StoreOrder>
+) => {
+  try {
+    const orderRef = doc(db, 'storeOrders', orderId);
+    const updates: any = {
+      status,
+      updatedAt: serverTimestamp(),
+      ...additionalUpdates
+    };
+
+    if (status === 'shipped') {
+      updates.shippedAt = serverTimestamp();
+    } else if (status === 'delivered' || status === 'picked_up') {
+      updates.deliveredAt = serverTimestamp();
+    }
+
+    await updateDoc(orderRef, updates);
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error updating order status:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Get user's store orders
+ */
+export const getUserStoreOrders = async (userId: string) => {
+  try {
+    const ordersRef = collection(db, 'storeOrders');
+    const q = query(ordersRef, where('userId', '==', userId), orderBy('createdAt', 'desc'));
+
+    const querySnapshot = await getDocs(q);
+    const orders: StoreOrder[] = [];
+
+    querySnapshot.forEach((doc) => {
+      orders.push({ id: doc.id, ...doc.data() } as StoreOrder);
+    });
+
+    return { success: true, orders };
+  } catch (error: any) {
+    console.error('Error getting user orders:', error);
+    return { success: false, error: error.message, orders: [] };
+  }
+};
+
+/**
+ * Get club's store orders
+ */
+export const getClubStoreOrders = async (clubId: string) => {
+  try {
+    const ordersRef = collection(db, 'storeOrders');
+    const q = query(ordersRef, where('clubId', '==', clubId), orderBy('createdAt', 'desc'));
+
+    const querySnapshot = await getDocs(q);
+    const orders: StoreOrder[] = [];
+
+    querySnapshot.forEach((doc) => {
+      orders.push({ id: doc.id, ...doc.data() } as StoreOrder);
+    });
+
+    return { success: true, orders };
+  } catch (error: any) {
+    console.error('Error getting club orders:', error);
+    return { success: false, error: error.message, orders: [] };
+  }
+};
+
+/**
+ * Save shipping address to user profile
+ */
+export const saveShippingAddress = async (userId: string, address: Omit<ShippingAddress, 'id'>) => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+
+    if (!userDoc.exists()) {
+      return { success: false, error: 'User not found' };
+    }
+
+    const userData = userDoc.data();
+    const savedAddresses = userData.savedAddresses || [];
+
+    // Generate new address ID
+    const newAddress: ShippingAddress = {
+      ...address,
+      id: `addr_${Date.now()}`
+    };
+
+    // If this is the first address or marked as default, make it default
+    if (savedAddresses.length === 0 || address.isDefault) {
+      savedAddresses.forEach((addr: ShippingAddress) => {
+        addr.isDefault = false;
+      });
+      newAddress.isDefault = true;
+    }
+
+    savedAddresses.push(newAddress);
+
+    await updateDoc(userRef, {
+      savedAddresses
+    });
+
+    return { success: true, addressId: newAddress.id };
+  } catch (error: any) {
+    console.error('Error saving shipping address:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Update shipping address
+ */
+export const updateShippingAddress = async (userId: string, addressId: string, updates: Partial<ShippingAddress>) => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+
+    if (!userDoc.exists()) {
+      return { success: false, error: 'User not found' };
+    }
+
+    const userData = userDoc.data();
+    const savedAddresses = userData.savedAddresses || [];
+
+    const addressIndex = savedAddresses.findIndex((addr: ShippingAddress) => addr.id === addressId);
+
+    if (addressIndex === -1) {
+      return { success: false, error: 'Address not found' };
+    }
+
+    // If setting as default, unset all others
+    if (updates.isDefault) {
+      savedAddresses.forEach((addr: ShippingAddress) => {
+        addr.isDefault = false;
+      });
+    }
+
+    savedAddresses[addressIndex] = { ...savedAddresses[addressIndex], ...updates };
+
+    await updateDoc(userRef, {
+      savedAddresses
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error updating shipping address:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Delete shipping address
+ */
+export const deleteShippingAddress = async (userId: string, addressId: string) => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+
+    if (!userDoc.exists()) {
+      return { success: false, error: 'User not found' };
+    }
+
+    const userData = userDoc.data();
+    const savedAddresses = userData.savedAddresses || [];
+
+    const filteredAddresses = savedAddresses.filter((addr: ShippingAddress) => addr.id !== addressId);
+
+    // If we deleted the default address, make the first one default
+    if (filteredAddresses.length > 0) {
+      const hadDefault = savedAddresses.some((addr: ShippingAddress) => addr.id === addressId && addr.isDefault);
+      if (hadDefault) {
+        filteredAddresses[0].isDefault = true;
+      }
+    }
+
+    await updateDoc(userRef, {
+      savedAddresses: filteredAddresses
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error deleting shipping address:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Get user's saved shipping addresses
+ */
+export const getUserAddresses = async (userId: string) => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+
+    if (!userDoc.exists()) {
+      return { success: true, addresses: [] };
+    }
+
+    const userData = userDoc.data();
+    const addresses = userData.savedAddresses || [];
+
+    return { success: true, addresses };
+  } catch (error: any) {
+    console.error('Error getting user addresses:', error);
+    return { success: false, error: error.message, addresses: [] };
+  }
+};
+
+// --- 12. Legacy Support - Backward compatibility exports ---
 // onAuthStateChange is already exported above, no need to redeclare
 
-// --- 12. Export Firebase instances ---
+// --- 13. Export Firebase instances ---
 export { auth, db, storage, app };
 
-// --- 13. Export all types for convenience ---
+// --- 14. Export all types for convenience ---
 export type {
   User,
   UserProfile,
@@ -1255,6 +1713,10 @@ export type {
   Event,
   ClubJoinRequest,
   FeaturedEvent,
+  StoreItem,
+  StoreItemVariant,
+  StoreOrder,
+  ShippingAddress,
   Timestamp,
   FirebaseUser
 };

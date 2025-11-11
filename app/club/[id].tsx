@@ -18,8 +18,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../_layout';
-import { getClub, joinClub, leaveClub, getEvents } from '../../lib/firebase';
-import type { Club, Event } from '../../lib/firebase';
+import { getClub, joinClub, leaveClub, getEvents, getClubStoreItems } from '../../lib/firebase';
+import type { Club, Event, StoreItem } from '../../lib/firebase';
 import EventCard from '../../components/EventCard';
 import JoinClubModal from '../../components/JoinClubModal';
 
@@ -37,7 +37,8 @@ export default function ClubDetailScreen() {
   const [actionLoading, setActionLoading] = useState(false);
   const [joinModalVisible, setJoinModalVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState<'events' | 'members' | 'details'>('details');
+  const [activeTab, setActiveTab] = useState<'events' | 'members' | 'details' | 'store'>('details');
+  const [storeItems, setStoreItems] = useState<any[]>([]);
 
   useEffect(() => {
     if (clubId) {
@@ -63,6 +64,12 @@ export default function ClubDetailScreen() {
       const eventsResult = await getEvents(clubId);
       if (eventsResult.success) {
         setEvents(eventsResult.events);
+      }
+
+      // Load club store items
+      const storeResult = await getClubStoreItems(clubId, true);
+      if (storeResult.success) {
+        setStoreItems(storeResult.items);
       }
     } catch (error) {
       console.error('Error loading club data:', error);
@@ -316,6 +323,17 @@ export default function ClubDetailScreen() {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
+              style={[styles.tab, activeTab === 'store' && styles.activeTab]}
+              onPress={() => setActiveTab('store')}
+            >
+              <Text
+                variant="titleMedium"
+                style={[styles.tabText, activeTab === 'store' && styles.activeTabText]}
+              >
+                Store
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[styles.tab, activeTab === 'members' && styles.activeTab]}
               onPress={() => setActiveTab('members')}
             >
@@ -524,6 +542,73 @@ export default function ClubDetailScreen() {
                     {isAdmin && (
                       <Text variant="bodyMedium" style={styles.emptyHint}>
                         Create your first event to get started!
+                      </Text>
+                    )}
+                  </View>
+                )}
+              </View>
+            </>
+          )}
+
+          {/* Store Section */}
+          {activeTab === 'store' && (
+            <>
+              <View style={styles.section}>
+                {isAdmin && (
+                  <Button
+                    mode="contained"
+                    icon="store"
+                    onPress={() => router.push(`/club/${club.id}/manage-store`)}
+                    style={{ marginBottom: 16 }}
+                  >
+                    Manage Store
+                  </Button>
+                )}
+
+                {storeItems.length > 0 ? (
+                  <View style={styles.eventsGrid}>
+                    {storeItems.map((item: StoreItem) => {
+                      const inStock = item.inventory > item.sold;
+                      return (
+                        <TouchableOpacity
+                          key={item.id}
+                          style={styles.eventTile}
+                          onPress={() => router.push(`/store/${item.id}`)}
+                        >
+                          <Card style={styles.tileCard}>
+                            {item.images && item.images.length > 0 ? (
+                              <Image source={{ uri: item.images[0] }} style={styles.tileImage} />
+                            ) : (
+                              <View style={[styles.tileImage, { backgroundColor: theme.colors.surfaceVariant, justifyContent: 'center', alignItems: 'center' }]}>
+                                <Text variant="bodySmall">No Image</Text>
+                              </View>
+                            )}
+                            <View style={styles.tileContent}>
+                              <Text variant="titleSmall" style={styles.tileTitle} numberOfLines={2}>
+                                {item.name}
+                              </Text>
+                              <Text variant="bodyMedium" style={styles.tilePrice}>
+                                ${item.price.toFixed(2)}
+                              </Text>
+                              {!inStock && (
+                                <Text variant="bodySmall" style={{ color: theme.colors.error }}>
+                                  Sold Out
+                                </Text>
+                              )}
+                            </View>
+                          </Card>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <View style={styles.emptyEvents}>
+                    <Text variant="bodyLarge" style={styles.emptyText}>
+                      No store items
+                    </Text>
+                    {isAdmin && (
+                      <Text variant="bodyMedium" style={styles.emptyHint}>
+                        Add products to your club store!
                       </Text>
                     )}
                   </View>
