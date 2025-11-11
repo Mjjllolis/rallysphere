@@ -21,7 +21,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.rallysphere.app",
-      "buildNumber": "5"
+      "buildNumber": "5",
+      "deploymentTarget": "13.4"
     },
     "android": {
       "adaptiveIcon": {

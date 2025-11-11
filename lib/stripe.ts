@@ -328,5 +328,94 @@ export const checkStripeAccountStatus = async (accountId: string) => {
   }
 };
 
+/**
+ * Create a Stripe Checkout Session for store item purchase
+ */
+export interface CreateStoreCheckoutSessionParams {
+  itemId: string;
+  quantity: number;
+  selectedVariants: { [key: string]: string };
+  deliveryMethod: 'shipping' | 'pickup';
+  shippingAddress?: {
+    fullName: string;
+    addressLine1: string;
+    addressLine2?: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+    phone: string;
+  };
+}
+
+export interface CreateStoreCheckoutSessionResult {
+  success: boolean;
+  sessionId?: string;
+  checkoutUrl?: string;
+  error?: string;
+}
+
+export const createStoreCheckoutSession = async (
+  params: CreateStoreCheckoutSessionParams
+): Promise<CreateStoreCheckoutSessionResult> => {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      console.error('No authenticated user found');
+      return {
+        success: false,
+        error: 'You must be logged in to purchase',
+      };
+    }
+
+    console.log('Creating store checkout session for:', {
+      itemId: params.itemId,
+      quantity: params.quantity,
+      userId: currentUser.uid,
+      email: currentUser.email
+    });
+
+    // Get fresh auth token
+    const idToken = await currentUser.getIdToken(true);
+    console.log('Got auth token for checkout, length:', idToken.length);
+
+    const createSessionFn = httpsCallable(functions, 'createStoreCheckoutSession');
+    const result = await createSessionFn({
+      itemId: params.itemId,
+      quantity: params.quantity,
+      selectedVariants: params.selectedVariants,
+      deliveryMethod: params.deliveryMethod,
+      shippingAddress: params.shippingAddress,
+    });
+
+    const data = result.data as any;
+
+    if (data.sessionId && data.checkoutUrl) {
+      return {
+        success: true,
+        sessionId: data.sessionId,
+        checkoutUrl: data.checkoutUrl,
+      };
+    } else {
+      return {
+        success: false,
+        error: 'Invalid response from payment service',
+      };
+    }
+  } catch (error: any) {
+    console.error('Error creating store checkout session:', error);
+    console.error('Error details:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      customData: error.customData
+    });
+    return {
+      success: false,
+      error: error.message || 'Failed to create checkout session',
+    };
+  }
+};
+
 // Export the useStripe hook for use in components
 export { useStripe };

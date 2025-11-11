@@ -582,6 +582,87 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
       break;
     }
 
+    case "checkout.session.completed": {
+      const session = event.data.object as Stripe.Checkout.Session;
+      console.log("Checkout session completed:", session.id);
+
+      // Check if this is a store purchase
+      if (session.metadata?.type === "store_purchase") {
+        const {
+          userId,
+          itemId,
+          clubId,
+          quantity,
+          selectedVariants,
+          deliveryMethod,
+          shippingAddress,
+          subtotal,
+          tax,
+          shipping,
+          totalAmount,
+        } = session.metadata;
+
+        try {
+          // Get item and user details
+          const itemDoc = await admin.firestore().collection("storeItems").doc(itemId).get();
+          const userDoc = await admin.firestore().collection("users").doc(userId).get();
+
+          if (!itemDoc.exists || !userDoc.exists) {
+            console.error("Item or user not found");
+            break;
+          }
+
+          const item = itemDoc.data();
+          const user = userDoc.data();
+
+          // Parse shipping address if exists
+          let parsedAddress = null;
+          if (shippingAddress) {
+            try {
+              parsedAddress = JSON.parse(shippingAddress);
+            } catch (e) {
+              console.error("Failed to parse shipping address:", e);
+            }
+          }
+
+          // Create order
+          await admin.firestore().collection("storeOrders").add({
+            itemId,
+            clubId,
+            clubName: item?.clubName || "",
+            userId,
+            userName: user?.displayName || user?.email || "Unknown",
+            userEmail: user?.email || "",
+            itemName: item?.name || "",
+            itemImage: item?.images?.[0] || null,
+            quantity: parseInt(quantity),
+            selectedVariants: selectedVariants ? JSON.parse(selectedVariants) : {},
+            price: parseFloat(subtotal),
+            tax: parseFloat(tax),
+            shipping: parseFloat(shipping),
+            totalAmount: parseFloat(totalAmount),
+            deliveryMethod,
+            shippingAddress: parsedAddress,
+            status: "pending",
+            paymentIntentId: session.payment_intent as string,
+            stripeSessionId: session.id,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          // Update item sold count
+          await admin.firestore().collection("storeItems").doc(itemId).update({
+            sold: admin.firestore.FieldValue.increment(parseInt(quantity)),
+          });
+
+          console.log(`Store order created for user ${userId}, item ${itemId}`);
+        } catch (error) {
+          console.error("Error creating store order:", error);
+        }
+      }
+      break;
+    }
+
     case "payment_intent.payment_failed": {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
       console.log("PaymentIntent failed:", paymentIntent.id);
@@ -686,3 +767,148 @@ export const getUserPayments = functions.https.onCall(
     );
   }
 });
+
+/**
+ * Create a Stripe Checkout Session for store item purchase
+ */
+export const createStoreCheckoutSession = functions.https.onCall(
+  {enforceAppCheck: false},
+  async (request: any) => {
+    const data = request.data;
+    const auth = request.auth;
+
+    console.log("CreateStoreCheckoutSession called with auth:", {
+      hasAuth: !!auth,
+      uid: auth?.uid,
+    });
+
+    if (!auth) {
+      console.error("Authentication failed");
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "User must be authenticated"
+      );
+    }
+
+    const {
+      itemId,
+      quantity,
+      selectedVariants,
+      deliveryMethod,
+      shippingAddress,
+    } = data;
+
+    if (!itemId || !quantity || !deliveryMethod) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Missing required fields"
+      );
+    }
+
+    try {
+      const stripe = getStripe();
+      const db = admin.firestore();
+
+      // Get item details
+      const itemDoc = await db.collection("storeItems").doc(itemId).get();
+
+      if (!itemDoc.exists) {
+        throw new functions.https.HttpsError(
+          "not-found",
+          "Store item not found"
+        );
+      }
+
+      const item = itemDoc.data() as any;
+
+      // Check stock
+      const availableStock = item.inventory - (item.sold || 0);
+      if (availableStock < quantity) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "Not enough items in stock"
+        );
+      }
+
+      // Get user details (for future use if needed)
+      // const userDoc = await db.collection("users").doc(auth.uid).get();
+
+      // Calculate pricing
+      const subtotal = item.price * quantity;
+      const tax = subtotal * (item.taxRate / 100);
+      const shipping = deliveryMethod === "shipping" ?
+        (item.shippingCost || 0) : 0;
+      const totalAmount = subtotal + tax + shipping;
+
+      // Create Stripe checkout session
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              product_data: {
+                name: item.name,
+                description: item.description,
+                images: item.images && item.images.length > 0 ?
+                  [item.images[0]] : undefined,
+              },
+              unit_amount: Math.round(item.price * 100), // Convert to cents
+            },
+            quantity: quantity,
+          },
+          // Add tax line item
+          {
+            price_data: {
+              currency: "usd",
+              product_data: {
+                name: `Tax (${item.taxRate}%)`,
+              },
+              unit_amount: Math.round(tax * 100),
+            },
+            quantity: 1,
+          },
+        ],
+        mode: "payment",
+        success_url: `rallysphere://payment-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `rallysphere://payment-cancel`,
+        customer_email: auth.token.email,
+        metadata: {
+          type: "store_purchase",
+          userId: auth.uid,
+          itemId: itemId,
+          clubId: item.clubId,
+          quantity: quantity.toString(),
+          selectedVariants: JSON.stringify(selectedVariants || {}),
+          deliveryMethod: deliveryMethod,
+          shippingAddress: shippingAddress ?
+            JSON.stringify(shippingAddress) : "",
+          subtotal: subtotal.toString(),
+          tax: tax.toString(),
+          shipping: shipping.toString(),
+          totalAmount: totalAmount.toString(),
+        },
+      });
+
+      console.log("Store checkout session created:", session.id);
+
+      return {
+        sessionId: session.id,
+        checkoutUrl: session.url,
+      };
+    } catch (error: any) {
+      console.error("Error creating store checkout session:", error);
+      throw new functions.https.HttpsError(
+        "internal",
+        `Failed to create checkout session: ${error.message}`
+      );
+    }
+  }
+);
+
+/**
+ * Webhook handler for Stripe events (store purchases)
+ * This needs to be added to the existing stripeWebhook function
+ */
+// Note: The actual webhook handler should be updated in the existing
+// stripeWebhook function to handle store purchase completion

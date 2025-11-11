@@ -10,7 +10,7 @@ import Svg, { Defs, RadialGradient, Stop, Rect, Path } from 'react-native-svg';
 import { BlurView } from 'expo-blur';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const TAB_COUNT = 5; // Home, Events, Clubs, Create, Profile
+const TAB_COUNT = 6; // Home, Events, Store, Clubs, Create, Profile
 const TAB_WIDTH = SCREEN_WIDTH / TAB_COUNT;
 
 // Animated tab icon component
@@ -187,6 +187,26 @@ export default function TabLayout() {
           }}
         />
 
+        <Tabs.Screen
+          name="store"
+          options={{
+            title: "Store",
+            tabBarIcon: ({ color, focused }) => (
+              <AnimatedTabIcon name="shopping" color={color} focused={focused} />
+            ),
+          }}
+        />
+
+        <Tabs.Screen
+          name="clubs"
+          options={{
+            title: "Clubs",
+            tabBarIcon: ({ color, focused}) => (
+              <AnimatedTabIcon name="account-group" color={color} focused={focused} />
+            ),
+          }}
+        />
+
         {/* ✅ Custom Create Button */}
         <Tabs.Screen
           name="create"
@@ -201,16 +221,6 @@ export default function TabLayout() {
               e.preventDefault(); // 🧱 stops navigation
               openModal(); // 🎉 opens bottom modal
             },
-          }}
-        />
-
-        <Tabs.Screen
-          name="clubs"
-          options={{
-            title: "Clubs",
-            tabBarIcon: ({ color, focused }) => (
-              <AnimatedTabIcon name="account-group" color={color} focused={focused} />
-            ),
           }}
         />
 

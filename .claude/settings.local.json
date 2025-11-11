@@ -34,7 +34,9 @@
       "Bash(adb devices:*)",
       "Bash($HOME/Library/Android/sdk/platform-tools/adb devices)",
       "Bash(eas login:*)",
-      "Bash(eas build:*)"
+      "Bash(eas build:*)",
+      "Bash(xcrun simctl:*)",
+      "Bash(xcodebuild:*)"
     ],
     "deny": [],
     "ask": []

@@ -87,5 +87,50 @@ service cloud.firestore {
         (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
          request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []));
     }
+
+    // Store Items - RallyStore products
+    match /storeItems/{itemId} {
+      // Anyone can read active store items
+      allow read: if resource.data.isActive == true;
+      // Club admins can read all items (including inactive) from their club
+      allow read: if request.auth != null &&
+        exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
+        (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
+         request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []));
+      // Only club admins can create items for their club
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.createdBy &&
+        exists(/databases/$(database)/documents/clubs/$(request.resource.data.clubId)) &&
+        (request.auth.uid in get(/databases/$(database)/documents/clubs/$(request.resource.data.clubId)).data.get('clubAdmins', []) ||
+         request.auth.uid in get(/databases/$(database)/documents/clubs/$(request.resource.data.clubId)).data.get('admins', []));
+      // Only club admins can update their club's items
+      allow update: if request.auth != null &&
+        exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
+        (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
+         request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []));
+      // Only club admins can delete their club's items
+      allow delete: if request.auth != null &&
+        exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
+        (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
+         request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []));
+    }
+
+    // Store Orders - Purchase orders
+    match /storeOrders/{orderId} {
+      // Users can read their own orders
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      // Club admins can read orders for their club's products
+      allow read: if request.auth != null &&
+        exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
+        (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
+         request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []));
+      // Only server (Firebase Functions) can create orders
+      allow create: if false;
+      // Club admins can update order status
+      allow update: if request.auth != null &&
+        exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
+        (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
+         request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []));
+    }
   }
 }
