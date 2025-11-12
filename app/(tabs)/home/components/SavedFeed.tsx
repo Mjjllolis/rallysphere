@@ -16,11 +16,24 @@ import { useAuth } from '../../../_layout';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-const SavedFeed = () => {
+interface SavedFeedProps {
+  isActive: boolean;
+}
+
+// Load 5 events initially
+const INITIAL_LOAD = 5;
+// Load 3 more when scrolling
+const PAGINATION_SIZE = 3;
+
+const SavedFeed = ({ isActive }: SavedFeedProps) => {
   const { user } = useAuth();
-  const [events, setEvents] = useState<Event[]>([]);
+  const [allEvents, setAllEvents] = useState<Event[]>([]);
+  const [displayedEvents, setDisplayedEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const hasLoadedRef = useRef(false);
+  const wasActiveRef = useRef(false);
 
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 50
@@ -30,21 +43,42 @@ const SavedFeed = () => {
     if (viewableItems.length > 0) {
       const index = viewableItems[0].index || 0;
       setActiveIndex(index);
+
+      // Load more when approaching the end
+      if (index >= displayedEvents.length - 2 && displayedEvents.length < allEvents.length) {
+        loadMoreEvents();
+      }
     }
   }).current;
 
   useEffect(() => {
-    if (user) {
-      loadSavedEvents();
-    } else {
+    // Load check after mount
+    if (!hasLoadedRef.current && user) {
+      loadSavedEvents().then(() => {
+        hasLoadedRef.current = true;
+      });
+    } else if (!user) {
       setLoading(false);
     }
   }, [user]);
 
+  useEffect(() => {
+    // Reload saved events when tab becomes active after being inactive
+    if (isActive && user && hasLoadedRef.current && !wasActiveRef.current) {
+      loadSavedEvents();
+    }
+    wasActiveRef.current = isActive;
+  }, [isActive]);
+
   const loadSavedEvents = async () => {
     if (!user) return;
 
-    setLoading(true);
+    // Show loading spinner on initial load only
+    const isInitialLoad = !hasLoadedRef.current;
+    if (isInitialLoad) {
+      setLoading(true);
+    }
+
     try {
       // Get user's bookmarked event IDs
       const bookmarksResult = await getUserBookmarks(user.uid);
@@ -69,16 +103,38 @@ const SavedFeed = () => {
           return dateA.getTime() - dateB.getTime();
         });
 
-        setEvents(fetchedEvents);
+        // Store all events and only display initial batch
+        setAllEvents(fetchedEvents);
+        setDisplayedEvents(fetchedEvents.slice(0, INITIAL_LOAD));
       } else {
-        setEvents([]);
+        setAllEvents([]);
+        setDisplayedEvents([]);
       }
     } catch (error) {
       console.error('Error loading saved events:', error);
-      setEvents([]);
+      setAllEvents([]);
+      setDisplayedEvents([]);
     } finally {
-      setLoading(false);
+      if (isInitialLoad) {
+        setLoading(false);
+      }
     }
+  };
+
+  const loadMoreEvents = () => {
+    if (loadingMore || displayedEvents.length >= allEvents.length) return;
+
+    setLoadingMore(true);
+
+    // Get next batch of events
+    const currentLength = displayedEvents.length;
+    const nextBatch = allEvents.slice(currentLength, currentLength + PAGINATION_SIZE);
+
+    // Add to displayed events after a small delay
+    setTimeout(() => {
+      setDisplayedEvents(prev => [...prev, ...nextBatch]);
+      setLoadingMore(false);
+    }, 100);
   };
 
   const renderItem = ({ item, index }: { item: Event; index: number }) => (
@@ -115,7 +171,7 @@ const SavedFeed = () => {
     );
   }
 
-  if (events.length === 0) {
+  if (displayedEvents.length === 0 && !loading) {
     return (
       <View style={styles.emptyContainer}>
         <Stack.Screen options={{ headerShown: false }} />
@@ -133,7 +189,7 @@ const SavedFeed = () => {
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
       <FlatList
-        data={events}
+        data={displayedEvents}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         pagingEnabled
@@ -144,8 +200,16 @@ const SavedFeed = () => {
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig.current}
         removeClippedSubviews
-        maxToRenderPerBatch={3}
+        maxToRenderPerBatch={2}
         windowSize={5}
+        initialNumToRender={1}
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={styles.loadingMoreContainer}>
+              <ActivityIndicator size="small" color="#fff" />
+            </View>
+          ) : null
+        }
       />
     </View>
   );
@@ -156,6 +220,12 @@ export default SavedFeed;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#000',
+  },
+  loadingMoreContainer: {
+    height: SCREEN_HEIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: '#000',
   },
   loadingContainer: {

@@ -1,7 +1,6 @@
 // app/(tabs)/index/_layout.tsx
 import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { BlurView } from 'expo-blur';
 import TopTabs from './components/TopTabs';
 import HomeFeed from './components/HomeFeed';
 import SavedFeed from './components/SavedFeed';
@@ -9,33 +8,28 @@ import SavedFeed from './components/SavedFeed';
 export default function HomeLayout() {
   const [activeTab, setActiveTab] = useState("Editors' Pick");
 
-  const renderFeed = () => {
-    switch (activeTab) {
-      case "Editors' Pick":
-        return <HomeFeed />;
-      case 'For You':
-        return <HomeFeed />;
-      case 'Following':
-        return <HomeFeed />;
-      case 'Saved':
-        return <SavedFeed />;
-      default:
-        return <HomeFeed />;
-    }
-  };
-
   return (
     <View style={styles.container}>
-      {/* Feed takes full screen */}
-      <View style={styles.feedWrapper}>
-        {renderFeed()}
+      {/* All feeds mounted simultaneously - hidden when not active */}
+      <View style={[styles.feedWrapper, activeTab === "Editors' Pick" ? styles.visible : styles.hidden]}>
+        <HomeFeed feedType="editors-pick" isActive={activeTab === "Editors' Pick"} />
       </View>
 
-      {/* Floating tabs overlay with blur effect */}
+      <View style={[styles.feedWrapper, activeTab === 'For You' ? styles.visible : styles.hidden]}>
+        <HomeFeed feedType="for-you" isActive={activeTab === 'For You'} />
+      </View>
+
+      <View style={[styles.feedWrapper, activeTab === 'Following' ? styles.visible : styles.hidden]}>
+        <HomeFeed feedType="following" isActive={activeTab === 'Following'} />
+      </View>
+
+      <View style={[styles.feedWrapper, activeTab === 'Saved' ? styles.visible : styles.hidden]}>
+        <SavedFeed isActive={activeTab === 'Saved'} />
+      </View>
+
+      {/* Floating tabs overlay */}
       <View style={styles.tabsOverlay}>
-        <BlurView intensity={80} tint="dark" style={styles.blurContainer}>
-          <TopTabs activeTab={activeTab} setActiveTab={setActiveTab} />
-        </BlurView>
+        <TopTabs activeTab={activeTab} setActiveTab={setActiveTab} />
       </View>
     </View>
   );
@@ -47,7 +41,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
   feedWrapper: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  visible: {
+    zIndex: 1,
+  },
+  hidden: {
+    zIndex: 0,
+    opacity: 0,
+    pointerEvents: 'none',
   },
   tabsOverlay: {
     position: 'absolute',
@@ -55,19 +61,5 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     zIndex: 100,
-    borderRadius: 25,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  blurContainer: {
-    borderRadius: 25,
-    overflow: 'hidden',
   },
 });

@@ -20,10 +20,24 @@ interface EventWithMeta extends Event {
   featuredId?: string;
 }
 
-const HomeFeed = () => {
-  const [events, setEvents] = useState<EventWithMeta[]>([]);
+interface HomeFeedProps {
+  feedType: 'editors-pick' | 'for-you' | 'following';
+  isActive: boolean;
+}
+
+// Load 5 events initially
+const INITIAL_LOAD = 5;
+// Load 3 more when scrolling
+const PAGINATION_SIZE = 3;
+
+const HomeFeed = ({ feedType, isActive }: HomeFeedProps) => {
+  const [allEvents, setAllEvents] = useState<EventWithMeta[]>([]);
+  const [displayedEvents, setDisplayedEvents] = useState<EventWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const hasLoadedRef = useRef(false);
+
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 50
   });
@@ -34,15 +48,24 @@ const HomeFeed = () => {
       setActiveIndex(index);
 
       // Track featured event impression
-      const event = events[index];
+      const event = displayedEvents[index];
       if (event?.isFeatured && event.featuredId) {
         trackFeaturedImpression(event.featuredId);
+      }
+
+      // Load more when approaching the end
+      if (index >= displayedEvents.length - 2 && displayedEvents.length < allEvents.length) {
+        loadMoreEvents();
       }
     }
   }).current;
 
   useEffect(() => {
-    loadEvents();
+    // Ensure load once its mounted
+    if (!hasLoadedRef.current) {
+      loadEvents();
+      hasLoadedRef.current = true;
+    }
   }, []);
 
   const loadEvents = async () => {
@@ -100,13 +123,31 @@ const HomeFeed = () => {
           featuredIndex++;
         }
 
-        setEvents(mergedEvents);
+        // Store all events and only display initial batch
+        setAllEvents(mergedEvents);
+        setDisplayedEvents(mergedEvents.slice(0, INITIAL_LOAD));
       }
     } catch (error) {
       console.error('Error loading events:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadMoreEvents = () => {
+    if (loadingMore || displayedEvents.length >= allEvents.length) return;
+
+    setLoadingMore(true);
+
+    // Get next batch of events
+    const currentLength = displayedEvents.length;
+    const nextBatch = allEvents.slice(currentLength, currentLength + PAGINATION_SIZE);
+
+    // Add to displayed events after a small delay to show loading
+    setTimeout(() => {
+      setDisplayedEvents(prev => [...prev, ...nextBatch]);
+      setLoadingMore(false);
+    }, 100);
   };
 
   const renderItem = ({ item, index }: { item: EventWithMeta; index: number }) => (
@@ -135,7 +176,7 @@ const HomeFeed = () => {
     );
   }
 
-  if (events.length === 0) {
+  if (displayedEvents.length === 0 && !loading) {
     return (
       <View style={styles.emptyContainer}>
         <Stack.Screen options={{ headerShown: false }} />
@@ -153,7 +194,7 @@ const HomeFeed = () => {
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
       <FlatList
-        data={events}
+        data={displayedEvents}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         pagingEnabled
@@ -164,8 +205,16 @@ const HomeFeed = () => {
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig.current}
         removeClippedSubviews
-        maxToRenderPerBatch={3}
+        maxToRenderPerBatch={2}
         windowSize={5}
+        initialNumToRender={1}
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={styles.loadingMoreContainer}>
+              <ActivityIndicator size="small" color="#fff" />
+            </View>
+          ) : null
+        }
       />
     </View>
   );
@@ -176,6 +225,12 @@ export default HomeFeed;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#000',
+  },
+  loadingMoreContainer: {
+    height: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: '#000',
   },
   loadingContainer: {
