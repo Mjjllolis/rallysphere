@@ -37,7 +37,9 @@
       "Bash(eas build:*)",
       "Bash(xcrun simctl:*)",
       "Bash(xcodebuild:*)",
-      "Bash(npx eas:*)"
+      "Bash(npx eas:*)",
+      "Bash(git push:*)",
+      "Bash(git remote:*)"
     ],
     "deny": [],
     "ask": []
