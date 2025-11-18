@@ -36,7 +36,8 @@
       "Bash(eas login:*)",
       "Bash(eas build:*)",
       "Bash(xcrun simctl:*)",
-      "Bash(xcodebuild:*)"
+      "Bash(xcodebuild:*)",
+      "Bash(npx eas:*)"
     ],
     "deny": [],
     "ask": []
