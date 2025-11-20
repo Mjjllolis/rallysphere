@@ -479,10 +479,11 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
     }
   };
 
-  const formatPrice = (price: number, currency: string = 'USD') => {
+  const formatPrice = (price: number, currency?: string) => {
+    const currencyCode = (currency || 'USD').toUpperCase();
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: currency.toUpperCase(),
+      currency: currencyCode,
     }).format(price);
   };
 

@@ -329,6 +329,92 @@ export const checkStripeAccountStatus = async (accountId: string) => {
 };
 
 /**
+ * Create a payment intent for a store item purchase (for in-app payment)
+ */
+export interface CreateStorePaymentIntentParams {
+  itemId: string;
+  quantity: number;
+  selectedVariants: { [key: string]: string };
+  deliveryMethod: 'shipping' | 'pickup';
+  shippingAddress?: {
+    fullName: string;
+    addressLine1: string;
+    addressLine2?: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+    phone: string;
+  };
+}
+
+export interface CreateStorePaymentIntentResult {
+  success: boolean;
+  clientSecret?: string;
+  paymentIntentId?: string;
+  error?: string;
+}
+
+export const createStorePaymentIntent = async (
+  params: CreateStorePaymentIntentParams
+): Promise<CreateStorePaymentIntentResult> => {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      console.error('No authenticated user found');
+      return {
+        success: false,
+        error: 'You must be logged in to purchase',
+      };
+    }
+
+    console.log('Creating store payment intent for:', {
+      itemId: params.itemId,
+      quantity: params.quantity,
+      userId: currentUser.uid,
+    });
+
+    // Get fresh auth token
+    const idToken = await currentUser.getIdToken(true);
+
+    const createPaymentIntentFn = httpsCallable(functions, 'createStorePaymentIntent');
+    const result = await createPaymentIntentFn({
+      itemId: params.itemId,
+      quantity: params.quantity,
+      selectedVariants: params.selectedVariants,
+      deliveryMethod: params.deliveryMethod,
+      shippingAddress: params.shippingAddress,
+    });
+
+    const data = result.data as any;
+
+    if (data.clientSecret && data.paymentIntentId) {
+      return {
+        success: true,
+        clientSecret: data.clientSecret,
+        paymentIntentId: data.paymentIntentId,
+      };
+    } else {
+      return {
+        success: false,
+        error: 'Invalid response from payment service',
+      };
+    }
+  } catch (error: any) {
+    console.error('Error creating store payment intent:', error);
+    console.error('Error details:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+    });
+    return {
+      success: false,
+      error: error.message || 'Failed to create payment intent',
+    };
+  }
+};
+
+/**
  * Create a Stripe Checkout Session for store item purchase
  */
 export interface CreateStoreCheckoutSessionParams {

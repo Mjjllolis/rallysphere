@@ -110,7 +110,7 @@ export default function OrdersScreen() {
   const renderOrder = ({ item }: { item: StoreOrder }) => {
     return (
       <TouchableOpacity
-        onPress={() => router.push(`/store/${item.itemId}`)}
+        onPress={() => router.push(`/(tabs)/store/${item.itemId}`)}
         activeOpacity={0.7}
       >
         <Surface style={[styles.orderCard, { backgroundColor: theme.colors.surface }]} elevation={1}>
