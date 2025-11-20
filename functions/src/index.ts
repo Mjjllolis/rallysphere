@@ -298,6 +298,123 @@ export const createPaymentIntent = functions.https.onCall(
 });
 
 /**
+ * Create a Stripe Payment Intent for store item purchase (for in-app payment)
+ * Called from the mobile app when a user wants to purchase a store item
+ */
+export const createStorePaymentIntent = functions.https.onCall(
+  {enforceAppCheck: false},
+  async (request: any) => {
+    const data = request.data;
+    const auth = request.auth;
+
+    // Verify user is authenticated
+    if (!auth) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "User must be authenticated to create payment intent"
+      );
+    }
+
+    const {
+      itemId,
+      quantity,
+      selectedVariants,
+      deliveryMethod,
+      shippingAddress,
+    } = data;
+
+    // Validate input
+    if (!itemId || !quantity || !deliveryMethod) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Missing required fields: itemId, quantity, deliveryMethod"
+      );
+    }
+
+    if (quantity <= 0) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Quantity must be greater than 0"
+      );
+    }
+
+    try {
+      const db = admin.firestore();
+
+      // Get item details from Firestore
+      const itemDoc = await db.collection("storeItems").doc(itemId).get();
+
+      if (!itemDoc.exists) {
+        throw new functions.https.HttpsError(
+          "not-found",
+          "Store item not found"
+        );
+      }
+
+      const item = itemDoc.data() as any;
+      const userId = auth.uid;
+
+      // Check stock
+      const availableStock = item.inventory - (item.sold || 0);
+      if (availableStock < quantity) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "Not enough items in stock"
+        );
+      }
+
+      // Calculate pricing
+      const subtotal = item.price * quantity;
+      const tax = subtotal * (item.taxRate / 100);
+      const shipping = deliveryMethod === "shipping" ?
+        (item.shippingCost || 0) : 0;
+      const totalAmount = subtotal + tax + shipping;
+
+      // Create payment intent with Stripe
+      const stripe = getStripe();
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: Math.round(totalAmount * 100), // Convert to cents
+        currency: "usd",
+        metadata: {
+          type: "store_purchase",
+          itemId,
+          clubId: item.clubId,
+          userId,
+          itemName: item.name || "Store Item",
+          clubName: item.clubName || "",
+          quantity: quantity.toString(),
+          selectedVariants: JSON.stringify(selectedVariants || {}),
+          deliveryMethod,
+          shippingAddress: shippingAddress ? JSON.stringify(shippingAddress) : "",
+          subtotal: subtotal.toString(),
+          tax: tax.toString(),
+          shipping: shipping.toString(),
+          totalAmount: totalAmount.toString(),
+        },
+        description: `${item.name || "Store item"} (x${quantity})`,
+      });
+
+      return {
+        clientSecret: paymentIntent.client_secret,
+        paymentIntentId: paymentIntent.id,
+      };
+    } catch (error: any) {
+      console.error("Error creating store payment intent:", error);
+
+      // If it's already a HttpsError, rethrow it
+      if (error instanceof functions.https.HttpsError) {
+        throw error;
+      }
+
+      // Otherwise, wrap it in a generic error
+      throw new functions.https.HttpsError(
+        "internal",
+        `Failed to create payment intent: ${error.message}`
+      );
+    }
+  });
+
+/**
  * Create a Stripe Checkout Session for event ticket purchase (browser-based)
  * This creates a hosted checkout page that opens in the browser
  */
@@ -495,7 +612,97 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
       console.log("PaymentIntent succeeded:", paymentIntent.id);
 
-      // Extract metadata
+      // Check if this is a store purchase
+      if (paymentIntent.metadata.type === "store_purchase") {
+        const {
+          userId,
+          itemId,
+          clubId,
+          quantity,
+          selectedVariants,
+          deliveryMethod,
+          shippingAddress,
+          subtotal,
+          tax,
+          shipping,
+          totalAmount,
+        } = paymentIntent.metadata;
+
+        if (!userId || !itemId) {
+          console.error("Missing metadata in store payment intent");
+          break;
+        }
+
+        try {
+          // Get item and user details
+          const itemDoc = await admin.firestore().collection("storeItems").doc(itemId).get();
+          const userDoc = await admin.firestore().collection("users").doc(userId).get();
+
+          if (!itemDoc.exists || !userDoc.exists) {
+            console.error("Item or user not found");
+            break;
+          }
+
+          const item = itemDoc.data();
+          const user = userDoc.data();
+
+          // Parse shipping address if exists
+          let parsedAddress = null;
+          if (shippingAddress) {
+            try {
+              parsedAddress = JSON.parse(shippingAddress);
+            } catch (e) {
+              console.error("Failed to parse shipping address:", e);
+            }
+          }
+
+          // Parse selected variants
+          let parsedVariants = {};
+          if (selectedVariants) {
+            try {
+              parsedVariants = JSON.parse(selectedVariants);
+            } catch (e) {
+              console.error("Failed to parse selected variants:", e);
+            }
+          }
+
+          // Create order
+          await admin.firestore().collection("storeOrders").add({
+            itemId,
+            clubId,
+            clubName: item?.clubName || "",
+            userId,
+            userName: user?.displayName || user?.email || "Unknown",
+            userEmail: user?.email || "",
+            itemName: item?.name || "",
+            itemImage: item?.images?.[0] || null,
+            quantity: parseInt(quantity),
+            selectedVariants: parsedVariants,
+            price: parseFloat(subtotal),
+            tax: parseFloat(tax),
+            shipping: parseFloat(shipping),
+            totalAmount: parseFloat(totalAmount),
+            deliveryMethod,
+            shippingAddress: parsedAddress,
+            status: "pending",
+            paymentIntentId: paymentIntent.id,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          // Update item sold count
+          await admin.firestore().collection("storeItems").doc(itemId).update({
+            sold: admin.firestore.FieldValue.increment(parseInt(quantity)),
+          });
+
+          console.log(`Store order created for user ${userId}, item ${itemId}`);
+        } catch (error) {
+          console.error("Error creating store order:", error);
+        }
+        break;
+      }
+
+      // Extract metadata for event ticket purchase
       const {eventId, userId} = paymentIntent.metadata;
 
       if (!eventId || !userId) {

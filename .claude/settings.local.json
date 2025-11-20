@@ -39,7 +39,16 @@
       "Bash(xcodebuild:*)",
       "Bash(npx eas:*)",
       "Bash(git push:*)",
-      "Bash(git remote:*)"
+      "Bash(git remote:*)",
+      "Bash(lsof:*)",
+      "Bash(source:*)",
+      "Bash(nvm use:*)",
+      "Bash(node --version:*)",
+      "Bash(firebase --version:*)",
+      "Bash(xargs kill:*)",
+      "Bash(nc:*)",
+      "Bash(node scripts/seedTestData.js:*)",
+      "Bash(firebase login:list:*)"
     ],
     "deny": [],
     "ask": []

@@ -7,6 +7,8 @@ import { onAuthStateChange, type User } from '../lib/firebase';
 import * as SecureStore from 'expo-secure-store';
 import * as SplashScreen from 'expo-splash-screen';
 import Constants from 'expo-constants';
+import { CartProvider } from '../lib/cartContext';
+import { FavoritesProvider } from '../lib/favoritesContext';
 
 // Conditionally import Stripe - only on native platforms
 let StripeProvider: any = null;
@@ -350,17 +352,21 @@ export default function RootLayout() {
   return (
     <AuthContext.Provider value={{ user, isLoading: authLoading }}>
       <ThemeContext.Provider value={{ isDark, toggleTheme, isLoading: themeLoading }}>
-        {StripeProvider ? (
-          <StripeProvider
-            publishableKey={publishableKey}
-            merchantIdentifier="merchant.com.rallysphere"
-            urlScheme="rallysphere"
-          >
-            {content}
-          </StripeProvider>
-        ) : (
-          content
-        )}
+        <FavoritesProvider>
+          <CartProvider>
+            {StripeProvider ? (
+              <StripeProvider
+                publishableKey={publishableKey}
+                merchantIdentifier="merchant.com.rallysphere"
+                urlScheme="rallysphere"
+              >
+                {content}
+              </StripeProvider>
+            ) : (
+              content
+            )}
+          </CartProvider>
+        </FavoritesProvider>
       </ThemeContext.Provider>
     </AuthContext.Provider>
   );

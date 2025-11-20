@@ -573,7 +573,7 @@ export default function ClubDetailScreen() {
                         <TouchableOpacity
                           key={item.id}
                           style={styles.eventTile}
-                          onPress={() => router.push(`/store/${item.id}`)}
+                          onPress={() => router.push(`/(tabs)/store/${item.id}`)}
                         >
                           <Card style={styles.tileCard}>
                             {item.images && item.images.length > 0 ? (

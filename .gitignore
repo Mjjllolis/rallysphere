@@ -41,6 +41,9 @@ app-example
 # Firebase backup files
 *.backup
 
+# Firebase service account keys (sensitive!)
+service-account-key.json
+
 # Editor files
 *.swp
 *.swo
