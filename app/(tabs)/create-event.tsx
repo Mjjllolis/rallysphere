@@ -49,6 +49,7 @@ export default function CreateEventScreen() {
     maxAttendees: '',
     ticketPrice: '',
     currency: 'USD',
+    rallyCreditsAwarded: '',
   });
   
   const [isPublic, setIsPublic] = useState(true);
@@ -177,6 +178,7 @@ export default function CreateEventScreen() {
         requiresApproval: false,
         ticketPrice: formData.ticketPrice ? parseFloat(formData.ticketPrice) : undefined,
         currency: formData.ticketPrice ? formData.currency : undefined,
+        rallyCreditsAwarded: formData.rallyCreditsAwarded ? parseInt(formData.rallyCreditsAwarded) : undefined,
       };
 
       const result = await createEvent(eventData);
@@ -602,6 +604,20 @@ export default function CreateEventScreen() {
                   </View>
                 </View>
               )}
+
+              <TextInput
+                label="RallyCredits Awarded"
+                value={formData.rallyCreditsAwarded}
+                onChangeText={(value) => updateFormData('rallyCreditsAwarded', value)}
+                mode="outlined"
+                keyboardType="number-pad"
+                style={styles.input}
+                placeholder="0"
+                left={<TextInput.Icon icon="star-circle" />}
+              />
+              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginLeft: 16, marginTop: -8, marginBottom: 16 }}>
+                Credits users earn for attending this event
+              </Text>
 
               <View style={styles.switchRow}>
                 <View style={styles.switchContent}>

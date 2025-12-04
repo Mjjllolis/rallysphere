@@ -48,7 +48,8 @@
       "Bash(xargs kill:*)",
       "Bash(nc:*)",
       "Bash(node scripts/seedTestData.js:*)",
-      "Bash(firebase login:list:*)"
+      "Bash(firebase login:list:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

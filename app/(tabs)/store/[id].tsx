@@ -154,15 +154,20 @@ export default function StoreItemDetailScreen() {
   };
 
   const calculateTotal = () => {
-    if (!item) return { itemTotal: 0, tax: 0, shipping: 0, total: 0 };
+    if (!item) return { itemTotal: 0, tax: 0, adminFee: 0, transactionFee: 0, shipping: 0, total: 0 };
 
     const itemTotal = item.price * quantity;
     const shipping = deliveryMethod === 'shipping' ? (item.shippingCost || 0) : 0;
     const subtotal = itemTotal + shipping;
-    const tax = subtotal * (item.taxRate / 100);
-    const total = subtotal + tax;
 
-    return { itemTotal, tax, shipping, total };
+    // Calculate individual fees
+    const tax = subtotal * (item.taxRate / 100);
+    const adminFee = subtotal * ((item.adminFeeRate || 0) / 100);
+    const transactionFee = subtotal * ((item.transactionFeeRate || 0) / 100);
+
+    const total = subtotal + tax + adminFee + transactionFee;
+
+    return { itemTotal, tax, adminFee, transactionFee, shipping, total };
   };
 
   const openPurchaseModal = () => {
@@ -256,7 +261,7 @@ export default function StoreItemDetailScreen() {
     try {
       setPurchasing(true);
 
-      const { total, tax, shipping } = calculateTotal();
+      const { total, tax, adminFee, transactionFee, shipping } = calculateTotal();
 
       // Get selected address
       let shippingAddress: ShippingAddress | undefined;
@@ -406,7 +411,7 @@ export default function StoreItemDetailScreen() {
   }
 
   const inStock = item.inventory - item.sold >= quantity;
-  const { itemTotal, tax, shipping, total } = calculateTotal();
+  const { itemTotal, tax, adminFee, transactionFee, shipping, total } = calculateTotal();
 
   return (
     <View style={styles.container}>
@@ -780,17 +785,37 @@ export default function StoreItemDetailScreen() {
                   <Text variant="bodyMedium">${calculateTotal().itemTotal.toFixed(2)}</Text>
                 </View>
 
-                {calculateTotal().tax > 0 && (
-                  <View style={styles.summaryRow}>
-                    <Text variant="bodyMedium">Tax</Text>
-                    <Text variant="bodyMedium">${calculateTotal().tax.toFixed(2)}</Text>
-                  </View>
-                )}
-
                 {calculateTotal().shipping > 0 && (
                   <View style={styles.summaryRow}>
                     <Text variant="bodyMedium">Shipping</Text>
                     <Text variant="bodyMedium">${calculateTotal().shipping.toFixed(2)}</Text>
+                  </View>
+                )}
+
+                <Divider style={{ marginVertical: 12 }} />
+
+                <Text variant="bodySmall" style={{ marginBottom: 8, color: theme.colors.onSurfaceVariant }}>
+                  Taxes & Fees
+                </Text>
+
+                {calculateTotal().tax > 0 && (
+                  <View style={styles.summaryRow}>
+                    <Text variant="bodyMedium">Sales Tax</Text>
+                    <Text variant="bodyMedium">${calculateTotal().tax.toFixed(2)}</Text>
+                  </View>
+                )}
+
+                {calculateTotal().adminFee > 0 && (
+                  <View style={styles.summaryRow}>
+                    <Text variant="bodyMedium">Admin Fee</Text>
+                    <Text variant="bodyMedium">${calculateTotal().adminFee.toFixed(2)}</Text>
+                  </View>
+                )}
+
+                {calculateTotal().transactionFee > 0 && (
+                  <View style={styles.summaryRow}>
+                    <Text variant="bodyMedium">Transaction Fee</Text>
+                    <Text variant="bodyMedium">${calculateTotal().transactionFee.toFixed(2)}</Text>
                   </View>
                 )}
 

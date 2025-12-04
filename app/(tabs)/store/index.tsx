@@ -16,7 +16,7 @@ import {
   useTheme,
   ActivityIndicator,
 } from 'react-native-paper';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { getAllStoreItems } from '../../../lib/firebase';
 import type { StoreItem } from '../../../lib/firebase';
@@ -24,16 +24,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '../../../lib/cartContext';
 import { useFavorites } from '../../../lib/favoritesContext';
+import FilterPanel from '../../../components/FilterPanel';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
 
-const CATEGORIES = [
+const BASE_CATEGORIES = [
   { id: 'all', label: 'Everything' },
-  { id: 'apparel', label: 'Apparel' },
-  { id: 'accessories', label: 'Accessories' },
-  { id: 'equipment', label: 'Equipment' },
-  { id: 'other', label: 'Other' },
 ];
 
 const SORT_OPTIONS = [
@@ -47,13 +44,16 @@ export default function StoreScreen() {
   const theme = useTheme();
   const { getCartCount } = useCart();
   const { getFavoritesCount } = useFavorites();
+
   const [items, setItems] = useState<StoreItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<StoreItem[]>([]);
+  const [categories, setCategories] = useState(BASE_CATEGORIES);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedSort, setSelectedSort] = useState('featured');
+  const [filterPanelVisible, setFilterPanelVisible] = useState(false);
 
   const cartCount = getCartCount();
   const favoritesCount = getFavoritesCount();
@@ -72,6 +72,24 @@ export default function StoreScreen() {
       const result = await getAllStoreItems();
       if (result.success) {
         setItems(result.items);
+
+        // Extract unique categories from items
+        const uniqueCategories = new Set<string>();
+        result.items.forEach((item) => {
+          if (item.category) {
+            uniqueCategories.add(item.category);
+          }
+        });
+
+        // Build dynamic categories
+        const dynamicCategories = [
+          { id: 'all', label: 'Everything' },
+          ...Array.from(uniqueCategories)
+            .sort()
+            .map((cat) => ({ id: cat, label: cat })),
+        ];
+
+        setCategories(dynamicCategories);
       }
     } catch (error) {
       console.error('Error loading store items:', error);
@@ -129,7 +147,7 @@ export default function StoreScreen() {
 
     return (
       <TouchableOpacity
-        style={styles.card}
+        style={[styles.card, { backgroundColor: theme.colors.surface }]}
         onPress={() => router.push(`/(tabs)/store/${item.id}`)}
         activeOpacity={0.9}
       >
@@ -152,6 +170,12 @@ export default function StoreScreen() {
                   </LinearGradient>
                 </View>
               )}
+              {/* Category Badge */}
+              {item.category && (
+                <View style={[styles.categoryBadge, { backgroundColor: theme.colors.primary }]}>
+                  <Text style={styles.categoryBadgeText}>{item.category}</Text>
+                </View>
+              )}
             </>
           ) : (
             <View style={styles.placeholderImage}>
@@ -162,10 +186,16 @@ export default function StoreScreen() {
 
         {/* Product Info */}
         <View style={styles.cardContent}>
-          <Text style={styles.itemName} numberOfLines={1}>
+          <Text style={[styles.itemName, { color: theme.colors.onSurface }]} numberOfLines={2}>
             {item.name}
           </Text>
-          <Text style={styles.price}>${item.price.toFixed(0)}</Text>
+          <View style={styles.priceRow}>
+            <Text style={[styles.price, { color: theme.colors.primary }]}>${item.price.toFixed(0)}</Text>
+            {inStock && item.inventory - item.sold < 10 && (
+              <Text style={styles.stockText}>Only {item.inventory - item.sold} left</Text>
+            )}
+          </View>
+          <Text style={[styles.clubText, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>{item.clubName}</Text>
         </View>
       </TouchableOpacity>
     );
@@ -173,56 +203,77 @@ export default function StoreScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        {/* Search Bar */}
-        <View style={styles.searchRow}>
-          <View style={styles.searchContainer}>
-            <Ionicons name="search-outline" size={20} color="#999" style={styles.searchIcon} />
-            <TextInput
-              placeholder="Search"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              style={styles.searchInput}
-              placeholderTextColor="#999"
-            />
-          </View>
-          <TouchableOpacity style={styles.filterIconButton}>
-            <Ionicons name="options-outline" size={22} color="#333" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.cartIconButton} onPress={() => router.push('/(tabs)/store/favorites')}>
-            <Ionicons name="heart-outline" size={24} color="#333" />
-            {favoritesCount > 0 && (
-              <View style={[styles.cartBadge, { backgroundColor: theme.colors.primary }]}>
-                <Text style={styles.cartBadgeText}>{favoritesCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          {/* Cart button hidden - using Buy Now instead */}
-        </View>
+  const insets = useSafeAreaInsets();
 
-        {/* Categories */}
+  return (
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* Header with Gradient */}
+      <LinearGradient
+        colors={[theme.colors.primary, theme.colors.primary + 'DD']}
+        style={[styles.headerGradient, { paddingTop: insets.top }]}
+      >
+        <View style={styles.header}>
+          {/* Title */}
+          <Text style={styles.headerTitle}>Store</Text>
+
+          {/* Search Bar */}
+          <View style={styles.searchRow}>
+            <View style={styles.searchContainer}>
+              <Ionicons name="search-outline" size={20} color="#999" style={styles.searchIcon} />
+              <TextInput
+                placeholder="Search products..."
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                style={styles.searchInput}
+                placeholderTextColor="#999"
+              />
+            </View>
+            <TouchableOpacity style={styles.iconButton} onPress={() => setFilterPanelVisible(true)}>
+              <Ionicons name="options-outline" size={22} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/profile/orders')}>
+              <Ionicons name="receipt-outline" size={22} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/(tabs)/store/favorites')}>
+              <Ionicons name="heart" size={22} color="#fff" />
+              {favoritesCount > 0 && (
+                <View style={[styles.badge, { backgroundColor: '#FF4444' }]}>
+                  <Text style={styles.badgeText}>{favoritesCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </LinearGradient>
+
+      {/* Categories Section */}
+      <View style={[styles.categoriesSection, { backgroundColor: theme.colors.surface }]}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoriesContainer}
         >
-          {CATEGORIES.map((category) => (
+          {categories.map((category) => (
             <TouchableOpacity
               key={category.id}
               style={[
                 styles.categoryPill,
-                selectedCategory === category.id && [styles.categoryPillActive, { backgroundColor: theme.colors.primary }],
+                selectedCategory === category.id && [styles.categoryPillActive, {
+                  backgroundColor: theme.colors.primary,
+                  shadowColor: theme.colors.primary,
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 8,
+                  elevation: 6,
+                }],
               ]}
               onPress={() => setSelectedCategory(category.id)}
               activeOpacity={0.7}
@@ -235,9 +286,6 @@ export default function StoreScreen() {
               >
                 {category.label}
               </Text>
-              {selectedCategory === category.id && category.id === 'all' && (
-                <Ionicons name="chevron-down" size={14} color="#fff" style={{ marginLeft: 4 }} />
-              )}
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -266,40 +314,72 @@ export default function StoreScreen() {
           showsVerticalScrollIndicator={false}
         />
       )}
-    </SafeAreaView>
+
+      {/* Filter Panel */}
+      <FilterPanel
+        visible={filterPanelVisible}
+        onClose={() => setFilterPanelVisible(false)}
+        selectedSort={selectedSort}
+        onSortChange={(sort) => {
+          setSelectedSort(sort);
+        }}
+        categories={categories}
+        selectedCategory={selectedCategory}
+        onCategoryChange={(category) => {
+          setSelectedCategory(category);
+        }}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  headerGradient: {
+    paddingBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+  },
   header: {
-    backgroundColor: '#fff',
     paddingTop: 12,
-    paddingBottom: 16,
+  },
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#fff',
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    letterSpacing: 0.5,
   },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    marginBottom: 16,
-    gap: 10,
+    gap: 12,
   },
   searchContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 10,
+    backgroundColor: '#fff',
+    borderRadius: 12,
     paddingHorizontal: 12,
-    height: 44,
+    height: 48,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   searchIcon: {
     marginRight: 8,
@@ -309,25 +389,18 @@ const styles = StyleSheet.create({
     fontSize: 15,
     padding: 0,
     margin: 0,
+    color: '#333',
   },
-  filterIconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: '#F5F5F5',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cartIconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: '#F5F5F5',
+  iconButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
   },
-  cartBadge: {
+  badge: {
     position: 'absolute',
     top: 6,
     right: 6,
@@ -338,54 +411,59 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 4,
   },
-  cartBadgeText: {
-    fontSize: 11,
+  badgeText: {
+    fontSize: 10,
     fontWeight: '700',
     color: '#fff',
   },
+  categoriesSection: {
+    paddingVertical: 16,
+    marginBottom: 12,
+  },
   categoriesContainer: {
     paddingHorizontal: 16,
-    gap: 8,
+    gap: 10,
   },
   categoryPill: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
     backgroundColor: '#F5F5F5',
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
   categoryPillActive: {
-    // Color set dynamically via theme
+    borderColor: 'transparent',
   },
   categoryPillText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#666',
   },
   categoryPillTextActive: {
-    // Color set dynamically
+    fontWeight: '800',
   },
   gridContainer: {
     padding: 16,
   },
   row: {
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   card: {
     width: CARD_WIDTH,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    overflow: 'visible',
-    position: 'relative',
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
   },
   imageContainer: {
     width: '100%',
     aspectRatio: 1,
     backgroundColor: '#F8F8F8',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
     position: 'relative',
     overflow: 'hidden',
   },
@@ -405,6 +483,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    zIndex: 10,
   },
   soldOutGradient: {
     flex: 1,
@@ -417,20 +496,48 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 1,
   },
+  categoryBadge: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    zIndex: 5,
+  },
+  categoryBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
   cardContent: {
-    padding: 12,
-    paddingBottom: 8,
+    padding: 14,
   },
   itemName: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#333',
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 6,
+    height: 38,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 4,
   },
   price: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#000',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  stockText: {
+    fontSize: 10,
+    color: '#FF6B00',
+    fontWeight: '600',
+  },
+  clubText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   cartButton: {
     position: 'absolute',
