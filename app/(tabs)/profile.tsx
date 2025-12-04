@@ -17,8 +17,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth, useThemeToggle } from '../_layout';
-import { logout, getUserProfile, updateUserProfile, uploadImage } from '../../lib/firebase';
-import type { UserProfile } from '../../lib/firebase';
+import { logout, getUserProfile, updateUserProfile, uploadImage, getUserRallyCredits, getClubs } from '../../lib/firebase';
+import type { UserProfile, UserRallyCredits, Club } from '../../lib/firebase';
 import { ThemeToggle } from '../../components/ThemeToggle';
 
 export default function ProfilePage() {
@@ -28,18 +28,44 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [rallyCredits, setRallyCredits] = useState<UserRallyCredits | null>(null);
+  const [userClubs, setUserClubs] = useState<Club[]>([]);
 
   useEffect(() => {
     if (user) {
       loadProfile();
+      loadRallyCredits();
+      loadUserClubs();
     }
   }, [user]);
 
   const loadProfile = async () => {
     if (!user) return;
-    
+
     const userProfile = await getUserProfile(user.uid);
     setProfile(userProfile);
+  };
+
+  const loadRallyCredits = async () => {
+    if (!user) return;
+
+    const result = await getUserRallyCredits(user.uid);
+    if (result.success && result.credits) {
+      setRallyCredits(result.credits);
+    }
+  };
+
+  const loadUserClubs = async () => {
+    if (!user) return;
+
+    const result = await getClubs();
+    if (result.success) {
+      // Filter clubs where user is a member or admin
+      const clubs = result.clubs.filter(club =>
+        club.members.includes(user.uid) || club.admins.includes(user.uid)
+      );
+      setUserClubs(clubs);
+    }
   };
 
   const handleSignOut = async () => {
@@ -152,13 +178,25 @@ export default function ProfilePage() {
               </View>
               
               <View style={styles.userInfo}>
-                <Text variant="headlineSmall" style={styles.userName}>
-                  {user.displayName || `${profile?.firstName} ${profile?.lastName}` || 'User'}
-                </Text>
+                <View style={styles.userNameContainer}>
+                  <Text variant="headlineSmall" style={styles.userName}>
+                    {user.displayName || `${profile?.firstName} ${profile?.lastName}` || 'User'}
+                  </Text>
+                  {profile?.isPro && (
+                    <Chip
+                      icon="crown"
+                      style={styles.userProChip}
+                      textStyle={styles.userProChipText}
+                      compact
+                    >
+                      PRO
+                    </Chip>
+                  )}
+                </View>
                 <Text variant="bodyMedium" style={[styles.userEmail, { color: theme.colors.onSurfaceVariant }]}>
                   {user.email}
                 </Text>
-                
+
                 {profile?.bio && (
                   <Text variant="bodyMedium" style={styles.userBio}>
                     {profile.bio}
@@ -219,12 +257,105 @@ export default function ProfilePage() {
           </Card.Content>
         </Card>
 
+        {/* RallyCredits Section */}
+        <Card style={styles.settingsCard}>
+          <Card.Content style={styles.settingsContent}>
+            <Text variant="titleLarge" style={styles.settingsTitle}>
+              RallyCredits by Club
+            </Text>
+
+{userClubs.length === 0 ? (
+              <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center', paddingVertical: 16 }}>
+                Join a club to start earning RallyCredits!
+              </Text>
+            ) : (
+              userClubs.map((club, index) => {
+                const clubCredits = rallyCredits?.clubCredits?.[club.id] || 0;
+                return (
+                  <View key={club.id}>
+                    <List.Item
+                      title={club.name}
+                      description={`${clubCredits} credits available`}
+                      left={props => (
+                        <View style={{ width: 40, height: 40, justifyContent: 'center', alignItems: 'center', marginLeft: 0 }}>
+                          {club.logo ? (
+                            <Image source={{ uri: club.logo }} style={{ width: 40, height: 40, borderRadius: 20 }} />
+                          ) : (
+                            <Avatar.Text size={40} label={club.name.substring(0, 2).toUpperCase()} />
+                          )}
+                        </View>
+                      )}
+                      right={props => (
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Text variant="titleMedium" style={{ fontWeight: '700', color: theme.colors.primary, marginRight: 8 }}>
+                            {clubCredits}
+                          </Text>
+                          <List.Icon {...props} icon="chevron-right" />
+                        </View>
+                      )}
+                      onPress={() => router.push(`/club/${club.id}`)}
+                    />
+                    {index < userClubs.length - 1 && <Divider />}
+                  </View>
+                );
+              })
+            )}
+          </Card.Content>
+        </Card>
+
+        {/* Shopping Section */}
+        <Card style={styles.settingsCard}>
+          <Card.Content style={styles.settingsContent}>
+            <Text variant="titleLarge" style={styles.settingsTitle}>
+              Shopping
+            </Text>
+
+            <List.Item
+              title="Your Orders"
+              description="Track and manage your purchases"
+              left={props => <List.Icon {...props} icon="receipt-text" />}
+              right={props => <List.Icon {...props} icon="chevron-right" />}
+              onPress={() => router.push('/profile/orders')}
+            />
+
+            <Divider />
+
+            <List.Item
+              title="Saved Addresses"
+              description="Manage your shipping addresses"
+              left={props => <List.Icon {...props} icon="map-marker" />}
+              right={props => <List.Icon {...props} icon="chevron-right" />}
+              onPress={() => router.push('/profile/addresses')}
+            />
+
+            <Divider />
+
+            <List.Item
+              title="Favorites"
+              description="View your saved products"
+              left={props => <List.Icon {...props} icon="heart" />}
+              right={props => <List.Icon {...props} icon="chevron-right" />}
+              onPress={() => router.push('/(tabs)/store/favorites')}
+            />
+          </Card.Content>
+        </Card>
+
         {/* Settings Section */}
         <Card style={styles.settingsCard}>
           <Card.Content style={styles.settingsContent}>
             <Text variant="titleLarge" style={styles.settingsTitle}>
               Settings
             </Text>
+
+            <List.Item
+              title={profile?.isPro ? "Manage Pro Membership" : "Become a Pro Member"}
+              description={profile?.isPro ? "Manage your Pro subscription" : "Unlock exclusive features with Pro"}
+              left={props => <List.Icon {...props} icon="crown" color={profile?.isPro ? "#FFD700" : undefined} />}
+              right={props => <List.Icon {...props} icon="chevron-right" />}
+              onPress={() => router.push('/profile/subscription')}
+            />
+
+            <Divider />
 
             <List.Item
               title="Dark Mode"
@@ -373,9 +504,23 @@ const styles = StyleSheet.create({
   userInfo: {
     alignItems: 'center',
   },
+  userNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
   userName: {
     fontWeight: 'bold',
-    marginBottom: 4,
+  },
+  userProChip: {
+    backgroundColor: '#FFD700',
+    height: 24,
+  },
+  userProChipText: {
+    color: '#000',
+    fontWeight: 'bold',
+    fontSize: 11,
   },
   userEmail: {
     marginBottom: 8,
@@ -433,5 +578,21 @@ const styles = StyleSheet.create({
   },
   signOutContent: {
     padding: 16,
+  },
+  rallyCreditsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  rallyCreditsIcon: {
+    marginRight: 8,
+  },
+  creditsStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: 8,
+  },
+  creditsStat: {
+    alignItems: 'center',
   },
 });

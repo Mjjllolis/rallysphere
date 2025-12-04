@@ -33,13 +33,18 @@ import {
   onSnapshot,
   type Timestamp 
 } from 'firebase/firestore';
-import { 
-  getStorage, 
-  ref, 
-  uploadBytes, 
-  getDownloadURL, 
-  deleteObject 
+import {
+  getStorage,
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject
 } from 'firebase/storage';
+import {
+  getFunctions,
+  httpsCallable,
+  connectFunctionsEmulator
+} from 'firebase/functions';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
@@ -70,6 +75,13 @@ export interface UserProfile {
   bio?: string;
   avatar?: string;
   savedAddresses?: ShippingAddress[];
+  // Pro subscription
+  isPro?: boolean;
+  proSubscriptionId?: string;
+  proSubscriptionStatus?: 'active' | 'canceled' | 'past_due';
+  proSubscriptionStartDate?: Timestamp;
+  proSubscriptionEndDate?: Timestamp;
+  stripeCustomerId?: string;
 }
 
 export interface ShippingAddress {
@@ -110,6 +122,44 @@ export interface Club {
   stripeAccountId?: string;
   stripeAccountStatus?: 'pending' | 'active' | 'disabled';
   stripeOnboardingComplete?: boolean;
+  // Pro subscription
+  isPro?: boolean;
+  proSubscriptionId?: string;
+  proSubscriptionStatus?: 'active' | 'canceled' | 'past_due';
+  proSubscriptionStartDate?: Timestamp;
+  proSubscriptionEndDate?: Timestamp;
+}
+
+export interface ProSubscription {
+  id: string;
+  clubId: string;
+  clubName: string;
+  stripeCustomerId: string;
+  stripeSubscriptionId: string;
+  status: 'active' | 'canceled' | 'past_due' | 'incomplete' | 'trialing';
+  priceId: string;
+  currentPeriodStart: Timestamp;
+  currentPeriodEnd: Timestamp;
+  cancelAtPeriodEnd: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  canceledAt?: Timestamp;
+}
+
+export interface UserProSubscription {
+  id: string;
+  userId: string;
+  userEmail: string;
+  stripeCustomerId: string;
+  stripeSubscriptionId: string;
+  status: 'active' | 'canceled' | 'past_due' | 'incomplete' | 'trialing';
+  priceId: string;
+  currentPeriodStart: Timestamp;
+  currentPeriodEnd: Timestamp;
+  cancelAtPeriodEnd: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  canceledAt?: Timestamp;
 }
 
 export interface Event {
@@ -136,6 +186,7 @@ export interface Event {
   isPublic: boolean;
   ticketPrice?: number;
   currency?: string;
+  rallyCreditsAwarded?: number;  // RallyCredits users earn for attending
 }
 
 export interface ClubJoinRequest {
@@ -178,9 +229,12 @@ export interface StoreItem {
   clubName: string;
   name: string;
   description: string;
+  category: string;  // e.g., "Merch", "Equipment", "Snacks", "Etc"
   images: string[];  // URLs to Firebase Storage
   price: number;
-  taxRate: number;  // percentage
+  taxRate: number;  // percentage for sales tax
+  adminFeeRate: number;  // percentage for admin fee
+  transactionFeeRate: number;  // percentage for transaction fee (default 2.9%)
   shippingCost: number | null;  // null if pickup only
   allowPickup: boolean;
   pickupOnly: boolean;
@@ -207,6 +261,8 @@ export interface StoreOrder {
   selectedVariants: { [variantName: string]: string };  // e.g., {"Size": "M", "Color": "Blue"}
   price: number;
   tax: number;
+  adminFee: number;
+  transactionFee: number;
   shipping: number;
   totalAmount: number;
   deliveryMethod: 'shipping' | 'pickup';
@@ -214,10 +270,57 @@ export interface StoreOrder {
   status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'picked_up' | 'cancelled';
   paymentIntentId: string;
   stripeSessionId?: string;
+  rallyCreditsUsed?: number;  // RallyCredits applied to this order
+  discountAmount?: number;  // Dollar amount discounted from RallyCredits
   createdAt: Timestamp;
   updatedAt: Timestamp;
   shippedAt?: Timestamp;
   deliveredAt?: Timestamp;
+}
+
+export interface RallyCreditRedemption {
+  id: string;
+  clubId: string;
+  clubName: string;
+  name: string;  // e.g., "$5 Off Purchase", "Free Event Admission"
+  description: string;
+  type: 'store_discount' | 'event_discount' | 'free_item' | 'event_free_admission' | 'custom';
+  creditsRequired: number;  // How many credits needed to redeem
+  discountAmount?: number;  // For discount types: dollar amount
+  discountPercent?: number;  // For discount types: percentage discount
+  isActive: boolean;
+  maxRedemptions?: number;  // Max times this can be redeemed per user
+  totalRedeemed: number;  // Total times redeemed across all users
+  validUntil?: Timestamp;  // Expiration date
+  createdBy: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface UserRallyCredits {
+  userId: string;
+  totalCredits: number;  // Total credits earned all-time
+  availableCredits: number;  // Credits available to spend
+  usedCredits: number;  // Credits that have been spent
+  clubCredits: { [clubId: string]: number };  // Credits earned per club
+  transactions: RallyCreditTransaction[];
+  updatedAt: Timestamp;
+}
+
+export interface RallyCreditTransaction {
+  id: string;
+  userId: string;
+  clubId: string;
+  clubName: string;
+  type: 'earned' | 'redeemed' | 'expired';
+  amount: number;  // Positive for earned, negative for redeemed
+  eventId?: string;  // If earned from event
+  eventName?: string;
+  redemptionId?: string;  // If redeemed
+  redemptionName?: string;
+  orderId?: string;  // If used in order
+  description: string;
+  createdAt: Timestamp;
 }
 
 // --- 3. Firebase Configuration ---
@@ -267,9 +370,15 @@ try {
   auth = getAuth(app);
 }
 
-// Initialize Firestore and Storage
+// Initialize Firestore, Storage, and Functions
 const db = getFirestore(app);
 const storage = getStorage(app);
+const functions = getFunctions(app, 'us-central1');
+
+// Uncomment to use emulator during development
+// if (__DEV__) {
+//   connectFunctionsEmulator(functions, 'localhost', 5001);
+// }
 
 // --- 5. Authentication Functions ---
 export const onAuthStateChange = (callback: (user: User | null) => void) => {
@@ -778,6 +887,19 @@ export const joinEvent = async (eventId: string, userId: string) => {
         attendees: arrayUnion(userId),
         updatedAt: serverTimestamp()
       });
+
+      // Award RallyCredits if the event has them
+      if (event.rallyCreditsAwarded && event.rallyCreditsAwarded > 0) {
+        await awardRallyCredits(
+          userId,
+          event.clubId,
+          event.clubName,
+          eventId,
+          event.title,
+          event.rallyCreditsAwarded
+        );
+      }
+
       return { success: true, waitlisted: false };
     }
   } catch (error: any) {
@@ -1699,13 +1821,410 @@ export const getUserAddresses = async (userId: string) => {
   }
 };
 
-// --- 12. Legacy Support - Backward compatibility exports ---
+// --- 12. RallyCredits Management ---
+
+/**
+ * Get user's RallyCredits balance
+ */
+export const getUserRallyCredits = async (userId: string) => {
+  try {
+    const creditsRef = doc(db, 'rallyCredits', userId);
+    const creditsDoc = await getDoc(creditsRef);
+
+    if (!creditsDoc.exists()) {
+      // Initialize credits for new user
+      const newCredits: UserRallyCredits = {
+        userId,
+        totalCredits: 0,
+        availableCredits: 0,
+        usedCredits: 0,
+        clubCredits: {},
+        transactions: [],
+        updatedAt: serverTimestamp() as Timestamp,
+      };
+
+      await setDoc(creditsRef, newCredits);
+      return { success: true, credits: newCredits };
+    }
+
+    const credits = creditsDoc.data() as UserRallyCredits;
+    return { success: true, credits };
+  } catch (error: any) {
+    console.error('Error getting rally credits:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Award RallyCredits to a user for joining an event
+ */
+export const awardRallyCredits = async (
+  userId: string,
+  clubId: string,
+  clubName: string,
+  eventId: string,
+  eventName: string,
+  amount: number
+) => {
+  try {
+    const creditsRef = doc(db, 'rallyCredits', userId);
+    const creditsDoc = await getDoc(creditsRef);
+
+    let currentCredits: UserRallyCredits;
+
+    if (!creditsDoc.exists()) {
+      currentCredits = {
+        userId,
+        totalCredits: 0,
+        availableCredits: 0,
+        usedCredits: 0,
+        clubCredits: {},
+        transactions: [],
+        updatedAt: serverTimestamp() as Timestamp,
+      };
+    } else {
+      currentCredits = creditsDoc.data() as UserRallyCredits;
+    }
+
+    const transaction: RallyCreditTransaction = {
+      id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      userId,
+      clubId,
+      clubName,
+      type: 'earned',
+      amount,
+      eventId,
+      eventName,
+      description: `Earned ${amount} credits for attending ${eventName}`,
+      createdAt: serverTimestamp() as Timestamp,
+    };
+
+    const updatedCredits: UserRallyCredits = {
+      ...currentCredits,
+      totalCredits: currentCredits.totalCredits + amount,
+      availableCredits: currentCredits.availableCredits + amount,
+      clubCredits: {
+        ...currentCredits.clubCredits,
+        [clubId]: (currentCredits.clubCredits[clubId] || 0) + amount,
+      },
+      transactions: [transaction, ...currentCredits.transactions].slice(0, 100), // Keep last 100 transactions
+      updatedAt: serverTimestamp() as Timestamp,
+    };
+
+    await setDoc(creditsRef, updatedCredits);
+    return { success: true, credits: updatedCredits };
+  } catch (error: any) {
+    console.error('Error awarding rally credits:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Get all redemption options for a club
+ */
+export const getClubRedemptions = async (clubId: string) => {
+  try {
+    const redemptionsRef = collection(db, 'rallyCreditRedemptions');
+    const q = query(redemptionsRef, where('clubId', '==', clubId), where('isActive', '==', true));
+    const snapshot = await getDocs(q);
+
+    const redemptions = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as RallyCreditRedemption[];
+
+    return { success: true, redemptions };
+  } catch (error: any) {
+    console.error('Error getting club redemptions:', error);
+    return { success: false, error: error.message, redemptions: [] };
+  }
+};
+
+/**
+ * Create a new redemption option for a club
+ */
+export const createRedemption = async (redemption: Omit<RallyCreditRedemption, 'id' | 'totalRedeemed' | 'createdAt' | 'updatedAt'>) => {
+  try {
+    const redemptionsRef = collection(db, 'rallyCreditRedemptions');
+    const newRedemption = {
+      ...redemption,
+      totalRedeemed: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    const docRef = await addDoc(redemptionsRef, newRedemption);
+    return { success: true, redemptionId: docRef.id };
+  } catch (error: any) {
+    console.error('Error creating redemption:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Redeem RallyCredits for a reward
+ */
+export const redeemRallyCredits = async (
+  userId: string,
+  redemptionId: string,
+  clubId: string,
+  clubName: string
+) => {
+  try {
+    // Get redemption details
+    const redemptionRef = doc(db, 'rallyCreditRedemptions', redemptionId);
+    const redemptionDoc = await getDoc(redemptionRef);
+
+    if (!redemptionDoc.exists()) {
+      return { success: false, error: 'Redemption not found' };
+    }
+
+    const redemption = redemptionDoc.data() as RallyCreditRedemption;
+
+    // Get user credits
+    const creditsRef = doc(db, 'rallyCredits', userId);
+    const creditsDoc = await getDoc(creditsRef);
+
+    if (!creditsDoc.exists()) {
+      return { success: false, error: 'No credits available' };
+    }
+
+    const currentCredits = creditsDoc.data() as UserRallyCredits;
+
+    // Check if user has enough credits
+    if (currentCredits.availableCredits < redemption.creditsRequired) {
+      return { success: false, error: 'Insufficient credits' };
+    }
+
+    // Create transaction
+    const transaction: RallyCreditTransaction = {
+      id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      userId,
+      clubId,
+      clubName,
+      type: 'redeemed',
+      amount: -redemption.creditsRequired,
+      redemptionId,
+      redemptionName: redemption.name,
+      description: `Redeemed ${redemption.creditsRequired} credits for ${redemption.name}`,
+      createdAt: serverTimestamp() as Timestamp,
+    };
+
+    // Update user credits
+    const updatedCredits: UserRallyCredits = {
+      ...currentCredits,
+      availableCredits: currentCredits.availableCredits - redemption.creditsRequired,
+      usedCredits: currentCredits.usedCredits + redemption.creditsRequired,
+      transactions: [transaction, ...currentCredits.transactions].slice(0, 100),
+      updatedAt: serverTimestamp() as Timestamp,
+    };
+
+    await setDoc(creditsRef, updatedCredits);
+
+    // Update redemption count
+    await updateDoc(redemptionRef, {
+      totalRedeemed: (redemption.totalRedeemed || 0) + 1,
+      updatedAt: serverTimestamp(),
+    });
+
+    return { success: true, credits: updatedCredits, redemption };
+  } catch (error: any) {
+    console.error('Error redeeming rally credits:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// --- 13. Pro Subscription Functions ---
+
+// Create Pro subscription checkout session
+export const createProSubscription = async (clubId: string, userId: string) => {
+  try {
+    const clubRef = doc(db, 'clubs', clubId);
+    const clubSnap = await getDoc(clubRef);
+
+    if (!clubSnap.exists()) {
+      return { success: false, error: 'Club not found' };
+    }
+
+    const club = clubSnap.data() as Club;
+
+    // Check if club is already Pro
+    if (club.isPro && club.proSubscriptionStatus === 'active') {
+      return { success: false, error: 'Club already has active Pro subscription' };
+    }
+
+    // Call Firebase Function to create Stripe checkout session
+    const createSubscription = httpsCallable(functions, 'createProSubscription');
+    const result = await createSubscription({
+      clubId,
+      userId,
+      clubName: club.name,
+    });
+
+    const data = result.data as any;
+
+    if (data.error) {
+      return { success: false, error: data.error };
+    }
+
+    return { success: true, sessionUrl: data.sessionUrl };
+  } catch (error: any) {
+    console.error('Error creating pro subscription:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Cancel Pro subscription
+export const cancelProSubscription = async (clubId: string) => {
+  try {
+    const clubRef = doc(db, 'clubs', clubId);
+    const clubSnap = await getDoc(clubRef);
+
+    if (!clubSnap.exists()) {
+      return { success: false, error: 'Club not found' };
+    }
+
+    const club = clubSnap.data() as Club;
+
+    if (!club.proSubscriptionId) {
+      return { success: false, error: 'No active subscription found' };
+    }
+
+    // Call Firebase Function to cancel subscription
+    const cancelSubscription = httpsCallable(functions, 'cancelProSubscription');
+    const result = await cancelSubscription({
+      clubId,
+      subscriptionId: club.proSubscriptionId,
+    });
+
+    const data = result.data as any;
+
+    if (data.error) {
+      return { success: false, error: data.error };
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error canceling pro subscription:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Get club's Pro subscription details
+export const getProSubscription = async (clubId: string) => {
+  try {
+    const subscriptionsRef = collection(db, 'proSubscriptions');
+    const q = query(subscriptionsRef, where('clubId', '==', clubId));
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) {
+      return { success: true, subscription: null };
+    }
+
+    const subscription = {
+      ...querySnapshot.docs[0].data(),
+      id: querySnapshot.docs[0].id
+    } as ProSubscription;
+
+    return { success: true, subscription };
+  } catch (error: any) {
+    console.error('Error getting pro subscription:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// --- User Pro Subscription Functions ---
+
+// Create User Pro subscription checkout session
+export const createUserProSubscription = async (userId: string, userEmail: string) => {
+  try {
+    // Call Firebase Function to create Stripe checkout session
+    const createSubscription = httpsCallable(functions, 'createUserProSubscription');
+    const result = await createSubscription({
+      userId,
+      userEmail,
+    });
+
+    const data = result.data as any;
+
+    if (data.error) {
+      return { success: false, error: data.error };
+    }
+
+    return { success: true, sessionUrl: data.sessionUrl };
+  } catch (error: any) {
+    console.error('Error creating user pro subscription:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Cancel User Pro subscription
+export const cancelUserProSubscription = async (userId: string) => {
+  try {
+    // Get user profile to get subscription ID
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) {
+      return { success: false, error: 'User not found' };
+    }
+
+    const userData = userSnap.data();
+
+    if (!userData.proSubscriptionId) {
+      return { success: false, error: 'No active subscription found' };
+    }
+
+    // Call Firebase Function to cancel subscription
+    const cancelSubscription = httpsCallable(functions, 'cancelUserProSubscription');
+    const result = await cancelSubscription({
+      userId,
+      subscriptionId: userData.proSubscriptionId,
+    });
+
+    const data = result.data as any;
+
+    if (data.error) {
+      return { success: false, error: data.error };
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error canceling user pro subscription:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Get user's Pro subscription details
+export const getUserProSubscription = async (userId: string) => {
+  try {
+    const subscriptionsRef = collection(db, 'userProSubscriptions');
+    const q = query(subscriptionsRef, where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) {
+      return { success: true, subscription: null };
+    }
+
+    const subscription = {
+      ...querySnapshot.docs[0].data(),
+      id: querySnapshot.docs[0].id
+    } as UserProSubscription;
+
+    return { success: true, subscription };
+  } catch (error: any) {
+    console.error('Error getting user pro subscription:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// --- 14. Legacy Support - Backward compatibility exports ---
 // onAuthStateChange is already exported above, no need to redeclare
 
-// --- 13. Export Firebase instances ---
+// --- 14. Export Firebase instances ---
 export { auth, db, storage, app };
 
-// --- 14. Export all types for convenience ---
+// --- 15. Export all types for convenience ---
 export type {
   User,
   UserProfile,
@@ -1717,6 +2236,11 @@ export type {
   StoreItemVariant,
   StoreOrder,
   ShippingAddress,
+  RallyCreditRedemption,
+  UserRallyCredits,
+  RallyCreditTransaction,
+  ProSubscription,
+  UserProSubscription,
   Timestamp,
   FirebaseUser
 };

@@ -132,5 +132,61 @@ service cloud.firestore {
         (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
          request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []));
     }
+
+    // RallyCredits - User credits tracking
+    match /rallyCredits/{userId} {
+      // Users can read their own credits
+      allow read: if request.auth != null && request.auth.uid == userId;
+      // Users can create their own credits document
+      allow create: if request.auth != null && request.auth.uid == userId;
+      // Users can update their own credits (when earning or redeeming)
+      allow update: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // RallyCredit Redemptions - Club redemption options
+    match /rallyCreditRedemptions/{redemptionId} {
+      // Anyone can read active redemptions
+      allow read: if resource.data.isActive == true;
+      // Club admins can read all redemptions (including inactive) for their club
+      allow read: if request.auth != null &&
+        exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
+        (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
+         request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []));
+      // Only club admins can create redemptions for their club
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.createdBy &&
+        exists(/databases/$(database)/documents/clubs/$(request.resource.data.clubId)) &&
+        (request.auth.uid in get(/databases/$(database)/documents/clubs/$(request.resource.data.clubId)).data.get('clubAdmins', []) ||
+         request.auth.uid in get(/databases/$(database)/documents/clubs/$(request.resource.data.clubId)).data.get('admins', []));
+      // Only club admins can update their club's redemptions
+      allow update: if request.auth != null &&
+        exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
+        (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
+         request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []));
+      // Only club admins can delete their club's redemptions
+      allow delete: if request.auth != null &&
+        exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
+        (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
+         request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []));
+    }
+
+    // Pro Subscriptions - Club Pro membership
+    match /proSubscriptions/{subscriptionId} {
+      // Club admins can read their club's subscription
+      allow read: if request.auth != null &&
+        exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
+        (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
+         request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []));
+      // Only server (Firebase Functions) can write subscriptions
+      allow write: if false;
+    }
+
+    // User Pro Subscriptions - Individual user Pro membership
+    match /userProSubscriptions/{subscriptionId} {
+      // Users can read their own subscription
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      // Only server (Firebase Functions) can write subscriptions
+      allow write: if false;
+    }
   }
 }
