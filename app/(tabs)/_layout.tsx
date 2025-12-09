@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Tabs } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTheme } from "react-native-paper";
-import CreateModal from "../event/createModal";
+import CreateScreen from "../../components/CreateScreen";
 import { Image, StyleSheet, Animated, Dimensions, View } from "react-native";
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Rect, Path } from 'react-native-svg';
@@ -303,7 +303,7 @@ export default function TabLayout() {
         </Svg>
       </View>
 
-      <CreateModal visible={isModalVisible} onClose={closeModal} />
+      <CreateScreen visible={isModalVisible} onClose={closeModal} />
     </>
   );
 }

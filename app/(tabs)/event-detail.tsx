@@ -273,7 +273,7 @@ export default function EventDetailScreen() {
                 <View style={styles.quickInfoItem}>
                   <IconButton icon="account-group" iconColor="#fff" size={20} />
                   <Text variant="bodyMedium" style={styles.quickInfoText}>
-                    {event.attendees.length}{event.maxAttendees ? `/${event.maxAttendees}` : ''}
+                    {event.attendees.length.toString()}{event.maxAttendees ? `/${event.maxAttendees.toString()}` : ''}
                   </Text>
                 </View>
               </View>
@@ -297,8 +297,8 @@ export default function EventDetailScreen() {
                     ? 'Leave Event'
                     : isFull
                     ? 'Event Full'
-                    : event.ticketPrice
-                    ? `Buy Ticket - $${event.ticketPrice}`
+                    : event.ticketPrice && event.ticketPrice > 0
+                    ? `Buy Ticket - $${event.ticketPrice.toString()}`
                     : 'Join Event'}
                 </Button>
               )}
@@ -361,13 +361,13 @@ export default function EventDetailScreen() {
               )}
             </View>
 
-            {event.ticketPrice && (
+            {event.ticketPrice && event.ticketPrice > 0 && (
               <View style={styles.detailRow}>
                 <IconButton icon="currency-usd" size={24} />
                 <View style={styles.detailContent}>
                   <Text variant="labelLarge">Price</Text>
                   <Text variant="bodyMedium" style={styles.detailText}>
-                    ${event.ticketPrice} {event.currency || 'USD'}
+                    ${event.ticketPrice.toString()} {typeof event.currency === 'string' && event.currency.trim() !== '' ? event.currency : 'USD'}
                   </Text>
                 </View>
               </View>
@@ -378,7 +378,7 @@ export default function EventDetailScreen() {
           <View style={styles.statsContainer}>
             <View style={styles.statCard}>
               <Text variant="headlineSmall" style={styles.statNumber}>
-                {event.attendees.length}
+                {event.attendees.length.toString()}
               </Text>
               <Text variant="bodyMedium" style={styles.statLabel}>
                 Attending
@@ -388,7 +388,7 @@ export default function EventDetailScreen() {
             {event.maxAttendees && (
               <View style={styles.statCard}>
                 <Text variant="headlineSmall" style={styles.statNumber}>
-                  {event.maxAttendees - event.attendees.length}
+                  {(event.maxAttendees - event.attendees.length).toString()}
                 </Text>
                 <Text variant="bodyMedium" style={styles.statLabel}>
                   Spots Left
@@ -399,7 +399,7 @@ export default function EventDetailScreen() {
             {event.waitlist.length > 0 && (
               <View style={styles.statCard}>
                 <Text variant="headlineSmall" style={styles.statNumber}>
-                  {event.waitlist.length}
+                  {event.waitlist.length.toString()}
                 </Text>
                 <Text variant="bodyMedium" style={styles.statLabel}>
                   Waitlisted
