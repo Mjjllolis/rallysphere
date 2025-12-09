@@ -18,8 +18,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../_layout';
-import { getClub, joinClub, leaveClub, getEvents, getClubStoreItems } from '../../lib/firebase';
-import type { Club, Event, StoreItem } from '../../lib/firebase';
+import { getClub, joinClub, leaveClub, getEvents, getClubStoreItems, getUserRallyCredits } from '../../lib/firebase';
+import type { Club, Event, StoreItem, UserRallyCredits } from '../../lib/firebase';
 import EventCard from '../../components/EventCard';
 import JoinClubModal from '../../components/JoinClubModal';
 
@@ -39,6 +39,7 @@ export default function ClubDetailScreen() {
   const [menuVisible, setMenuVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<'events' | 'members' | 'details' | 'store'>('details');
   const [storeItems, setStoreItems] = useState<any[]>([]);
+  const [userCredits, setUserCredits] = useState<UserRallyCredits | null>(null);
 
   useEffect(() => {
     if (clubId) {
@@ -70,6 +71,14 @@ export default function ClubDetailScreen() {
       const storeResult = await getClubStoreItems(clubId, true);
       if (storeResult.success) {
         setStoreItems(storeResult.items);
+      }
+
+      // Load user's RallyCredits if logged in
+      if (user) {
+        const creditsResult = await getUserRallyCredits(user.uid);
+        if (creditsResult.success && creditsResult.credits) {
+          setUserCredits(creditsResult.credits);
+        }
       }
     } catch (error) {
       console.error('Error loading club data:', error);
@@ -200,20 +209,38 @@ export default function ClubDetailScreen() {
                 />
               </Surface>
 
-              {(isJoined || isAdmin) && (
-                <Surface style={styles.controlButton} elevation={2}>
-                  <Menu
-                    visible={menuVisible}
-                    onDismiss={() => setMenuVisible(false)}
-                    anchor={
+              <View style={styles.rightControls}>
+                {/* RallyCredits Display */}
+                {user && (isJoined || isAdmin) && userCredits && (
+                  <Surface style={styles.creditsChip} elevation={2}>
+                    <View style={styles.creditsContent}>
                       <IconButton
-                        icon="dots-vertical"
-                        iconColor="#fff"
-                        size={24}
-                        onPress={() => setMenuVisible(true)}
+                        icon="star-circle"
+                        iconColor="#FFD700"
+                        size={20}
+                        style={{ margin: 0 }}
                       />
-                    }
-                  >
+                      <Text variant="titleMedium" style={styles.creditsText}>
+                        {userCredits.clubCredits?.[clubId] || 0}
+                      </Text>
+                    </View>
+                  </Surface>
+                )}
+
+                {(isJoined || isAdmin) && (
+                  <Surface style={styles.controlButton} elevation={2}>
+                    <Menu
+                      visible={menuVisible}
+                      onDismiss={() => setMenuVisible(false)}
+                      anchor={
+                        <IconButton
+                          icon="dots-vertical"
+                          iconColor="#fff"
+                          size={24}
+                          onPress={() => setMenuVisible(true)}
+                        />
+                      }
+                    >
                     {isAdmin && (
                       <>
                         <Menu.Item
@@ -223,6 +250,14 @@ export default function ClubDetailScreen() {
                           }}
                           title="Edit Club"
                           leadingIcon="pencil"
+                        />
+                        <Menu.Item
+                          onPress={() => {
+                            setMenuVisible(false);
+                            router.push(`/club/${club.id}/manage-orders`);
+                          }}
+                          title="Store Orders"
+                          leadingIcon="package-variant"
                         />
                         <Menu.Item
                           onPress={() => {
@@ -240,6 +275,14 @@ export default function ClubDetailScreen() {
                           title="Create Event"
                           leadingIcon="plus"
                         />
+                        <Menu.Item
+                          onPress={() => {
+                            setMenuVisible(false);
+                            router.push(`/club/${club.id}/subscription`);
+                          }}
+                          title={club.isPro ? "Manage Pro" : "Upgrade to Pro"}
+                          leadingIcon="crown"
+                        />
                       </>
                     )}
                     {isJoined && (
@@ -253,8 +296,9 @@ export default function ClubDetailScreen() {
                       />
                     )}
                   </Menu>
-                </Surface>
-              )}
+                  </Surface>
+                )}
+              </View>
             </View>
 
             {/* Club Info Overlay */}
@@ -262,9 +306,21 @@ export default function ClubDetailScreen() {
               {club.logo && (
                 <Image source={{ uri: club.logo }} style={styles.heroLogo} />
               )}
-              <Text variant="displaySmall" style={styles.heroTitle}>
-                {club.name}
-              </Text>
+              <View style={styles.heroTitleContainer}>
+                <Text variant="displaySmall" style={styles.heroTitle}>
+                  {club.name}
+                </Text>
+                {club.isPro && (
+                  <Chip
+                    icon="crown"
+                    style={styles.proChip}
+                    textStyle={styles.proChipText}
+                    mode="flat"
+                  >
+                    PRO
+                  </Chip>
+                )}
+              </View>
               <View style={styles.heroMeta}>
                 <Chip style={styles.heroCategoryChip} textStyle={styles.heroChipText}>
                   {club.category}
@@ -573,7 +629,7 @@ export default function ClubDetailScreen() {
                         <TouchableOpacity
                           key={item.id}
                           style={styles.eventTile}
-                          onPress={() => router.push(`/store/${item.id}`)}
+                          onPress={() => router.push(`/(tabs)/store/${item.id}`)}
                         >
                           <Card style={styles.tileCard}>
                             {item.images && item.images.length > 0 ? (
@@ -660,7 +716,13 @@ const styles = StyleSheet.create({
   topControls: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 16,
+  },
+  rightControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   controlButton: {
     borderRadius: 25,
@@ -669,6 +731,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  creditsChip: {
+    borderRadius: 25,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  creditsContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  creditsText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
   heroContent: {
     paddingHorizontal: 24,
@@ -682,11 +762,27 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
     marginBottom: 16,
   },
+  heroTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
   heroTitle: {
     color: '#fff',
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 12,
+  },
+  proChip: {
+    backgroundColor: '#FFD700',
+    height: 28,
+  },
+  proChipText: {
+    color: '#000',
+    fontWeight: 'bold',
+    fontSize: 12,
   },
   heroMeta: {
     flexDirection: 'row',

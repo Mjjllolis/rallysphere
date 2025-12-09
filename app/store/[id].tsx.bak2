@@ -8,6 +8,7 @@ import {
   Dimensions,
   Alert,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
 import {
   Text,
@@ -28,8 +29,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../_layout';
 import { getStoreItem, getUserAddresses } from '../../lib/firebase';
 import type { StoreItem, ShippingAddress } from '../../lib/firebase';
-import { createStoreCheckoutSession } from '../../lib/stripe';
+import { createStoreCheckoutSession, createStorePaymentIntent } from '../../lib/stripe';
 import { Linking } from 'react-native';
+import { useStripe, usePaymentSheet } from '@stripe/stripe-react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -38,6 +40,10 @@ export default function StoreItemDetailScreen() {
   const { user } = useAuth();
   const { id } = useLocalSearchParams();
   const itemId = id as string;
+
+  // Stripe hooks for native payments
+  const stripe = Platform.OS !== 'web' ? useStripe() : null;
+  const { initPaymentSheet, presentPaymentSheet } = Platform.OS !== 'web' ? usePaymentSheet() : { initPaymentSheet: null, presentPaymentSheet: null };
 
   const [item, setItem] = useState<StoreItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -144,17 +150,17 @@ export default function StoreItemDetailScreen() {
       }
     }
 
-    // Validate shipping address if shipping
-    if (deliveryMethod === 'shipping' && !selectedAddressId) {
-      Alert.alert('Missing Address', 'Please select or add a shipping address');
-      setAddressModalVisible(true);
-      return;
-    }
-
     // Check stock
     const inStock = item.inventory - item.sold >= quantity;
     if (!inStock) {
       Alert.alert('Out of Stock', 'Not enough items in stock');
+      return;
+    }
+
+    // Validate shipping address if shipping (moved after stock check)
+    if (deliveryMethod === 'shipping' && !selectedAddressId) {
+      Alert.alert('Missing Address', 'Please select or add a shipping address');
+      setAddressModalVisible(true);
       return;
     }
 
@@ -165,6 +171,36 @@ export default function StoreItemDetailScreen() {
   const handlePurchase = async () => {
     if (!user || !item) return;
 
+    // Validate variant selection
+    if (item.variants && item.variants.length > 0) {
+      for (const variant of item.variants) {
+        if (!selectedVariants[variant.name]) {
+          Alert.alert('Missing Selection', `Please select ${variant.name}`);
+          return;
+        }
+      }
+    }
+
+    // Check stock
+    const inStock = item.inventory - item.sold >= quantity;
+    if (!inStock) {
+      Alert.alert('Out of Stock', 'Not enough items in stock');
+      return;
+    }
+
+    // Validate shipping address if shipping
+    if (deliveryMethod === 'shipping' && !selectedAddressId) {
+      Alert.alert('Missing Address', 'Please select or add a shipping address');
+      setAddressModalVisible(true);
+      return;
+    }
+
+    // Web: Use Stripe Checkout (redirect)
+    if (Platform.OS === 'web') {
+      return handleWebPurchase();
+    }
+
+    // Native: Use in-app payment sheet
     try {
       setPurchasing(true);
 
@@ -176,7 +212,108 @@ export default function StoreItemDetailScreen() {
         shippingAddress = savedAddresses.find(addr => addr.id === selectedAddressId);
       }
 
-      // Create checkout session
+      // Step 1: Create payment intent
+      const paymentIntentResult = await createStorePaymentIntent({
+        itemId: item.id,
+        quantity,
+        selectedVariants,
+        deliveryMethod,
+        shippingAddress,
+      });
+
+      if (!paymentIntentResult.success || !paymentIntentResult.clientSecret) {
+        Alert.alert('Error', paymentIntentResult.error || 'Failed to initialize payment');
+        setPurchasing(false);
+        return;
+      }
+
+      // Step 2: Initialize Stripe Payment Sheet
+      if (!initPaymentSheet) {
+        Alert.alert('Error', 'Payment system not initialized');
+        setPurchasing(false);
+        return;
+      }
+
+      const { error: initError } = await initPaymentSheet({
+        merchantDisplayName: 'RallySphere',
+        paymentIntentClientSecret: paymentIntentResult.clientSecret,
+        allowsDelayedPaymentMethods: true,
+        googlePay: {
+          merchantCountryCode: 'US',
+          testEnv: __DEV__,
+          currencyCode: 'USD',
+        },
+        applePay: {
+          merchantCountryCode: 'US',
+        },
+        returnURL: 'rallysphere://payment-return',
+      });
+
+      if (initError) {
+        console.error('Payment Sheet init error:', {
+          code: initError.code,
+          message: initError.message,
+          localizedMessage: initError.localizedMessage,
+        });
+        Alert.alert('Payment Error', `${initError.message}\n\nCode: ${initError.code}`);
+        setPurchasing(false);
+        return;
+      }
+
+      // Step 3: Present the payment sheet
+      if (!presentPaymentSheet) {
+        Alert.alert('Error', 'Payment system not initialized');
+        setPurchasing(false);
+        return;
+      }
+
+      const { error: presentError } = await presentPaymentSheet();
+
+      if (presentError) {
+        if (presentError.code !== 'Canceled') {
+          Alert.alert('Payment Failed', presentError.message);
+        }
+        setPurchasing(false);
+        return;
+      }
+
+      // Success - close modal and show success message
+      setPurchaseModalVisible(false);
+
+      Alert.alert(
+        'Purchase Successful!',
+        'Your order has been placed successfully.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              // Navigate back or refresh
+              router.back();
+            },
+          },
+        ]
+      );
+    } catch (error: any) {
+      console.error('Payment error:', error);
+      Alert.alert('Error', error.message || 'An unexpected error occurred');
+    } finally {
+      setPurchasing(false);
+    }
+  };
+
+  const handleWebPurchase = async () => {
+    if (!user || !item) return;
+
+    try {
+      setPurchasing(true);
+
+      // Get selected address
+      let shippingAddress: ShippingAddress | undefined;
+      if (deliveryMethod === 'shipping' && selectedAddressId) {
+        shippingAddress = savedAddresses.find(addr => addr.id === selectedAddressId);
+      }
+
+      // Create checkout session for web
       const result = await createStoreCheckoutSession({
         itemId: item.id,
         quantity,
@@ -189,13 +326,8 @@ export default function StoreItemDetailScreen() {
         // Close modal
         setPurchaseModalVisible(false);
 
-        // Open Stripe checkout
-        const supported = await Linking.canOpenURL(result.checkoutUrl);
-        if (supported) {
-          await Linking.openURL(result.checkoutUrl);
-        } else {
-          Alert.alert('Error', 'Cannot open checkout page');
-        }
+        // Redirect to Stripe checkout
+        window.location.href = result.checkoutUrl;
       } else {
         Alert.alert('Error', result.error || 'Failed to create checkout');
       }
@@ -225,156 +357,156 @@ export default function StoreItemDetailScreen() {
   const { subtotal, tax, shipping, total } = calculateTotal();
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
-      {/* Header with Back Button */}
-      <View style={[styles.topHeader, { backgroundColor: theme.colors.background }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={{ fontSize: 28 }}>←</Text>
-        </TouchableOpacity>
-        <Text variant="titleLarge" style={{ fontWeight: '600' }}>Product Details</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
-        {/* Image Carousel */}
-        <View style={styles.imageCarousel}>
-          {item.images && item.images.length > 0 ? (
-            <>
-              <Image
-                source={{ uri: item.images[selectedImageIndex] }}
-                style={styles.mainImage}
-                resizeMode="cover"
-              />
-              {item.images.length > 1 && (
-                <View style={styles.imageIndicators}>
-                  {item.images.map((_, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      onPress={() => setSelectedImageIndex(index)}
-                      style={[
-                        styles.indicator,
-                        {
-                          backgroundColor:
-                            index === selectedImageIndex
-                              ? theme.colors.primary
-                              : theme.colors.surfaceVariant,
-                        },
-                      ]}
-                    />
-                  ))}
-                </View>
-              )}
-            </>
-          ) : (
-            <View style={[styles.placeholderImage, { backgroundColor: theme.colors.surfaceVariant }]}>
-              <Text variant="headlineSmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                No Image
-              </Text>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.content}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.headerTop}>
-              <Text variant="headlineSmall" style={styles.itemName}>
-                {item.name}
-              </Text>
-              <Text variant="headlineMedium" style={{ color: theme.colors.primary, fontWeight: 'bold' }}>
-                ${item.price.toFixed(2)}
-              </Text>
-            </View>
-
-            <TouchableOpacity onPress={() => router.push(`/club/${item.clubId}`)}>
-              <Text variant="bodyLarge" style={{ color: theme.colors.primary }}>
-                By {item.clubName}
-              </Text>
-            </TouchableOpacity>
-
-            <View style={styles.badges}>
-              {item.pickupOnly && (
-                <Chip icon="map-marker">Pickup Only</Chip>
-              )}
-              {!inStock && (
-                <Chip style={{ backgroundColor: theme.colors.errorContainer }}>
-                  Out of Stock
-                </Chip>
-              )}
-              {inStock && item.inventory - item.sold < 10 && (
-                <Chip style={{ backgroundColor: theme.colors.tertiaryContainer }}>
-                  Only {item.inventory - item.sold} left
-                </Chip>
-              )}
-            </View>
-          </View>
-
-          <Divider />
-
-          {/* Description */}
-          <View style={styles.section}>
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              Description
-            </Text>
-            <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-              {item.description}
-            </Text>
-          </View>
-
-          <Divider />
-
-          {/* Variants */}
-          {item.variants && item.variants.map((variant) => (
-            <View key={variant.id} style={styles.section}>
-              <Text variant="titleMedium" style={styles.sectionTitle}>
-                {variant.name}
-              </Text>
-              <View style={styles.variantOptions}>
-                {variant.options.map((option) => (
-                  <Chip
-                    key={option}
-                    selected={selectedVariants[variant.name] === option}
-                    onPress={() =>
-                      setSelectedVariants({ ...selectedVariants, [variant.name]: option })
-                    }
-                    style={styles.variantChip}
-                  >
-                    {option}
-                  </Chip>
+    <View style={styles.container}>
+      {/* Full Screen Image with Carousel */}
+      <View style={styles.imageSection}>
+        {item.images && item.images.length > 0 ? (
+          <>
+            <Image
+              source={{ uri: item.images[selectedImageIndex] }}
+              style={styles.heroImage}
+              resizeMode="cover"
+            />
+            {/* Image Dots */}
+            {item.images.length > 1 && (
+              <View style={styles.dotsContainer}>
+                {item.images.map((_, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    onPress={() => setSelectedImageIndex(index)}
+                    style={[
+                      styles.dot,
+                      index === selectedImageIndex && styles.dotActive,
+                    ]}
+                  />
                 ))}
               </View>
-            </View>
-          ))}
+            )}
+          </>
+        ) : (
+          <View style={styles.placeholderHero}>
+            <Text style={{ color: '#999', fontSize: 16 }}>No Image</Text>
+          </View>
+        )}
 
-          {item.variants && item.variants.length > 0 && <Divider />}
+        {/* Floating Header */}
+        <View style={styles.floatingHeader}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.headerButton}>
+            <Text style={{ fontSize: 24 }}>←</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerButton}>
+            <Text style={{ fontSize: 24 }}>♡</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
-          {/* Quantity */}
-          <View style={styles.section}>
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              Quantity
-            </Text>
-            <View style={styles.quantityControl}>
-              <Button
-                mode="outlined"
-                onPress={() => setQuantity(Math.max(1, quantity - 1))}
-                disabled={quantity <= 1}
-              >
-                -
-              </Button>
-              <Text variant="titleLarge" style={styles.quantityText}>
-                {quantity}
-              </Text>
-              <Button
-                mode="outlined"
-                onPress={() => setQuantity(quantity + 1)}
-                disabled={quantity >= item.inventory - item.sold}
-              >
-                +
-              </Button>
+      {/* Product Info Card */}
+      <ScrollView style={styles.productCard} contentContainerStyle={{ paddingBottom: 120 }}>
+        {/* Product Title */}
+        <Text style={styles.productTitle}>{item.name}</Text>
+
+        {/* Subtitle/Category */}
+        <Text style={styles.productSubtitle}>{item.description.substring(0, 50)}</Text>
+
+        {/* Star Rating */}
+        <View style={styles.ratingContainer}>
+          <Text style={styles.stars}>★ ★ ★ ★ ★</Text>
+          <Text style={styles.ratingText}>(5.0)</Text>
+        </View>
+
+        {/* Variants (Size) */}
+        {item.variants && item.variants.map((variant) => (
+          <View key={variant.id} style={styles.variantSection}>
+            <Text style={styles.variantLabel}>Select {variant.name.toLowerCase()}</Text>
+            <View style={styles.sizeOptions}>
+              {variant.options.map((option) => (
+                <TouchableOpacity
+                  key={option}
+                  style={[
+                    styles.sizeButton,
+                    selectedVariants[variant.name] === option && styles.sizeButtonActive,
+                  ]}
+                  onPress={() =>
+                    setSelectedVariants({ ...selectedVariants, [variant.name]: option })
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.sizeText,
+                      selectedVariants[variant.name] === option && styles.sizeTextActive,
+                    ]}
+                  >
+                    {option}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
           </View>
+        ))}
 
-          <Divider />
+        {/* Quantity & Price Row */}
+        <View style={styles.quantityPriceRow}>
+          <View style={styles.quantityControls}>
+            <TouchableOpacity
+              style={styles.quantityButton}
+              onPress={() => setQuantity(Math.max(1, quantity - 1))}
+              disabled={quantity <= 1}
+            >
+              <Text style={styles.quantityButtonText}>−</Text>
+            </TouchableOpacity>
+            <Text style={styles.quantityText}>{quantity}</Text>
+            <TouchableOpacity
+              style={styles.quantityButton}
+              onPress={() => setQuantity(quantity + 1)}
+              disabled={quantity >= item.inventory - item.sold}
+            >
+              <Text style={styles.quantityButtonText}>+</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.priceText}>${total.toFixed(2)}</Text>
+        </View>
+
+        {/* Club & Delivery Info */}
+        <View style={styles.infoSection}>
+          <TouchableOpacity onPress={() => router.push(`/club/${item.clubId}`)}>
+            <Text style={styles.clubText}>By {item.clubName}</Text>
+          </TouchableOpacity>
+
+          {item.pickupOnly ? (
+            <Text style={styles.deliveryText}>📍 Pickup Only</Text>
+          ) : (
+            <Text style={styles.deliveryText}>🚚 Shipping Available</Text>
+          )}
+
+          {!inStock && (
+            <Text style={styles.outOfStockText}>Out of Stock</Text>
+          )}
+          {inStock && item.inventory - item.sold < 10 && (
+            <Text style={styles.lowStockText}>Only {item.inventory - item.sold} left!</Text>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* Fixed Buy Now Button */}
+      <View style={styles.buyButtonContainer}>
+        <TouchableOpacity
+          style={[styles.buyButton, (!inStock || !user) && styles.buyButtonDisabled]}
+          onPress={handlePurchase}
+          disabled={!inStock || !user || purchasing}
+          activeOpacity={0.8}
+        >
+          {purchasing ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buyButtonText}>
+              {!user ? 'Login to Purchase' : !inStock ? 'Out of Stock' : 'Buy Now'}
+            </Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Address Modal and Purchase Modal remain below */}
 
           {/* Delivery Method */}
           {!item.pickupOnly && item.allowPickup && (
@@ -496,15 +628,27 @@ export default function StoreItemDetailScreen() {
       <View style={[styles.footer, { backgroundColor: theme.colors.surface }]}>
         <Surface style={{ borderRadius: 0 }} elevation={4}>
           <View style={styles.footerContent}>
-            <Button
-              mode="contained"
-              onPress={openPurchaseModal}
-              disabled={!inStock || !user}
-              style={styles.purchaseButton}
-              contentStyle={{ height: 56 }}
+            <TouchableOpacity
+              onPress={handlePurchase}
+              disabled={!inStock || !user || purchasing}
+              style={[
+                styles.buyNowButton,
+                {
+                  backgroundColor: (!inStock || !user || purchasing)
+                    ? theme.colors.surfaceDisabled
+                    : theme.colors.primary
+                }
+              ]}
+              activeOpacity={0.8}
             >
-              {!user ? 'Login to Purchase' : !inStock ? 'Out of Stock' : 'Continue to Payment'}
-            </Button>
+              {purchasing ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.buyNowButtonText}>
+                  {!user ? 'Login to Purchase' : !inStock ? 'Out of Stock' : 'Buy Now'}
+                </Text>
+              )}
+            </TouchableOpacity>
           </View>
         </Surface>
       </View>
@@ -514,20 +658,19 @@ export default function StoreItemDetailScreen() {
         <Modal
           visible={purchaseModalVisible}
           onDismiss={() => setPurchaseModalVisible(false)}
-          contentContainerStyle={[styles.purchaseModalContent, { backgroundColor: theme.colors.surface }]}
+          contentContainerStyle={[styles.purchaseModalContent, { backgroundColor: theme.colors.surface, overflow: 'hidden' }]}
         >
-          <View style={{ flex: 1, maxHeight: '80%' }}>
-            {/* Header */}
-            <View style={styles.modalHeader}>
-              <Text variant="headlineMedium" style={{ fontWeight: 'bold' }}>
-                Confirm Purchase
-              </Text>
-              <TouchableOpacity onPress={() => setPurchaseModalVisible(false)}>
-                <Text style={{ fontSize: 24 }}>×</Text>
-              </TouchableOpacity>
-            </View>
+          {/* Header */}
+          <View style={[styles.modalHeader, { backgroundColor: theme.colors.surface }]}>
+            <Text variant="headlineMedium" style={{ fontWeight: 'bold' }}>
+              Confirm Purchase
+            </Text>
+            <TouchableOpacity onPress={() => setPurchaseModalVisible(false)}>
+              <Text style={{ fontSize: 24 }}>×</Text>
+            </TouchableOpacity>
+          </View>
 
-            <ScrollView style={{ flex: 1, paddingHorizontal: 20 }}>
+          <ScrollView style={{ maxHeight: 400, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
               {/* Product Info */}
               <View style={styles.modalSection}>
                 <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -627,17 +770,16 @@ export default function StoreItemDetailScreen() {
                   </Text>
                 </View>
               </View>
-            </ScrollView>
+          </ScrollView>
 
-            {/* Footer */}
-            <View style={[styles.modalFooter, { backgroundColor: theme.colors.surface }]}>
-              <Button mode="outlined" onPress={() => setPurchaseModalVisible(false)} disabled={purchasing} style={{ flex: 1 }}>
-                Cancel
-              </Button>
-              <Button mode="contained" onPress={handlePurchase} loading={purchasing} disabled={purchasing} style={{ flex: 1 }}>
-                Pay Now
-              </Button>
-            </View>
+          {/* Footer */}
+          <View style={[styles.modalFooter, { backgroundColor: theme.colors.surface }]}>
+            <Button mode="outlined" onPress={() => setPurchaseModalVisible(false)} disabled={purchasing} style={{ flex: 1 }}>
+              Cancel
+            </Button>
+            <Button mode="contained" onPress={handlePurchase} loading={purchasing} disabled={purchasing} style={{ flex: 1 }}>
+              Pay Now
+            </Button>
           </View>
         </Modal>
       </Portal>
@@ -695,99 +837,239 @@ export default function StoreItemDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#E8F4F8',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  topHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  imageCarousel: {
+  // Image Section
+  imageSection: {
     width: '100%',
-    height: width,
+    height: width * 1.2,
     position: 'relative',
   },
-  mainImage: {
+  heroImage: {
     width: '100%',
     height: '100%',
   },
-  placeholderImage: {
+  placeholderHero: {
     width: '100%',
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#F5F5F5',
   },
-  imageIndicators: {
+  dotsContainer: {
     position: 'absolute',
-    bottom: 16,
+    bottom: 30,
     left: 0,
     right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
   },
-  indicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.5)',
   },
-  content: {
-    padding: 16,
+  dotActive: {
+    backgroundColor: '#fff',
+    width: 20,
   },
-  header: {
-    marginBottom: 16,
-  },
-  headerTop: {
+  floatingHeader: {
+    position: 'absolute',
+    top: 50,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
+    paddingHorizontal: 20,
   },
-  itemName: {
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  // Product Card
+  productCard: {
     flex: 1,
-    fontWeight: 'bold',
-    marginRight: 16,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    marginTop: -30,
+    paddingHorizontal: 24,
+    paddingTop: 24,
   },
-  badges: {
+  productTitle: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#000',
+    marginBottom: 6,
+  },
+  productSubtitle: {
+    fontSize: 15,
+    color: '#999',
+    marginBottom: 12,
+  },
+  ratingContainer: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 8,
+    alignItems: 'center',
+    marginBottom: 20,
   },
-  section: {
-    paddingVertical: 16,
+  stars: {
+    color: '#000',
+    fontSize: 14,
+    marginRight: 6,
   },
-  sectionHeader: {
+  ratingText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  // Variants
+  variantSection: {
+    marginBottom: 24,
+  },
+  variantLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000',
+    marginBottom: 12,
+  },
+  sizeOptions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  sizeButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#F5F5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  sizeButtonActive: {
+    backgroundColor: '#FFD700',
+    borderColor: '#000',
+  },
+  sizeText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#666',
+  },
+  sizeTextActive: {
+    color: '#000',
+  },
+  // Quantity & Price
+  quantityPriceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 24,
   },
-  sectionTitle: {
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  variantOptions: {
+  quantityControls: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 16,
+  },
+  quantityButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quantityButtonText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  quantityText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#000',
+    minWidth: 30,
+    textAlign: 'center',
+  },
+  priceText: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#000',
+  },
+  // Info Section
+  infoSection: {
     gap: 8,
   },
-  variantChip: {
-    marginRight: 0,
+  clubText: {
+    fontSize: 15,
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  deliveryText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  outOfStockText: {
+    fontSize: 14,
+    color: '#FF3B30',
+    fontWeight: '600',
+  },
+  lowStockText: {
+    fontSize: 14,
+    color: '#FF9500',
+    fontWeight: '600',
+  },
+  // Buy Button
+  buyButtonContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 32,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+  },
+  buyButton: {
+    backgroundColor: '#000',
+    borderRadius: 25,
+    paddingVertical: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  buyButtonDisabled: {
+    backgroundColor: '#999',
+  },
+  buyButtonText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  // Keep old styles for other parts
+  section: {
+    paddingVertical: 16,
   },
   quantityControl: {
     flexDirection: 'row',
@@ -817,11 +1099,30 @@ const styles = StyleSheet.create({
   purchaseButton: {
     borderRadius: 8,
   },
+  buyNowButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  buyNowButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+  },
   purchaseModalContent: {
     margin: 20,
     borderRadius: 12,
-    maxHeight: '80%',
-    overflow: 'hidden',
+    maxWidth: 500,
+    alignSelf: 'center',
+    width: '90%',
   },
   modalHeader: {
     flexDirection: 'row',

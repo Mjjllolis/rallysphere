@@ -8,8 +8,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { BlurView } from 'expo-blur';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { useAuth } from '../_layout';
-import { getUserProfile, updateUserProfile, uploadImage } from '../../lib/firebase';
-import type { UserProfile } from '../../lib/firebase';
+import { getUserProfile, updateUserProfile, uploadImage, getUserRallyCredits, getClubs } from '../../lib/firebase';
+import type { UserProfile, UserRallyCredits, Club } from '../../lib/firebase';
 import SettingsScreen from '../../components/SettingsScreen';
 import GlassMemoryCard from '../../components/GlassMemoryCard';
 import EditProfileScreen from '../../components/EditProfileScreen';
@@ -28,17 +28,74 @@ export default function ProfilePage() {
   const [editProfileVisible, setEditProfileVisible] = useState(false);
   const [backgroundColors, setBackgroundColors] = useState<string[]>(['#6366f1', '#8b5cf6', '#d946ef']);
   const scrollY = useRef(new Animated.Value(0)).current;
+  const [rallyCredits, setRallyCredits] = useState<UserRallyCredits | null>(null);
+  const [userClubs, setUserClubs] = useState<Club[]>([]);
 
   useEffect(() => {
     if (user) {
       loadProfile();
+      loadRallyCredits();
+      loadUserClubs();
     }
   }, [user]);
 
   const loadProfile = async () => {
     if (!user) return;
+
     const userProfile = await getUserProfile(user.uid);
     setProfile(userProfile);
+  };
+
+  const loadRallyCredits = async () => {
+    if (!user) return;
+
+    const result = await getUserRallyCredits(user.uid);
+    if (result.success && result.credits) {
+      setRallyCredits(result.credits);
+    }
+  };
+
+  const loadUserClubs = async () => {
+    if (!user) return;
+
+    const result = await getClubs();
+    if (result.success) {
+      // Filter clubs where user is a member or admin
+      const clubs = result.clubs.filter(club =>
+        club.members.includes(user.uid) || club.admins.includes(user.uid)
+      );
+      setUserClubs(clubs);
+    }
+  };
+
+  const handleSignOut = async () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Sign Out', 
+          style: 'destructive',
+          onPress: async () => {
+            setLoading(true);
+            try {
+              const result = await logout();
+              if (result.success) {
+                router.replace('/(auth)/welcome-simple');
+              } else {
+                Alert.alert('Error', 'Failed to sign out');
+              }
+            } catch (error) {
+              console.error('Sign out error:', error);
+              Alert.alert('Error', 'An unexpected error occurred');
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const pickProfileImage = async () => {
@@ -471,7 +528,31 @@ const styles = StyleSheet.create({
     elevation: 90,
     position: 'relative',
   },
+  userNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  userNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
   userName: {
+    fontWeight: 'bold',
+  },
+  userProChip: {
+    backgroundColor: '#FFD700',
+    height: 24,
+  },
+  userProChipText: {
+    color: '#000',
+    fontWeight: 'bold',
+    fontSize: 11,
+  },
+  userEmail: {
     fontSize: 24,
     fontWeight: '700',
     color: 'white',
@@ -557,5 +638,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+  },
+  rallyCreditsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  rallyCreditsIcon: {
+    marginRight: 8,
+  },
+  creditsStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: 8,
+  },
+  creditsStat: {
+    alignItems: 'center',
   },
 });
