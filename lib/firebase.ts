@@ -69,6 +69,10 @@ export interface UserProfile {
   lastName: string;
   bio?: string;
   avatar?: string;
+  backgroundImage?: string;
+  instagram?: string;
+  university?: string;
+  location?: string;
   savedAddresses?: ShippingAddress[];
 }
 

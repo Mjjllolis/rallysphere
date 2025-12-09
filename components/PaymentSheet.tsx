@@ -480,9 +480,11 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
   };
 
   const formatPrice = (price: number, currency: string = 'USD') => {
+    // Ensure currency is a valid string, default to 'USD' if not
+    const validCurrency = currency && typeof currency === 'string' ? currency : 'USD';
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: currency.toUpperCase(),
+      currency: validCurrency.toUpperCase(),
     }).format(price);
   };
 
