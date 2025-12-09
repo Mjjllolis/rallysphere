@@ -40,10 +40,92 @@ const SORT_OPTIONS = [
   { id: 'newest', label: 'Newest' },
 ];
 
+const MOCK_ITEMS: StoreItem[] = [
+  {
+    id: 'mock-1',
+    name: 'Rally Club T-Shirt',
+    description: 'Official Rally Club merchandise - premium cotton t-shirt',
+    price: 25,
+    inventory: 50,
+    sold: 12,
+    category: 'Apparel',
+    clubId: 'mock-club-1',
+    clubName: 'Rally Enthusiasts',
+    images: ['https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400'],
+    createdAt: { toDate: () => new Date() } as any,
+  },
+  {
+    id: 'mock-2',
+    name: 'Campus Water Bottle',
+    description: 'Eco-friendly stainless steel water bottle',
+    price: 18,
+    inventory: 30,
+    sold: 8,
+    category: 'Accessories',
+    clubId: 'mock-club-2',
+    clubName: 'Student Council',
+    images: ['https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=400'],
+    createdAt: { toDate: () => new Date() } as any,
+  },
+  {
+    id: 'mock-3',
+    name: 'Team Hoodie',
+    description: 'Comfortable hoodie with team logo',
+    price: 45,
+    inventory: 25,
+    sold: 15,
+    category: 'Apparel',
+    clubId: 'mock-club-3',
+    clubName: 'Athletics Department',
+    images: ['https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=400'],
+    createdAt: { toDate: () => new Date() } as any,
+  },
+  {
+    id: 'mock-4',
+    name: 'Club Sticker Pack',
+    description: 'Set of 10 assorted club stickers',
+    price: 8,
+    inventory: 100,
+    sold: 45,
+    category: 'Accessories',
+    clubId: 'mock-club-4',
+    clubName: 'Art & Design Club',
+    images: ['https://images.unsplash.com/photo-1611532736579-6b16e2b50449?w=400'],
+    createdAt: { toDate: () => new Date() } as any,
+  },
+  {
+    id: 'mock-5',
+    name: 'Event Ticket Bundle',
+    description: '3-event pass for spring semester activities',
+    price: 35,
+    inventory: 20,
+    sold: 5,
+    category: 'Tickets',
+    clubId: 'mock-club-5',
+    clubName: 'Event Committee',
+    images: ['https://images.unsplash.com/photo-1594608661623-aa0bd8a69834?w=400'],
+    createdAt: { toDate: () => new Date() } as any,
+  },
+  {
+    id: 'mock-6',
+    name: 'Notebook Set',
+    description: 'Premium branded notebooks (3-pack)',
+    price: 15,
+    inventory: 40,
+    sold: 22,
+    category: 'Stationery',
+    clubId: 'mock-club-6',
+    clubName: 'Academic Society',
+    images: ['https://images.unsplash.com/photo-1517971129774-8a2b38fa128e?w=400'],
+    createdAt: { toDate: () => new Date() } as any,
+  },
+];
+
 export default function StoreScreen() {
   const theme = useTheme();
   const { getCartCount } = useCart();
   const { getFavoritesCount } = useFavorites();
+  const insets = useSafeAreaInsets();
 
   const [items, setItems] = useState<StoreItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<StoreItem[]>([]);
@@ -70,29 +152,48 @@ export default function StoreScreen() {
     try {
       setLoading(true);
       const result = await getAllStoreItems();
-      if (result.success) {
-        setItems(result.items);
 
-        // Extract unique categories from items
-        const uniqueCategories = new Set<string>();
-        result.items.forEach((item) => {
-          if (item.category) {
-            uniqueCategories.add(item.category);
-          }
-        });
+      // Merge Firebase items with mock items
+      const allItems = result.success ? [...result.items, ...MOCK_ITEMS] : MOCK_ITEMS;
+      setItems(allItems);
 
-        // Build dynamic categories
-        const dynamicCategories = [
-          { id: 'all', label: 'Everything' },
-          ...Array.from(uniqueCategories)
-            .sort()
-            .map((cat) => ({ id: cat, label: cat })),
-        ];
+      // Extract unique categories from all items
+      const uniqueCategories = new Set<string>();
+      allItems.forEach((item) => {
+        if (item.category) {
+          uniqueCategories.add(item.category);
+        }
+      });
 
-        setCategories(dynamicCategories);
-      }
+      // Build dynamic categories
+      const dynamicCategories = [
+        { id: 'all', label: 'Everything' },
+        ...Array.from(uniqueCategories)
+          .sort()
+          .map((cat) => ({ id: cat, label: cat })),
+      ];
+
+      setCategories(dynamicCategories);
     } catch (error) {
       console.error('Error loading store items:', error);
+      // If Firebase fails, still show mock items
+      setItems(MOCK_ITEMS);
+
+      const uniqueCategories = new Set<string>();
+      MOCK_ITEMS.forEach((item) => {
+        if (item.category) {
+          uniqueCategories.add(item.category);
+        }
+      });
+
+      const dynamicCategories = [
+        { id: 'all', label: 'Everything' },
+        ...Array.from(uniqueCategories)
+          .sort()
+          .map((cat) => ({ id: cat, label: cat })),
+      ];
+
+      setCategories(dynamicCategories);
     } finally {
       setLoading(false);
     }
@@ -186,16 +287,28 @@ export default function StoreScreen() {
 
         {/* Product Info */}
         <View style={styles.cardContent}>
+          {/* Club Name Badge */}
+          <View style={styles.clubBadge}>
+            <Ionicons name="people" size={12} color={theme.colors.primary} />
+            <Text style={[styles.clubText, { color: theme.colors.primary }]} numberOfLines={1}>
+              {item.clubName}
+            </Text>
+          </View>
+
+          {/* Product Name */}
           <Text style={[styles.itemName, { color: theme.colors.onSurface }]} numberOfLines={2}>
             {item.name}
           </Text>
+
+          {/* Price and Stock Row */}
           <View style={styles.priceRow}>
             <Text style={[styles.price, { color: theme.colors.primary }]}>${item.price.toFixed(0)}</Text>
             {inStock && item.inventory - item.sold < 10 && (
-              <Text style={styles.stockText}>Only {item.inventory - item.sold} left</Text>
+              <View style={styles.stockBadge}>
+                <Text style={styles.stockText}>{item.inventory - item.sold} left</Text>
+              </View>
             )}
           </View>
-          <Text style={[styles.clubText, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>{item.clubName}</Text>
         </View>
       </TouchableOpacity>
     );
@@ -210,8 +323,6 @@ export default function StoreScreen() {
       </View>
     );
   }
-
-  const insets = useSafeAreaInsets();
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -253,43 +364,6 @@ export default function StoreScreen() {
           </View>
         </View>
       </LinearGradient>
-
-      {/* Categories Section */}
-      <View style={[styles.categoriesSection, { backgroundColor: theme.colors.surface }]}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoriesContainer}
-        >
-          {categories.map((category) => (
-            <TouchableOpacity
-              key={category.id}
-              style={[
-                styles.categoryPill,
-                selectedCategory === category.id && [styles.categoryPillActive, {
-                  backgroundColor: theme.colors.primary,
-                  shadowColor: theme.colors.primary,
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 8,
-                  elevation: 6,
-                }],
-              ]}
-              onPress={() => setSelectedCategory(category.id)}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.categoryPillText,
-                  selectedCategory === category.id && [styles.categoryPillTextActive, { color: '#fff' }],
-                ]}
-              >
-                {category.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
 
       {/* Items Grid */}
       {filteredItems.length === 0 ? (
@@ -452,13 +526,14 @@ const styles = StyleSheet.create({
   },
   card: {
     width: CARD_WIDTH,
-    borderRadius: 20,
+    borderRadius: 16,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+    marginBottom: 4,
   },
   imageContainer: {
     width: '100%',
@@ -512,32 +587,52 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   cardContent: {
-    padding: 14,
+    padding: 12,
+  },
+  clubBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.03)',
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  clubText: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
   itemName: {
-    fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 6,
-    height: 38,
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 8,
+    lineHeight: 22,
+    minHeight: 44,
   },
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 4,
   },
   price: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  stockBadge: {
+    backgroundColor: '#FFF3E0',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   stockText: {
     fontSize: 10,
     color: '#FF6B00',
-    fontWeight: '600',
-  },
-  clubText: {
-    fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   cartButton: {
     position: 'absolute',
