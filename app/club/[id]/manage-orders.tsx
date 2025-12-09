@@ -415,23 +415,12 @@ export default function ManageOrdersScreen() {
                 <View style={styles.priceBreakdown}>
                   <View style={styles.priceRow}>
                     <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                      Subtotal:
+                      Item Subtotal:
                     </Text>
                     <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
                       ${order.price.toFixed(2)}
                     </Text>
                   </View>
-
-                  {order.tax > 0 && (
-                    <View style={styles.priceRow}>
-                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                        Tax:
-                      </Text>
-                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                        ${order.tax.toFixed(2)}
-                      </Text>
-                    </View>
-                  )}
 
                   {order.shipping > 0 && (
                     <View style={styles.priceRow}>
@@ -443,6 +432,47 @@ export default function ManageOrdersScreen() {
                       </Text>
                     </View>
                   )}
+
+                  <Divider style={{ marginVertical: 4 }} />
+
+                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 4, fontWeight: '600' }}>
+                    Taxes & Fees
+                  </Text>
+
+                  {order.tax > 0 && (
+                    <View style={styles.priceRow}>
+                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                        Sales Tax:
+                      </Text>
+                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                        ${order.tax.toFixed(2)}
+                      </Text>
+                    </View>
+                  )}
+
+                  {(order as any).adminFee > 0 && (
+                    <View style={styles.priceRow}>
+                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                        Admin Fee:
+                      </Text>
+                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                        ${(order as any).adminFee.toFixed(2)}
+                      </Text>
+                    </View>
+                  )}
+
+                  {(order as any).transactionFee > 0 && (
+                    <View style={styles.priceRow}>
+                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                        Transaction Fee:
+                      </Text>
+                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                        ${(order as any).transactionFee.toFixed(2)}
+                      </Text>
+                    </View>
+                  )}
+
+                  <Divider style={{ marginVertical: 4 }} />
 
                   <View style={styles.priceRow}>
                     <Text variant="titleMedium" style={{ fontWeight: 'bold' }}>

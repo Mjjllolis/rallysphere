@@ -52,12 +52,16 @@ export default function ManageStoreScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState<StoreItem | null>(null);
   const [deliveryMenuVisible, setDeliveryMenuVisible] = useState(false);
+  const [categoryMenuVisible, setCategoryMenuVisible] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    category: '',
     price: '',
     taxRate: '',
+    adminFeeRate: '10',
+    transactionFeeRate: '2.9',
     shippingCost: '',
     allowPickup: true,
     pickupOnly: false,
@@ -106,8 +110,11 @@ export default function ManageStoreScreen() {
     setFormData({
       name: '',
       description: '',
+      category: '',
       price: '',
       taxRate: '0',
+      adminFeeRate: '10',
+      transactionFeeRate: '2.9',
       shippingCost: '0',
       allowPickup: true,
       pickupOnly: false,
@@ -124,8 +131,11 @@ export default function ManageStoreScreen() {
     setFormData({
       name: item.name,
       description: item.description,
+      category: item.category || '',
       price: item.price.toString(),
       taxRate: item.taxRate.toString(),
+      adminFeeRate: (item.adminFeeRate || 10).toString(),
+      transactionFeeRate: (item.transactionFeeRate || 2.9).toString(),
       shippingCost: item.shippingCost?.toString() || '0',
       allowPickup: item.allowPickup,
       pickupOnly: item.pickupOnly,
@@ -214,6 +224,7 @@ export default function ManageStoreScreen() {
     if (
       !formData.name ||
       !formData.description ||
+      !formData.category ||
       !formData.price ||
       !formData.inventory
     ) {
@@ -229,6 +240,8 @@ export default function ManageStoreScreen() {
 
     const price = parseFloat(formData.price);
     const taxRate = parseFloat(formData.taxRate);
+    const adminFeeRate = parseFloat(formData.adminFeeRate);
+    const transactionFeeRate = parseFloat(formData.transactionFeeRate);
     const shippingCost = formData.pickupOnly ? null : parseFloat(formData.shippingCost);
     const inventory = parseInt(formData.inventory);
 
@@ -250,9 +263,12 @@ export default function ManageStoreScreen() {
         clubName: club.name,
         name: formData.name,
         description: formData.description,
+        category: formData.category,
         images: formData.images,
         price,
         taxRate,
+        adminFeeRate,
+        transactionFeeRate,
         shippingCost,
         allowPickup: formData.allowPickup,
         pickupOnly: formData.pickupOnly,
@@ -468,6 +484,53 @@ export default function ManageStoreScreen() {
                 numberOfLines={3}
                 placeholder="Describe your product..."
               />
+
+              <Menu
+                visible={categoryMenuVisible}
+                onDismiss={() => setCategoryMenuVisible(false)}
+                anchor={
+                  <TouchableOpacity onPress={() => setCategoryMenuVisible(true)}>
+                    <TextInput
+                      label="Category"
+                      value={formData.category}
+                      style={styles.input}
+                      mode="outlined"
+                      editable={false}
+                      right={<TextInput.Icon icon="chevron-down" />}
+                      pointerEvents="none"
+                    />
+                  </TouchableOpacity>
+                }
+              >
+                <Menu.Item
+                  onPress={() => {
+                    setFormData({ ...formData, category: 'Merch' });
+                    setCategoryMenuVisible(false);
+                  }}
+                  title="Merch"
+                />
+                <Menu.Item
+                  onPress={() => {
+                    setFormData({ ...formData, category: 'Equipment' });
+                    setCategoryMenuVisible(false);
+                  }}
+                  title="Equipment"
+                />
+                <Menu.Item
+                  onPress={() => {
+                    setFormData({ ...formData, category: 'Snacks' });
+                    setCategoryMenuVisible(false);
+                  }}
+                  title="Snacks"
+                />
+                <Menu.Item
+                  onPress={() => {
+                    setFormData({ ...formData, category: 'Etc' });
+                    setCategoryMenuVisible(false);
+                  }}
+                  title="Etc"
+                />
+              </Menu>
             </View>
 
             {/* Images Section */}
@@ -502,27 +565,15 @@ export default function ManageStoreScreen() {
             <View style={styles.formSection}>
               <Text variant="titleMedium" style={styles.sectionTitle}>Pricing & Inventory</Text>
 
-              <View style={styles.row}>
-                <TextInput
-                  label="Price ($)"
-                  value={formData.price}
-                  onChangeText={(text) => setFormData({ ...formData, price: text })}
-                  style={[styles.input, { flex: 1, marginRight: 8 }]}
-                  mode="outlined"
-                  keyboardType="decimal-pad"
-                  placeholder="0.00"
-                />
-
-                <TextInput
-                  label="Tax Rate (%)"
-                  value={formData.taxRate}
-                  onChangeText={(text) => setFormData({ ...formData, taxRate: text })}
-                  style={[styles.input, { flex: 1 }]}
-                  mode="outlined"
-                  keyboardType="decimal-pad"
-                  placeholder="0"
-                />
-              </View>
+              <TextInput
+                label="Price ($)"
+                value={formData.price}
+                onChangeText={(text) => setFormData({ ...formData, price: text })}
+                style={styles.input}
+                mode="outlined"
+                keyboardType="decimal-pad"
+                placeholder="0.00"
+              />
 
               <TextInput
                 label="Inventory"
@@ -532,6 +583,43 @@ export default function ManageStoreScreen() {
                 mode="outlined"
                 keyboardType="number-pad"
                 placeholder="Available quantity"
+              />
+            </View>
+
+            {/* Taxes & Fees Section */}
+            <View style={styles.formSection}>
+              <Text variant="titleMedium" style={styles.sectionTitle}>Taxes & Fees</Text>
+
+              <TextInput
+                label="Sales Tax Rate (%)"
+                value={formData.taxRate}
+                onChangeText={(text) => setFormData({ ...formData, taxRate: text })}
+                style={styles.input}
+                mode="outlined"
+                keyboardType="decimal-pad"
+                placeholder="0"
+              />
+
+              <TextInput
+                label="Admin Fee (%)"
+                value={formData.adminFeeRate}
+                onChangeText={(text) => setFormData({ ...formData, adminFeeRate: text })}
+                style={styles.input}
+                mode="outlined"
+                keyboardType="decimal-pad"
+                placeholder="10"
+                disabled
+              />
+
+              <TextInput
+                label="Transaction Fee (%)"
+                value={formData.transactionFeeRate}
+                onChangeText={(text) => setFormData({ ...formData, transactionFeeRate: text })}
+                style={styles.input}
+                mode="outlined"
+                keyboardType="decimal-pad"
+                placeholder="2.9"
+                disabled
               />
             </View>
 

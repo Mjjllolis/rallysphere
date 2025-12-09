@@ -372,6 +372,16 @@ export default function EventDetailScreen() {
                 </View>
               </View>
             )}
+
+            <View style={styles.detailRow}>
+              <IconButton icon="star-circle" size={24} iconColor="#FFD700" />
+              <View style={styles.detailContent}>
+                <Text variant="labelLarge">RallyCredits Earned</Text>
+                <Text variant="bodyMedium" style={styles.detailText}>
+                  {event.rallyCreditsAwarded || 0} credits
+                </Text>
+              </View>
+            </View>
           </View>
 
           {/* Attendee Info */}
