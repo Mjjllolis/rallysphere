@@ -18,7 +18,7 @@ import {
 } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { getAllStoreItems } from '../../../lib/firebase';
+import { getAllStoreItems, Timestamp } from '../../../lib/firebase';
 import type { StoreItem } from '../../../lib/firebase';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -53,6 +53,16 @@ const MOCK_ITEMS: StoreItem[] = [
     clubName: 'Rally Enthusiasts',
     images: ['https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400'],
     createdAt: { toDate: () => new Date() } as any,
+    taxRate: 0,
+    adminFeeRate: 0,
+    transactionFeeRate: 0,
+    shippingCost: null,
+    allowPickup: false,
+    pickupOnly: false,
+    variants: [],
+    isActive: false,
+    createdBy: '',
+    updatedAt: { toDate: () => new Date() } as any,
   },
   {
     id: 'mock-2',
@@ -66,6 +76,16 @@ const MOCK_ITEMS: StoreItem[] = [
     clubName: 'Student Council',
     images: ['https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=400'],
     createdAt: { toDate: () => new Date() } as any,
+    taxRate: 0,
+    adminFeeRate: 0,
+    transactionFeeRate: 0,
+    shippingCost: null,
+    allowPickup: false,
+    pickupOnly: false,
+    variants: [],
+    isActive: false,
+    createdBy: '',
+    updatedAt: { toDate: () => new Date() } as any,
   },
   {
     id: 'mock-3',
@@ -79,6 +99,16 @@ const MOCK_ITEMS: StoreItem[] = [
     clubName: 'Athletics Department',
     images: ['https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=400'],
     createdAt: { toDate: () => new Date() } as any,
+    taxRate: 0,
+    adminFeeRate: 0,
+    transactionFeeRate: 0,
+    shippingCost: null,
+    allowPickup: false,
+    pickupOnly: false,
+    variants: [],
+    isActive: false,
+    createdBy: '',
+    updatedAt: { toDate: () => new Date() } as any,
   },
   {
     id: 'mock-4',
@@ -92,6 +122,16 @@ const MOCK_ITEMS: StoreItem[] = [
     clubName: 'Art & Design Club',
     images: ['https://images.unsplash.com/photo-1611532736579-6b16e2b50449?w=400'],
     createdAt: { toDate: () => new Date() } as any,
+    taxRate: 0,
+    adminFeeRate: 0,
+    transactionFeeRate: 0,
+    shippingCost: null,
+    allowPickup: false,
+    pickupOnly: false,
+    variants: [],
+    isActive: false,
+    createdBy: '',
+    updatedAt: { toDate: () => new Date() } as any,
   },
   {
     id: 'mock-5',
@@ -105,6 +145,16 @@ const MOCK_ITEMS: StoreItem[] = [
     clubName: 'Event Committee',
     images: ['https://images.unsplash.com/photo-1594608661623-aa0bd8a69834?w=400'],
     createdAt: { toDate: () => new Date() } as any,
+    taxRate: 0,
+    adminFeeRate: 0,
+    transactionFeeRate: 0,
+    shippingCost: null,
+    allowPickup: false,
+    pickupOnly: false,
+    variants: [],
+    isActive: false,
+    createdBy: '',
+    updatedAt: { toDate: () => new Date() } as any,
   },
   {
     id: 'mock-6',
@@ -118,6 +168,16 @@ const MOCK_ITEMS: StoreItem[] = [
     clubName: 'Academic Society',
     images: ['https://images.unsplash.com/photo-1517971129774-8a2b38fa128e?w=400'],
     createdAt: { toDate: () => new Date() } as any,
+    taxRate: 0,
+    adminFeeRate: 0,
+    transactionFeeRate: 0,
+    shippingCost: null,
+    allowPickup: false,
+    pickupOnly: false,
+    variants: [],
+    isActive: false,
+    createdBy: '',
+    updatedAt: { toDate: () => new Date() } as any,
   },
 ];
 
