@@ -246,6 +246,31 @@ export default function ClubDetailScreen() {
                         <Menu.Item
                           onPress={() => {
                             setMenuVisible(false);
+                            router.push(`/club/${club.id}/manage`);
+                          }}
+                          title="Admin Dashboard"
+                          leadingIcon="view-dashboard"
+                        />
+                        <Menu.Item
+                          onPress={() => {
+                            setMenuVisible(false);
+                            router.push(`/club/${club.id}/manage-members`);
+                          }}
+                          title="Manage Members"
+                          leadingIcon="account-group"
+                        />
+                        <Menu.Item
+                          onPress={() => {
+                            setMenuVisible(false);
+                            router.push(`/club/${club.id}/analytics`);
+                          }}
+                          title="Analytics"
+                          leadingIcon="chart-line"
+                        />
+                        <Divider />
+                        <Menu.Item
+                          onPress={() => {
+                            setMenuVisible(false);
                             router.push(`/club/edit/${club.id}`);
                           }}
                           title="Edit Club"

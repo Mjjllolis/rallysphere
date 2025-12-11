@@ -6,7 +6,6 @@ import { useTheme } from "react-native-paper";
 import CreateScreen from "../../components/CreateScreen";
 import { Image, StyleSheet, Animated, Dimensions, View } from "react-native";
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Defs, RadialGradient, Stop, Rect, Path } from 'react-native-svg';
 import { BlurView } from 'expo-blur';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -131,16 +130,11 @@ export default function TabLayout() {
                       height: 400,
                     }}
                   />
-                  <Svg width={SCREEN_WIDTH} height={400} style={{ position: 'absolute' }}>
-                    <Defs>
-                      <RadialGradient id="circleMask" cx="50%" cy="50%" rx="60%" ry="40%">
-                        <Stop offset="0%" stopColor="transparent" stopOpacity="0" />
-                        <Stop offset="30%" stopColor="transparent" stopOpacity="0" />
-                        <Stop offset="100%" stopColor="black" stopOpacity="1" />
-                      </RadialGradient>
-                    </Defs>
-                    <Rect x="0" y="0" width={SCREEN_WIDTH} height={400} fill="url(#circleMask)" />
-                  </Svg>
+                  <LinearGradient
+                    colors={['transparent', 'transparent', '#000000']}
+                    locations={[0, 0.3, 1]}
+                    style={{ position: 'absolute', width: SCREEN_WIDTH, height: 400 }}
+                  />
                 </View>
               </View>
             ),
@@ -270,37 +264,29 @@ export default function TabLayout() {
           }}
         />
 
-        {/* SVG flicks for top of tab bar */}
-        <Svg
-          width="30"
-          height="30"
-          viewBox="0 0 30 30"
+        {/* Rounded corners for tab bar (using simple views instead of SVG) */}
+        <View
           style={{
             position: 'absolute',
             bottom: 85,
             left: 0,
+            width: 30,
+            height: 30,
+            backgroundColor: '#000000',
+            borderBottomRightRadius: 30,
           }}
-        >
-          <Path
-            d="M 0 30 L 0 0 Q 0 30 30 30 Z"
-            fill="#000000"
-          />
-        </Svg>
-        <Svg
-          width="30"
-          height="30"
-          viewBox="0 0 30 30"
+        />
+        <View
           style={{
             position: 'absolute',
             bottom: 85,
             right: 0,
+            width: 30,
+            height: 30,
+            backgroundColor: '#000000',
+            borderBottomLeftRadius: 30,
           }}
-        >
-          <Path
-            d="M 30 30 L 30 0 Q 30 30 0 30 Z"
-            fill="#000000"
-          />
-        </Svg>
+        />
       </View>
 
       <CreateScreen visible={isModalVisible} onClose={closeModal} />
