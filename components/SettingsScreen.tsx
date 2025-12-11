@@ -8,9 +8,10 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import { Text, IconButton, Switch, List, Divider } from 'react-native-paper';
+import { Text, IconButton, Switch, List, Divider, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { logout } from '../lib/firebase';
 import { useThemeToggle } from '../app/_layout';
@@ -22,6 +23,7 @@ interface SettingsScreenProps {
 
 export default function SettingsScreen({ visible, onClose }: SettingsScreenProps) {
   const { isDark, toggleTheme } = useThemeToggle();
+  const theme = useTheme();
 
   const handleSignOut = async () => {
     Alert.alert(
@@ -51,6 +53,13 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
     );
   };
 
+  // Get gradients from theme (with fallback for type safety)
+  const gradients = (theme as any).gradients || {
+    background: isDark
+      ? ['rgba(27, 54, 93, 0.3)', 'rgba(96, 165, 250, 0.1)', 'rgba(0, 0, 0, 0)']
+      : ['rgba(219, 234, 254, 0.4)', 'rgba(147, 197, 253, 0.2)', 'rgba(255, 255, 255, 0)'],
+  };
+
   return (
     <Modal
       visible={visible}
@@ -58,18 +67,22 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
-        <View style={StyleSheet.absoluteFill}>
-          <View style={styles.blackBackground} />
-        </View>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        {/* Gradient Overlay */}
+        <LinearGradient
+          colors={gradients.background}
+          locations={[0, 0.3, 1]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
 
         <SafeAreaView style={styles.safeArea} edges={['top']}>
           {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Settings</Text>
+          <View style={[styles.header, { borderBottomColor: theme.colors.outline }]}>
+            <Text style={[styles.headerTitle, { color: theme.colors.onBackground }]}>Settings</Text>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <BlurView intensity={40} tint="dark" style={styles.closeButtonBlur}>
-                <IconButton icon="close" size={24} iconColor="white" />
+              <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.closeButtonBlur, { borderColor: theme.colors.outline }]}>
+                <IconButton icon="close" size={24} iconColor={theme.colors.onSurface} />
               </BlurView>
             </TouchableOpacity>
           </View>
