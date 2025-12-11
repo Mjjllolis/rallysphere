@@ -6,7 +6,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { BlurView } from 'expo-blur';
-import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { useAuth } from '../_layout';
 import { getUserProfile, updateUserProfile, uploadImage, getUserRallyCredits, getClubs } from '../../lib/firebase';
 import type { UserProfile, UserRallyCredits, Club } from '../../lib/firebase';
@@ -149,20 +148,13 @@ export default function ProfilePage() {
           <View style={styles.blackBackground} />
         </View>
 
-        {/* Subtle Radial Gradient Overlay */}
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
-          <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
-            <Defs>
-              <RadialGradient id="loginGradient" cx="50%" cy="40%">
-                <Stop offset="0%" stopColor="#6366f1" stopOpacity="0.25" />
-                <Stop offset="30%" stopColor="#8b5cf6" stopOpacity="0.15" />
-                <Stop offset="60%" stopColor="#d946ef" stopOpacity="0.08" />
-                <Stop offset="100%" stopColor="#000000" stopOpacity="0" />
-              </RadialGradient>
-            </Defs>
-            <Rect x="0" y="0" width="100%" height="100%" fill="url(#loginGradient)" />
-          </Svg>
-        </View>
+        {/* Subtle Gradient Overlay */}
+        <LinearGradient
+          colors={['rgba(99, 102, 241, 0.25)', 'rgba(139, 92, 246, 0.15)', 'rgba(217, 70, 239, 0.08)', 'rgba(0, 0, 0, 0)']}
+          locations={[0, 0.3, 0.6, 1]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
 
         <SafeAreaView style={styles.safeArea} edges={['top']}>
           <View style={styles.emptyState}>
@@ -221,21 +213,19 @@ export default function ProfilePage() {
         </Animated.View>
       )}
 
-      {/* Subtle Radial Gradient Overlay */}
+      {/* Subtle Gradient Overlay */}
       {!profile?.backgroundImage && (
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
-          <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
-            <Defs>
-              <RadialGradient id="profileGradient" cx="50%" cy="20%">
-                <Stop offset="0%" stopColor={backgroundColors[0]} stopOpacity="0.25" />
-                <Stop offset="30%" stopColor={backgroundColors[1]} stopOpacity="0.15" />
-                <Stop offset="60%" stopColor={backgroundColors[2]} stopOpacity="0.08" />
-                <Stop offset="100%" stopColor="#000000" stopOpacity="0" />
-              </RadialGradient>
-            </Defs>
-            <Rect x="0" y="0" width="100%" height="100%" fill="url(#profileGradient)" />
-          </Svg>
-        </View>
+        <LinearGradient
+          colors={[
+            `rgba(${parseInt(backgroundColors[0].slice(1, 3), 16)}, ${parseInt(backgroundColors[0].slice(3, 5), 16)}, ${parseInt(backgroundColors[0].slice(5, 7), 16)}, 0.25)`,
+            `rgba(${parseInt(backgroundColors[1].slice(1, 3), 16)}, ${parseInt(backgroundColors[1].slice(3, 5), 16)}, ${parseInt(backgroundColors[1].slice(5, 7), 16)}, 0.15)`,
+            `rgba(${parseInt(backgroundColors[2].slice(1, 3), 16)}, ${parseInt(backgroundColors[2].slice(3, 5), 16)}, ${parseInt(backgroundColors[2].slice(5, 7), 16)}, 0.08)`,
+            'rgba(0, 0, 0, 0)'
+          ]}
+          locations={[0, 0.3, 0.6, 1]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
       )}
 
       <SafeAreaView style={styles.safeArea} edges={['top']}>

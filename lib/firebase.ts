@@ -689,6 +689,143 @@ export const leaveClub = async (clubId: string, userId: string) => {
   }
 };
 
+// --- Member Management Functions ---
+
+/**
+ * Get club join requests
+ */
+export const getClubJoinRequests = async (clubId: string, status?: 'pending' | 'approved' | 'rejected') => {
+  try {
+    let q;
+    if (status) {
+      q = query(
+        collection(db, 'clubJoinRequests'),
+        where('clubId', '==', clubId),
+        where('status', '==', status)
+      );
+    } else {
+      q = query(
+        collection(db, 'clubJoinRequests'),
+        where('clubId', '==', clubId)
+      );
+    }
+
+    const querySnapshot = await getDocs(q);
+    const requests: ClubJoinRequest[] = [];
+
+    querySnapshot.forEach((doc) => {
+      requests.push({ id: doc.id, ...doc.data() } as ClubJoinRequest);
+    });
+
+    // Sort by creation date (newest first)
+    requests.sort((a, b) => {
+      const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+      const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+      return dateB.getTime() - dateA.getTime();
+    });
+
+    return { success: true, requests };
+  } catch (error: any) {
+    console.error('Error getting join requests:', error);
+    return { success: false, error: error.message, requests: [] };
+  }
+};
+
+/**
+ * Approve join request
+ */
+export const approveJoinRequest = async (requestId: string, clubId: string, userId: string, adminId: string) => {
+  try {
+    // Add user to club members
+    await updateDoc(doc(db, 'clubs', clubId), {
+      clubMembers: arrayUnion(userId),
+      updatedAt: serverTimestamp()
+    });
+
+    // Update request status
+    await updateDoc(doc(db, 'clubJoinRequests', requestId), {
+      status: 'approved',
+      respondedAt: serverTimestamp(),
+      respondedBy: adminId
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error approving join request:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Reject join request
+ */
+export const rejectJoinRequest = async (requestId: string, adminId: string) => {
+  try {
+    await updateDoc(doc(db, 'clubJoinRequests', requestId), {
+      status: 'rejected',
+      respondedAt: serverTimestamp(),
+      respondedBy: adminId
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error rejecting join request:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Remove member from club
+ */
+export const removeMember = async (clubId: string, userId: string) => {
+  try {
+    await updateDoc(doc(db, 'clubs', clubId), {
+      clubMembers: arrayRemove(userId),
+      clubAdmins: arrayRemove(userId), // Also remove from admins if they were one
+      updatedAt: serverTimestamp()
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error removing member:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Promote member to admin
+ */
+export const promoteToAdmin = async (clubId: string, userId: string) => {
+  try {
+    await updateDoc(doc(db, 'clubs', clubId), {
+      clubAdmins: arrayUnion(userId),
+      updatedAt: serverTimestamp()
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error promoting to admin:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Demote admin to member
+ */
+export const demoteAdmin = async (clubId: string, userId: string) => {
+  try {
+    await updateDoc(doc(db, 'clubs', clubId), {
+      clubAdmins: arrayRemove(userId),
+      updatedAt: serverTimestamp()
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error demoting admin:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 // Update club function
 export const updateClub = async (clubId: string, clubData: any) => {
   try {
@@ -2218,6 +2355,87 @@ export const getUserProSubscription = async (userId: string) => {
     return { success: true, subscription };
   } catch (error: any) {
     console.error('Error getting user pro subscription:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// --- Club Analytics ---
+
+/**
+ * Get club analytics
+ */
+export const getClubAnalytics = async (clubId: string) => {
+  try {
+    const [clubResult, eventsResult, ordersResult] = await Promise.all([
+      getClub(clubId),
+      getEvents(clubId),
+      getClubStoreOrders(clubId)
+    ]);
+
+    if (!clubResult.success || !clubResult.club) {
+      return { success: false, error: 'Club not found' };
+    }
+
+    const club = clubResult.club;
+    const events = eventsResult.success ? eventsResult.events : [];
+    const orders = ordersResult.success ? ordersResult.orders : [];
+
+    // Calculate member count
+    const memberCount = club.members.length;
+
+    // Calculate event attendance stats
+    const totalEventAttendance = events.reduce((sum, event) => sum + (event.attendees?.length || 0), 0);
+    const upcomingEvents = events.filter(e => {
+      const eventDate = e.startDate?.toDate ? e.startDate.toDate() : new Date(e.startDate);
+      return eventDate > new Date();
+    }).length;
+    const pastEvents = events.length - upcomingEvents;
+
+    // Calculate store revenue
+    const totalRevenue = orders
+      .filter(o => o.status !== 'cancelled')
+      .reduce((sum, o) => sum + o.totalAmount, 0);
+    const totalOrders = orders.length;
+    const pendingOrders = orders.filter(o => o.status === 'pending').length;
+
+    // Get top events by attendance
+    const topEvents = [...events]
+      .sort((a, b) => (b.attendees?.length || 0) - (a.attendees?.length || 0))
+      .slice(0, 5)
+      .map(e => ({
+        id: e.id,
+        title: e.title,
+        attendees: e.attendees?.length || 0,
+        maxAttendees: e.maxAttendees || 0
+      }));
+
+    // Member growth data (simplified for now - using mock data)
+    const memberGrowth = [
+      { month: 'Jul', members: Math.max(1, Math.round(memberCount * 0.6)) },
+      { month: 'Aug', members: Math.max(1, Math.round(memberCount * 0.7)) },
+      { month: 'Sep', members: Math.max(1, Math.round(memberCount * 0.8)) },
+      { month: 'Oct', members: Math.max(1, Math.round(memberCount * 0.85)) },
+      { month: 'Nov', members: Math.max(1, Math.round(memberCount * 0.93)) },
+      { month: 'Dec', members: memberCount }
+    ];
+
+    const analytics = {
+      memberCount,
+      totalEvents: events.length,
+      upcomingEvents,
+      pastEvents,
+      totalEventAttendance,
+      avgAttendancePerEvent: events.length > 0 ? Math.round(totalEventAttendance / events.length) : 0,
+      totalRevenue,
+      totalOrders,
+      pendingOrders,
+      topEvents,
+      memberGrowth
+    };
+
+    return { success: true, analytics };
+  } catch (error: any) {
+    console.error('Error getting club analytics:', error);
     return { success: false, error: error.message };
   }
 };
