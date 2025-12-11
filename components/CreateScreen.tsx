@@ -26,7 +26,7 @@ interface CreateScreenProps {
   initialType?: CreateType;
 }
 
-export default function CreateScreen({ visible, onClose, initialType = 'Event' }: CreateScreenProps) {
+export default function CreateScreen({ visible, onClose, initialType = 'Club' }: CreateScreenProps) {
   const [selectedType, setSelectedType] = useState<CreateType>(initialType);
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const [backgroundColors, setBackgroundColors] = useState<string[]>(['#6366f1', '#8b5cf6', '#d946ef']);
@@ -122,7 +122,7 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
                   >
                     <BlurView intensity={90} tint="dark" style={styles.dropdownAbsoluteBlur}>
                       <View style={styles.dropdownAbsoluteContent}>
-                        {(['Event', 'Post', 'Club'] as CreateType[]).map((type, index) => (
+                        {(['Club', 'Event', 'Post'] as CreateType[]).map((type, index) => (
                           <TouchableOpacity
                             key={type}
                             style={[
