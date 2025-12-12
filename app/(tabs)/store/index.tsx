@@ -1,4 +1,4 @@
-// app/(tabs)/store.tsx
+// app/(tabs)/store/index.tsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -13,10 +13,10 @@ import {
 } from 'react-native';
 import {
   Text,
-  useTheme,
   ActivityIndicator,
+  IconButton,
 } from 'react-native-paper';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { getAllStoreItems, Timestamp } from '../../../lib/firebase';
 import type { StoreItem } from '../../../lib/firebase';
@@ -25,6 +25,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '../../../lib/cartContext';
 import { useFavorites } from '../../../lib/favoritesContext';
 import FilterPanel from '../../../components/FilterPanel';
+import { BlurView } from 'expo-blur';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
@@ -182,10 +183,8 @@ const MOCK_ITEMS: StoreItem[] = [
 ];
 
 export default function StoreScreen() {
-  const theme = useTheme();
   const { getCartCount } = useCart();
   const { getFavoritesCount } = useFavorites();
-  const insets = useSafeAreaInsets();
 
   const [items, setItems] = useState<StoreItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<StoreItem[]>([]);
@@ -308,68 +307,70 @@ export default function StoreScreen() {
 
     return (
       <TouchableOpacity
-        style={[styles.card, { backgroundColor: theme.colors.surface }]}
+        style={styles.card}
         onPress={() => router.push(`/(tabs)/store/${item.id}`)}
         activeOpacity={0.9}
       >
-        {/* Image Container */}
-        <View style={styles.imageContainer}>
-          {item.images && item.images.length > 0 ? (
-            <>
-              <Image
-                source={{ uri: item.images[0] }}
-                style={styles.itemImage}
-                resizeMode="cover"
-              />
-              {!inStock && (
-                <View style={styles.soldOutOverlay}>
-                  <LinearGradient
-                    colors={['rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
-                    style={styles.soldOutGradient}
-                  >
-                    <Text style={styles.soldOutText}>SOLD OUT</Text>
-                  </LinearGradient>
-                </View>
-              )}
-              {/* Category Badge */}
-              {item.category && (
-                <View style={[styles.categoryBadge, { backgroundColor: theme.colors.primary }]}>
-                  <Text style={styles.categoryBadgeText}>{item.category}</Text>
-                </View>
-              )}
-            </>
-          ) : (
-            <View style={styles.placeholderImage}>
-              <Ionicons name="image-outline" size={40} color="#ccc" />
-            </View>
-          )}
-        </View>
-
-        {/* Product Info */}
-        <View style={styles.cardContent}>
-          {/* Club Name Badge */}
-          <View style={styles.clubBadge}>
-            <Ionicons name="people" size={12} color={theme.colors.primary} />
-            <Text style={[styles.clubText, { color: theme.colors.primary }]} numberOfLines={1}>
-              {item.clubName}
-            </Text>
-          </View>
-
-          {/* Product Name */}
-          <Text style={[styles.itemName, { color: theme.colors.onSurface }]} numberOfLines={2}>
-            {item.name}
-          </Text>
-
-          {/* Price and Stock Row */}
-          <View style={styles.priceRow}>
-            <Text style={[styles.price, { color: theme.colors.primary }]}>${item.price.toFixed(0)}</Text>
-            {inStock && item.inventory - item.sold < 10 && (
-              <View style={styles.stockBadge}>
-                <Text style={styles.stockText}>{item.inventory - item.sold} left</Text>
+        <BlurView intensity={20} tint="dark" style={styles.cardBlur}>
+          {/* Image Container */}
+          <View style={styles.imageContainer}>
+            {item.images && item.images.length > 0 ? (
+              <>
+                <Image
+                  source={{ uri: item.images[0] }}
+                  style={styles.itemImage}
+                  resizeMode="cover"
+                />
+                {!inStock && (
+                  <View style={styles.soldOutOverlay}>
+                    <LinearGradient
+                      colors={['rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
+                      style={styles.soldOutGradient}
+                    >
+                      <Text style={styles.soldOutText}>SOLD OUT</Text>
+                    </LinearGradient>
+                  </View>
+                )}
+                {/* Category Badge */}
+                {item.category && (
+                  <View style={styles.categoryBadge}>
+                    <Text style={styles.categoryBadgeText}>{item.category}</Text>
+                  </View>
+                )}
+              </>
+            ) : (
+              <View style={styles.placeholderImage}>
+                <Ionicons name="image-outline" size={40} color="rgba(255,255,255,0.5)" />
               </View>
             )}
           </View>
-        </View>
+
+          {/* Product Info */}
+          <View style={styles.cardContent}>
+            {/* Club Name Badge */}
+            <View style={styles.clubBadge}>
+              <Ionicons name="people" size={12} color="#60A5FA" />
+              <Text style={styles.clubText} numberOfLines={1}>
+                {item.clubName}
+              </Text>
+            </View>
+
+            {/* Product Name */}
+            <Text style={styles.itemName} numberOfLines={2}>
+              {item.name}
+            </Text>
+
+            {/* Price and Stock Row */}
+            <View style={styles.priceRow}>
+              <Text style={styles.price}>${item.price.toFixed(0)}</Text>
+              {inStock && item.inventory - item.sold < 10 && (
+                <View style={styles.stockBadge}>
+                  <Text style={styles.stockText}>{item.inventory - item.sold} left</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </BlurView>
       </TouchableOpacity>
     );
   };
@@ -377,92 +378,153 @@ export default function StoreScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" />
+        {/* Black Background */}
+        <View style={StyleSheet.absoluteFill}>
+          <View style={styles.blackBackground} />
         </View>
+
+        {/* Subtle Gradient Overlay */}
+        <LinearGradient
+          colors={['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', 'rgba(0, 0, 0, 0)']}
+          locations={[0, 0.3, 1]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#60A5FA" />
+          </View>
+        </SafeAreaView>
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Header with Gradient */}
+    <View style={styles.container}>
+      {/* Black Background */}
+      <View style={StyleSheet.absoluteFill}>
+        <View style={styles.blackBackground} />
+      </View>
+
+      {/* Subtle Gradient Overlay */}
       <LinearGradient
-        colors={[theme.colors.primary, theme.colors.primary + 'DD']}
-        style={[styles.headerGradient, { paddingTop: insets.top }]}
-      >
+        colors={['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', 'rgba(0, 0, 0, 0)']}
+        locations={[0, 0.3, 1]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        {/* Header */}
         <View style={styles.header}>
-          {/* Title */}
           <Text style={styles.headerTitle}>Store</Text>
 
-          {/* Search Bar */}
-          <View style={styles.searchRow}>
-            <View style={styles.searchContainer}>
-              <Ionicons name="search-outline" size={20} color="#999" style={styles.searchIcon} />
-              <TextInput
-                placeholder="Search products..."
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                style={styles.searchInput}
-                placeholderTextColor="#999"
-              />
+          {/* Search and Action Buttons */}
+          <View style={styles.filtersContainer}>
+            {/* Search Bar */}
+            <BlurView intensity={20} tint="dark" style={styles.searchBarContainer}>
+              <View style={styles.searchInputWrapper}>
+                <Ionicons name="search-outline" size={20} color="rgba(255,255,255,0.7)" style={styles.searchIcon} />
+                <TextInput
+                  placeholder="Search products..."
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  style={styles.searchInput}
+                  placeholderTextColor="rgba(255,255,255,0.5)"
+                />
+              </View>
+            </BlurView>
+
+            {/* Action Buttons Row */}
+            <View style={styles.actionButtonsRow}>
+              <TouchableOpacity
+                style={styles.actionButtonWrapper}
+                onPress={() => setFilterPanelVisible(true)}
+                activeOpacity={0.7}
+              >
+                <BlurView intensity={20} tint="dark" style={styles.actionButton}>
+                  <IconButton icon="tune" iconColor="rgba(255,255,255,0.9)" size={20} style={{ margin: 0 }} />
+                </BlurView>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionButtonWrapper}
+                onPress={() => router.push('/profile/orders')}
+                activeOpacity={0.7}
+              >
+                <BlurView intensity={20} tint="dark" style={styles.actionButton}>
+                  <IconButton icon="receipt" iconColor="rgba(255,255,255,0.9)" size={20} style={{ margin: 0 }} />
+                </BlurView>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionButtonWrapper}
+                onPress={() => router.push('/(tabs)/store/favorites')}
+                activeOpacity={0.7}
+              >
+                <BlurView intensity={20} tint="dark" style={styles.actionButton}>
+                  <IconButton icon="heart" iconColor="rgba(255,255,255,0.9)" size={20} style={{ margin: 0 }} />
+                  {favoritesCount > 0 && (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{favoritesCount}</Text>
+                    </View>
+                  )}
+                </BlurView>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.iconButton} onPress={() => setFilterPanelVisible(true)}>
-              <Ionicons name="options-outline" size={22} color="#fff" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/profile/orders')}>
-              <Ionicons name="receipt-outline" size={22} color="#fff" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/(tabs)/store/favorites')}>
-              <Ionicons name="heart" size={22} color="#fff" />
-              {favoritesCount > 0 && (
-                <View style={[styles.badge, { backgroundColor: '#FF4444' }]}>
-                  <Text style={styles.badgeText}>{favoritesCount}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
           </View>
         </View>
-      </LinearGradient>
 
-      {/* Items Grid */}
-      {filteredItems.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="bag-outline" size={64} color="#ccc" />
-          <Text style={styles.emptyTitle}>
-            {searchQuery ? 'No items found' : 'No items available'}
-          </Text>
-          <Text style={styles.emptySubtitle}>
-            {searchQuery ? 'Try a different search' : 'Check back soon'}
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredItems}
-          renderItem={renderStoreItem}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          contentContainerStyle={styles.gridContainer}
-          columnWrapperStyle={styles.row}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          showsVerticalScrollIndicator={false}
+        {/* Items Grid */}
+        {filteredItems.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <BlurView intensity={20} tint="dark" style={styles.emptyCard}>
+              <View style={styles.emptyContent}>
+                <IconButton icon="shopping-outline" size={64} iconColor="rgba(255,255,255,0.5)" />
+                <Text style={styles.emptyTitle}>
+                  {searchQuery ? 'No items found' : 'No items available'}
+                </Text>
+                <Text style={styles.emptySubtitle}>
+                  {searchQuery ? 'Try a different search' : 'Check back soon'}
+                </Text>
+              </View>
+            </BlurView>
+          </View>
+        ) : (
+          <FlatList
+            data={filteredItems}
+            renderItem={renderStoreItem}
+            keyExtractor={(item) => item.id}
+            numColumns={2}
+            contentContainerStyle={styles.gridContainer}
+            columnWrapperStyle={styles.row}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor="#fff"
+              />
+            }
+            showsVerticalScrollIndicator={false}
+          />
+        )}
+
+        {/* Filter Panel */}
+        <FilterPanel
+          visible={filterPanelVisible}
+          onClose={() => setFilterPanelVisible(false)}
+          selectedSort={selectedSort}
+          onSortChange={(sort) => {
+            setSelectedSort(sort);
+          }}
+          categories={categories}
+          selectedCategory={selectedCategory}
+          onCategoryChange={(category) => {
+            setSelectedCategory(category);
+          }}
         />
-      )}
-
-      {/* Filter Panel */}
-      <FilterPanel
-        visible={filterPanelVisible}
-        onClose={() => setFilterPanelVisible(false)}
-        selectedSort={selectedSort}
-        onSortChange={(sort) => {
-          setSelectedSort(sort);
-        }}
-        categories={categories}
-        selectedCategory={selectedCategory}
-        onCategoryChange={(category) => {
-          setSelectedCategory(category);
-        }}
-      />
+      </SafeAreaView>
     </View>
   );
 }
@@ -471,49 +533,43 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  blackBackground: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  safeArea: {
+    flex: 1,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerGradient: {
-    paddingBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 8,
-  },
   header: {
-    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
   },
   headerTitle: {
     fontSize: 32,
-    fontWeight: '800',
-    color: '#fff',
-    paddingHorizontal: 16,
-    marginBottom: 16,
-    letterSpacing: 0.5,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 4,
   },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
+  filtersContainer: {
     gap: 12,
   },
-  searchContainer: {
-    flex: 1,
+  searchBarContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  searchInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 12,
     paddingHorizontal: 12,
     height: 48,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
   searchIcon: {
     marginRight: 8,
@@ -523,21 +579,32 @@ const styles = StyleSheet.create({
     fontSize: 15,
     padding: 0,
     margin: 0,
-    color: '#333',
+    color: '#fff',
   },
-  iconButton: {
-    width: 48,
+  actionButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionButtonWrapper: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  actionButton: {
     height: 48,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
     position: 'relative',
   },
   badge: {
     position: 'absolute',
     top: 6,
     right: 6,
+    backgroundColor: '#FF4444',
     borderRadius: 10,
     minWidth: 18,
     height: 18,
@@ -550,55 +617,30 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fff',
   },
-  categoriesSection: {
-    paddingVertical: 16,
-    marginBottom: 12,
-  },
-  categoriesContainer: {
-    paddingHorizontal: 16,
-    gap: 10,
-  },
-  categoryPill: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 24,
-    backgroundColor: '#F5F5F5',
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  categoryPillActive: {
-    borderColor: 'transparent',
-  },
-  categoryPillText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#666',
-  },
-  categoryPillTextActive: {
-    fontWeight: '800',
-  },
   gridContainer: {
     padding: 16,
+    paddingBottom: 100,
   },
   row: {
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   card: {
     width: CARD_WIDTH,
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
     marginBottom: 4,
+  },
+  cardBlur: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   imageContainer: {
     width: '100%',
     aspectRatio: 1,
-    backgroundColor: '#F8F8F8',
+    backgroundColor: 'rgba(255,255,255,0.05)',
     position: 'relative',
     overflow: 'hidden',
   },
@@ -638,6 +680,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
+    backgroundColor: 'rgba(96, 165, 250, 0.9)',
     zIndex: 5,
   },
   categoryBadgeText: {
@@ -656,7 +699,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingVertical: 4,
     paddingHorizontal: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.03)',
+    backgroundColor: 'rgba(96, 165, 250, 0.15)',
     borderRadius: 8,
     alignSelf: 'flex-start',
   },
@@ -664,6 +707,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     letterSpacing: 0.3,
+    color: '#60A5FA',
   },
   itemName: {
     fontSize: 16,
@@ -671,6 +715,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     lineHeight: 22,
     minHeight: 44,
+    color: '#ffffff',
   },
   priceRow: {
     flexDirection: 'row',
@@ -681,12 +726,15 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     letterSpacing: -0.5,
+    color: '#60A5FA',
   },
   stockBadge: {
-    backgroundColor: '#FFF3E0',
+    backgroundColor: 'rgba(255, 107, 0, 0.2)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 0, 0.3)',
   },
   stockText: {
     fontSize: 10,
@@ -694,32 +742,32 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
   },
-  cartButton: {
-    position: 'absolute',
-    bottom: 8,
-    right: 8,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F5F5F5',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 40,
   },
+  emptyCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  emptyContent: {
+    alignItems: 'center',
+    padding: 32,
+  },
   emptyTitle: {
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: '700',
     marginTop: 16,
     marginBottom: 8,
-    color: '#333',
+    color: '#ffffff',
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#999',
+    color: 'rgba(255,255,255,0.6)',
+    textAlign: 'center',
   },
 });
