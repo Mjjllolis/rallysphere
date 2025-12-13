@@ -93,7 +93,7 @@ export default function TabLayout() {
               borderTopColor: 'transparent',
               borderTopWidth: 0,
               height: 85,
-              paddingBottom: 15,
+              paddingBottom: 25,
               paddingTop: 10,
               paddingLeft: 0,
               paddingRight: 0,
@@ -261,30 +261,6 @@ export default function TabLayout() {
             left: 0,
             right: 0,
             height: 1,
-          }}
-        />
-
-        {/* Rounded corners for tab bar (using simple views instead of SVG) */}
-        <View
-          style={{
-            position: 'absolute',
-            bottom: 85,
-            left: 0,
-            width: 30,
-            height: 30,
-            backgroundColor: '#000000',
-            borderBottomRightRadius: 30,
-          }}
-        />
-        <View
-          style={{
-            position: 'absolute',
-            bottom: 85,
-            right: 0,
-            width: 30,
-            height: 30,
-            backgroundColor: '#000000',
-            borderBottomLeftRadius: 30,
           }}
         />
       </View>

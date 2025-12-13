@@ -3,24 +3,16 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
-  FlatList,
+  ScrollView,
   Image,
   TouchableOpacity,
   RefreshControl,
   TextInput,
-  ScrollView,
 } from 'react-native';
 import {
   Text,
-  useTheme,
-  Surface,
-  Chip,
   ActivityIndicator,
-  Divider,
-  Button,
   IconButton,
-  Portal,
-  Modal,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -28,22 +20,26 @@ import { useAuth } from '../_layout';
 import { getUserStoreOrders } from '../../lib/firebase';
 import type { StoreOrder } from '../../lib/firebase';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 
-const getStatusColor = (status: StoreOrder['status'], theme: any) => {
+const getStatusColor = (status: StoreOrder['status']) => {
   switch (status) {
     case 'pending':
-      return theme.colors.tertiary;
+      return '#FFA500';
     case 'processing':
-      return theme.colors.secondary;
+      return '#60A5FA';
     case 'shipped':
-      return theme.colors.primary;
+      return '#8B5CF6';
     case 'delivered':
     case 'picked_up':
-      return theme.colors.tertiary;
+      return '#22C55E';
     case 'cancelled':
-      return theme.colors.error;
+      return '#EF4444';
+    case 'refunded':
+      return '#A855F7';
     default:
-      return theme.colors.onSurface;
+      return '#999';
   }
 };
 
@@ -61,29 +57,16 @@ const getStatusLabel = (status: StoreOrder['status']) => {
       return 'Picked Up';
     case 'cancelled':
       return 'Cancelled';
+    case 'refunded':
+      return 'Refunded';
     default:
       return status;
   }
 };
 
-const FILTER_OPTIONS = [
-  { id: 'all', label: 'All Orders' },
-  { id: '30days', label: 'Last 30 Days' },
-  { id: '3months', label: 'Last 3 Months' },
-  { id: 'thisyear', label: 'This Year' },
-];
-
-const STATUS_FILTERS = [
-  { id: 'all', label: 'All' },
-  { id: 'pending', label: 'Pending' },
-  { id: 'processing', label: 'Processing' },
-  { id: 'shipped', label: 'Shipped' },
-  { id: 'delivered', label: 'Delivered' },
-  { id: 'cancelled', label: 'Cancelled' },
-];
+const STATUS_FILTERS = ['All', 'Active', 'Delivered', 'Cancelled', 'Refunded'];
 
 export default function OrdersScreen() {
-  const theme = useTheme();
   const { user } = useAuth();
 
   const [orders, setOrders] = useState<StoreOrder[]>([]);
@@ -91,10 +74,7 @@ export default function OrdersScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTimeFilter, setSelectedTimeFilter] = useState('all');
-  const [selectedStatusFilter, setSelectedStatusFilter] = useState('all');
-  const [selectedOrder, setSelectedOrder] = useState<StoreOrder | null>(null);
-  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState('All');
 
   useEffect(() => {
     if (user) {
@@ -104,7 +84,7 @@ export default function OrdersScreen() {
 
   useEffect(() => {
     filterOrders();
-  }, [orders, searchQuery, selectedTimeFilter, selectedStatusFilter]);
+  }, [orders, searchQuery, selectedStatus]);
 
   const loadOrders = async () => {
     if (!user) return;
@@ -143,33 +123,21 @@ export default function OrdersScreen() {
       );
     }
 
-    // Time filter
-    if (selectedTimeFilter !== 'all') {
-      const now = new Date();
-      const filterDate = new Date();
-
-      switch (selectedTimeFilter) {
-        case '30days':
-          filterDate.setDate(now.getDate() - 30);
-          break;
-        case '3months':
-          filterDate.setMonth(now.getMonth() - 3);
-          break;
-        case 'thisyear':
-          filterDate.setMonth(0);
-          filterDate.setDate(1);
-          break;
-      }
-
-      filtered = filtered.filter((order) => {
-        const orderDate = order.createdAt?.toDate ? order.createdAt.toDate() : new Date(order.createdAt);
-        return orderDate >= filterDate;
-      });
-    }
-
     // Status filter
-    if (selectedStatusFilter !== 'all') {
-      filtered = filtered.filter((order) => order.status === selectedStatusFilter);
+    if (selectedStatus !== 'All') {
+      if (selectedStatus === 'Active') {
+        filtered = filtered.filter((order) =>
+          ['pending', 'processing', 'shipped'].includes(order.status)
+        );
+      } else if (selectedStatus === 'Delivered') {
+        filtered = filtered.filter((order) =>
+          ['delivered', 'picked_up'].includes(order.status)
+        );
+      } else if (selectedStatus === 'Cancelled') {
+        filtered = filtered.filter((order) => order.status === 'cancelled');
+      } else if (selectedStatus === 'Refunded') {
+        filtered = filtered.filter((order) => order.status === 'refunded');
+      }
     }
 
     setFilteredOrders(filtered);
@@ -186,445 +154,254 @@ export default function OrdersScreen() {
     });
   };
 
-  const openOrderDetail = (order: StoreOrder) => {
-    setSelectedOrder(order);
-    setDetailModalVisible(true);
-  };
-
-  const renderOrder = ({ item }: { item: StoreOrder }) => {
+  const renderOrder = (order: StoreOrder) => {
     return (
       <TouchableOpacity
-        onPress={() => openOrderDetail(item)}
-        activeOpacity={0.7}
+        key={order.id}
+        style={styles.orderCard}
+        onPress={() => router.push(`/(tabs)/store/${order.itemId}`)}
+        activeOpacity={0.9}
       >
-        <Surface style={[styles.orderCard, { backgroundColor: theme.colors.surface }]} elevation={0}>
-          <View style={styles.orderHeader}>
-            <View style={{ flex: 1 }}>
-              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                Order #{item.id.slice(-8).toUpperCase()}
-              </Text>
-              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                {formatDate(item.createdAt)}
-              </Text>
-            </View>
-
-            <Chip
-              textStyle={{ fontSize: 12, color: getStatusColor(item.status, theme) }}
-              style={{
-                backgroundColor: `${getStatusColor(item.status, theme)}20`,
-              }}
-            >
-              {getStatusLabel(item.status)}
-            </Chip>
-          </View>
-
-          <Divider style={{ marginVertical: 12 }} />
-
-          <View style={styles.orderBody}>
-            <View style={styles.itemInfo}>
-              {item.itemImage && (
-                <Image source={{ uri: item.itemImage }} style={styles.itemImage} />
-              )}
-
-              <View style={{ flex: 1 }}>
-                <Text variant="titleMedium" numberOfLines={2} style={{ fontWeight: '600' }}>
-                  {item.itemName}
-                </Text>
-
-                <Text variant="bodyMedium" style={{ color: theme.colors.primary, marginTop: 4 }}>
-                  {item.clubName}
-                </Text>
-
-                <View style={styles.orderDetails}>
-                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                    Qty: {item.quantity}
-                  </Text>
-
-                  {item.selectedVariants && Object.keys(item.selectedVariants).length > 0 && (
-                    <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                      {' • '}
-                      {Object.entries(item.selectedVariants)
-                        .map(([key, value]) => `${key}: ${value}`)
-                        .join(', ')}
-                    </Text>
-                  )}
-                </View>
-
-                <View style={styles.deliveryInfo}>
-                  <Chip
-                    icon={item.deliveryMethod === 'shipping' ? 'truck-delivery' : 'map-marker'}
-                    compact
-                    textStyle={{ fontSize: 11 }}
-                    style={{ height: 24 }}
-                  >
-                    {item.deliveryMethod === 'shipping' ? 'Shipping' : 'Pickup'}
-                  </Chip>
-                </View>
-              </View>
-            </View>
-
-            {item.shippingAddress && (
-              <View style={styles.addressSection}>
-                <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-                  Shipping To:
-                </Text>
-                <Text variant="bodySmall">
-                  {item.shippingAddress.fullName}
-                </Text>
-                <Text variant="bodySmall">
-                  {item.shippingAddress.addressLine1}
-                </Text>
-                <Text variant="bodySmall">
-                  {item.shippingAddress.city}, {item.shippingAddress.state}{' '}
-                  {item.shippingAddress.zipCode}
-                </Text>
+        <BlurView intensity={20} tint="dark" style={styles.orderCardBlur}>
+          <View style={styles.orderCardContent}>
+            {/* Left: Product Image */}
+            {order.itemImage ? (
+              <Image
+                source={{ uri: order.itemImage }}
+                style={styles.orderImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.orderImagePlaceholder}>
+                <Ionicons name="image-outline" size={32} color="rgba(255,255,255,0.3)" />
               </View>
             )}
-          </View>
 
-          <Divider style={{ marginVertical: 12 }} />
+            {/* Right: Order Details */}
+            <View style={styles.orderDetails}>
+              <View style={styles.orderHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.orderTitle} numberOfLines={2}>
+                    {order.itemName}
+                  </Text>
+                  <Text style={styles.orderClub} numberOfLines={1}>
+                    {order.clubName}
+                  </Text>
+                </View>
 
-          <View style={styles.orderFooter}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text variant="titleLarge" style={{ fontWeight: 'bold' }}>
-                ${item.totalAmount.toFixed(2)}
-              </Text>
-              <Button mode="outlined" compact onPress={() => router.push(`/(tabs)/store/${item.itemId}`)}>
-                View Product
-              </Button>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    { backgroundColor: `${getStatusColor(order.status)}20`, borderColor: getStatusColor(order.status) },
+                  ]}
+                >
+                  <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}>
+                    {getStatusLabel(order.status)}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.orderMeta}>
+                <View style={styles.orderMetaRow}>
+                  <Ionicons name="calendar-outline" size={12} color="rgba(255,255,255,0.6)" />
+                  <Text style={styles.orderMetaText}>{formatDate(order.createdAt)}</Text>
+                </View>
+                <View style={styles.orderMetaRow}>
+                  <Ionicons
+                    name={order.deliveryMethod === 'shipping' ? 'cube-outline' : 'location-outline'}
+                    size={12}
+                    color="rgba(255,255,255,0.6)"
+                  />
+                  <Text style={styles.orderMetaText}>
+                    {order.deliveryMethod === 'shipping' ? 'Shipping' : 'Pickup'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.orderFooter}>
+                <View style={styles.orderQuantity}>
+                  <Text style={styles.quantityText}>Qty: {order.quantity}</Text>
+                </View>
+                <Text style={styles.orderPrice}>${order.totalAmount.toFixed(2)}</Text>
+              </View>
             </View>
           </View>
-        </Surface>
+        </BlurView>
       </TouchableOpacity>
     );
   };
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" />
+      <View style={styles.container}>
+        <View style={StyleSheet.absoluteFill}>
+          <View style={styles.blackBackground} />
         </View>
-      </SafeAreaView>
+
+        <LinearGradient
+          colors={['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', 'rgba(0, 0, 0, 0)']}
+          locations={[0, 0.3, 1]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#60A5FA" />
+          </View>
+        </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.colors.surface }]}>
-        <View style={styles.headerTop}>
-          <IconButton icon="arrow-left" onPress={() => router.back()} />
-          <Text variant="headlineSmall" style={{ fontWeight: 'bold', flex: 1, color: theme.colors.onSurface }}>
-            Your Orders
-          </Text>
-        </View>
-
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <Ionicons name="search-outline" size={20} color="#999" style={styles.searchIcon} />
-          <TextInput
-            placeholder="Search orders..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            style={styles.searchInput}
-            placeholderTextColor="#999"
-          />
-        </View>
-
-        {/* Time Filter Pills */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterContainer}
-        >
-          {FILTER_OPTIONS.map((filter) => (
-            <TouchableOpacity
-              key={filter.id}
-              style={[
-                styles.filterPill,
-                selectedTimeFilter === filter.id && [styles.filterPillActive, { backgroundColor: theme.colors.primary }],
-              ]}
-              onPress={() => setSelectedTimeFilter(filter.id)}
-            >
-              <Text
-                style={[
-                  styles.filterPillText,
-                  selectedTimeFilter === filter.id && styles.filterPillTextActive,
-                ]}
-              >
-                {filter.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {/* Status Filter Pills */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.statusFilterContainer}
-        >
-          {STATUS_FILTERS.map((filter) => (
-            <TouchableOpacity
-              key={filter.id}
-              style={[
-                styles.statusFilterPill,
-                selectedStatusFilter === filter.id && [styles.statusFilterPillActive, { borderColor: theme.colors.primary }],
-              ]}
-              onPress={() => setSelectedStatusFilter(filter.id)}
-            >
-              <Text
-                style={[
-                  styles.statusFilterPillText,
-                  selectedStatusFilter === filter.id && [styles.statusFilterPillTextActive, { color: theme.colors.primary }],
-                ]}
-              >
-                {filter.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {/* Results Count */}
-        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, paddingHorizontal: 16, paddingBottom: 8 }}>
-          {filteredOrders.length} {filteredOrders.length === 1 ? 'order' : 'orders'}
-        </Text>
+    <View style={styles.container}>
+      {/* Black Background */}
+      <View style={StyleSheet.absoluteFill}>
+        <View style={styles.blackBackground} />
       </View>
 
-      {orders.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="receipt-outline" size={64} color="#ccc" />
-          <Text variant="titleMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 16 }}>
-            No orders yet
-          </Text>
-          <Text
-            variant="bodyMedium"
-            style={{ color: theme.colors.onSurfaceVariant, marginTop: 8, textAlign: 'center' }}
-          >
-            Your order history will appear here
-          </Text>
-          <Button mode="contained" style={{ marginTop: 24 }} onPress={() => router.push('/(tabs)/store')}>
-            Start Shopping
-          </Button>
-        </View>
-      ) : filteredOrders.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="search-outline" size={64} color="#ccc" />
-          <Text variant="titleMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 16 }}>
-            No orders found
-          </Text>
-          <Text
-            variant="bodyMedium"
-            style={{ color: theme.colors.onSurfaceVariant, marginTop: 8, textAlign: 'center' }}
-          >
-            Try adjusting your filters
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredOrders}
-          renderItem={renderOrder}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        />
-      )}
+      {/* Subtle Gradient Overlay */}
+      <LinearGradient
+        colors={['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', 'rgba(0, 0, 0, 0)']}
+        locations={[0, 0.3, 1]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
 
-      {/* Order Detail Modal */}
-      <Portal>
-        <Modal
-          visible={detailModalVisible}
-          onDismiss={() => setDetailModalVisible(false)}
-          contentContainerStyle={[styles.modalContent, { backgroundColor: theme.colors.surface }]}
-        >
-          {selectedOrder && (
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Modal Header */}
-              <View style={styles.modalHeader}>
-                <Text variant="headlineSmall" style={{ fontWeight: 'bold' }}>
-                  Order Details
-                </Text>
-                <IconButton icon="close" onPress={() => setDetailModalVisible(false)} />
-              </View>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
+              <BlurView intensity={20} tint="dark" style={styles.backButton}>
+                <Ionicons name="arrow-back" size={24} color="#fff" />
+              </BlurView>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Your Orders</Text>
+          </View>
 
-              {/* Order ID & Date */}
-              <View style={styles.modalSection}>
-                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                  Order #{selectedOrder.id.slice(-8).toUpperCase()}
-                </Text>
-                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}>
-                  Placed on {formatDate(selectedOrder.createdAt)}
-                </Text>
-              </View>
+          {/* Search Bar */}
+          <BlurView intensity={20} tint="dark" style={styles.searchBarContainer}>
+            <View style={styles.searchInputWrapper}>
+              <Ionicons
+                name="search-outline"
+                size={20}
+                color="rgba(255,255,255,0.7)"
+                style={styles.searchIcon}
+              />
+              <TextInput
+                placeholder="Search orders..."
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                style={styles.searchInput}
+                placeholderTextColor="rgba(255,255,255,0.5)"
+              />
+            </View>
+          </BlurView>
 
-              <Divider />
-
-              {/* Status */}
-              <View style={styles.modalSection}>
-                <Text variant="labelLarge" style={{ marginBottom: 8 }}>
-                  Order Status
-                </Text>
-                <Chip
-                  textStyle={{ fontSize: 14, color: getStatusColor(selectedOrder.status, theme) }}
-                  style={{
-                    backgroundColor: `${getStatusColor(selectedOrder.status, theme)}20`,
-                    alignSelf: 'flex-start',
-                  }}
+          {/* Simplified Status Filter */}
+          <View style={styles.filterContainer}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterContent}
+            >
+              {STATUS_FILTERS.map((status) => (
+                <TouchableOpacity
+                  key={status}
+                  onPress={() => setSelectedStatus(status)}
+                  activeOpacity={0.7}
                 >
-                  {getStatusLabel(selectedOrder.status)}
-                </Chip>
-              </View>
-
-              <Divider />
-
-              {/* Product Info */}
-              <View style={styles.modalSection}>
-                <Text variant="labelLarge" style={{ marginBottom: 12 }}>
-                  Product Details
-                </Text>
-                <View style={{ flexDirection: 'row', gap: 12 }}>
-                  {selectedOrder.itemImage && (
-                    <Image source={{ uri: selectedOrder.itemImage }} style={styles.modalItemImage} />
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <Text variant="titleMedium" style={{ fontWeight: '600' }}>
-                      {selectedOrder.itemName}
+                  <BlurView
+                    intensity={selectedStatus === status ? 30 : 15}
+                    tint="dark"
+                    style={[
+                      styles.filterChip,
+                      selectedStatus === status && styles.filterChipSelected,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.filterText,
+                        selectedStatus === status && styles.filterTextSelected,
+                      ]}
+                    >
+                      {status}
                     </Text>
-                    <Text variant="bodyMedium" style={{ color: theme.colors.primary, marginTop: 4 }}>
-                      {selectedOrder.clubName}
-                    </Text>
-                    <Text variant="bodySmall" style={{ marginTop: 8, color: theme.colors.onSurfaceVariant }}>
-                      Quantity: {selectedOrder.quantity}
-                    </Text>
-                    {selectedOrder.selectedVariants && Object.keys(selectedOrder.selectedVariants).length > 0 && (
-                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                        {Object.entries(selectedOrder.selectedVariants)
-                          .map(([key, value]) => `${key}: ${value}`)
-                          .join(' • ')}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-              </View>
-
-              <Divider />
-
-              {/* Delivery Info */}
-              <View style={styles.modalSection}>
-                <Text variant="labelLarge" style={{ marginBottom: 12 }}>
-                  Delivery Information
-                </Text>
-                <Chip
-                  icon={selectedOrder.deliveryMethod === 'shipping' ? 'truck-delivery' : 'map-marker'}
-                  style={{ alignSelf: 'flex-start' }}
-                >
-                  {selectedOrder.deliveryMethod === 'shipping' ? 'Shipping' : 'Pickup'}
-                </Chip>
-                {selectedOrder.shippingAddress && (
-                  <View style={{ marginTop: 12, padding: 12, backgroundColor: theme.colors.surfaceVariant, borderRadius: 8 }}>
-                    <Text variant="bodyMedium" style={{ fontWeight: '600' }}>
-                      {selectedOrder.shippingAddress.fullName}
-                    </Text>
-                    <Text variant="bodySmall" style={{ marginTop: 4 }}>
-                      {selectedOrder.shippingAddress.addressLine1}
-                    </Text>
-                    {selectedOrder.shippingAddress.addressLine2 && (
-                      <Text variant="bodySmall">{selectedOrder.shippingAddress.addressLine2}</Text>
-                    )}
-                    <Text variant="bodySmall">
-                      {selectedOrder.shippingAddress.city}, {selectedOrder.shippingAddress.state}{' '}
-                      {selectedOrder.shippingAddress.zipCode}
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              <Divider />
-
-              {/* Price Breakdown */}
-              <View style={styles.modalSection}>
-                <Text variant="labelLarge" style={{ marginBottom: 12 }}>
-                  Order Summary
-                </Text>
-
-                <View style={styles.priceRow}>
-                  <Text variant="bodyMedium">Item Subtotal</Text>
-                  <Text variant="bodyMedium">${selectedOrder.price.toFixed(2)}</Text>
-                </View>
-
-                {selectedOrder.shipping > 0 && (
-                  <View style={styles.priceRow}>
-                    <Text variant="bodyMedium">Shipping</Text>
-                    <Text variant="bodyMedium">${selectedOrder.shipping.toFixed(2)}</Text>
-                  </View>
-                )}
-
-                <Divider style={{ marginVertical: 8 }} />
-
-                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8 }}>
-                  Taxes & Fees
-                </Text>
-
-                {selectedOrder.tax > 0 && (
-                  <View style={styles.priceRow}>
-                    <Text variant="bodySmall">Sales Tax</Text>
-                    <Text variant="bodySmall">${selectedOrder.tax.toFixed(2)}</Text>
-                  </View>
-                )}
-
-                {(selectedOrder as any).adminFee > 0 && (
-                  <View style={styles.priceRow}>
-                    <Text variant="bodySmall">Admin Fee</Text>
-                    <Text variant="bodySmall">${(selectedOrder as any).adminFee.toFixed(2)}</Text>
-                  </View>
-                )}
-
-                {(selectedOrder as any).transactionFee > 0 && (
-                  <View style={styles.priceRow}>
-                    <Text variant="bodySmall">Transaction Fee</Text>
-                    <Text variant="bodySmall">${(selectedOrder as any).transactionFee.toFixed(2)}</Text>
-                  </View>
-                )}
-
-                <Divider style={{ marginVertical: 8 }} />
-
-                <View style={styles.priceRow}>
-                  <Text variant="titleMedium" style={{ fontWeight: 'bold' }}>
-                    Order Total
-                  </Text>
-                  <Text variant="titleMedium" style={{ fontWeight: 'bold', color: theme.colors.primary }}>
-                    ${selectedOrder.totalAmount.toFixed(2)}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Action Buttons */}
-              <View style={styles.modalActions}>
-                <Button
-                  mode="outlined"
-                  style={{ flex: 1 }}
-                  onPress={() => {
-                    setDetailModalVisible(false);
-                    router.push(`/(tabs)/store/${selectedOrder.itemId}`);
-                  }}
-                >
-                  View Product
-                </Button>
-                <Button mode="contained" style={{ flex: 1 }} onPress={() => setDetailModalVisible(false)}>
-                  Close
-                </Button>
-              </View>
+                  </BlurView>
+                </TouchableOpacity>
+              ))}
             </ScrollView>
-          )}
-        </Modal>
-      </Portal>
-    </SafeAreaView>
+          </View>
+        </View>
+
+        {orders.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <BlurView intensity={20} tint="dark" style={styles.emptyCard}>
+              <View style={styles.emptyContent}>
+                <IconButton icon="receipt-outline" size={64} iconColor="rgba(255,255,255,0.5)" />
+                <Text style={styles.emptyTitle}>No orders yet</Text>
+                <Text style={styles.emptyText}>
+                  Your order history will appear here
+                </Text>
+                <TouchableOpacity
+                  onPress={() => router.push('/(tabs)/store')}
+                  activeOpacity={0.7}
+                >
+                  <BlurView intensity={30} tint="dark" style={styles.shopButton}>
+                    <View style={styles.shopButtonInner}>
+                      <IconButton icon="shopping" iconColor="#60A5FA" size={20} style={{ margin: 0 }} />
+                      <Text style={styles.shopButtonText}>Start Shopping</Text>
+                    </View>
+                  </BlurView>
+                </TouchableOpacity>
+              </View>
+            </BlurView>
+          </View>
+        ) : filteredOrders.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <BlurView intensity={20} tint="dark" style={styles.emptyCard}>
+              <View style={styles.emptyContent}>
+                <IconButton icon="search-outline" size={64} iconColor="rgba(255,255,255,0.5)" />
+                <Text style={styles.emptyTitle}>No orders found</Text>
+                <Text style={styles.emptyText}>
+                  Try adjusting your search or filters
+                </Text>
+              </View>
+            </BlurView>
+          </View>
+        ) : (
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />
+            }
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.ordersSection}>
+              <Text style={styles.sectionTitle}>
+                {filteredOrders.length} {filteredOrders.length === 1 ? 'Order' : 'Orders'}
+              </Text>
+              {filteredOrders.map((order) => renderOrder(order))}
+            </View>
+          </ScrollView>
+        )}
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  blackBackground: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  safeArea: {
     flex: 1,
   },
   loadingContainer: {
@@ -633,29 +410,41 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   header: {
-    paddingBottom: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
   },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingTop: 8,
+    gap: 12,
   },
-  searchContainer: {
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  searchBarContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  searchInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
     paddingHorizontal: 12,
-    marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 16,
-    height: 44,
+    height: 48,
   },
   searchIcon: {
     marginRight: 8,
@@ -665,129 +454,191 @@ const styles = StyleSheet.create({
     fontSize: 15,
     padding: 0,
     margin: 0,
-  },
-  filterContainer: {
-    paddingHorizontal: 16,
-    gap: 8,
-    marginBottom: 12,
-  },
-  filterPill: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#F5F5F5',
-  },
-  filterPillActive: {
-    // backgroundColor set dynamically
-  },
-  filterPillText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#666',
-  },
-  filterPillTextActive: {
     color: '#fff',
   },
-  statusFilterContainer: {
-    paddingHorizontal: 16,
+  filterContainer: {
+    marginTop: 4,
+  },
+  filterContent: {
     gap: 8,
-    marginBottom: 8,
+    paddingRight: 16,
   },
-  statusFilterPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 16,
+  filterChip: {
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    backgroundColor: '#fff',
+    borderColor: 'rgba(255,255,255,0.1)',
+    overflow: 'hidden',
   },
-  statusFilterPillActive: {
-    // borderColor set dynamically
+  filterChipSelected: {
+    borderColor: '#60A5FA',
   },
-  statusFilterPillText: {
-    fontSize: 12,
+  filterText: {
+    fontSize: 13,
     fontWeight: '600',
-    color: '#666',
+    color: 'rgba(255,255,255,0.7)',
   },
-  statusFilterPillTextActive: {
-    // color set dynamically
+  filterTextSelected: {
+    color: '#ffffff',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 100,
+  },
+  ordersSection: {
+    paddingHorizontal: 16,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  orderCard: {
+    marginBottom: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  orderCardBlur: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  orderCardContent: {
+    flexDirection: 'row',
+    padding: 12,
+    gap: 12,
+  },
+  orderImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+  },
+  orderImagePlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  orderDetails: {
+    flex: 1,
+    gap: 8,
+  },
+  orderHeader: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'flex-start',
+  },
+  orderTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#ffffff',
+    lineHeight: 20,
+  },
+  orderClub: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#60A5FA',
+    marginTop: 2,
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  orderMeta: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  orderMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  orderMetaText: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.6)',
+  },
+  orderFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  orderQuantity: {
+    backgroundColor: 'rgba(96, 165, 250, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  quantityText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#60A5FA',
+  },
+  orderPrice: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#60A5FA',
+    letterSpacing: -0.5,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 48,
+    padding: 40,
   },
-  listContent: {
-    padding: 16,
-  },
-  orderCard: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    backgroundColor: '#fff',
-  },
-  orderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  orderBody: {
-    gap: 12,
-  },
-  itemInfo: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  itemImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-  },
-  orderDetails: {
-    flexDirection: 'row',
-    marginTop: 4,
-  },
-  deliveryInfo: {
-    marginTop: 8,
-  },
-  addressSection: {
-    marginTop: 8,
-    padding: 12,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    borderRadius: 8,
-  },
-  orderFooter: {},
-  priceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  modalContent: {
-    margin: 20,
+  emptyCard: {
     borderRadius: 16,
-    maxHeight: '85%',
-    padding: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  emptyContent: {
     alignItems: 'center',
-    marginBottom: 16,
+    padding: 32,
   },
-  modalSection: {
-    paddingVertical: 16,
-  },
-  modalItemImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 12,
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#ffffff',
     marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    textAlign: 'center',
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 24,
+  },
+  shopButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  shopButtonInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  shopButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#60A5FA',
   },
 });

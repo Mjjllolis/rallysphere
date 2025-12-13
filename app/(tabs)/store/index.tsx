@@ -4,7 +4,6 @@ import {
   View,
   StyleSheet,
   ScrollView,
-  FlatList,
   Image,
   TouchableOpacity,
   RefreshControl,
@@ -28,7 +27,8 @@ import FilterPanel from '../../../components/FilterPanel';
 import { BlurView } from 'expo-blur';
 
 const { width } = Dimensions.get('window');
-const CARD_WIDTH = (width - 48) / 2;
+const FEATURED_CARD_WIDTH = width * 0.75;
+const FEATURED_CARD_HEIGHT = 280;
 
 const BASE_CATEGORIES = [
   { id: 'all', label: 'Everything' },
@@ -188,6 +188,7 @@ export default function StoreScreen() {
 
   const [items, setItems] = useState<StoreItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<StoreItem[]>([]);
+  const [featuredItems, setFeaturedItems] = useState<StoreItem[]>([]);
   const [categories, setCategories] = useState(BASE_CATEGORIES);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -216,6 +217,12 @@ export default function StoreScreen() {
       const allItems = result.success ? [...result.items, ...MOCK_ITEMS] : MOCK_ITEMS;
       setItems(allItems);
 
+      // Get featured items (top sellers or newest)
+      const featured = [...allItems]
+        .sort((a, b) => b.sold - a.sold)
+        .slice(0, 5);
+      setFeaturedItems(featured);
+
       // Extract unique categories from all items
       const uniqueCategories = new Set<string>();
       allItems.forEach((item) => {
@@ -235,8 +242,12 @@ export default function StoreScreen() {
       setCategories(dynamicCategories);
     } catch (error) {
       console.error('Error loading store items:', error);
-      // If Firebase fails, still show mock items
       setItems(MOCK_ITEMS);
+
+      const featured = [...MOCK_ITEMS]
+        .sort((a, b) => b.sold - a.sold)
+        .slice(0, 5);
+      setFeaturedItems(featured);
 
       const uniqueCategories = new Set<string>();
       MOCK_ITEMS.forEach((item) => {
@@ -302,72 +313,144 @@ export default function StoreScreen() {
     setFilteredItems(filtered);
   };
 
-  const renderStoreItem = ({ item }: { item: StoreItem }) => {
+  const renderFeaturedCard = (item: StoreItem) => {
     const inStock = item.inventory > item.sold;
+    const lowStock = inStock && (item.inventory - item.sold) < 10;
 
     return (
       <TouchableOpacity
-        style={styles.card}
+        key={item.id}
+        style={styles.featuredCard}
         onPress={() => router.push(`/(tabs)/store/${item.id}`)}
         activeOpacity={0.9}
       >
-        <BlurView intensity={20} tint="dark" style={styles.cardBlur}>
-          {/* Image Container */}
-          <View style={styles.imageContainer}>
-            {item.images && item.images.length > 0 ? (
-              <>
-                <Image
-                  source={{ uri: item.images[0] }}
-                  style={styles.itemImage}
-                  resizeMode="cover"
-                />
-                {!inStock && (
-                  <View style={styles.soldOutOverlay}>
-                    <LinearGradient
-                      colors={['rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
-                      style={styles.soldOutGradient}
-                    >
-                      <Text style={styles.soldOutText}>SOLD OUT</Text>
-                    </LinearGradient>
-                  </View>
-                )}
-                {/* Category Badge */}
-                {item.category && (
-                  <View style={styles.categoryBadge}>
-                    <Text style={styles.categoryBadgeText}>{item.category}</Text>
-                  </View>
-                )}
-              </>
-            ) : (
-              <View style={styles.placeholderImage}>
-                <Ionicons name="image-outline" size={40} color="rgba(255,255,255,0.5)" />
-              </View>
-            )}
-          </View>
-
-          {/* Product Info */}
-          <View style={styles.cardContent}>
-            {/* Club Name Badge */}
-            <View style={styles.clubBadge}>
-              <Ionicons name="people" size={12} color="#60A5FA" />
-              <Text style={styles.clubText} numberOfLines={1}>
-                {item.clubName}
-              </Text>
+        <BlurView intensity={20} tint="dark" style={styles.featuredCardBlur}>
+          {/* Product Image */}
+          {item.images && item.images.length > 0 ? (
+            <Image
+              source={{ uri: item.images[0] }}
+              style={styles.featuredImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.featuredImagePlaceholder}>
+              <Ionicons name="image-outline" size={64} color="rgba(255,255,255,0.3)" />
             </View>
+          )}
 
-            {/* Product Name */}
-            <Text style={styles.itemName} numberOfLines={2}>
-              {item.name}
-            </Text>
+          {/* Gradient Overlay */}
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.9)']}
+            style={styles.featuredGradient}
+          />
 
-            {/* Price and Stock Row */}
-            <View style={styles.priceRow}>
-              <Text style={styles.price}>${item.price.toFixed(0)}</Text>
-              {inStock && item.inventory - item.sold < 10 && (
-                <View style={styles.stockBadge}>
-                  <Text style={styles.stockText}>{item.inventory - item.sold} left</Text>
+          {/* Content */}
+          <View style={styles.featuredContent}>
+            {/* Top badges */}
+            <View style={styles.featuredBadges}>
+              {item.category && (
+                <View style={styles.categoryBadge}>
+                  <Text style={styles.categoryBadgeText}>{item.category}</Text>
                 </View>
               )}
+              {lowStock && (
+                <View style={styles.lowStockBadge}>
+                  <Text style={styles.lowStockBadgeText}>
+                    {item.inventory - item.sold} left
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Product Info */}
+            <View style={styles.featuredInfo}>
+              <View style={styles.featuredClubBadge}>
+                <Ionicons name="people" size={12} color="#60A5FA" />
+                <Text style={styles.featuredClubText} numberOfLines={1}>
+                  {item.clubName}
+                </Text>
+              </View>
+              <Text style={styles.featuredTitle} numberOfLines={2}>
+                {item.name}
+              </Text>
+              <Text style={styles.featuredPrice}>${item.price.toFixed(0)}</Text>
+            </View>
+          </View>
+
+          {!inStock && (
+            <View style={styles.soldOutOverlay}>
+              <View style={styles.soldOutBadge}>
+                <Text style={styles.soldOutText}>SOLD OUT</Text>
+              </View>
+            </View>
+          )}
+        </BlurView>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderProductCard = (item: StoreItem) => {
+    const inStock = item.inventory > item.sold;
+    const lowStock = inStock && (item.inventory - item.sold) < 10;
+
+    return (
+      <TouchableOpacity
+        key={item.id}
+        style={styles.productCard}
+        onPress={() => router.push(`/(tabs)/store/${item.id}`)}
+        activeOpacity={0.9}
+      >
+        <BlurView intensity={20} tint="dark" style={styles.productCardBlur}>
+          <View style={styles.productCardContent}>
+            {/* Left: Product Image */}
+            {item.images && item.images.length > 0 ? (
+              <Image
+                source={{ uri: item.images[0] }}
+                style={styles.productImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.productImagePlaceholder}>
+                <Ionicons name="image-outline" size={32} color="rgba(255,255,255,0.3)" />
+              </View>
+            )}
+
+            {/* Right: Product Details */}
+            <View style={styles.productDetails}>
+              <View style={styles.productHeader}>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.productClubBadge}>
+                    <Ionicons name="people" size={10} color="#60A5FA" />
+                    <Text style={styles.productClubText} numberOfLines={1}>
+                      {item.clubName}
+                    </Text>
+                  </View>
+                  <Text style={styles.productTitle} numberOfLines={2}>
+                    {item.name}
+                  </Text>
+                  {item.category && (
+                    <Text style={styles.productCategory}>{item.category}</Text>
+                  )}
+                </View>
+              </View>
+
+              <View style={styles.productFooter}>
+                <Text style={styles.productPrice}>${item.price.toFixed(0)}</Text>
+
+                <View style={styles.productBadges}>
+                  {!inStock ? (
+                    <View style={styles.outOfStockBadge}>
+                      <Text style={styles.outOfStockText}>Out of Stock</Text>
+                    </View>
+                  ) : lowStock ? (
+                    <View style={styles.productLowStockBadge}>
+                      <Text style={styles.productLowStockText}>
+                        {item.inventory - item.sold} left
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
             </View>
           </View>
         </BlurView>
@@ -378,12 +461,10 @@ export default function StoreScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        {/* Black Background */}
         <View style={StyleSheet.absoluteFill}>
           <View style={styles.blackBackground} />
         </View>
 
-        {/* Subtle Gradient Overlay */}
         <LinearGradient
           colors={['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', 'rgba(0, 0, 0, 0)']}
           locations={[0, 0.3, 1]}
@@ -425,7 +506,12 @@ export default function StoreScreen() {
             {/* Search Bar */}
             <BlurView intensity={20} tint="dark" style={styles.searchBarContainer}>
               <View style={styles.searchInputWrapper}>
-                <Ionicons name="search-outline" size={20} color="rgba(255,255,255,0.7)" style={styles.searchIcon} />
+                <Ionicons
+                  name="search-outline"
+                  size={20}
+                  color="rgba(255,255,255,0.7)"
+                  style={styles.searchIcon}
+                />
                 <TextInput
                   placeholder="Search products..."
                   value={searchQuery}
@@ -444,7 +530,12 @@ export default function StoreScreen() {
                 activeOpacity={0.7}
               >
                 <BlurView intensity={20} tint="dark" style={styles.actionButton}>
-                  <IconButton icon="tune" iconColor="rgba(255,255,255,0.9)" size={20} style={{ margin: 0 }} />
+                  <IconButton
+                    icon="tune"
+                    iconColor="rgba(255,255,255,0.9)"
+                    size={20}
+                    style={{ margin: 0 }}
+                  />
                 </BlurView>
               </TouchableOpacity>
 
@@ -454,7 +545,12 @@ export default function StoreScreen() {
                 activeOpacity={0.7}
               >
                 <BlurView intensity={20} tint="dark" style={styles.actionButton}>
-                  <IconButton icon="receipt" iconColor="rgba(255,255,255,0.9)" size={20} style={{ margin: 0 }} />
+                  <IconButton
+                    icon="receipt"
+                    iconColor="rgba(255,255,255,0.9)"
+                    size={20}
+                    style={{ margin: 0 }}
+                  />
                 </BlurView>
               </TouchableOpacity>
 
@@ -464,7 +560,12 @@ export default function StoreScreen() {
                 activeOpacity={0.7}
               >
                 <BlurView intensity={20} tint="dark" style={styles.actionButton}>
-                  <IconButton icon="heart" iconColor="rgba(255,255,255,0.9)" size={20} style={{ margin: 0 }} />
+                  <IconButton
+                    icon="heart"
+                    iconColor="rgba(255,255,255,0.9)"
+                    size={20}
+                    style={{ margin: 0 }}
+                  />
                   {favoritesCount > 0 && (
                     <View style={styles.badge}>
                       <Text style={styles.badgeText}>{favoritesCount}</Text>
@@ -476,39 +577,58 @@ export default function StoreScreen() {
           </View>
         </View>
 
-        {/* Items Grid */}
-        {filteredItems.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <BlurView intensity={20} tint="dark" style={styles.emptyCard}>
-              <View style={styles.emptyContent}>
-                <IconButton icon="shopping-outline" size={64} iconColor="rgba(255,255,255,0.5)" />
-                <Text style={styles.emptyTitle}>
-                  {searchQuery ? 'No items found' : 'No items available'}
-                </Text>
-                <Text style={styles.emptySubtitle}>
-                  {searchQuery ? 'Try a different search' : 'Check back soon'}
-                </Text>
-              </View>
-            </BlurView>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#fff"
+            />
+          }
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Featured Carousel */}
+          {featuredItems.length > 0 && !searchQuery && (
+            <View style={styles.featuredSection}>
+              <Text style={styles.sectionTitle}>Featured Products</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.featuredCarousel}
+                decelerationRate="fast"
+                snapToInterval={FEATURED_CARD_WIDTH + 16}
+                snapToAlignment="start"
+              >
+                {featuredItems.map((item) => renderFeaturedCard(item))}
+              </ScrollView>
+            </View>
+          )}
+
+          {/* All Products List */}
+          <View style={styles.productsSection}>
+            <Text style={styles.sectionTitle}>All Products</Text>
+
+            {filteredItems.length > 0 ? (
+              filteredItems.map((item) => renderProductCard(item))
+            ) : (
+              <BlurView intensity={20} tint="dark" style={styles.emptyCard}>
+                <View style={styles.emptyContent}>
+                  <IconButton
+                    icon="shopping-outline"
+                    size={64}
+                    iconColor="rgba(255,255,255,0.5)"
+                  />
+                  <Text style={styles.emptyTitle}>No products found</Text>
+                  <Text style={styles.emptyText}>
+                    {searchQuery ? 'Try a different search' : 'Check back soon'}
+                  </Text>
+                </View>
+              </BlurView>
+            )}
           </View>
-        ) : (
-          <FlatList
-            data={filteredItems}
-            renderItem={renderStoreItem}
-            keyExtractor={(item) => item.id}
-            numColumns={2}
-            contentContainerStyle={styles.gridContainer}
-            columnWrapperStyle={styles.row}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor="#fff"
-              />
-            }
-            showsVerticalScrollIndicator={false}
-          />
-        )}
+        </ScrollView>
 
         {/* Filter Panel */}
         <FilterPanel
@@ -617,42 +737,119 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fff',
   },
-  gridContainer: {
-    padding: 16,
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
     paddingBottom: 100,
   },
-  row: {
-    justifyContent: 'space-between',
-    marginBottom: 16,
+  featuredSection: {
+    marginBottom: 24,
   },
-  card: {
-    width: CARD_WIDTH,
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 16,
+    marginLeft: 16,
+  },
+  featuredCarousel: {
+    paddingLeft: 16,
+    paddingRight: 16,
+    gap: 16,
+  },
+  featuredCard: {
+    width: FEATURED_CARD_WIDTH,
+    height: FEATURED_CARD_HEIGHT,
     borderRadius: 16,
     overflow: 'hidden',
-    marginBottom: 4,
   },
-  cardBlur: {
+  featuredCardBlur: {
+    flex: 1,
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
-  },
-  imageContainer: {
-    width: '100%',
-    aspectRatio: 1,
-    backgroundColor: 'rgba(255,255,255,0.05)',
     position: 'relative',
-    overflow: 'hidden',
   },
-  itemImage: {
+  featuredImage: {
+    position: 'absolute',
     width: '100%',
     height: '100%',
   },
-  placeholderImage: {
+  featuredImagePlaceholder: {
+    position: 'absolute',
     width: '100%',
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  featuredGradient: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+  },
+  featuredContent: {
+    flex: 1,
+    padding: 16,
+    justifyContent: 'space-between',
+  },
+  featuredBadges: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  categoryBadge: {
+    backgroundColor: 'rgba(96, 165, 250, 0.9)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  categoryBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  lowStockBadge: {
+    backgroundColor: 'rgba(255, 107, 0, 0.9)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  lowStockBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  featuredInfo: {
+    gap: 6,
+  },
+  featuredClubBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(96, 165, 250, 0.2)',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  featuredClubText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#60A5FA',
+  },
+  featuredTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#ffffff',
+    lineHeight: 28,
+  },
+  featuredPrice: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#60A5FA',
+    letterSpacing: -0.5,
   },
   soldOutOverlay: {
     position: 'absolute',
@@ -660,75 +857,110 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 10,
-  },
-  soldOutGradient: {
-    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 10,
+  },
+  soldOutBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   soldOutText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '800',
-    letterSpacing: 1,
+    letterSpacing: 2,
   },
-  categoryBadge: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: 'rgba(96, 165, 250, 0.9)',
-    zIndex: 5,
+  productsSection: {
+    paddingHorizontal: 16,
   },
-  categoryBadgeText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+  productCard: {
+    marginBottom: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
   },
-  cardContent: {
+  productCardBlur: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  productCardContent: {
+    flexDirection: 'row',
     padding: 12,
+    gap: 12,
   },
-  clubBadge: {
+  productImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+  },
+  productImagePlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  productDetails: {
+    flex: 1,
+    gap: 8,
+  },
+  productHeader: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'flex-start',
+  },
+  productClubBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginBottom: 8,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
     backgroundColor: 'rgba(96, 165, 250, 0.15)',
-    borderRadius: 8,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 6,
     alignSelf: 'flex-start',
+    marginBottom: 6,
   },
-  clubText: {
-    fontSize: 11,
+  productClubText: {
+    fontSize: 10,
     fontWeight: '600',
-    letterSpacing: 0.3,
     color: '#60A5FA',
   },
-  itemName: {
+  productTitle: {
     fontSize: 16,
     fontWeight: '700',
-    marginBottom: 8,
-    lineHeight: 22,
-    minHeight: 44,
     color: '#ffffff',
+    lineHeight: 20,
   },
-  priceRow: {
+  productCategory: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.6)',
+    marginTop: 2,
+  },
+  productFooter: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  price: {
+  productPrice: {
     fontSize: 20,
     fontWeight: '800',
-    letterSpacing: -0.5,
     color: '#60A5FA',
+    letterSpacing: -0.5,
   },
-  stockBadge: {
+  productBadges: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  productLowStockBadge: {
     backgroundColor: 'rgba(255, 107, 0, 0.2)',
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -736,19 +968,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 107, 0, 0.3)',
   },
-  stockText: {
+  productLowStockText: {
     fontSize: 10,
     color: '#FF6B00',
     fontWeight: '700',
-    letterSpacing: 0.3,
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
+  outOfStockBadge: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  outOfStockText: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.6)',
+    fontWeight: '700',
   },
   emptyCard: {
+    marginTop: 40,
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
@@ -761,13 +1000,13 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
+    color: '#ffffff',
     marginTop: 16,
     marginBottom: 8,
-    color: '#ffffff',
   },
-  emptySubtitle: {
+  emptyText: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.6)',
     textAlign: 'center',
+    color: 'rgba(255,255,255,0.6)',
   },
 });
