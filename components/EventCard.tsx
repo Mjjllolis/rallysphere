@@ -130,8 +130,8 @@ export default function EventCard({
                 👥 {event.attendees.length}
                 {event.maxAttendees ? ` / ${event.maxAttendees}` : ''} attending
               </Text>
-              
-              {event.ticketPrice && (
+
+              {event.ticketPrice > 0 && (
                 <Text variant="bodySmall" style={[styles.price, { color: theme.colors.tertiary }]}>
                   ${event.ticketPrice}
                 </Text>
