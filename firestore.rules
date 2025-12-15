@@ -92,6 +92,8 @@ service cloud.firestore {
     match /storeItems/{itemId} {
       // Anyone can read active store items
       allow read: if resource.data.isActive == true;
+      // Authenticated users can read any store item (needed for viewing purchased items)
+      allow read: if request.auth != null;
       // Club admins can read all items (including inactive) from their club
       allow read: if request.auth != null &&
         exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&

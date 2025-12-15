@@ -7,12 +7,9 @@ import {
   Card,
   Chip,
   IconButton,
-  Divider,
   useTheme,
   Menu,
-  Surface,
-  Modal,
-  Portal
+  Surface
 } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,7 +17,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../_layout';
 import { getClub, joinClub, leaveClub, getEvents, getClubStoreItems, getUserRallyCredits } from '../../lib/firebase';
 import type { Club, Event, StoreItem, UserRallyCredits } from '../../lib/firebase';
-import EventCard from '../../components/EventCard';
 import JoinClubModal from '../../components/JoinClubModal';
 
 const { width } = Dimensions.get('window');
@@ -165,6 +161,7 @@ export default function ClubDetailScreen() {
 
   const isJoined = user ? club.members.includes(user.uid) : false;
   const isAdmin = user ? club.admins.includes(user.uid) : false;
+  const isOwner = user ? club.createdBy === user.uid : false;
 
   const sortedEvents = [...events].sort((a, b) => {
     const dateA = a.startDate.toDate ? a.startDate.toDate() : new Date(a.startDate);
@@ -227,7 +224,7 @@ export default function ClubDetailScreen() {
                   </Surface>
                 )}
 
-                {(isJoined || isAdmin) && (
+                {(isJoined || isAdmin || isOwner) && (
                   <Surface style={styles.controlButton} elevation={2}>
                     <Menu
                       visible={menuVisible}
@@ -241,51 +238,17 @@ export default function ClubDetailScreen() {
                         />
                       }
                     >
-                    {isAdmin && (
-                      <>
-                        <Menu.Item
-                          onPress={() => {
-                            setMenuVisible(false);
-                            router.push(`/club/edit/${club.id}`);
-                          }}
-                          title="Edit Club"
-                          leadingIcon="pencil"
-                        />
-                        <Menu.Item
-                          onPress={() => {
-                            setMenuVisible(false);
-                            router.push(`/club/${club.id}/manage-orders`);
-                          }}
-                          title="Store Orders"
-                          leadingIcon="package-variant"
-                        />
-                        <Menu.Item
-                          onPress={() => {
-                            setMenuVisible(false);
-                            router.push(`/club/${club.id}/payouts`);
-                          }}
-                          title="Manage Payouts"
-                          leadingIcon="bank"
-                        />
-                        <Menu.Item
-                          onPress={() => {
-                            setMenuVisible(false);
-                            router.push(`/(tabs)/create-event?clubId=${club.id}`);
-                          }}
-                          title="Create Event"
-                          leadingIcon="plus"
-                        />
-                        <Menu.Item
-                          onPress={() => {
-                            setMenuVisible(false);
-                            router.push(`/club/${club.id}/subscription`);
-                          }}
-                          title={club.isPro ? "Manage Pro" : "Upgrade to Pro"}
-                          leadingIcon="crown"
-                        />
-                      </>
+                    {(isAdmin || isOwner) && (
+                      <Menu.Item
+                        onPress={() => {
+                          setMenuVisible(false);
+                          router.push(`/club/${club.id}/manage`);
+                        }}
+                        title="Admin Dashboard"
+                        leadingIcon="view-dashboard"
+                      />
                     )}
-                    {isJoined && (
+                    {isJoined && !isOwner && (
                       <Menu.Item
                         onPress={() => {
                           setMenuVisible(false);

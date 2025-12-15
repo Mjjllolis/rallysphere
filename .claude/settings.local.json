@@ -49,7 +49,9 @@
       "Bash(nc:*)",
       "Bash(node scripts/seedTestData.js:*)",
       "Bash(firebase login:list:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(killall:*)"
     ],
     "deny": [],
     "ask": []

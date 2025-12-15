@@ -1,6 +1,6 @@
 // app/event/[id].tsx
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Image, Linking, ImageBackground, Dimensions } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Image, Linking, ImageBackground, Dimensions, TouchableOpacity, ActivityIndicator } from 'react-native';
 import {
   Text,
   Button,
@@ -160,9 +160,9 @@ export default function EventDetailScreen() {
 
   if (loading || !event) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text variant="bodyLarge">Loading...</Text>
+          <Text variant="bodyLarge" style={{ color: '#fff' }}>Loading...</Text>
         </View>
       </View>
     );
@@ -177,7 +177,7 @@ export default function EventDetailScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Hero Header */}
         <ImageBackground
           source={event.coverImage ? { uri: event.coverImage } : undefined}
@@ -195,7 +195,7 @@ export default function EventDetailScreen() {
                   icon="arrow-left"
                   iconColor="#fff"
                   size={24}
-                  onPress={() => router.back()}
+                  onPress={() => router.replace('/(tabs)/events')}
                 />
               </Surface>
 
@@ -280,34 +280,44 @@ export default function EventDetailScreen() {
 
               {/* Action Button */}
               {user && isUpcoming && !isCreator && (
-                <Button
-                  mode={isAttending || isWaitlisted ? "outlined" : "contained"}
+                <TouchableOpacity
                   onPress={isAttending || isWaitlisted ? handleLeaveEvent : handleJoinEvent}
-                  loading={actionLoading}
-                  disabled={!isAttending && !isWaitlisted && isFull}
-                  style={styles.heroActionButton}
-                  contentStyle={styles.heroActionButtonContent}
-                  labelStyle={styles.heroActionButtonLabel}
-                  buttonColor={isAttending || isWaitlisted ? 'transparent' : theme.colors.primary}
-                  textColor={isAttending || isWaitlisted ? '#fff' : undefined}
+                  disabled={actionLoading || (!isAttending && !isWaitlisted && isFull)}
+                  activeOpacity={0.8}
+                  style={styles.heroActionButtonWrapper}
                 >
-                  {isWaitlisted
-                    ? 'Leave Waitlist'
-                    : isAttending
-                    ? 'Leave Event'
-                    : isFull
-                    ? 'Event Full'
-                    : event.ticketPrice && event.ticketPrice > 0
-                    ? `Buy Ticket - $${event.ticketPrice.toString()}`
-                    : 'Join Event'}
-                </Button>
+                  <LinearGradient
+                    colors={isAttending || isWaitlisted ? ['transparent', 'transparent'] : [theme.colors.primary, theme.colors.primary]}
+                    style={[
+                      styles.heroActionButton,
+                      (isAttending || isWaitlisted) && styles.heroActionButtonOutlined,
+                      (actionLoading || (!isAttending && !isWaitlisted && isFull)) && styles.heroActionButtonDisabled
+                    ]}
+                  >
+                    {actionLoading ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <Text style={styles.heroActionButtonText}>
+                        {isWaitlisted
+                          ? 'Leave Waitlist'
+                          : isAttending
+                          ? 'Leave Event'
+                          : isFull
+                          ? 'Event Full'
+                          : event.ticketPrice && event.ticketPrice > 0
+                          ? `Buy Ticket - $${event.ticketPrice.toString()}`
+                          : 'Join Event'}
+                      </Text>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
               )}
             </View>
           </LinearGradient>
         </ImageBackground>
 
         {/* Content Section */}
-        <View style={[styles.content, { backgroundColor: theme.colors.background }]}>
+        <View style={styles.content}>
           {/* Description */}
           <View style={styles.section}>
             <Text variant="titleLarge" style={styles.sectionTitle}>
@@ -499,9 +509,13 @@ export default function EventDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#000000',
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 120,
   },
   loadingContainer: {
     flex: 1,
@@ -580,20 +594,34 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginLeft: -8,
   },
-  heroActionButton: {
+  heroActionButtonWrapper: {
     width: '100%',
     maxWidth: 300,
+    alignSelf: 'center',
+  },
+  heroActionButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroActionButtonOutlined: {
+    borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.5)',
   },
-  heroActionButtonContent: {
-    paddingVertical: 8,
+  heroActionButtonDisabled: {
+    opacity: 0.5,
   },
-  heroActionButtonLabel: {
+  heroActionButtonText: {
+    color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+    textAlign: 'center',
   },
   content: {
     flex: 1,
+    backgroundColor: '#000000',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     marginTop: -24,
