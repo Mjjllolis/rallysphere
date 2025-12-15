@@ -13,7 +13,7 @@ import {
 import { Text, IconButton } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
-import Svg, { Defs, RadialGradient as SvgRadialGradient, Stop, Rect } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
 import EventForm from './forms/EventForm';
 import PostForm from './forms/PostForm';
 import ClubForm from './forms/ClubForm';
@@ -26,7 +26,7 @@ interface CreateScreenProps {
   initialType?: CreateType;
 }
 
-export default function CreateScreen({ visible, onClose, initialType = 'Event' }: CreateScreenProps) {
+export default function CreateScreen({ visible, onClose, initialType = 'Club' }: CreateScreenProps) {
   const [selectedType, setSelectedType] = useState<CreateType>(initialType);
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const [backgroundColors, setBackgroundColors] = useState<string[]>(['#6366f1', '#8b5cf6', '#d946ef']);
@@ -68,20 +68,18 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
           <View style={styles.blackBackground} />
         </View>
 
-        {/* Subtle Radial Gradient Overlay */}
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
-          <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
-            <Defs>
-              <SvgRadialGradient id="colorGradient" cx="50%" cy="40%">
-                <Stop offset="0%" stopColor={backgroundColors[0]} stopOpacity="0.25" />
-                <Stop offset="30%" stopColor={backgroundColors[1]} stopOpacity="0.15" />
-                <Stop offset="60%" stopColor={backgroundColors[2]} stopOpacity="0.08" />
-                <Stop offset="100%" stopColor="#000000" stopOpacity="0" />
-              </SvgRadialGradient>
-            </Defs>
-            <Rect x="0" y="0" width="100%" height="100%" fill="url(#colorGradient)" />
-          </Svg>
-        </View>
+        {/* Subtle Gradient Overlay */}
+        <LinearGradient
+          colors={[
+            `rgba(${parseInt(backgroundColors[0].slice(1, 3), 16)}, ${parseInt(backgroundColors[0].slice(3, 5), 16)}, ${parseInt(backgroundColors[0].slice(5, 7), 16)}, 0.25)`,
+            `rgba(${parseInt(backgroundColors[1].slice(1, 3), 16)}, ${parseInt(backgroundColors[1].slice(3, 5), 16)}, ${parseInt(backgroundColors[1].slice(5, 7), 16)}, 0.15)`,
+            `rgba(${parseInt(backgroundColors[2].slice(1, 3), 16)}, ${parseInt(backgroundColors[2].slice(3, 5), 16)}, ${parseInt(backgroundColors[2].slice(5, 7), 16)}, 0.08)`,
+            'rgba(0, 0, 0, 0)'
+          ]}
+          locations={[0, 0.3, 0.6, 1]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
 
         <SafeAreaView style={styles.safeArea} edges={['top']}>
           {/* Header */}
@@ -124,7 +122,7 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
                   >
                     <BlurView intensity={90} tint="dark" style={styles.dropdownAbsoluteBlur}>
                       <View style={styles.dropdownAbsoluteContent}>
-                        {(['Event', 'Post', 'Club'] as CreateType[]).map((type, index) => (
+                        {(['Club', 'Event', 'Post'] as CreateType[]).map((type, index) => (
                           <TouchableOpacity
                             key={type}
                             style={[
