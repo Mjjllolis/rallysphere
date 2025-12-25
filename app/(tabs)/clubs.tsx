@@ -16,6 +16,7 @@ import { getClubs, joinClub, leaveClub, subscribeToClubs } from '../../lib/fireb
 import type { Club } from '../../lib/firebase';
 import JoinClubModal from '../../components/JoinClubModal';
 import CreateScreen from '../../components/CreateScreen';
+import RallyCreditsDisplay from '../../components/RallyCreditsDisplay';
 
 const CATEGORIES = [
   'All', 'Academic', 'Sports', 'Arts & Culture', 'Technology', 'Business',
@@ -221,11 +222,20 @@ export default function ClubsPage() {
                   </Text>
                 </View>
 
-                {isJoined && (
-                  <View style={styles.memberBadge}>
-                    <Text style={styles.memberBadgeText}>Member</Text>
-                  </View>
-                )}
+                <View style={styles.badgesColumn}>
+                  {isJoined && (
+                    <View style={styles.memberBadge}>
+                      <Text style={styles.memberBadgeText}>Member</Text>
+                    </View>
+                  )}
+                  {isJoined && user && (
+                    <RallyCreditsDisplay
+                      userId={user.uid}
+                      clubId={club.id}
+                      compact
+                    />
+                  )}
+                </View>
               </View>
 
               <Text style={styles.clubDescription} numberOfLines={2}>
@@ -629,6 +639,11 @@ const styles = StyleSheet.create({
     gap: 8,
     alignItems: 'flex-start',
   },
+  badgesColumn: {
+    gap: 6,
+    alignItems: 'flex-end',
+    minWidth: 80,
+  },
   clubTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -651,6 +666,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#22C55E',
+    alignSelf: 'stretch',
+    alignItems: 'center',
   },
   memberBadgeText: {
     fontSize: 10,

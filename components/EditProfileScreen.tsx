@@ -168,31 +168,44 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={styles.container}>
-          {/* Black Background */}
-          <View style={StyleSheet.absoluteFill}>
-            <View style={styles.blackBackground} />
-          </View>
-
-          {/* Subtle Gradient Overlay */}
+          {/* Gray Gradient Background */}
           <LinearGradient
             colors={[
-              `rgba(${parseInt(backgroundColors[0].slice(1, 3), 16)}, ${parseInt(backgroundColors[0].slice(3, 5), 16)}, ${parseInt(backgroundColors[0].slice(5, 7), 16)}, 0.25)`,
-              `rgba(${parseInt(backgroundColors[1].slice(1, 3), 16)}, ${parseInt(backgroundColors[1].slice(3, 5), 16)}, ${parseInt(backgroundColors[1].slice(5, 7), 16)}, 0.15)`,
-              `rgba(${parseInt(backgroundColors[2].slice(1, 3), 16)}, ${parseInt(backgroundColors[2].slice(3, 5), 16)}, ${parseInt(backgroundColors[2].slice(5, 7), 16)}, 0.08)`,
-              'rgba(0, 0, 0, 0)'
+              '#1a1a1a',
+              '#2a2a2a',
+              '#1f1f1f',
+              '#0a0a0a'
             ]}
             locations={[0, 0.3, 0.6, 1]}
             style={StyleSheet.absoluteFill}
             pointerEvents="none"
           />
 
-          <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+          {/* Background Image - Upper portion only */}
+          {formData.backgroundImage && (
+            <View style={styles.profileBackgroundPreview} pointerEvents="none">
+              <Image source={{ uri: formData.backgroundImage }} style={styles.profileBackgroundImage} />
+              <LinearGradient
+                colors={[
+                  'rgba(26, 26, 26, 0)',
+                  'rgba(26, 26, 26, 0)',
+                  'rgba(28, 28, 28, 0.15)',
+                  'rgba(31, 31, 31, 0.35)',
+                  'rgba(36, 36, 36, 0.55)',
+                  'rgba(42, 42, 42, 0.75)',
+                  'rgba(31, 31, 31, 0.9)',
+                  '#1f1f1f',
+                ]}
+                locations={[0, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9, 1]}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+              />
+            </View>
+          )}
 
           <SafeAreaView style={styles.safeArea} edges={['top']}>
             {/* Header */}
             <View style={styles.header}>
-              <View style={styles.dragHandle} />
-
               <View style={styles.headerContent}>
                 <TouchableOpacity style={styles.closeButton} onPress={onClose}>
                   <BlurView intensity={40} tint="dark" style={styles.closeButtonBlur}>
@@ -300,24 +313,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000000',
   },
-  blackBackground: {
-    flex: 1,
-    backgroundColor: '#000000',
+  profileBackgroundPreview: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '35%',
+    zIndex: 0,
+  },
+  profileBackgroundImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
   },
   safeArea: {
     flex: 1,
   },
   header: {
-    paddingTop: 8,
+    paddingTop: 16,
     paddingBottom: 16,
-  },
-  dragHandle: {
-    width: 36,
-    height: 5,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 3,
-    alignSelf: 'center',
-    marginBottom: 16,
   },
   headerContent: {
     flexDirection: 'row',
