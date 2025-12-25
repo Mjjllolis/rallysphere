@@ -316,9 +316,9 @@ export interface RallyCreditTransaction {
   userId: string;
   clubId: string;
   clubName: string;
-  type: 'earned' | 'redeemed' | 'expired';
-  amount: number;  // Positive for earned, negative for redeemed
-  eventId?: string;  // If earned from event
+  type: 'earned' | 'redeemed' | 'expired' | 'forfeited';
+  amount: number;  // Positive for earned, negative for redeemed/forfeited
+  eventId?: string;  // If earned from or forfeited due to event
   eventName?: string;
   redemptionId?: string;  // If redeemed
   redemptionName?: string;
@@ -1051,11 +1051,34 @@ export const joinEvent = async (eventId: string, userId: string) => {
 
 export const leaveEvent = async (eventId: string, userId: string) => {
   try {
+    // Get event details to check for Rally Credits forfeit
+    const eventDoc = await getDoc(doc(db, 'events', eventId));
+
+    if (!eventDoc.exists()) {
+      return { success: false, error: 'Event not found' };
+    }
+
+    const eventData = eventDoc.data();
+
+    // Remove user from event
     await updateDoc(doc(db, 'events', eventId), {
       attendees: arrayRemove(userId),
       waitlist: arrayRemove(userId),
       updatedAt: serverTimestamp()
     });
+
+    // If event had Rally Credits payout, forfeit the credits
+    if (eventData.rallyCreditsAwarded && eventData.rallyCreditsAwarded > 0) {
+      await forfeitRallyCredits(
+        userId,
+        eventData.clubId,
+        eventData.clubName,
+        eventId,
+        eventData.title,
+        eventData.rallyCreditsAwarded
+      );
+    }
+
     return { success: true };
   } catch (error: any) {
     console.error('Error leaving event:', error);
@@ -2037,7 +2060,7 @@ export const awardRallyCredits = async (
       eventId,
       eventName,
       description: `Earned ${amount} credits for attending ${eventName}`,
-      createdAt: serverTimestamp() as Timestamp,
+      createdAt: new Date() as unknown as Timestamp,
     };
 
     const updatedCredits: UserRallyCredits = {
@@ -2056,6 +2079,104 @@ export const awardRallyCredits = async (
     return { success: true, credits: updatedCredits };
   } catch (error: any) {
     console.error('Error awarding rally credits:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Forfeit Rally Credits when leaving an event
+ * This removes the credits that were awarded for joining the event
+ */
+export const forfeitRallyCredits = async (
+  userId: string,
+  clubId: string,
+  clubName: string,
+  eventId: string,
+  eventName: string,
+  amount: number
+) => {
+  try {
+    const creditsRef = doc(db, 'rallyCredits', userId);
+    const creditsDoc = await getDoc(creditsRef);
+
+    if (!creditsDoc.exists()) {
+      // User has no credits, nothing to forfeit
+      return { success: true, message: 'No credits to forfeit' };
+    }
+
+    const currentCredits = creditsDoc.data() as UserRallyCredits;
+
+    // Check if user has enough credits to forfeit
+    const clubCreditsAmount = currentCredits.clubCredits[clubId] || 0;
+    if (clubCreditsAmount < amount) {
+      // User doesn't have enough club credits (may have already spent some)
+      // Forfeit what they have left for this club, but don't go negative
+      const amountToForfeit = Math.min(amount, clubCreditsAmount, currentCredits.availableCredits);
+
+      if (amountToForfeit <= 0) {
+        return { success: true, message: 'No available credits to forfeit' };
+      }
+
+      // Forfeit the available amount
+      const transaction: RallyCreditTransaction = {
+        id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        userId,
+        clubId,
+        clubName,
+        type: 'forfeited',
+        amount: -amountToForfeit,
+        eventId,
+        eventName,
+        description: `Forfeited ${amountToForfeit} credits for leaving ${eventName}`,
+        createdAt: new Date() as unknown as Timestamp,
+      };
+
+      const updatedCredits: UserRallyCredits = {
+        ...currentCredits,
+        totalCredits: Math.max(0, currentCredits.totalCredits - amountToForfeit),
+        availableCredits: Math.max(0, currentCredits.availableCredits - amountToForfeit),
+        clubCredits: {
+          ...currentCredits.clubCredits,
+          [clubId]: Math.max(0, clubCreditsAmount - amountToForfeit),
+        },
+        transactions: [transaction, ...currentCredits.transactions].slice(0, 100),
+        updatedAt: serverTimestamp() as Timestamp,
+      };
+
+      await setDoc(creditsRef, updatedCredits);
+      return { success: true, credits: updatedCredits, amountForfeited: amountToForfeit };
+    }
+
+    // User has enough credits, forfeit the full amount
+    const transaction: RallyCreditTransaction = {
+      id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      userId,
+      clubId,
+      clubName,
+      type: 'forfeited',
+      amount: -amount,
+      eventId,
+      eventName,
+      description: `Forfeited ${amount} credits for leaving ${eventName}`,
+      createdAt: new Date() as unknown as Timestamp,
+    };
+
+    const updatedCredits: UserRallyCredits = {
+      ...currentCredits,
+      totalCredits: currentCredits.totalCredits - amount,
+      availableCredits: currentCredits.availableCredits - amount,
+      clubCredits: {
+        ...currentCredits.clubCredits,
+        [clubId]: clubCreditsAmount - amount,
+      },
+      transactions: [transaction, ...currentCredits.transactions].slice(0, 100),
+      updatedAt: serverTimestamp() as Timestamp,
+    };
+
+    await setDoc(creditsRef, updatedCredits);
+    return { success: true, credits: updatedCredits, amountForfeited: amount };
+  } catch (error: any) {
+    console.error('Error forfeiting rally credits:', error);
     return { success: false, error: error.message };
   }
 };
@@ -2148,7 +2269,7 @@ export const redeemRallyCredits = async (
       redemptionId,
       redemptionName: redemption.name,
       description: `Redeemed ${redemption.creditsRequired} credits for ${redemption.name}`,
-      createdAt: serverTimestamp() as Timestamp,
+      createdAt: new Date() as unknown as Timestamp,
     };
 
     // Update user credits

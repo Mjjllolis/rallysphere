@@ -17,10 +17,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../_layout';
-import { getEventById, joinEvent, leaveEvent } from '../../lib/firebase';
-import type { Event } from '../../lib/firebase';
+import { getEventById, joinEvent, leaveEvent, getUserRallyCredits, getClub } from '../../lib/firebase';
+import type { Event, UserRallyCredits } from '../../lib/firebase';
 import BackButton from '../../components/BackButton';
 import PaymentSheet from '../../components/PaymentSheet';
+import RallyCreditsPaidModal from '../../components/RallyCreditsPaidModal';
 
 const { width } = Dimensions.get('window');
 
@@ -33,14 +34,41 @@ export default function EventDetailScreen() {
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [userCredits, setUserCredits] = useState<UserRallyCredits | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
+  const [showPayoutModal, setShowPayoutModal] = useState(false);
+  const [payoutInfo, setPayoutInfo] = useState<{
+    amount: number;
+    clubId: string;
+    clubName: string;
+    isAlreadyMember: boolean;
+  } | null>(null);
 
   useEffect(() => {
     if (eventId) {
       loadEventData();
     }
   }, [eventId]);
+
+  useEffect(() => {
+    if (user && event) {
+      loadUserCredits();
+    }
+  }, [user, event]);
+
+  const loadUserCredits = async () => {
+    if (!user || !event) return;
+
+    try {
+      const result = await getUserRallyCredits(user.uid);
+      if (result.success && result.credits) {
+        setUserCredits(result.credits);
+      }
+    } catch (error) {
+      console.error('Error loading user credits:', error);
+    }
+  };
 
   const loadEventData = async () => {
     try {
@@ -79,9 +107,25 @@ export default function EventDetailScreen() {
         if (result.waitlisted) {
           Alert.alert('Added to Waitlist!', 'You have been added to the waitlist for this event.');
         } else {
-          Alert.alert('Success!', 'You have joined the event!');
+          // Check if event has Rally Credits payout
+          if (event.rallyCreditsAwarded && event.rallyCreditsAwarded > 0) {
+            // Check if user is already a club member
+            const clubResult = await getClub(event.clubId);
+            const isAlreadyMember = clubResult.success && clubResult.club?.members.includes(user.uid);
+
+            setPayoutInfo({
+              amount: event.rallyCreditsAwarded,
+              clubId: event.clubId,
+              clubName: event.clubName,
+              isAlreadyMember: isAlreadyMember || false
+            });
+            setShowPayoutModal(true);
+          } else {
+            Alert.alert('Success!', 'You have joined the event!');
+          }
         }
         await loadEventData(); // Refresh event data
+        await loadUserCredits(); // Refresh user credits
       } else {
         Alert.alert('Error', result.error || 'Failed to join event');
       }
@@ -383,15 +427,29 @@ export default function EventDetailScreen() {
               </View>
             )}
 
-            <View style={styles.detailRow}>
-              <IconButton icon="star-circle" size={24} iconColor="#FFD700" />
-              <View style={styles.detailContent}>
-                <Text variant="labelLarge">RallyCredits Earned</Text>
-                <Text variant="bodyMedium" style={styles.detailText}>
-                  {event.rallyCreditsAwarded || 0} credits
-                </Text>
+            {event.rallyCreditsAwarded && event.rallyCreditsAwarded > 0 && (
+              <View style={styles.detailRow}>
+                <IconButton icon="star-circle" size={24} iconColor="#FFD700" />
+                <View style={styles.detailContent}>
+                  <Text variant="labelLarge">Rally Credits Payout</Text>
+                  <Text variant="bodyMedium" style={styles.detailText}>
+                    +{event.rallyCreditsAwarded} credits for joining
+                  </Text>
+                </View>
               </View>
-            </View>
+            )}
+
+            {user && userCredits && event.clubId && (
+              <View style={styles.detailRow}>
+                <IconButton icon="wallet" size={24} iconColor="#FFD700" />
+                <View style={styles.detailContent}>
+                  <Text variant="labelLarge">Your {event.clubName} Credits</Text>
+                  <Text variant="bodyMedium" style={styles.detailText}>
+                    {userCredits.clubCredits?.[event.clubId] || 0} total credits
+                  </Text>
+                </View>
+              </View>
+            )}
           </View>
 
           {/* Attendee Info */}
@@ -500,6 +558,18 @@ export default function EventDetailScreen() {
           event={event}
           onDismiss={() => setPaymentSheetVisible(false)}
           onSuccess={handlePaymentSuccess}
+        />
+      )}
+
+      {/* Rally Credits Payout Modal */}
+      {payoutInfo && (
+        <RallyCreditsPaidModal
+          visible={showPayoutModal}
+          onClose={() => setShowPayoutModal(false)}
+          amount={payoutInfo.amount}
+          clubId={payoutInfo.clubId}
+          clubName={payoutInfo.clubName}
+          isAlreadyMember={payoutInfo.isAlreadyMember}
         />
       )}
     </View>

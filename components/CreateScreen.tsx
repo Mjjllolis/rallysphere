@@ -5,10 +5,9 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  Modal,
-  Platform,
-  StatusBar,
   Animated,
+  Image,
+  Pressable,
 } from 'react-native';
 import { Text, IconButton } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +16,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import EventForm from './forms/EventForm';
 import PostForm from './forms/PostForm';
 import ClubForm from './forms/ClubForm';
+import IOSModal from './IOSModal';
+import { useScrollTracking } from '../hooks/useScrollTracking';
 
 type CreateType = 'Event' | 'Post' | 'Club';
 
@@ -26,12 +27,16 @@ interface CreateScreenProps {
   initialType?: CreateType;
 }
 
-export default function CreateScreen({ visible, onClose, initialType = 'Club' }: CreateScreenProps) {
+export default function CreateScreen({ visible, onClose, initialType = 'Event' }: CreateScreenProps) {
   const [selectedType, setSelectedType] = useState<CreateType>(initialType);
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const [backgroundColors, setBackgroundColors] = useState<string[]>(['#6366f1', '#8b5cf6', '#d946ef']);
+  const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
 
   const scaleAnim = useRef(new Animated.Value(0)).current;
+
+  // Scroll tracking for modal gesture control
+  const { scrollHandlers, shouldAllowGesture, shouldBounce, reset: resetScrollState } = useScrollTracking();
 
   useEffect(() => {
     if (dropdownVisible) {
@@ -46,58 +51,77 @@ export default function CreateScreen({ visible, onClose, initialType = 'Club' }:
     }
   }, [dropdownVisible]);
 
+  // Reset scroll state when modal opens
+  useEffect(() => {
+    if (visible) {
+      resetScrollState();
+    }
+  }, [visible, resetScrollState]);
+
   const handleTypeSelect = (type: CreateType) => {
     setSelectedType(type);
     setDropdownVisible(false);
   };
 
-  const handleColorsExtracted = (colors: string[]) => {
+  const handleColorsExtracted = (colors: string[], imageUri?: string) => {
     setBackgroundColors(colors);
+    if (imageUri) {
+      setBackgroundImage(imageUri);
+    }
   };
 
   return (
-    <Modal
+    <IOSModal
       visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
+      onClose={onClose}
+      onShouldAllowGesture={shouldAllowGesture}
     >
       <View style={styles.container}>
-        {/* Black Background */}
-        <View style={StyleSheet.absoluteFill}>
-          <View style={styles.blackBackground} />
-        </View>
+        {/* Background Image or Black Background */}
+        {backgroundImage ? (
+          <>
+            <View style={StyleSheet.absoluteFill}>
+              <Image source={{ uri: backgroundImage }} style={styles.backgroundImage} blurRadius={0} />
+            </View>
+            {/* Frosted Glass Overlay */}
+            <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+          </>
+        ) : (
+          <>
+            {/* Black Background */}
+            <View style={StyleSheet.absoluteFill}>
+              <View style={styles.blackBackground} />
+            </View>
 
-        {/* Subtle Gradient Overlay */}
-        <LinearGradient
-          colors={[
-            `rgba(${parseInt(backgroundColors[0].slice(1, 3), 16)}, ${parseInt(backgroundColors[0].slice(3, 5), 16)}, ${parseInt(backgroundColors[0].slice(5, 7), 16)}, 0.25)`,
-            `rgba(${parseInt(backgroundColors[1].slice(1, 3), 16)}, ${parseInt(backgroundColors[1].slice(3, 5), 16)}, ${parseInt(backgroundColors[1].slice(5, 7), 16)}, 0.15)`,
-            `rgba(${parseInt(backgroundColors[2].slice(1, 3), 16)}, ${parseInt(backgroundColors[2].slice(3, 5), 16)}, ${parseInt(backgroundColors[2].slice(5, 7), 16)}, 0.08)`,
-            'rgba(0, 0, 0, 0)'
-          ]}
-          locations={[0, 0.3, 0.6, 1]}
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-        />
+            {/* Subtle Gradient Overlay */}
+            <LinearGradient
+              colors={[
+                `rgba(${parseInt(backgroundColors[0].slice(1, 3), 16)}, ${parseInt(backgroundColors[0].slice(3, 5), 16)}, ${parseInt(backgroundColors[0].slice(5, 7), 16)}, 0.25)`,
+                `rgba(${parseInt(backgroundColors[1].slice(1, 3), 16)}, ${parseInt(backgroundColors[1].slice(3, 5), 16)}, ${parseInt(backgroundColors[1].slice(5, 7), 16)}, 0.15)`,
+                `rgba(${parseInt(backgroundColors[2].slice(1, 3), 16)}, ${parseInt(backgroundColors[2].slice(3, 5), 16)}, ${parseInt(backgroundColors[2].slice(5, 7), 16)}, 0.08)`,
+                'rgba(0, 0, 0, 0)'
+              ]}
+              locations={[0, 0.3, 0.6, 1]}
+              style={StyleSheet.absoluteFill}
+              pointerEvents="none"
+            />
+          </>
+        )}
 
         <SafeAreaView style={styles.safeArea} edges={['top']}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.dragHandle} />
+
+          {/* Header - Fixed swipeable area */}
+          <View style={styles.headerContainer}>
+            {/* Semi-transparent swipe zone background - captures touches for swipe gesture */}
+            <Pressable style={styles.headerSwipeZone} />
 
             <View style={styles.headerContent}>
-              <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                <BlurView intensity={40} tint="dark" style={styles.closeButtonBlur}>
-                  <IconButton icon="close" size={24} iconColor="white" />
-                </BlurView>
-              </TouchableOpacity>
-
               {/* Type Selector Dropdown */}
               <View>
                 <TouchableOpacity
                   style={styles.typeSelector}
                   onPress={() => setDropdownVisible(!dropdownVisible)}
+                  delayLongPress={0}
                 >
                   <BlurView intensity={60} tint="dark" style={styles.typeSelectorBlur}>
                     <Text style={styles.typeSelectorText}>{selectedType}</Text>
@@ -153,8 +177,6 @@ export default function CreateScreen({ visible, onClose, initialType = 'Club' }:
                   </Animated.View>
                 )}
               </View>
-
-              <View style={styles.placeholder} />
             </View>
           </View>
 
@@ -171,8 +193,13 @@ export default function CreateScreen({ visible, onClose, initialType = 'Club' }:
           <ScrollView
             style={styles.content}
             contentContainerStyle={styles.contentContainer}
-            showsVerticalScrollIndicator={false}
-            bounces={true}
+            showsVerticalScrollIndicator={true}
+            indicatorStyle="white"
+            bounces={shouldBounce}
+            alwaysBounceVertical={false}
+            overScrollMode="never"
+            scrollEnabled={true}
+            {...scrollHandlers}
           >
             {selectedType === 'Event' && (
               <EventForm onColorsExtracted={handleColorsExtracted} onSuccess={onClose} />
@@ -186,7 +213,7 @@ export default function CreateScreen({ visible, onClose, initialType = 'Club' }:
           </ScrollView>
         </SafeAreaView>
       </View>
-    </Modal>
+    </IOSModal>
   );
 }
 
@@ -195,6 +222,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000000',
   },
+  backgroundImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
   blackBackground: {
     flex: 1,
     backgroundColor: '#000000',
@@ -202,71 +234,53 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
-  header: {
-    paddingTop: 8,
-    paddingBottom: 16,
+  headerContainer: {
+    paddingTop: 20,
+    paddingBottom: 8,
+    paddingHorizontal: 16,
+    position: 'relative',
   },
-  dragHandle: {
-    width: 36,
-    height: 5,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 3,
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-  },
-  closeButton: {
-    width: 40,
-    height: 36,
-    borderRadius: 18,
-    overflow: 'hidden',
-  },
-  closeButtonBlur: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  closeButtonGlow: {
+  headerSwipeZone: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    borderRadius: 18,
+    backgroundColor: 'transparent',
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  typeSelectorWrapper: {
+    position: 'relative',
+    zIndex: 1000,
   },
   typeSelector: {
-    borderRadius: 20,
+    borderRadius: 18,
     overflow: 'hidden',
-    minWidth: 140,
+    minWidth: 120,
+    maxWidth: 120,
   },
   typeSelectorBlur: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 18,
     borderWidth: 0.5,
     borderColor: 'rgba(255, 255, 255, 0.2)',
     overflow: 'hidden',
+    height: 36,
   },
   typeSelectorText: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
     color: 'white',
-    marginRight: 4,
-  },
-  placeholder: {
-    width: 40,
+    marginRight: 2,
   },
   content: {
     flex: 1,
@@ -280,10 +294,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: '100%',
     left: '50%',
-    marginLeft: -80, // Half of width (160/2)
+    marginLeft: -60, // Half of width (120/2)
     marginTop: 8,
-    width: 160,
-    borderRadius: 16,
+    width: 120,
+    borderRadius: 14,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -293,22 +307,23 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   dropdownAbsoluteBlur: {
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
     overflow: 'hidden',
   },
   dropdownAbsoluteContent: {
-    paddingVertical: 4,
+    paddingVertical: 2,
   },
   dropdownAbsoluteItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderBottomWidth: 0.5,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    minHeight: 36,
   },
   dropdownAbsoluteItemLast: {
     borderBottomWidth: 0,
@@ -317,16 +332,22 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   dropdownAbsoluteItemText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
     color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    flex: 1,
   },
   dropdownAbsoluteItemTextSelected: {
     color: 'white',
     fontWeight: '600',
   },
   checkmarkContainer: {
-    marginLeft: 8,
+    marginLeft: 4,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   checkIcon: {
     margin: 0,

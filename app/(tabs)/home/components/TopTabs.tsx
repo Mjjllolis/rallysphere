@@ -14,7 +14,7 @@ type TopTabsProps = {
 };
 
 export default function TopTabs({ activeTab, setActiveTab }: TopTabsProps) {
-  const tabs = ["Editors' Pick", 'For You', 'Following', 'Saved'];
+  const tabs = ['Newest', "Editors' Pick", 'For You', 'Following', 'Saved'];
   const underlinePosition = useRef(new Animated.Value(0)).current;
   const [containerWidth, setContainerWidth] = useState(0);
 

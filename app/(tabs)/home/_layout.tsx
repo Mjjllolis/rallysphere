@@ -4,13 +4,18 @@ import { View, StyleSheet } from 'react-native';
 import TopTabs from './components/TopTabs';
 import HomeFeed from './components/HomeFeed';
 import SavedFeed from './components/SavedFeed';
+import NewestFeed from './components/NewestFeed';
 
 export default function HomeLayout() {
-  const [activeTab, setActiveTab] = useState("Editors' Pick");
+  const [activeTab, setActiveTab] = useState('Newest');
 
   return (
     <View style={styles.container}>
       {/* All feeds mounted simultaneously - hidden when not active */}
+      <View style={[styles.feedWrapper, activeTab === 'Newest' ? styles.visible : styles.hidden]}>
+        <NewestFeed isActive={activeTab === 'Newest'} />
+      </View>
+
       <View style={[styles.feedWrapper, activeTab === "Editors' Pick" ? styles.visible : styles.hidden]}>
         <HomeFeed feedType="editors-pick" isActive={activeTab === "Editors' Pick"} />
       </View>

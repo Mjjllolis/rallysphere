@@ -173,10 +173,10 @@ export default function ProfilePage() {
     );
   }
 
-  // Parallax transform for background image
+  // Subtle parallax effect for background image
   const backgroundTranslateY = scrollY.interpolate({
     inputRange: [0, 300],
-    outputRange: [0, -100], // Slower scroll for depth effect
+    outputRange: [0, -50], // Gentle parallax - slower than scroll
     extrapolate: 'clamp',
   });
 
@@ -228,24 +228,26 @@ export default function ProfilePage() {
         />
       )}
 
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        {/* Header with Settings Button */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Profile</Text>
+      {/* Floating Header - Outside SafeAreaView */}
+      <SafeAreaView style={styles.floatingHeaderContainer} edges={['top']}>
+        <View style={styles.floatingHeader}>
+          <Text style={styles.floatingHeaderTitle}>Profile</Text>
           <TouchableOpacity
-            style={styles.settingsButton}
+            style={styles.floatingSettingsButton}
             onPress={() => setSettingsVisible(true)}
           >
-            <BlurView intensity={40} tint="dark" style={styles.settingsButtonBlur}>
-              <IconButton icon="menu" size={24} iconColor="white" />
-            </BlurView>
+            <IconButton icon="menu" size={24} iconColor="white" />
           </TouchableOpacity>
         </View>
+      </SafeAreaView>
 
+      <SafeAreaView style={styles.safeArea} edges={['bottom']}>
         <Animated.ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          bounces={true}
+          alwaysBounceVertical={true}
           onScroll={Animated.event(
             [{ nativeEvent: { contentOffset: { y: scrollY } } }],
             { useNativeDriver: true }
@@ -385,7 +387,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: '40%', // Upper third plus fade area
+    height: '40%',
     overflow: 'hidden',
     zIndex: 0,
   },
@@ -412,37 +414,41 @@ const styles = StyleSheet.create({
     flex: 1,
     zIndex: 1,
   },
-  header: {
+  floatingHeaderContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    elevation: 100,
+    pointerEvents: 'box-none',
+  },
+  floatingHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
-  headerTitle: {
+  floatingHeaderTitle: {
     fontSize: 28,
     fontWeight: '700',
     color: 'white',
   },
-  settingsButton: {
+  floatingSettingsButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    overflow: 'hidden',
-  },
-  settingsButtonBlur: {
-    width: '100%',
-    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 20,
-    overflow: 'hidden',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
+    paddingTop: 80, // Push content down below the floating header
     paddingBottom: 40,
+    minHeight: Dimensions.get('window').height * 0.9, // Ensure scrollable area even when empty
   },
   emptyState: {
     flex: 1,
@@ -517,12 +523,6 @@ const styles = StyleSheet.create({
     zIndex: 90,
     elevation: 90,
     position: 'relative',
-  },
-  userNameContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
   },
   userNameContainer: {
     flexDirection: 'row',

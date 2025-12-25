@@ -32,6 +32,7 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
     maxAttendees: '',
     ticketPrice: '',
     currency: 'USD',
+    rallyCreditsPayout: '',
   });
 
   const [isPublic, setIsPublic] = useState(true);
@@ -124,8 +125,15 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
         ? parseInt(formData.maxAttendees)
         : 999;
 
+      // Calculate Rally Credits payout - only for authorized event creators
+      const isAuthorizedCreator = selectedClub.admins.includes(user.uid);
+      const rallyCreditsPayoutValue = isAuthorizedCreator && formData.rallyCreditsPayout
+        ? parseInt(formData.rallyCreditsPayout)
+        : undefined;
+
       console.log('Max Attendees Input:', formData.maxAttendees);
       console.log('Max Attendees Value:', maxAttendeesValue);
+      console.log('Rally Credits Payout:', rallyCreditsPayoutValue);
 
       const eventData = {
         title: formData.title.trim(),
@@ -143,6 +151,7 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
         requiresApproval: false,
         ticketPrice: ticketPriceValue,
         currency: formData.currency,
+        rallyCreditsAwarded: rallyCreditsPayoutValue,
       };
 
       const result = await createEvent(eventData);
@@ -263,6 +272,18 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
             </Text>
           </View>
         </View>
+      )}
+
+      {/* Rally Credits Payout - Only for club admins */}
+      {selectedClub && selectedClub.admins.includes(user?.uid || '') && (
+        <GlassInput
+          label="Rally Credits Payout"
+          value={formData.rallyCreditsPayout}
+          onChangeText={(value) => updateFormData('rallyCreditsPayout', value)}
+          placeholder="0"
+          keyboardType="numeric"
+          icon="star-circle"
+        />
       )}
 
       <GlassSwitch

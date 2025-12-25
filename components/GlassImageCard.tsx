@@ -8,7 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 interface GlassImageCardProps {
   imageUri: string | null;
   onImageSelected: (uri: string) => void;
-  onColorsExtracted?: (colors: string[]) => void;
+  onColorsExtracted?: (colors: string[], imageUri?: string) => void;
   aspectRatio?: [number, number];
   placeholder?: string;
 }
@@ -44,7 +44,7 @@ export default function GlassImageCard({
       // Cycle through gradient themes when image changes
       const newIndex = (themeIndex + 1) % GRADIENT_THEMES.length;
       setThemeIndex(newIndex);
-      onColorsExtracted(GRADIENT_THEMES[newIndex]);
+      onColorsExtracted(GRADIENT_THEMES[newIndex], imageUri);
     }
   }, [imageUri]);
 
@@ -144,6 +144,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.3)',
+    overflow: 'hidden',
   },
   placeholder: {
     justifyContent: 'center',
