@@ -51,7 +51,8 @@
       "Bash(firebase login:list:*)",
       "Bash(grep:*)",
       "Bash(npm uninstall:*)",
-      "Bash(killall:*)"
+      "Bash(killall:*)",
+      "Bash(git fetch:*)"
     ],
     "deny": [],
     "ask": []
