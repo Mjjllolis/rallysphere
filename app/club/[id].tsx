@@ -233,31 +233,33 @@ export default function ClubDetailScreen() {
                   </Surface>
                 )}
 
-                {(isJoined || isAdmin || isOwner) && (
+                {/* Admin/Owner: Direct link to dashboard */}
+                {(isAdmin || isOwner) && (
+                  <Surface style={styles.controlButton} elevation={2}>
+                    <IconButton
+                      icon="menu"
+                      iconColor="#fff"
+                      size={24}
+                      onPress={() => router.push(`/club/${club.id}/manage`)}
+                    />
+                  </Surface>
+                )}
+
+                {/* Regular member: Menu with Leave option */}
+                {isJoined && !isAdmin && !isOwner && (
                   <Surface style={styles.controlButton} elevation={2}>
                     <Menu
                       visible={menuVisible}
                       onDismiss={() => setMenuVisible(false)}
                       anchor={
                         <IconButton
-                          icon="dots-vertical"
+                          icon="menu"
                           iconColor="#fff"
                           size={24}
                           onPress={() => setMenuVisible(true)}
                         />
                       }
                     >
-                    {(isAdmin || isOwner) && (
-                      <Menu.Item
-                        onPress={() => {
-                          setMenuVisible(false);
-                          router.push(`/club/${club.id}/manage`);
-                        }}
-                        title="Admin Dashboard"
-                        leadingIcon="view-dashboard"
-                      />
-                    )}
-                    {isJoined && !isOwner && (
                       <Menu.Item
                         onPress={() => {
                           setMenuVisible(false);
@@ -266,8 +268,7 @@ export default function ClubDetailScreen() {
                         title="Leave Club"
                         leadingIcon="exit-to-app"
                       />
-                    )}
-                  </Menu>
+                    </Menu>
                   </Surface>
                 )}
               </View>

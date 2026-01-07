@@ -32,6 +32,18 @@ const TAGS = [
   'Training Focused', 'Tournament Play', 'All Skill Levels', 'Advanced Players Only'
 ];
 
+// Light theme for inputs to ensure consistent styling in both light/dark mode
+const lightInputTheme = {
+  colors: {
+    background: 'white',
+    surface: 'white',
+    onSurface: '#1B365D',
+    onSurfaceVariant: '#666',
+    outline: '#ccc',
+    primary: '#1B365D',
+  },
+};
+
 export default function EditClubScreen() {
   const theme = useTheme();
   const { user } = useAuth();
@@ -387,6 +399,7 @@ export default function EditClubScreen() {
                 onChangeText={(value) => updateFormData('name', value)}
                 mode="outlined"
                 style={styles.input}
+                theme={lightInputTheme}
               />
 
               <TextInput
@@ -397,6 +410,7 @@ export default function EditClubScreen() {
                 multiline
                 numberOfLines={4}
                 style={styles.input}
+                theme={lightInputTheme}
                 placeholder="What is your club about? What activities do you do?"
               />
 
@@ -436,6 +450,7 @@ export default function EditClubScreen() {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 style={styles.input}
+                theme={lightInputTheme}
                 left={<TextInput.Icon icon="email" />}
               />
             </Card.Content>
@@ -458,6 +473,7 @@ export default function EditClubScreen() {
                 mode="outlined"
                 autoCapitalize="none"
                 style={styles.input}
+                theme={lightInputTheme}
                 left={<TextInput.Icon icon="web" />}
               />
 
@@ -468,6 +484,7 @@ export default function EditClubScreen() {
                 mode="outlined"
                 autoCapitalize="none"
                 style={styles.input}
+                theme={lightInputTheme}
                 left={<TextInput.Icon icon="instagram" />}
                 placeholder="@username"
               />
@@ -479,6 +496,7 @@ export default function EditClubScreen() {
                 mode="outlined"
                 autoCapitalize="none"
                 style={styles.input}
+                theme={lightInputTheme}
                 left={<TextInput.Icon icon="twitter" />}
                 placeholder="@username"
               />
@@ -490,6 +508,7 @@ export default function EditClubScreen() {
                 mode="outlined"
                 autoCapitalize="none"
                 style={styles.input}
+                theme={lightInputTheme}
                 left={<TextInput.Icon icon="facebook" />}
                 placeholder="Page URL or username"
               />
@@ -501,6 +520,7 @@ export default function EditClubScreen() {
                 mode="outlined"
                 autoCapitalize="none"
                 style={styles.input}
+                theme={lightInputTheme}
                 left={<TextInput.Icon icon="music-note" />}
                 placeholder="@username"
               />
@@ -512,6 +532,7 @@ export default function EditClubScreen() {
                 mode="outlined"
                 autoCapitalize="none"
                 style={styles.input}
+                theme={lightInputTheme}
                 left={<TextInput.Icon icon="discord" />}
                 placeholder="Invite link"
               />
@@ -703,6 +724,7 @@ const styles = StyleSheet.create({
   input: {
     marginBottom: 12,
     borderRadius: 12,
+    backgroundColor: 'white',
   },
   fieldLabel: {
     fontWeight: '600',
@@ -720,6 +742,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     minHeight: 56,
     marginBottom: 12,
+    backgroundColor: 'white',
   },
   categorySelectorText: {
     fontSize: 16,
