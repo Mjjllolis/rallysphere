@@ -274,7 +274,7 @@ export interface StoreOrder {
   totalAmount: number;
   deliveryMethod: 'shipping' | 'pickup';
   shippingAddress?: ShippingAddress;
-  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'picked_up' | 'cancelled';
+  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'picked_up' | 'cancelled' | 'refunded';
   paymentIntentId: string;
   stripeSessionId?: string;
   rallyCreditsUsed?: number;  // RallyCredits applied to this order
@@ -283,6 +283,22 @@ export interface StoreOrder {
   updatedAt: Timestamp;
   shippedAt?: Timestamp;
   deliveredAt?: Timestamp;
+}
+
+export interface TicketPayment {
+  id: string;
+  userId: string;
+  eventId: string;
+  clubId: string;
+  paymentIntentId: string;
+  amount: number;
+  ticketPrice: number;
+  platformFee: number;
+  clubAmount: number;
+  currency: string;
+  status: string;
+  transferredToClub: boolean;
+  createdAt: Timestamp;
 }
 
 export interface RallyCreditRedemption {
@@ -1844,6 +1860,28 @@ export const getClubStoreOrders = async (clubId: string) => {
   } catch (error: any) {
     console.error('Error getting club orders:', error);
     return { success: false, error: error.message, orders: [] };
+  }
+};
+
+/**
+ * Get club's ticket payments
+ */
+export const getClubTicketPayments = async (clubId: string) => {
+  try {
+    const paymentsRef = collection(db, 'payments');
+    const q = query(paymentsRef, where('clubId', '==', clubId), orderBy('createdAt', 'desc'));
+
+    const querySnapshot = await getDocs(q);
+    const payments: TicketPayment[] = [];
+
+    querySnapshot.forEach((doc) => {
+      payments.push({ id: doc.id, ...doc.data() } as TicketPayment);
+    });
+
+    return { success: true, payments };
+  } catch (error: any) {
+    console.error('Error getting club ticket payments:', error);
+    return { success: false, error: error.message, payments: [] };
   }
 };
 

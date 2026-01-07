@@ -29,8 +29,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../../_layout';
-import { getStoreItem, getUserAddresses } from '../../../lib/firebase';
-import type { StoreItem, ShippingAddress } from '../../../lib/firebase';
+import { getStoreItem, getUserAddresses, getUserRallyCredits } from '../../../lib/firebase';
+import type { StoreItem, ShippingAddress, UserRallyCredits } from '../../../lib/firebase';
 import { createStoreCheckoutSession, createStorePaymentIntent } from '../../../lib/stripe';
 import { Linking } from 'react-native';
 import { useStripe, usePaymentSheet } from '@stripe/stripe-react-native';
@@ -87,6 +87,12 @@ export default function StoreItemDetailScreen() {
   const [addressModalVisible, setAddressModalVisible] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<ShippingAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+
+  // Rally Credits
+  const [userCredits, setUserCredits] = useState<UserRallyCredits | null>(null);
+  const [creditsToUse, setCreditsToUse] = useState(0);
+  const [applyCredits, setApplyCredits] = useState(false);
+
   const [newAddress, setNewAddress] = useState<Omit<ShippingAddress, 'id' | 'isDefault'>>({
     fullName: '',
     addressLine1: '',
@@ -107,8 +113,22 @@ export default function StoreItemDetailScreen() {
   useEffect(() => {
     if (user) {
       loadUserAddresses();
+      loadUserCredits();
     }
   }, [user]);
+
+  const loadUserCredits = async () => {
+    if (!user) return;
+
+    try {
+      const result = await getUserRallyCredits(user.uid);
+      if (result.success && result.credits) {
+        setUserCredits(result.credits);
+      }
+    } catch (error) {
+      console.error('Error loading rally credits:', error);
+    }
+  };
 
   const loadItemData = async () => {
     try {
@@ -154,7 +174,7 @@ export default function StoreItemDetailScreen() {
   };
 
   const calculateTotal = () => {
-    if (!item) return { itemTotal: 0, tax: 0, adminFee: 0, transactionFee: 0, shipping: 0, total: 0 };
+    if (!item) return { itemTotal: 0, tax: 0, adminFee: 0, transactionFee: 0, shipping: 0, creditsDiscount: 0, total: 0 };
 
     const itemTotal = item.price * quantity;
     const shipping = deliveryMethod === 'shipping' ? (item.shippingCost || 0) : 0;
@@ -165,9 +185,36 @@ export default function StoreItemDetailScreen() {
     const adminFee = subtotal * ((item.adminFeeRate || 0) / 100);
     const transactionFee = subtotal * ((item.transactionFeeRate || 0) / 100);
 
-    const total = subtotal + tax + adminFee + transactionFee;
+    // Rally Credits discount (1 credit = $0.01)
+    const creditsDiscount = applyCredits ? Math.min(creditsToUse * 0.01, subtotal + tax + adminFee + transactionFee) : 0;
 
-    return { itemTotal, tax, adminFee, transactionFee, shipping, total };
+    const total = Math.max(0, subtotal + tax + adminFee + transactionFee - creditsDiscount);
+
+    return { itemTotal, tax, adminFee, transactionFee, shipping, creditsDiscount, total };
+  };
+
+  // Get available credits for this club
+  const getAvailableCreditsForClub = () => {
+    if (!userCredits || !item) return 0;
+    return userCredits.clubCredits?.[item.clubId] || 0;
+  };
+
+  // Max credits that can be applied (limited by available and total)
+  const getMaxCreditsToApply = () => {
+    const available = getAvailableCreditsForClub();
+    if (!item) return 0;
+
+    // Calculate max based on order total (before credits)
+    const itemTotal = item.price * quantity;
+    const shipping = deliveryMethod === 'shipping' ? (item.shippingCost || 0) : 0;
+    const subtotal = itemTotal + shipping;
+    const tax = subtotal * (item.taxRate / 100);
+    const totalBeforeCredits = subtotal + tax;
+
+    // Max credits = total in cents (1 credit = $0.01)
+    const maxCreditsForOrder = Math.floor(totalBeforeCredits * 100);
+
+    return Math.min(available, maxCreditsForOrder);
   };
 
   const openPurchaseModal = () => {
@@ -849,6 +896,64 @@ export default function StoreItemDetailScreen() {
 
               <View style={styles.modalDivider} />
 
+              {/* Rally Credits Section */}
+              {getAvailableCreditsForClub() > 0 && (
+                <>
+                  <View style={styles.modalSection}>
+                    <Text style={styles.modalSectionTitle}>Rally Credits</Text>
+                    <View style={styles.creditsContainer}>
+                      <View style={styles.creditsInfo}>
+                        <Ionicons name="star" size={20} color="#FFD700" />
+                        <Text style={styles.creditsText}>
+                          {getAvailableCreditsForClub()} credits available
+                        </Text>
+                        <Text style={styles.creditsValue}>
+                          (${(getAvailableCreditsForClub() * 0.01).toFixed(2)})
+                        </Text>
+                      </View>
+
+                      <TouchableOpacity
+                        onPress={() => {
+                          if (!applyCredits) {
+                            setApplyCredits(true);
+                            setCreditsToUse(getMaxCreditsToApply());
+                          } else {
+                            setApplyCredits(false);
+                            setCreditsToUse(0);
+                          }
+                        }}
+                        style={[
+                          styles.applyCreditsButton,
+                          applyCredits && styles.applyCreditsButtonActive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.applyCreditsText,
+                            applyCredits && styles.applyCreditsTextActive,
+                          ]}
+                        >
+                          {applyCredits ? 'Applied' : 'Apply'}
+                        </Text>
+                        {applyCredits && (
+                          <Ionicons name="checkmark" size={16} color="#22C55E" />
+                        )}
+                      </TouchableOpacity>
+                    </View>
+
+                    {applyCredits && (
+                      <View style={styles.creditsAppliedBadge}>
+                        <Ionicons name="gift" size={16} color="#22C55E" />
+                        <Text style={styles.creditsAppliedText}>
+                          -{creditsToUse} credits (−${(creditsToUse * 0.01).toFixed(2)})
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.modalDivider} />
+                </>
+              )}
+
               {/* Price Summary */}
               <View style={styles.modalSection}>
                 <Text style={styles.modalSectionTitle}>Order Summary</Text>
@@ -869,6 +974,15 @@ export default function StoreItemDetailScreen() {
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Sales Tax</Text>
                     <Text style={styles.summaryValue}>${calculateTotal().tax.toFixed(2)}</Text>
+                  </View>
+                )}
+
+                {calculateTotal().creditsDiscount > 0 && (
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, { color: '#22C55E' }]}>Rally Credits</Text>
+                    <Text style={[styles.summaryValue, { color: '#22C55E' }]}>
+                      -${calculateTotal().creditsDiscount.toFixed(2)}
+                    </Text>
                   </View>
                 )}
 
@@ -1510,5 +1624,63 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255,255,255,0.7)',
     marginTop: 4,
+  },
+  // Rally Credits styles
+  creditsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  creditsInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  creditsText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  creditsValue: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.6)',
+  },
+  applyCreditsButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  applyCreditsButtonActive: {
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    borderColor: '#22C55E',
+  },
+  applyCreditsText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.8)',
+  },
+  applyCreditsTextActive: {
+    color: '#22C55E',
+  },
+  creditsAppliedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.2)',
+  },
+  creditsAppliedText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#22C55E',
   },
 });

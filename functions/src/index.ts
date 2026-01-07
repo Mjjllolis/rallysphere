@@ -354,6 +354,25 @@ export const createStorePaymentIntent = functions.https.onCall(
       const item = itemDoc.data() as any;
       const userId = auth.uid;
 
+      // Get club to check for Stripe Connect account
+      const clubDoc = await db.collection("clubs").doc(item.clubId).get();
+      if (!clubDoc.exists) {
+        throw new functions.https.HttpsError(
+          "not-found",
+          "Club not found"
+        );
+      }
+
+      const club = clubDoc.data() as any;
+      const stripeAccountId = club.stripeAccountId;
+
+      if (!stripeAccountId) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "Club has not set up payouts yet. Please contact the club organizer."
+        );
+      }
+
       // Check stock
       const availableStock = item.inventory - (item.sold || 0);
       if (availableStock < quantity) {
@@ -370,10 +389,15 @@ export const createStorePaymentIntent = functions.https.onCall(
 
       // Calculate fees
       const tax = itemAndShipping * (item.taxRate / 100);
-      const adminFee = itemAndShipping * ((item.adminFeeRate || 0) / 100);
-      const transactionFee = itemAndShipping * ((item.transactionFeeRate || 0) / 100);
 
-      const totalAmount = itemAndShipping + tax + adminFee + transactionFee;
+      // Platform fee: 10% of item subtotal only (not shipping/tax)
+      const PLATFORM_FEE_PERCENTAGE = 0.10;
+      const platformFee = subtotal * PLATFORM_FEE_PERCENTAGE;
+
+      // Club receives: 90% of subtotal + shipping + tax (they remit tax)
+      const clubAmount = (subtotal - platformFee) + shipping + tax;
+
+      const totalAmount = itemAndShipping + tax;
 
       // Create payment intent with Stripe
       const stripe = getStripe();
@@ -393,10 +417,11 @@ export const createStorePaymentIntent = functions.https.onCall(
           shippingAddress: shippingAddress ? JSON.stringify(shippingAddress) : "",
           subtotal: subtotal.toString(),
           tax: tax.toString(),
-          adminFee: adminFee.toString(),
-          transactionFee: transactionFee.toString(),
+          platformFee: platformFee.toFixed(2),
+          clubAmount: clubAmount.toFixed(2),
           shipping: shipping.toString(),
           totalAmount: totalAmount.toString(),
+          stripeAccountId: stripeAccountId,
         },
         description: `${item.name || "Store item"} (x${quantity})`,
       });
@@ -404,6 +429,14 @@ export const createStorePaymentIntent = functions.https.onCall(
       return {
         clientSecret: paymentIntent.client_secret,
         paymentIntentId: paymentIntent.id,
+        breakdown: {
+          subtotal,
+          shipping,
+          tax,
+          platformFee,
+          clubReceives: clubAmount,
+          totalAmount,
+        },
       };
     } catch (error: any) {
       console.error("Error creating store payment intent:", error);
@@ -631,10 +664,11 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
           shippingAddress,
           subtotal,
           tax,
-          adminFee,
-          transactionFee,
+          platformFee,
+          clubAmount,
           shipping,
           totalAmount,
+          stripeAccountId,
         } = paymentIntent.metadata;
 
         if (!userId || !itemId) {
@@ -675,6 +709,34 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
             }
           }
 
+          // Transfer money to club (90% of subtotal + shipping)
+          const clubAmountNum = parseFloat(clubAmount || "0");
+          let transferSuccessful = false;
+
+          if (stripeAccountId && clubAmountNum > 0) {
+            try {
+              const stripe = getStripe();
+              const transfer = await stripe.transfers.create({
+                amount: Math.round(clubAmountNum * 100), // Convert to cents
+                currency: paymentIntent.currency,
+                destination: stripeAccountId,
+                transfer_group: paymentIntent.id,
+                metadata: {
+                  type: "store_purchase",
+                  paymentIntentId: paymentIntent.id,
+                  itemId,
+                  clubId,
+                  userId,
+                },
+              });
+              console.log(`Transfer created for store order: ${transfer.id}`);
+              transferSuccessful = true;
+            } catch (transferError: any) {
+              console.error("Error creating transfer for store order:", transferError);
+              // Continue to create the order even if transfer fails
+            }
+          }
+
           // Create order
           await admin.firestore().collection("storeOrders").add({
             itemId,
@@ -689,14 +751,15 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
             selectedVariants: parsedVariants,
             price: parseFloat(subtotal),
             tax: parseFloat(tax || "0"),
-            adminFee: parseFloat(adminFee || "0"),
-            transactionFee: parseFloat(transactionFee || "0"),
-            shipping: parseFloat(shipping),
+            platformFee: parseFloat(platformFee || "0"),
+            clubAmount: clubAmountNum,
+            shipping: parseFloat(shipping || "0"),
             totalAmount: parseFloat(totalAmount),
             deliveryMethod,
             shippingAddress: parsedAddress,
             status: "pending",
             paymentIntentId: paymentIntent.id,
+            transferredToClub: transferSuccessful,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
@@ -1300,6 +1363,25 @@ export const createStoreCheckoutSession = functions.https.onCall(
 
       const item = itemDoc.data() as any;
 
+      // Get club to check for Stripe Connect account
+      const clubDoc = await db.collection("clubs").doc(item.clubId).get();
+      if (!clubDoc.exists) {
+        throw new functions.https.HttpsError(
+          "not-found",
+          "Club not found"
+        );
+      }
+
+      const club = clubDoc.data() as any;
+      const stripeAccountId = club.stripeAccountId;
+
+      if (!stripeAccountId) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "Club has not set up payouts yet. Please contact the club organizer."
+        );
+      }
+
       // Check stock
       const availableStock = item.inventory - (item.sold || 0);
       if (availableStock < quantity) {
@@ -1309,45 +1391,70 @@ export const createStoreCheckoutSession = functions.https.onCall(
         );
       }
 
-      // Get user details (for future use if needed)
-      // const userDoc = await db.collection("users").doc(auth.uid).get();
-
       // Calculate pricing
       const subtotal = item.price * quantity;
-      const tax = subtotal * (item.taxRate / 100);
       const shipping = deliveryMethod === "shipping" ?
         (item.shippingCost || 0) : 0;
-      const totalAmount = subtotal + tax + shipping;
+      const itemAndShipping = subtotal + shipping;
+      const tax = itemAndShipping * (item.taxRate / 100);
+      const totalAmount = itemAndShipping + tax;
+
+      // Platform fee: 10% of item subtotal only (not shipping/tax)
+      const PLATFORM_FEE_PERCENTAGE = 0.10;
+      const platformFee = subtotal * PLATFORM_FEE_PERCENTAGE;
+
+      // Club receives: 90% of subtotal + shipping + tax (they remit tax)
+      const clubAmount = (subtotal - platformFee) + shipping + tax;
+
+      // Build line items
+      const lineItems: any[] = [
+        {
+          price_data: {
+            currency: "usd",
+            product_data: {
+              name: item.name,
+              description: item.description,
+              images: item.images && item.images.length > 0 ?
+                [item.images[0]] : undefined,
+            },
+            unit_amount: Math.round(item.price * 100),
+          },
+          quantity: quantity,
+        },
+      ];
+
+      // Add shipping line item if applicable
+      if (shipping > 0) {
+        lineItems.push({
+          price_data: {
+            currency: "usd",
+            product_data: {
+              name: "Shipping",
+            },
+            unit_amount: Math.round(shipping * 100),
+          },
+          quantity: 1,
+        });
+      }
+
+      // Add tax line item if applicable
+      if (tax > 0) {
+        lineItems.push({
+          price_data: {
+            currency: "usd",
+            product_data: {
+              name: `Tax (${item.taxRate}%)`,
+            },
+            unit_amount: Math.round(tax * 100),
+          },
+          quantity: 1,
+        });
+      }
 
       // Create Stripe checkout session
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
-        line_items: [
-          {
-            price_data: {
-              currency: "usd",
-              product_data: {
-                name: item.name,
-                description: item.description,
-                images: item.images && item.images.length > 0 ?
-                  [item.images[0]] : undefined,
-              },
-              unit_amount: Math.round(item.price * 100), // Convert to cents
-            },
-            quantity: quantity,
-          },
-          // Add tax line item
-          {
-            price_data: {
-              currency: "usd",
-              product_data: {
-                name: `Tax (${item.taxRate}%)`,
-              },
-              unit_amount: Math.round(tax * 100),
-            },
-            quantity: 1,
-          },
-        ],
+        line_items: lineItems,
         mode: "payment",
         success_url: `rallysphere://payment-success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `rallysphere://payment-cancel`,
@@ -1365,7 +1472,30 @@ export const createStoreCheckoutSession = functions.https.onCall(
           subtotal: subtotal.toString(),
           tax: tax.toString(),
           shipping: shipping.toString(),
+          platformFee: platformFee.toFixed(2),
+          clubAmount: clubAmount.toFixed(2),
+          stripeAccountId: stripeAccountId,
           totalAmount: totalAmount.toString(),
+        },
+        payment_intent_data: {
+          metadata: {
+            type: "store_purchase",
+            userId: auth.uid,
+            itemId: itemId,
+            clubId: item.clubId,
+            quantity: quantity.toString(),
+            selectedVariants: JSON.stringify(selectedVariants || {}),
+            deliveryMethod: deliveryMethod,
+            shippingAddress: shippingAddress ?
+              JSON.stringify(shippingAddress) : "",
+            subtotal: subtotal.toString(),
+            tax: tax.toString(),
+            shipping: shipping.toString(),
+            platformFee: platformFee.toFixed(2),
+            clubAmount: clubAmount.toFixed(2),
+            stripeAccountId: stripeAccountId,
+            totalAmount: totalAmount.toString(),
+          },
         },
       });
 

@@ -45,6 +45,8 @@ const getStatusColor = (status: StoreOrder['status'], theme: any) => {
       return theme.colors.tertiary;
     case 'cancelled':
       return theme.colors.error;
+    case 'refunded':
+      return '#A855F7';
     default:
       return theme.colors.onSurface;
   }
@@ -64,6 +66,8 @@ const getStatusLabel = (status: StoreOrder['status']) => {
       return 'Picked Up';
     case 'cancelled':
       return 'Cancelled';
+    case 'refunded':
+      return 'Refunded';
     default:
       return status;
   }
@@ -85,6 +89,7 @@ export default function ManageOrdersScreen() {
   const [newStatus, setNewStatus] = useState<StoreOrder['status']>('pending');
   const [updating, setUpdating] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | StoreOrder['status']>('all');
+  const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadData();
@@ -131,6 +136,18 @@ export default function ManageOrdersScreen() {
     }
   };
 
+  const toggleExpanded = (orderId: string) => {
+    setExpandedOrders((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(orderId)) {
+        newSet.delete(orderId);
+      } else {
+        newSet.add(orderId);
+      }
+      return newSet;
+    });
+  };
+
   const openStatusModal = (order: StoreOrder) => {
     setSelectedOrder(order);
     setNewStatus(order.status);
@@ -167,7 +184,6 @@ export default function ManageOrdersScreen() {
     return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
-      year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
     });
@@ -181,8 +197,9 @@ export default function ManageOrdersScreen() {
       shipped: orders.filter((o) => o.status === 'shipped').length,
       completed: orders.filter((o) => o.status === 'delivered' || o.status === 'picked_up').length,
       cancelled: orders.filter((o) => o.status === 'cancelled').length,
+      refunded: orders.filter((o) => o.status === 'refunded').length,
       totalRevenue: orders
-        .filter((o) => o.status !== 'cancelled')
+        .filter((o) => o.status !== 'cancelled' && o.status !== 'refunded')
         .reduce((sum, o) => sum + o.totalAmount, 0),
     };
     return stats;
@@ -206,85 +223,43 @@ export default function ManageOrdersScreen() {
       <View style={[styles.header, { backgroundColor: theme.colors.background }]}>
         <View style={styles.headerTop}>
           <IconButton icon="arrow-left" onPress={() => router.back()} />
-          <View style={{ flex: 1 }} />
-        </View>
-        <View style={styles.headerContent}>
-          <Text variant="headlineLarge" style={[styles.title, { color: theme.colors.onBackground }]}>
-            Manage Orders
-          </Text>
-          <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-            {club?.name}
-          </Text>
+          <View style={{ flex: 1 }}>
+            <Text variant="titleLarge" style={[styles.title, { color: theme.colors.onBackground }]}>
+              Manage Orders
+            </Text>
+            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+              {club?.name} • ${stats.totalRevenue.toFixed(0)} revenue
+            </Text>
+          </View>
         </View>
       </View>
 
-      {/* Stats */}
-      <View style={styles.statsContainer}>
-        <Surface style={[styles.statCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
-          <Text variant="headlineSmall" style={{ fontWeight: 'bold', color: theme.colors.primary }}>
-            {stats.total}
-          </Text>
-          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-            Total Orders
-          </Text>
-        </Surface>
-
-        <Surface style={[styles.statCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
-          <Text variant="headlineSmall" style={{ fontWeight: 'bold', color: theme.colors.primary }}>
-            ${stats.totalRevenue.toFixed(2)}
-          </Text>
-          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-            Revenue
-          </Text>
-        </Surface>
-
-        <Surface style={[styles.statCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
-          <Text variant="headlineSmall" style={{ fontWeight: 'bold', color: theme.colors.tertiary }}>
-            {stats.pending}
-          </Text>
-          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-            Pending
-          </Text>
-        </Surface>
-      </View>
-
-      {/* Filter */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterContainer}>
-        <Chip
-          selected={filterStatus === 'all'}
-          onPress={() => setFilterStatus('all')}
-          style={styles.filterChip}
-        >
-          All ({stats.total})
-        </Chip>
-        <Chip
-          selected={filterStatus === 'pending'}
-          onPress={() => setFilterStatus('pending')}
-          style={styles.filterChip}
-        >
-          Pending ({stats.pending})
-        </Chip>
-        <Chip
-          selected={filterStatus === 'processing'}
-          onPress={() => setFilterStatus('processing')}
-          style={styles.filterChip}
-        >
-          Processing ({stats.processing})
-        </Chip>
-        <Chip
-          selected={filterStatus === 'shipped'}
-          onPress={() => setFilterStatus('shipped')}
-          style={styles.filterChip}
-        >
-          Shipped ({stats.shipped})
-        </Chip>
-        <Chip
-          selected={filterStatus === 'delivered'}
-          onPress={() => setFilterStatus('delivered')}
-          style={styles.filterChip}
-        >
-          Completed ({stats.completed})
-        </Chip>
+      {/* Compact Filter Chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filterContainer}
+        contentContainerStyle={styles.filterContent}
+      >
+        {[
+          { key: 'all', label: 'All', count: stats.total },
+          { key: 'pending', label: 'Pending', count: stats.pending },
+          { key: 'processing', label: 'Processing', count: stats.processing },
+          { key: 'shipped', label: 'Shipped', count: stats.shipped },
+          { key: 'delivered', label: 'Done', count: stats.completed },
+          { key: 'cancelled', label: 'Cancelled', count: stats.cancelled },
+        ].map((filter) => (
+          <Chip
+            key={filter.key}
+            selected={filterStatus === filter.key}
+            onPress={() => setFilterStatus(filter.key as any)}
+            style={styles.filterChip}
+            textStyle={styles.filterChipText}
+            compact
+          >
+            {filter.label} ({filter.count})
+          </Chip>
+        ))}
       </ScrollView>
 
       {/* Orders List */}
@@ -304,189 +279,218 @@ export default function ManageOrdersScreen() {
             </Text>
           </View>
         ) : (
-          filteredOrders.map((order) => (
-            <Surface key={order.id} style={[styles.orderCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
-              <View style={styles.cardInner}>
-                <View style={styles.orderHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                    Order #{order.id.slice(-8).toUpperCase()}
-                  </Text>
-                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                    {formatDate(order.createdAt)}
-                  </Text>
-                </View>
+          filteredOrders.map((order) => {
+            const isExpanded = expandedOrders.has(order.id);
 
-                <TouchableOpacity onPress={() => openStatusModal(order)}>
-                  <Chip
-                    textStyle={{ fontSize: 12, color: getStatusColor(order.status, theme) }}
-                    style={{
-                      backgroundColor: `${getStatusColor(order.status, theme)}20`,
-                    }}
-                    icon="chevron-down"
-                  >
-                    {getStatusLabel(order.status)}
-                  </Chip>
-                </TouchableOpacity>
-              </View>
-
-              <Divider style={{ marginVertical: 12 }} />
-
-              <View style={styles.orderBody}>
-                <View style={styles.itemInfo}>
-                  {order.itemImage ? (
-                    <Image source={{ uri: order.itemImage }} style={styles.itemImage} />
-                  ) : (
-                    <View style={[styles.itemImagePlaceholder, { backgroundColor: theme.colors.surfaceVariant }]}>
-                      <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-                        No Image
-                      </Text>
-                    </View>
-                  )}
-
-                  <View style={{ flex: 1 }}>
-                    <Text variant="titleMedium" numberOfLines={2} style={{ fontWeight: '600' }}>
-                      {order.itemName}
-                    </Text>
-
-                    <View style={styles.orderDetails}>
-                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                        Qty: {order.quantity}
-                      </Text>
-
-                      {order.selectedVariants && Object.keys(order.selectedVariants).length > 0 && (
-                        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                          {' • '}
-                          {Object.entries(order.selectedVariants)
-                            .map(([key, value]) => `${key}: ${value}`)
-                            .join(', ')}
-                        </Text>
-                      )}
-                    </View>
-
-                    <View style={styles.deliveryInfo}>
-                      <Chip
-                        icon={order.deliveryMethod === 'shipping' ? 'truck-delivery' : 'map-marker'}
-                        compact
-                        textStyle={{ fontSize: 11 }}
-                        style={{ height: 24 }}
-                      >
-                        {order.deliveryMethod === 'shipping' ? 'Shipping' : 'Pickup'}
-                      </Chip>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Customer Info */}
-                <View style={styles.customerSection}>
-                  <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 4 }}>
-                    Customer:
-                  </Text>
-                  <Text variant="bodyMedium" style={{ fontWeight: '600' }}>
-                    {order.userName}
-                  </Text>
-                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                    {order.userEmail}
-                  </Text>
-                </View>
-
-                {order.shippingAddress && (
-                  <View style={styles.addressSection}>
-                    <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-                      Shipping Address:
-                    </Text>
-                    <Text variant="bodySmall">{order.shippingAddress.fullName}</Text>
-                    <Text variant="bodySmall">{order.shippingAddress.addressLine1}</Text>
-                    {order.shippingAddress.addressLine2 && (
-                      <Text variant="bodySmall">{order.shippingAddress.addressLine2}</Text>
+            return (
+              <TouchableOpacity
+                key={order.id}
+                onPress={() => toggleExpanded(order.id)}
+                activeOpacity={0.7}
+              >
+                <Surface style={[styles.orderCard, { backgroundColor: theme.colors.surface }]} elevation={1}>
+                  {/* Compact Header - Always Visible */}
+                  <View style={styles.compactRow}>
+                    {order.itemImage ? (
+                      <Image source={{ uri: order.itemImage }} style={styles.thumbImage} resizeMode="cover" />
+                    ) : (
+                      <View style={[styles.thumbImage, { backgroundColor: theme.colors.surfaceVariant }]} />
                     )}
-                    <Text variant="bodySmall">
-                      {order.shippingAddress.city}, {order.shippingAddress.state}{' '}
-                      {order.shippingAddress.zipCode}
-                    </Text>
-                    <Text variant="bodySmall">{order.shippingAddress.phone}</Text>
+
+                    <View style={styles.orderInfo}>
+                      <Text variant="titleSmall" numberOfLines={1} style={{ fontWeight: '600' }}>
+                        {order.itemName}
+                      </Text>
+                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                        {order.userName} • Qty: {order.quantity}
+                      </Text>
+                    </View>
+
+                    <View style={styles.rightSection}>
+                      <Text variant="titleSmall" style={{ fontWeight: 'bold', color: theme.colors.primary }}>
+                        ${order.totalAmount.toFixed(2)}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={(e) => { e.stopPropagation(); openStatusModal(order); }}
+                        style={[styles.statusBadge, { backgroundColor: `${getStatusColor(order.status, theme)}20` }]}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '600', color: getStatusColor(order.status, theme) }}>
+                          {getStatusLabel(order.status)}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                )}
-              </View>
 
-              <Divider style={{ marginVertical: 12 }} />
+                  {/* Expanded Details */}
+                  {isExpanded && (
+                    <View style={styles.expandedContent}>
+                      <Divider style={{ marginVertical: 12 }} />
 
-              <View style={styles.orderFooter}>
-                <View style={styles.priceBreakdown}>
-                  <View style={styles.priceRow}>
-                    <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                      Item Subtotal:
-                    </Text>
-                    <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                      ${order.price.toFixed(2)}
-                    </Text>
+                      {/* Order Info */}
+                      <View style={styles.detailRow}>
+                        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                          Order #{order.id.slice(-8).toUpperCase()}
+                        </Text>
+                        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                          {formatDate(order.createdAt)}
+                        </Text>
+                      </View>
+
+                      {/* Delivery Method */}
+                      <View style={[styles.detailRow, { marginTop: 8 }]}>
+                        <Chip
+                          icon={order.deliveryMethod === 'shipping' ? 'truck-delivery' : 'map-marker'}
+                          compact
+                          textStyle={{ fontSize: 11 }}
+                          style={{ alignSelf: 'flex-start' }}
+                        >
+                          {order.deliveryMethod === 'shipping' ? 'Shipping' : 'Pickup'}
+                        </Chip>
+                      </View>
+
+                      {/* Customer Info */}
+                      <View style={[styles.infoSection, { backgroundColor: theme.colors.surfaceVariant + '40' }]}>
+                        <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                          CUSTOMER
+                        </Text>
+                        <Text variant="bodyMedium" style={{ fontWeight: '600' }}>
+                          {order.userName}
+                        </Text>
+                        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                          {order.userEmail}
+                        </Text>
+                      </View>
+
+                      {/* Shipping Address */}
+                      {order.shippingAddress && (
+                        <View style={[styles.infoSection, { backgroundColor: theme.colors.surfaceVariant + '40' }]}>
+                          <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                            SHIPPING ADDRESS
+                          </Text>
+                          <Text variant="bodySmall">{order.shippingAddress.fullName}</Text>
+                          <Text variant="bodySmall">{order.shippingAddress.addressLine1}</Text>
+                          {order.shippingAddress.addressLine2 && (
+                            <Text variant="bodySmall">{order.shippingAddress.addressLine2}</Text>
+                          )}
+                          <Text variant="bodySmall">
+                            {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zipCode}
+                          </Text>
+                          <Text variant="bodySmall">{order.shippingAddress.phone}</Text>
+                        </View>
+                      )}
+
+                      {/* Price Breakdown */}
+                      <View style={[styles.infoSection, { backgroundColor: theme.colors.surfaceVariant + '40' }]}>
+                        <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 4 }}>
+                          PRICE BREAKDOWN
+                        </Text>
+                        <View style={styles.priceRow}>
+                          <Text variant="bodySmall">Subtotal</Text>
+                          <Text variant="bodySmall">${order.price.toFixed(2)}</Text>
+                        </View>
+                        {order.shipping > 0 && (
+                          <View style={styles.priceRow}>
+                            <Text variant="bodySmall">Shipping</Text>
+                            <Text variant="bodySmall">${order.shipping.toFixed(2)}</Text>
+                          </View>
+                        )}
+                        {order.tax > 0 && (
+                          <View style={styles.priceRow}>
+                            <Text variant="bodySmall">Tax</Text>
+                            <Text variant="bodySmall">${order.tax.toFixed(2)}</Text>
+                          </View>
+                        )}
+                        <Divider style={{ marginVertical: 4 }} />
+                        <View style={styles.priceRow}>
+                          <Text variant="bodyMedium" style={{ fontWeight: 'bold' }}>Total Charged</Text>
+                          <Text variant="bodyMedium" style={{ fontWeight: 'bold' }}>
+                            ${order.totalAmount.toFixed(2)}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Payout Info */}
+                      <View style={[styles.infoSection, { backgroundColor: theme.colors.primaryContainer + '40' }]}>
+                        <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 4 }}>
+                          CLUB PAYOUT
+                        </Text>
+                        {(order as any).platformFee > 0 ? (
+                          <>
+                            <View style={styles.priceRow}>
+                              <Text variant="bodySmall">Subtotal</Text>
+                              <Text variant="bodySmall">${order.price.toFixed(2)}</Text>
+                            </View>
+                            <View style={styles.priceRow}>
+                              <Text variant="bodySmall">Platform Fee (10%)</Text>
+                              <Text variant="bodySmall" style={{ color: theme.colors.error }}>
+                                -${((order as any).platformFee || 0).toFixed(2)}
+                              </Text>
+                            </View>
+                            {order.shipping > 0 && (
+                              <View style={styles.priceRow}>
+                                <Text variant="bodySmall">+ Shipping</Text>
+                                <Text variant="bodySmall">${order.shipping.toFixed(2)}</Text>
+                              </View>
+                            )}
+                            {order.tax > 0 && (
+                              <View style={styles.priceRow}>
+                                <Text variant="bodySmall">+ Tax (you remit)</Text>
+                                <Text variant="bodySmall">${order.tax.toFixed(2)}</Text>
+                              </View>
+                            )}
+                            <Divider style={{ marginVertical: 4 }} />
+                            <View style={styles.priceRow}>
+                              <Text variant="bodyMedium" style={{ fontWeight: 'bold' }}>You Receive</Text>
+                              <Text variant="bodyMedium" style={{ fontWeight: 'bold', color: theme.colors.primary }}>
+                                ${((order as any).clubAmount || 0).toFixed(2)}
+                              </Text>
+                            </View>
+                            <View style={[styles.priceRow, { marginTop: 8 }]}>
+                              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                                Transfer Status
+                              </Text>
+                              <Text
+                                variant="bodySmall"
+                                style={{
+                                  color: (order as any).transferredToClub ? theme.colors.primary : theme.colors.tertiary,
+                                  fontWeight: '600',
+                                }}
+                              >
+                                {(order as any).transferredToClub ? 'Transferred' : 'Pending'}
+                              </Text>
+                            </View>
+                          </>
+                        ) : (
+                          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                            Legacy order (no fee split)
+                          </Text>
+                        )}
+                      </View>
+
+                      {/* Update Status Button */}
+                      <Button
+                        mode="outlined"
+                        onPress={() => openStatusModal(order)}
+                        style={{ marginTop: 8 }}
+                        compact
+                      >
+                        Update Status
+                      </Button>
+                    </View>
+                  )}
+
+                  {/* Expand Indicator */}
+                  <View style={styles.expandIndicator}>
+                    <IconButton
+                      icon={isExpanded ? 'chevron-up' : 'chevron-down'}
+                      size={16}
+                      style={{ margin: 0, height: 20 }}
+                    />
                   </View>
-
-                  {order.shipping > 0 && (
-                    <View style={styles.priceRow}>
-                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                        Shipping:
-                      </Text>
-                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                        ${order.shipping.toFixed(2)}
-                      </Text>
-                    </View>
-                  )}
-
-                  <Divider style={{ marginVertical: 4 }} />
-
-                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 4, fontWeight: '600' }}>
-                    Taxes & Fees
-                  </Text>
-
-                  {order.tax > 0 && (
-                    <View style={styles.priceRow}>
-                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                        Sales Tax:
-                      </Text>
-                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                        ${order.tax.toFixed(2)}
-                      </Text>
-                    </View>
-                  )}
-
-                  {(order as any).adminFee > 0 && (
-                    <View style={styles.priceRow}>
-                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                        Admin Fee:
-                      </Text>
-                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                        ${(order as any).adminFee.toFixed(2)}
-                      </Text>
-                    </View>
-                  )}
-
-                  {(order as any).transactionFee > 0 && (
-                    <View style={styles.priceRow}>
-                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                        Transaction Fee:
-                      </Text>
-                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                        ${(order as any).transactionFee.toFixed(2)}
-                      </Text>
-                    </View>
-                  )}
-
-                  <Divider style={{ marginVertical: 4 }} />
-
-                  <View style={styles.priceRow}>
-                    <Text variant="titleMedium" style={{ fontWeight: 'bold' }}>
-                      Total:
-                    </Text>
-                    <Text variant="titleMedium" style={{ fontWeight: 'bold', color: theme.colors.primary }}>
-                      ${order.totalAmount.toFixed(2)}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-              </View>
-            </Surface>
-          ))
+                </Surface>
+              </TouchableOpacity>
+            );
+          })
         )}
       </ScrollView>
 
@@ -527,6 +531,7 @@ export default function ManageOrdersScreen() {
                     label: selectedOrder.deliveryMethod === 'shipping' ? 'Delivered' : 'Picked Up',
                   },
                   { value: 'cancelled', label: 'Cancelled' },
+                  { value: 'refunded', label: 'Refunded' },
                 ]}
                 style={{ marginBottom: 16 }}
               />
@@ -568,42 +573,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   header: {
-    paddingHorizontal: 8,
-    paddingBottom: 16,
+    paddingHorizontal: 4,
+    paddingBottom: 8,
   },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  headerContent: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
   },
   title: {
     fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    padding: 16,
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
   },
   filterContainer: {
-    paddingHorizontal: 16,
+    maxHeight: 40,
     marginBottom: 8,
   },
+  filterContent: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
   filterChip: {
-    marginRight: 8,
+    height: 32,
+  },
+  filterChipText: {
+    fontSize: 12,
   },
   scrollContent: {
     padding: 16,
+    paddingTop: 8,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -611,63 +607,52 @@ const styles = StyleSheet.create({
   },
   orderCard: {
     borderRadius: 12,
-    marginBottom: 16,
+    marginBottom: 12,
+    padding: 12,
   },
-  cardInner: {
-    overflow: 'hidden',
-    borderRadius: 12,
-    padding: 16,
-  },
-  orderHeader: {
+  compactRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  orderBody: {
-    gap: 12,
-  },
-  itemInfo: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  itemImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
-  },
-  itemImagePlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
-    justifyContent: 'center',
     alignItems: 'center',
+    gap: 12,
   },
-  orderDetails: {
-    flexDirection: 'row',
+  thumbImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 8,
+  },
+  orderInfo: {
+    flex: 1,
+  },
+  rightSection: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  expandedContent: {
     marginTop: 4,
   },
-  deliveryInfo: {
-    marginTop: 8,
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  customerSection: {
-    marginTop: 8,
+  infoSection: {
+    marginTop: 12,
     padding: 12,
-    backgroundColor: 'rgba(0,0,0,0.05)',
     borderRadius: 8,
-  },
-  addressSection: {
-    marginTop: 8,
-    padding: 12,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    borderRadius: 8,
-  },
-  orderFooter: {},
-  priceBreakdown: {
-    gap: 4,
+    gap: 2,
   },
   priceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  expandIndicator: {
+    alignItems: 'center',
+    marginTop: 4,
   },
   modalContent: {
     margin: 20,

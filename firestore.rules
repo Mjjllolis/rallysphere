@@ -4,9 +4,12 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can read/write their own profile
+    // Users can read/write their own profile, authenticated users can read others' basic info
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Users can read any profile (for attendee lists, member lists, etc.)
+      allow read: if request.auth != null;
+      // Users can only write their own profile
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
     
     // Clubs rules
@@ -47,6 +50,9 @@ service cloud.firestore {
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'updatedAt']) &&
         (request.auth.uid in request.resource.data.likes ||
          !(request.auth.uid in resource.data.get('likes', [])));
+      // Join Event Permission - users can add/remove themselves from attendees/waitlist
+      allow update: if request.auth != null &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attendees', 'waitlist', 'updatedAt']);
       // Only event creator and club admins can delete events
       allow delete: if request.auth != null &&
         (request.auth.uid == resource.data.createdBy);
@@ -62,10 +68,15 @@ service cloud.firestore {
       allow update, delete: if request.auth != null && request.auth.uid == resource.data.createdBy;
     }
 
-    // Payments - users can only read their own payments
+    // Payments - users can read their own payments, club admins can read club payments
     match /payments/{paymentId} {
       // Users can read their own payments
       allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      // Club admins can read payments for their club's events
+      allow read: if request.auth != null &&
+        exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
+        (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
+         request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []));
       // Only server (Firebase Functions) can write payments
       allow write: if false;
     }
