@@ -120,6 +120,8 @@ export interface Club {
     website?: string;
     instagram?: string;
     twitter?: string;
+    facebook?: string;
+    tiktok?: string;
     discord?: string;
   };
   // Stripe Connect for payouts

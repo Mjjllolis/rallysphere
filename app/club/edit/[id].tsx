@@ -52,6 +52,8 @@ export default function EditClubScreen() {
     website: '',
     instagram: '',
     twitter: '',
+    facebook: '',
+    tiktok: '',
     discord: '',
   });
 
@@ -92,6 +94,8 @@ export default function EditClubScreen() {
           website: clubData.socialLinks?.website || '',
           instagram: clubData.socialLinks?.instagram || '',
           twitter: clubData.socialLinks?.twitter || '',
+          facebook: clubData.socialLinks?.facebook || '',
+          tiktok: clubData.socialLinks?.tiktok || '',
           discord: clubData.socialLinks?.discord || '',
         });
 
@@ -206,6 +210,8 @@ export default function EditClubScreen() {
       if (formData.website.trim()) socialLinks.website = formData.website.trim();
       if (formData.instagram.trim()) socialLinks.instagram = formData.instagram.trim();
       if (formData.twitter.trim()) socialLinks.twitter = formData.twitter.trim();
+      if (formData.facebook.trim()) socialLinks.facebook = formData.facebook.trim();
+      if (formData.tiktok.trim()) socialLinks.tiktok = formData.tiktok.trim();
       if (formData.discord.trim()) socialLinks.discord = formData.discord.trim();
 
       const clubData: any = {
@@ -467,7 +473,7 @@ export default function EditClubScreen() {
               />
 
               <TextInput
-                label="Twitter"
+                label="Twitter / X"
                 value={formData.twitter}
                 onChangeText={(value) => updateFormData('twitter', value)}
                 mode="outlined"
@@ -478,12 +484,35 @@ export default function EditClubScreen() {
               />
 
               <TextInput
+                label="Facebook"
+                value={formData.facebook}
+                onChangeText={(value) => updateFormData('facebook', value)}
+                mode="outlined"
+                autoCapitalize="none"
+                style={styles.input}
+                left={<TextInput.Icon icon="facebook" />}
+                placeholder="Page URL or username"
+              />
+
+              <TextInput
+                label="TikTok"
+                value={formData.tiktok}
+                onChangeText={(value) => updateFormData('tiktok', value)}
+                mode="outlined"
+                autoCapitalize="none"
+                style={styles.input}
+                left={<TextInput.Icon icon="music-note" />}
+                placeholder="@username"
+              />
+
+              <TextInput
                 label="Discord"
                 value={formData.discord}
                 onChangeText={(value) => updateFormData('discord', value)}
                 mode="outlined"
                 autoCapitalize="none"
                 style={styles.input}
+                left={<TextInput.Icon icon="discord" />}
                 placeholder="Invite link"
               />
             </Card.Content>

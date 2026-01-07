@@ -31,6 +31,15 @@ export default function ClubCard({
 }: ClubCardProps) {
   const theme = useTheme();
 
+  // Generate initials from club name (e.g., "Pickle Ball Club" -> "PBC", "Pickle" -> "P")
+  const getClubInitials = (name: string): string => {
+    const words = name.trim().split(/\s+/);
+    if (words.length === 1) {
+      return words[0].charAt(0).toUpperCase();
+    }
+    return words.map(word => word.charAt(0).toUpperCase()).join('').slice(0, 3);
+  };
+
   const handlePress = () => {
     router.push(`/club/${club.id}`);
   };
@@ -59,22 +68,17 @@ export default function ClubCard({
         >
           <BlurView intensity={25} tint="dark" style={styles.compactCard}>
             <View style={styles.compactContent}>
-            {/* Left: Logo or Placeholder */}
+            {/* Left: Logo or Initials */}
             {club.logo ? (
               <Image source={{ uri: club.logo }} style={styles.compactLogo} />
             ) : club.coverImage ? (
               <Image source={{ uri: club.coverImage }} style={styles.compactLogo} />
             ) : (
               <LinearGradient
-                colors={['#1B365D', '#2B4A73', '#3A5F8F']}
+                colors={['#60A5FA', '#3B82F6']}
                 style={styles.compactLogoPlaceholder}
               >
-                <IconButton
-                  icon="account-group"
-                  iconColor="#fff"
-                  size={24}
-                  style={{ margin: 0 }}
-                />
+                <Text style={styles.compactInitials}>{getClubInitials(club.name)}</Text>
               </LinearGradient>
             )}
 
@@ -200,15 +204,10 @@ export default function ClubCard({
                   <Image source={{ uri: club.logo }} style={styles.logo} />
                 ) : (
                   <LinearGradient
-                    colors={['#1B365D', '#2B4A73', '#3A5F8F']}
+                    colors={['#60A5FA', '#3B82F6']}
                     style={styles.logoPlaceholder}
                   >
-                    <IconButton
-                      icon="account-group"
-                      iconColor="#fff"
-                      size={28}
-                      style={{ margin: 0 }}
-                    />
+                    <Text style={styles.logoInitials}>{getClubInitials(club.name)}</Text>
                   </LinearGradient>
                 )}
                 <View style={styles.titleSection}>
@@ -360,6 +359,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     overflow: 'hidden',
   },
+  logoInitials: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
   titleSection: {
     flex: 1,
     gap: 6,
@@ -480,6 +484,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
+  },
+  compactInitials: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
   },
   compactInfo: {
     flex: 1,
