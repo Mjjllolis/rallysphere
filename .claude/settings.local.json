@@ -52,7 +52,17 @@
       "Bash(grep:*)",
       "Bash(npm uninstall:*)",
       "Bash(killall:*)",
-      "Bash(git fetch:*)"
+      "Bash(git fetch:*)",
+      "Bash(xcrun devicectl:*)",
+      "Bash(xcrun xctrace:*)",
+      "Bash(pod install)",
+      "Bash(git diff:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(xargs -I{} bash -c 'echo \"\"\"\"i\"\"\"\" > /proc/{}/fd/0')",
+      "Bash(osascript -e 'tell application \"\"\"\"Terminal\"\"\"\" to do script \"\"\"\"npx expo start --ios\"\"\"\"')",
+      "Bash(open:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

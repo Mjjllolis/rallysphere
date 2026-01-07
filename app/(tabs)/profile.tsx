@@ -7,17 +7,21 @@ import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { BlurView } from 'expo-blur';
 import { useAuth } from '../_layout';
-import { getUserProfile, updateUserProfile, uploadImage, getUserRallyCredits, getClubs } from '../../lib/firebase';
-import type { UserProfile, UserRallyCredits, Club } from '../../lib/firebase';
+import { getUserProfile, updateUserProfile, uploadImage, getUserRallyCredits, getClubs, getAllEvents } from '../../lib/firebase';
+import type { UserProfile, UserRallyCredits, Club, Event } from '../../lib/firebase';
 import SettingsScreen from '../../components/SettingsScreen';
-import GlassMemoryCard from '../../components/GlassMemoryCard';
 import EditProfileScreen from '../../components/EditProfileScreen';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const SECTION_PADDING = 20;
+const CLUB_COLUMNS = 4;
+const CLUB_GAP = 12;
+const CLUB_ITEM_WIDTH = (SCREEN_WIDTH - (SECTION_PADDING * 2) - (CLUB_GAP * (CLUB_COLUMNS - 1))) / CLUB_COLUMNS;
 
-// Mock data for memories - will be replaced with real data from Firebase
-const MOCK_MEMORIES: any[] = [];
+const EVENT_COLUMNS = 3;
+const EVENT_GAP = 1;
+const EVENT_ITEM_WIDTH = (SCREEN_WIDTH / EVENT_COLUMNS) - (EVENT_GAP * 2 / 3);
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -29,12 +33,14 @@ export default function ProfilePage() {
   const scrollY = useRef(new Animated.Value(0)).current;
   const [rallyCredits, setRallyCredits] = useState<UserRallyCredits | null>(null);
   const [userClubs, setUserClubs] = useState<Club[]>([]);
+  const [pastEvents, setPastEvents] = useState<Event[]>([]);
 
   useEffect(() => {
     if (user) {
       loadProfile();
       loadRallyCredits();
       loadUserClubs();
+      loadPastEvents();
     }
   }, [user]);
 
@@ -67,34 +73,27 @@ export default function ProfilePage() {
     }
   };
 
-  const handleSignOut = async () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Sign Out', 
-          style: 'destructive',
-          onPress: async () => {
-            setLoading(true);
-            try {
-              const result = await logout();
-              if (result.success) {
-                router.replace('/(auth)/welcome-simple');
-              } else {
-                Alert.alert('Error', 'Failed to sign out');
-              }
-            } catch (error) {
-              console.error('Sign out error:', error);
-              Alert.alert('Error', 'An unexpected error occurred');
-            } finally {
-              setLoading(false);
-            }
-          }
-        }
-      ]
-    );
+  const loadPastEvents = async () => {
+    if (!user) return;
+
+    const result = await getAllEvents();
+    if (result.success) {
+      const now = new Date();
+      // Filter events where user attended and event has ended
+      const past = result.events.filter(event => {
+        const endDate = event.endDate.toDate();
+        return event.attendees.includes(user.uid) && endDate < now;
+      });
+      // Sort by most recent first
+      past.sort((a, b) => b.endDate.toDate().getTime() - a.endDate.toDate().getTime());
+      setPastEvents(past);
+    }
+  };
+
+  const getUserClubRole = (club: Club): string => {
+    if (!user) return 'Member';
+    if (club.admins.includes(user.uid)) return 'Admin';
+    return 'Member';
   };
 
   const pickProfileImage = async () => {
@@ -128,16 +127,6 @@ export default function ProfilePage() {
     } finally {
       setUploadingImage(false);
     }
-  };
-
-  const handleMemoryPress = (memoryId: string) => {
-    // TODO: Navigate to memory detail page
-    Alert.alert('Memory', `View memory ${memoryId}`);
-  };
-
-  const handleMemoryLike = (memoryId: string) => {
-    // TODO: Implement like functionality
-    console.log('Like memory:', memoryId);
   };
 
   if (!user) {
@@ -274,6 +263,14 @@ export default function ProfilePage() {
                   </Text>
                 </View>
               )}
+              {/* Change Profile Image Overlay */}
+              <View style={styles.avatarOverlay}>
+                <BlurView intensity={60} tint="dark" style={styles.avatarOverlayBlur}>
+                  <Text style={styles.avatarOverlayText}>
+                    {uploadingImage ? 'Uploading...' : 'Change Image'}
+                  </Text>
+                </BlurView>
+              </View>
             </TouchableOpacity>
 
             {/* User Info */}
@@ -329,30 +326,86 @@ export default function ProfilePage() {
             </TouchableOpacity>
           </View>
 
-          {/* Memories Section */}
-          <View style={styles.memoriesSection}>
-            <View style={styles.memoriesHeader}>
-              <Text style={styles.sectionTitle}>Memories</Text>
-              <Text style={styles.memoriesCount}>{MOCK_MEMORIES.length} posts</Text>
+          {/* My Clubs Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>My Clubs</Text>
+              <Text style={styles.sectionCount}>{userClubs.length} clubs</Text>
             </View>
 
-            {/* Memories Grid */}
-            <View style={styles.memoriesGrid}>
-              {MOCK_MEMORIES.map((memory, index) => (
-                <GlassMemoryCard
-                  key={memory.id}
-                  imageUri={memory.imageUri}
-                  title={memory.title}
-                  eventName={memory.eventName}
-                  date={memory.date}
-                  likes={memory.likes}
-                  comments={memory.comments}
-                  isLiked={memory.isLiked}
-                  onPress={() => handleMemoryPress(memory.id)}
-                  onLike={() => handleMemoryLike(memory.id)}
-                />
-              ))}
+            {userClubs.length === 0 ? (
+              <View style={styles.emptySection}>
+                <Text style={styles.emptySectionText}>You haven't joined any clubs yet</Text>
+              </View>
+            ) : (
+              <View style={styles.clubCirclesContainer}>
+                {userClubs.map((club) => (
+                  <TouchableOpacity
+                    key={club.id}
+                    style={styles.clubCircleItem}
+                    onPress={() => router.push(`/club/${club.id}`)}
+                  >
+                    {club.logo ? (
+                      <Image source={{ uri: club.logo }} style={styles.clubCircleImage} />
+                    ) : (
+                      <LinearGradient
+                        colors={['#60A5FA', '#3B82F6']}
+                        style={styles.clubCirclePlaceholder}
+                      >
+                        <Text style={styles.clubCircleInitial}>
+                          {club.name.charAt(0).toUpperCase()}
+                        </Text>
+                      </LinearGradient>
+                    )}
+                    <Text style={styles.clubCircleName} numberOfLines={1}>{club.name}</Text>
+                    <View style={[styles.clubRoleBadge, getUserClubRole(club) === 'Admin' && styles.clubAdminBadge]}>
+                      <Text style={styles.clubRoleText}>{getUserClubRole(club)}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* Past Events Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Past Events</Text>
+              <Text style={styles.sectionCount}>{pastEvents.length} events</Text>
             </View>
+
+            {pastEvents.length === 0 ? (
+              <View style={styles.emptySection}>
+                <Text style={styles.emptySectionText}>No past events yet</Text>
+              </View>
+            ) : (
+              <View style={styles.eventsGrid}>
+                {pastEvents.map((event) => (
+                  <TouchableOpacity
+                    key={event.id}
+                    style={styles.eventGridItem}
+                    onPress={() => router.push(`/(tabs)/event-detail?id=${event.id}`)}
+                  >
+                    {event.coverImage ? (
+                      <Image source={{ uri: event.coverImage }} style={styles.eventGridImage} />
+                    ) : (
+                      <LinearGradient
+                        colors={['#1e1e1e', '#2a2a2a']}
+                        style={styles.eventGridPlaceholder}
+                      >
+                        <IconButton icon="calendar" size={28} iconColor="rgba(255,255,255,0.4)" style={{ margin: 0 }} />
+                      </LinearGradient>
+                    )}
+                    <View style={styles.eventGridOverlay}>
+                      <Text style={styles.eventGridTitle} numberOfLines={2}>{event.title}</Text>
+                      <Text style={styles.eventGridDate}>
+                        {event.endDate.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
         </Animated.ScrollView>
       </SafeAreaView>
@@ -517,6 +570,26 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: 'white',
   },
+  avatarOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    overflow: 'hidden',
+    borderBottomLeftRadius: 60,
+    borderBottomRightRadius: 60,
+  },
+  avatarOverlayBlur: {
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarOverlayText: {
+    fontSize: 8,
+    fontWeight: '300',
+    color: 'white',
+    textAlign: 'center',
+  },
   userInfo: {
     alignItems: 'center',
     marginBottom: 20,
@@ -604,45 +677,126 @@ const styles = StyleSheet.create({
     margin: 0,
     padding: 0,
   },
-  memoriesSection: {
-    flex: 1,
+  section: {
     paddingHorizontal: 20,
+    marginBottom: 24,
   },
-  memoriesHeader: {
+  sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 22,
     fontWeight: '700',
     color: 'white',
   },
-  memoriesCount: {
+  sectionCount: {
     fontSize: 14,
     fontWeight: '600',
     color: 'rgba(255, 255, 255, 0.6)',
   },
-  memoriesGrid: {
+  emptySection: {
+    paddingVertical: 24,
+    alignItems: 'center',
+  },
+  emptySectionText: {
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  // Club circles styles
+  clubCirclesContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    gap: CLUB_GAP,
   },
-  rallyCreditsHeader: {
-    flexDirection: 'row',
+  clubCircleItem: {
     alignItems: 'center',
-    gap: 16,
+    width: CLUB_ITEM_WIDTH,
   },
-  rallyCreditsIcon: {
-    marginRight: 8,
+  clubCircleImage: {
+    width: CLUB_ITEM_WIDTH - 10,
+    height: CLUB_ITEM_WIDTH - 10,
+    borderRadius: (CLUB_ITEM_WIDTH - 10) / 2,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
-  creditsStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingTop: 8,
-  },
-  creditsStat: {
+  clubCirclePlaceholder: {
+    width: CLUB_ITEM_WIDTH - 10,
+    height: CLUB_ITEM_WIDTH - 10,
+    borderRadius: (CLUB_ITEM_WIDTH - 10) / 2,
+    justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  clubCircleInitial: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: 'white',
+  },
+  clubCircleName: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'white',
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  clubRoleBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginTop: 4,
+  },
+  clubAdminBadge: {
+    backgroundColor: 'rgba(234, 179, 8, 0.3)',
+  },
+  clubRoleText: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: 'white',
+  },
+  // Events grid styles (Instagram-like)
+  eventsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -SECTION_PADDING,
+    gap: EVENT_GAP,
+  },
+  eventGridItem: {
+    width: EVENT_ITEM_WIDTH,
+    height: EVENT_ITEM_WIDTH,
+    position: 'relative',
+  },
+  eventGridImage: {
+    width: '100%',
+    height: '100%',
+  },
+  eventGridPlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  eventGridOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+  },
+  eventGridTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'white',
+    lineHeight: 14,
+  },
+  eventGridDate: {
+    fontSize: 9,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 2,
   },
 });
