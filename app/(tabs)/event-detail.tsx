@@ -17,8 +17,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../_layout';
-import { getEventById, joinEvent, leaveEvent, getUserRallyCredits, getClub } from '../../lib/firebase';
-import type { Event, UserRallyCredits } from '../../lib/firebase';
+import { getEventById, joinEvent, leaveEvent, getUserRallyCredits, getClub, getUserProfile } from '../../lib/firebase';
+import type { Event, UserRallyCredits, UserProfile } from '../../lib/firebase';
 import BackButton from '../../components/BackButton';
 import PaymentSheet from '../../components/PaymentSheet';
 import RallyCreditsPaidModal from '../../components/RallyCreditsPaidModal';
@@ -44,12 +44,40 @@ export default function EventDetailScreen() {
     clubName: string;
     isAlreadyMember: boolean;
   } | null>(null);
+  const [attendeesData, setAttendeesData] = useState<Map<string, UserProfile>>(new Map());
 
   useEffect(() => {
     if (eventId) {
       loadEventData();
     }
   }, [eventId]);
+
+  useEffect(() => {
+    if (event?.attendees?.length) {
+      loadAttendeesData(event.attendees);
+    }
+  }, [event?.attendees]);
+
+  const loadAttendeesData = async (attendeeIds: string[]) => {
+    const newData = new Map<string, UserProfile>();
+    await Promise.all(
+      attendeeIds.map(async (userId) => {
+        if (!attendeesData.has(userId)) {
+          try {
+            const profile = await getUserProfile(userId);
+            if (profile) {
+              newData.set(userId, profile);
+            }
+          } catch (e) {
+            console.error('Error loading attendee:', e);
+          }
+        } else {
+          newData.set(userId, attendeesData.get(userId)!);
+        }
+      })
+    );
+    setAttendeesData(newData);
+  };
 
   useEffect(() => {
     if (user && event) {
@@ -515,20 +543,37 @@ export default function EventDetailScreen() {
                 Attendees ({event.attendees.length})
               </Text>
               <View style={styles.membersList}>
-                {event.attendees.map((userId, index) => (
-                  <View key={userId} style={styles.memberRow}>
-                    <View style={styles.memberInfo}>
-                      <View style={styles.avatarCircle}>
-                        <Text variant="labelLarge" style={styles.avatarText}>
-                          {index + 1}
+                {event.attendees.map((userId) => {
+                  const attendee = attendeesData.get(userId);
+                  const displayName = attendee
+                    ? `${attendee.firstName || ''} ${attendee.lastName || ''}`.trim() || 'User'
+                    : 'Loading...';
+                  const initials = attendee
+                    ? `${attendee.firstName?.[0] || ''}${attendee.lastName?.[0] || ''}`.toUpperCase() || '?'
+                    : '?';
+
+                  return (
+                    <View key={userId} style={styles.memberRow}>
+                      <View style={styles.memberInfo}>
+                        {attendee?.avatar ? (
+                          <Image
+                            source={{ uri: attendee.avatar }}
+                            style={styles.attendeeAvatar}
+                          />
+                        ) : (
+                          <View style={styles.avatarCircle}>
+                            <Text variant="labelLarge" style={styles.avatarText}>
+                              {initials}
+                            </Text>
+                          </View>
+                        )}
+                        <Text variant="bodyLarge" style={styles.memberId} numberOfLines={1}>
+                          {displayName}
                         </Text>
                       </View>
-                      <Text variant="bodyLarge" style={styles.memberId} numberOfLines={1}>
-                        {userId}
-                      </Text>
                     </View>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
             </View>
           )}
@@ -794,6 +839,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#60A5FA',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  attendeeAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
   },
   avatarText: {
     color: '#fff',

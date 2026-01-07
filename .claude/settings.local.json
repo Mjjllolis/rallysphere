@@ -62,7 +62,8 @@
       "Bash(xargs -I{} bash -c 'echo \"\"\"\"i\"\"\"\" > /proc/{}/fd/0')",
       "Bash(osascript -e 'tell application \"\"\"\"Terminal\"\"\"\" to do script \"\"\"\"npx expo start --ios\"\"\"\"')",
       "Bash(open:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(echo:*)"
     ],
     "deny": [],
     "ask": []
