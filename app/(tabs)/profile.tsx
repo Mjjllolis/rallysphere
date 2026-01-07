@@ -1,13 +1,12 @@
 // app/(tabs)/profile.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, Alert, TouchableOpacity, Dimensions, Image, Animated } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Dimensions, Image, Animated } from 'react-native';
 import { Text, IconButton } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
 import { BlurView } from 'expo-blur';
 import { useAuth } from '../_layout';
-import { getUserProfile, updateUserProfile, uploadImage, getUserRallyCredits, getClubs, getAllEvents } from '../../lib/firebase';
+import { getUserProfile, getUserRallyCredits, getClubs, getAllEvents } from '../../lib/firebase';
 import type { UserProfile, UserRallyCredits, Club, Event } from '../../lib/firebase';
 import SettingsScreen from '../../components/SettingsScreen';
 import EditProfileScreen from '../../components/EditProfileScreen';
@@ -26,7 +25,6 @@ const EVENT_ITEM_WIDTH = (SCREEN_WIDTH / EVENT_COLUMNS) - (EVENT_GAP * 2 / 3);
 export default function ProfilePage() {
   const { user } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [editProfileVisible, setEditProfileVisible] = useState(false);
   const [backgroundColors, setBackgroundColors] = useState<string[]>(['#6366f1', '#8b5cf6', '#d946ef']);
@@ -94,39 +92,6 @@ export default function ProfilePage() {
     if (!user) return 'Member';
     if (club.admins.includes(user.uid)) return 'Admin';
     return 'Member';
-  };
-
-  const pickProfileImage = async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0] && user) {
-        setUploadingImage(true);
-        const imagePath = `users/avatars/${user.uid}_avatar.jpg`;
-        const imageUrl = await uploadImage(result.assets[0].uri, imagePath);
-
-        if (imageUrl && profile) {
-          const updatedProfile = { ...profile, avatar: imageUrl };
-          const updateResult = await updateUserProfile(user.uid, updatedProfile);
-
-          if (updateResult.success) {
-            setProfile(updatedProfile);
-            Alert.alert('Success', 'Profile picture updated!');
-          } else {
-            Alert.alert('Error', 'Failed to update profile picture');
-          }
-        }
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to update profile picture');
-    } finally {
-      setUploadingImage(false);
-    }
   };
 
   if (!user) {
@@ -246,32 +211,28 @@ export default function ProfilePage() {
           {/* Profile Header */}
           <View style={styles.profileHeader}>
             {/* Avatar */}
-            <TouchableOpacity
-              style={styles.avatarContainer}
-              onPress={pickProfileImage}
-              disabled={uploadingImage}
-            >
+            <View style={styles.avatarContainer}>
               {profile?.avatar || user.photoURL ? (
                 <Image
                   source={{ uri: profile?.avatar || user.photoURL || undefined }}
                   style={styles.avatarImage}
                 />
+              ) : profile?.profileEmoji ? (
+                <View style={styles.avatarPlaceholder}>
+                  <Text style={styles.emojiText}>{profile.profileEmoji}</Text>
+                </View>
               ) : (
                 <View style={styles.avatarPlaceholder}>
                   <Text style={styles.avatarText}>
-                    {user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'}
+                    {profile?.firstName && profile?.lastName
+                      ? `${profile.firstName.charAt(0).toUpperCase()}${profile.lastName.charAt(0).toUpperCase()}`
+                      : user.displayName
+                        ? user.displayName.charAt(0).toUpperCase()
+                        : 'U'}
                   </Text>
                 </View>
               )}
-              {/* Change Profile Image Overlay */}
-              <View style={styles.avatarOverlay}>
-                <BlurView intensity={60} tint="dark" style={styles.avatarOverlayBlur}>
-                  <Text style={styles.avatarOverlayText}>
-                    {uploadingImage ? 'Uploading...' : 'Change Image'}
-                  </Text>
-                </BlurView>
-              </View>
-            </TouchableOpacity>
+            </View>
 
             {/* User Info */}
             <View style={styles.userInfo}>
@@ -570,25 +531,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: 'white',
   },
-  avatarOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    overflow: 'hidden',
-    borderBottomLeftRadius: 60,
-    borderBottomRightRadius: 60,
-  },
-  avatarOverlayBlur: {
-    paddingVertical: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarOverlayText: {
-    fontSize: 8,
-    fontWeight: '300',
-    color: 'white',
-    textAlign: 'center',
+  emojiText: {
+    fontSize: 56,
   },
   userInfo: {
     alignItems: 'center',

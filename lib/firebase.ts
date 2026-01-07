@@ -74,6 +74,7 @@ export interface UserProfile {
   lastName: string;
   bio?: string;
   avatar?: string;
+  profileEmoji?: string;
   backgroundImage?: string;
   instagram?: string;
   university?: string;
