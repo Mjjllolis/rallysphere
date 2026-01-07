@@ -12,8 +12,9 @@ import {
   TouchableWithoutFeedback,
   KeyboardAvoidingView,
   Platform,
+  ActionSheetIOS,
 } from 'react-native';
-import { Text, IconButton } from 'react-native-paper';
+import { Text, IconButton, Menu } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
@@ -23,6 +24,7 @@ import { getUserProfile, updateUserProfile, uploadImage } from '../lib/firebase'
 import type { UserProfile } from '../lib/firebase';
 import GlassInput from './GlassInput';
 import GlassButton from './GlassButton';
+import EmojiPickerModal from './EmojiPickerModal';
 
 interface EditProfileScreenProps {
   visible: boolean;
@@ -36,6 +38,8 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [backgroundColors] = useState<string[]>(['#6366f1', '#8b5cf6', '#d946ef']);
+  const [emojiPickerVisible, setEmojiPickerVisible] = useState(false);
+  const [pictureMenuVisible, setPictureMenuVisible] = useState(false);
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -43,6 +47,7 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
     bio: '',
     instagram: '',
     avatar: '',
+    profileEmoji: '',
     backgroundImage: '',
   });
 
@@ -63,6 +68,7 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
         bio: userProfile.bio || '',
         instagram: userProfile.instagram || '',
         avatar: userProfile.avatar || user.photoURL || '',
+        profileEmoji: userProfile.profileEmoji || '',
         backgroundImage: userProfile.backgroundImage || '',
       });
     }
@@ -70,6 +76,37 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
 
   const updateFormData = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const showProfilePictureOptions = () => {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancel', 'Remove Picture', 'Use Emoji', 'Use Photo'],
+          destructiveButtonIndex: 1,
+          cancelButtonIndex: 0,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 1) {
+            handleRemovePicture();
+          } else if (buttonIndex === 2) {
+            setEmojiPickerVisible(true);
+          } else if (buttonIndex === 3) {
+            pickProfileImage();
+          }
+        }
+      );
+    } else {
+      setPictureMenuVisible(true);
+    }
+  };
+
+  const handleRemovePicture = () => {
+    setFormData(prev => ({ ...prev, avatar: '', profileEmoji: '' }));
+  };
+
+  const handleSelectEmoji = (emoji: string) => {
+    setFormData(prev => ({ ...prev, avatar: '', profileEmoji: emoji }));
   };
 
   const pickProfileImage = async () => {
@@ -87,7 +124,7 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
         const imageUrl = await uploadImage(result.assets[0].uri, imagePath);
 
         if (imageUrl) {
-          setFormData(prev => ({ ...prev, avatar: imageUrl }));
+          setFormData(prev => ({ ...prev, avatar: imageUrl, profileEmoji: '' }));
         }
         setUploadingImage(false);
       }
@@ -133,6 +170,7 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
         bio: formData.bio.trim(),
         instagram: formData.instagram.trim().replace('@', ''), // Remove @ if user added it
         avatar: formData.avatar,
+        profileEmoji: formData.profileEmoji,
         backgroundImage: formData.backgroundImage,
       };
 
@@ -234,26 +272,72 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
                 keyboardShouldPersistTaps="handled"
               >
                 {/* Profile Picture */}
-                <TouchableOpacity
-                  style={styles.avatarContainer}
-                  onPress={pickProfileImage}
-                  disabled={uploadingImage}
-                >
-                  {formData.avatar ? (
-                    <Image source={{ uri: formData.avatar }} style={styles.avatarImage} />
-                  ) : (
-                    <View style={styles.avatarPlaceholder}>
-                      <Text style={styles.avatarText}>
-                        {user?.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'}
-                      </Text>
-                    </View>
-                  )}
-                  {uploadingImage && (
-                    <View style={styles.uploadingOverlay}>
-                      <Text style={styles.uploadingText}>Uploading...</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
+                <View style={styles.avatarSection}>
+                  <View style={styles.avatarContainer}>
+                    {formData.avatar ? (
+                      <Image source={{ uri: formData.avatar }} style={styles.avatarImage} />
+                    ) : formData.profileEmoji ? (
+                      <View style={styles.avatarPlaceholder}>
+                        <Text style={styles.emojiText}>{formData.profileEmoji}</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.avatarPlaceholder}>
+                        <Text style={styles.avatarText}>
+                          {formData.firstName && formData.lastName
+                            ? `${formData.firstName.charAt(0).toUpperCase()}${formData.lastName.charAt(0).toUpperCase()}`
+                            : user?.displayName
+                              ? user.displayName.charAt(0).toUpperCase()
+                              : 'U'}
+                        </Text>
+                      </View>
+                    )}
+                    {uploadingImage && (
+                      <View style={styles.uploadingOverlay}>
+                        <Text style={styles.uploadingText}>Uploading...</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Change Picture Link */}
+                  <Menu
+                    visible={pictureMenuVisible}
+                    onDismiss={() => setPictureMenuVisible(false)}
+                    anchor={
+                      <TouchableOpacity
+                        onPress={showProfilePictureOptions}
+                        disabled={uploadingImage}
+                        style={styles.changePictureLink}
+                      >
+                        <Text style={styles.changePictureLinkText}>Change Picture</Text>
+                      </TouchableOpacity>
+                    }
+                  >
+                    <Menu.Item
+                      onPress={() => {
+                        setPictureMenuVisible(false);
+                        handleRemovePicture();
+                      }}
+                      title="Remove Picture"
+                      leadingIcon="close-circle-outline"
+                    />
+                    <Menu.Item
+                      onPress={() => {
+                        setPictureMenuVisible(false);
+                        setEmojiPickerVisible(true);
+                      }}
+                      title="Use Emoji"
+                      leadingIcon="emoticon-outline"
+                    />
+                    <Menu.Item
+                      onPress={() => {
+                        setPictureMenuVisible(false);
+                        pickProfileImage();
+                      }}
+                      title="Use Photo"
+                      leadingIcon="camera-outline"
+                    />
+                  </Menu>
+                </View>
 
                 {/* Form Fields */}
                 <View style={styles.formContainer}>
@@ -304,6 +388,13 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
           </SafeAreaView>
         </View>
       </TouchableWithoutFeedback>
+
+      {/* Emoji Picker Modal */}
+      <EmojiPickerModal
+        visible={emojiPickerVisible}
+        onClose={() => setEmojiPickerVisible(false)}
+        onSelectEmoji={handleSelectEmoji}
+      />
     </Modal>
   );
 }
@@ -384,8 +475,6 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    alignSelf: 'center',
-    marginBottom: 32,
     overflow: 'hidden',
   },
   avatarImage: {
@@ -417,6 +506,21 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 14,
     fontWeight: '600',
+  },
+  emojiText: {
+    fontSize: 56,
+  },
+  avatarSection: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  changePictureLink: {
+    marginTop: 12,
+  },
+  changePictureLinkText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#60A5FA',
   },
   formContainer: {
     flex: 1,
