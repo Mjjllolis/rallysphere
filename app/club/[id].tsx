@@ -149,6 +149,15 @@ export default function ClubDetailScreen() {
     }
   };
 
+  // Generate initials from club name (e.g., "Pickle Ball Club" -> "PBC", "Pickle" -> "P")
+  const getClubInitials = (name: string): string => {
+    const words = name.trim().split(/\s+/);
+    if (words.length === 1) {
+      return words[0].charAt(0).toUpperCase();
+    }
+    return words.map(word => word.charAt(0).toUpperCase()).join('').slice(0, 3);
+  };
+
   if (loading || !club) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -266,8 +275,12 @@ export default function ClubDetailScreen() {
 
             {/* Club Info Overlay */}
             <View style={styles.heroContent}>
-              {club.logo && (
+              {club.logo ? (
                 <Image source={{ uri: club.logo }} style={styles.heroLogo} />
+              ) : (
+                <View style={styles.heroLogoInitials}>
+                  <Text style={styles.heroLogoInitialsText}>{getClubInitials(club.name)}</Text>
+                </View>
               )}
               <View style={styles.heroTitleContainer}>
                 <Text variant="displaySmall" style={styles.heroTitle}>
@@ -455,6 +468,30 @@ export default function ClubDetailScreen() {
                         mode="contained"
                         size={28}
                         onPress={() => openSocialLink(`https://twitter.com/${club.socialLinks!.twitter!.replace('@', '')}`)}
+                      />
+                    )}
+                    {club.socialLinks.facebook && (
+                      <IconButton
+                        icon="facebook"
+                        mode="contained"
+                        size={28}
+                        onPress={() => openSocialLink(club.socialLinks!.facebook!.startsWith('http') ? club.socialLinks!.facebook! : `https://facebook.com/${club.socialLinks!.facebook!}`)}
+                      />
+                    )}
+                    {club.socialLinks.tiktok && (
+                      <IconButton
+                        icon="music-note"
+                        mode="contained"
+                        size={28}
+                        onPress={() => openSocialLink(`https://tiktok.com/@${club.socialLinks!.tiktok!.replace('@', '')}`)}
+                      />
+                    )}
+                    {club.socialLinks.discord && (
+                      <IconButton
+                        icon="discord"
+                        mode="contained"
+                        size={28}
+                        onPress={() => openSocialLink(club.socialLinks!.discord!)}
                       />
                     )}
                   </View>
@@ -724,6 +761,22 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: '#fff',
     marginBottom: 16,
+  },
+  heroLogoInitials: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 3,
+    borderColor: '#fff',
+    marginBottom: 16,
+    backgroundColor: '#60A5FA',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroLogoInitialsText: {
+    color: '#fff',
+    fontSize: 36,
+    fontWeight: 'bold',
   },
   heroTitleContainer: {
     flexDirection: 'row',

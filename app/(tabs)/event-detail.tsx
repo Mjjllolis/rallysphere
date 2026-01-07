@@ -239,7 +239,7 @@ export default function EventDetailScreen() {
                   icon="arrow-left"
                   iconColor="#fff"
                   size={24}
-                  onPress={() => router.replace('/(tabs)/events')}
+                  onPress={() => router.back()}
                 />
               </Surface>
 
@@ -415,7 +415,7 @@ export default function EventDetailScreen() {
               )}
             </View>
 
-            {event.ticketPrice && event.ticketPrice > 0 && (
+            {event.ticketPrice > 0 && (
               <View style={styles.detailRow}>
                 <IconButton icon="currency-usd" size={24} />
                 <View style={styles.detailContent}>
@@ -427,13 +427,13 @@ export default function EventDetailScreen() {
               </View>
             )}
 
-            {event.rallyCreditsAwarded && event.rallyCreditsAwarded > 0 && (
+            {event.rallyCreditsAwarded > 0 && (
               <View style={styles.detailRow}>
                 <IconButton icon="star-circle" size={24} iconColor="#FFD700" />
                 <View style={styles.detailContent}>
                   <Text variant="labelLarge">Rally Credits Payout</Text>
                   <Text variant="bodyMedium" style={styles.detailText}>
-                    +{event.rallyCreditsAwarded} credits for joining
+                    +{event.rallyCreditsAwarded?.toString() || '0'} credits for joining
                   </Text>
                 </View>
               </View>
@@ -445,7 +445,7 @@ export default function EventDetailScreen() {
                 <View style={styles.detailContent}>
                   <Text variant="labelLarge">Your {event.clubName} Credits</Text>
                   <Text variant="bodyMedium" style={styles.detailText}>
-                    {userCredits.clubCredits?.[event.clubId] || 0} total credits
+                    {(userCredits.clubCredits?.[event.clubId] || 0).toString()} total credits
                   </Text>
                 </View>
               </View>
@@ -463,7 +463,7 @@ export default function EventDetailScreen() {
               </Text>
             </View>
 
-            {event.maxAttendees && (
+            {(event.maxAttendees ?? 0) > 0 && (
               <View style={styles.statCard}>
                 <Text variant="headlineSmall" style={styles.statNumber}>
                   {(event.maxAttendees - event.attendees.length).toString()}

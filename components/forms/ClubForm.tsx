@@ -42,6 +42,8 @@ export default function ClubForm({ onColorsExtracted, onSuccess }: ClubFormProps
     website: '',
     instagram: '',
     twitter: '',
+    facebook: '',
+    tiktok: '',
     discord: '',
   });
 
@@ -102,6 +104,8 @@ export default function ClubForm({ onColorsExtracted, onSuccess }: ClubFormProps
       if (formData.website.trim()) socialLinks.website = formData.website.trim();
       if (formData.instagram.trim()) socialLinks.instagram = formData.instagram.trim();
       if (formData.twitter.trim()) socialLinks.twitter = formData.twitter.trim();
+      if (formData.facebook.trim()) socialLinks.facebook = formData.facebook.trim();
+      if (formData.tiktok.trim()) socialLinks.tiktok = formData.tiktok.trim();
       if (formData.discord.trim()) socialLinks.discord = formData.discord.trim();
 
       const clubData: any = {
@@ -243,7 +247,7 @@ export default function ClubForm({ onColorsExtracted, onSuccess }: ClubFormProps
       />
 
       <GlassInput
-        label="Twitter"
+        label="Twitter / X"
         value={formData.twitter}
         onChangeText={(value) => updateFormData('twitter', value)}
         placeholder="@username"
@@ -252,11 +256,30 @@ export default function ClubForm({ onColorsExtracted, onSuccess }: ClubFormProps
       />
 
       <GlassInput
+        label="Facebook"
+        value={formData.facebook}
+        onChangeText={(value) => updateFormData('facebook', value)}
+        placeholder="Page URL or username"
+        autoCapitalize="none"
+        icon="facebook"
+      />
+
+      <GlassInput
+        label="TikTok"
+        value={formData.tiktok}
+        onChangeText={(value) => updateFormData('tiktok', value)}
+        placeholder="@username"
+        autoCapitalize="none"
+        icon="music-note"
+      />
+
+      <GlassInput
         label="Discord"
         value={formData.discord}
         onChangeText={(value) => updateFormData('discord', value)}
         placeholder="Invite link"
         autoCapitalize="none"
+        icon="discord"
       />
 
       <GlassSwitch
