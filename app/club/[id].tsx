@@ -15,8 +15,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../_layout';
-import { getClub, joinClub, leaveClub, getEvents, getClubStoreItems, getUserRallyCredits } from '../../lib/firebase';
-import type { Club, Event, StoreItem, UserRallyCredits } from '../../lib/firebase';
+import { getClub, joinClub, leaveClub, getEvents, getClubStoreItems, getUserRallyCredits, getUserProfile } from '../../lib/firebase';
+import type { Club, Event, StoreItem, UserRallyCredits, UserProfile } from '../../lib/firebase';
 import JoinClubModal from '../../components/JoinClubModal';
 
 const { width } = Dimensions.get('window');
@@ -36,12 +36,36 @@ export default function ClubDetailScreen() {
   const [activeTab, setActiveTab] = useState<'events' | 'members' | 'details' | 'store'>('details');
   const [storeItems, setStoreItems] = useState<any[]>([]);
   const [userCredits, setUserCredits] = useState<UserRallyCredits | null>(null);
+  const [membersData, setMembersData] = useState<Map<string, UserProfile>>(new Map());
 
   useEffect(() => {
     if (clubId) {
       loadClubData();
     }
   }, [clubId]);
+
+  useEffect(() => {
+    if (club?.members?.length) {
+      loadMembersData(club.members);
+    }
+  }, [club?.members]);
+
+  const loadMembersData = async (memberIds: string[]) => {
+    const newData = new Map<string, UserProfile>();
+    await Promise.all(
+      memberIds.map(async (userId) => {
+        try {
+          const profile = await getUserProfile(userId);
+          if (profile) {
+            newData.set(userId, profile);
+          }
+        } catch (error) {
+          console.error('Error loading profile for', userId, error);
+        }
+      })
+    );
+    setMembersData(newData);
+  };
 
   const loadClubData = async () => {
     try {
@@ -524,25 +548,42 @@ export default function ClubDetailScreen() {
                 All Members
               </Text>
               <View style={styles.membersList}>
-                {club.members.map((userId, index) => (
-                  <View key={userId} style={styles.memberRow}>
-                    <View style={styles.memberInfo}>
-                      <View style={styles.avatarCircle}>
-                        <Text variant="labelLarge" style={styles.avatarText}>
-                          {index + 1}
+                {club.members.map((userId) => {
+                  const member = membersData.get(userId);
+                  const displayName = member
+                    ? `${member.firstName || ''} ${member.lastName || ''}`.trim() || member.email || 'User'
+                    : 'Loading...';
+                  const initials = member
+                    ? `${member.firstName?.[0] || ''}${member.lastName?.[0] || ''}`.toUpperCase() || '?'
+                    : '?';
+
+                  return (
+                    <View key={userId} style={styles.memberRow}>
+                      <View style={styles.memberInfo}>
+                        {member?.avatar ? (
+                          <Image
+                            source={{ uri: member.avatar }}
+                            style={styles.avatarCircle}
+                          />
+                        ) : (
+                          <View style={styles.avatarCircle}>
+                            <Text variant="labelLarge" style={styles.avatarText}>
+                              {initials}
+                            </Text>
+                          </View>
+                        )}
+                        <Text variant="bodyLarge" style={styles.memberId} numberOfLines={1}>
+                          {displayName}
                         </Text>
                       </View>
-                      <Text variant="bodyLarge" style={styles.memberId} numberOfLines={1}>
-                        {userId}
-                      </Text>
+                      {club.admins.includes(userId) && (
+                        <Chip icon="crown" style={styles.adminChip}>
+                          Admin
+                        </Chip>
+                      )}
                     </View>
-                    {club.admins.includes(userId) && (
-                      <Chip icon="crown" style={styles.adminChip}>
-                        Admin
-                      </Chip>
-                    )}
-                  </View>
-                ))}
+                  );
+                })}
               </View>
             </View>
           )}
@@ -817,8 +858,10 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.9)',
   },
   heroJoinButton: {
-    width: '100%',
-    maxWidth: 300,
+    minWidth: 200,
+    paddingHorizontal: 40,
+    borderRadius: 25,
+    marginBottom: 16,
   },
   heroJoinButtonContent: {
     paddingVertical: 8,
@@ -830,9 +873,7 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     minHeight: '100%',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    marginTop: -24,
+    marginTop: 0,
     paddingTop: 24,
   },
   section: {

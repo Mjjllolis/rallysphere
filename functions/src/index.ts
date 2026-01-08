@@ -840,7 +840,7 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
           }
         }
 
-        // Create payment record
+        // Create payment record (legacy)
         await admin.firestore().collection("payments").add({
           userId,
           eventId,
@@ -856,7 +856,41 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
-        console.log(`User ${userId} added to event ${eventId}. Club receives $${clubAmount}`);
+        // Get user details for ticket order
+        const userDoc = await admin.firestore().collection("users").doc(userId).get();
+        const user = userDoc.exists ? userDoc.data() : null;
+
+        // Calculate processing fee
+        const ticketPriceNum = parseFloat(paymentIntent.metadata.ticketPrice || "0");
+        const totalAmountNum = paymentIntent.amount / 100;
+        const processingFee = totalAmountNum - ticketPriceNum;
+
+        // Create ticket order (new order management system)
+        await admin.firestore().collection("ticketOrders").add({
+          eventId,
+          clubId: paymentIntent.metadata.clubId,
+          clubName: eventData?.clubName || "",
+          userId,
+          userName: user?.displayName || user?.email || "Unknown",
+          userEmail: user?.email || "",
+          eventName: eventData?.title || "",
+          eventImage: eventData?.imageUrl || null,
+          eventDate: eventData?.startDate || null,
+          quantity: 1,
+          ticketPrice: ticketPriceNum,
+          processingFee: processingFee,
+          platformFee: platformFee,
+          totalAmount: totalAmountNum,
+          clubAmount: clubAmount,
+          currency: paymentIntent.currency,
+          status: "confirmed",
+          paymentIntentId: paymentIntent.id,
+          transferredToClub: clubAmount > 0,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        console.log(`User ${userId} added to event ${eventId}. Club receives $${clubAmount}. Ticket order created.`);
       } catch (error) {
         console.error("Error processing payment:", error);
       }
@@ -939,6 +973,78 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
           console.log(`Store order created for user ${userId}, item ${itemId}`);
         } catch (error) {
           console.error("Error creating store order:", error);
+        }
+      } else if (!session.metadata?.type || session.metadata?.type === "event_ticket") {
+        // Handle event ticket purchase via checkout session
+        const {eventId, userId, clubId, ticketPrice} = session.metadata || {};
+
+        if (!eventId || !userId) {
+          console.error("Missing metadata in ticket checkout session");
+          break;
+        }
+
+        try {
+          // Get event and user details
+          const eventDoc = await admin.firestore().collection("events").doc(eventId).get();
+          const userDoc = await admin.firestore().collection("users").doc(userId).get();
+
+          if (!eventDoc.exists) {
+            console.error(`Event ${eventId} not found`);
+            break;
+          }
+
+          const eventData = eventDoc.data();
+          const user = userDoc.exists ? userDoc.data() : null;
+
+          // Add user to event attendees
+          if (eventData?.maxAttendees && eventData.attendees?.length >= eventData.maxAttendees) {
+            await admin.firestore().collection("events").doc(eventId).update({
+              waitlist: admin.firestore.FieldValue.arrayUnion(userId),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          } else {
+            await admin.firestore().collection("events").doc(eventId).update({
+              attendees: admin.firestore.FieldValue.arrayUnion(userId),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          }
+
+          // Calculate fees
+          const ticketPriceNum = parseFloat(ticketPrice || "0");
+          const totalAmountNum = (session.amount_total || 0) / 100;
+          const processingFee = totalAmountNum - ticketPriceNum;
+          const platformFee = ticketPriceNum * 0.10; // 10% platform fee
+          const clubAmount = ticketPriceNum - platformFee;
+
+          // Create ticket order
+          await admin.firestore().collection("ticketOrders").add({
+            eventId,
+            clubId: clubId || eventData?.clubId || "",
+            clubName: eventData?.clubName || "",
+            userId,
+            userName: user?.displayName || user?.email || "Unknown",
+            userEmail: user?.email || "",
+            eventName: eventData?.title || "",
+            eventImage: eventData?.imageUrl || null,
+            eventDate: eventData?.startDate || null,
+            quantity: 1,
+            ticketPrice: ticketPriceNum,
+            processingFee: processingFee,
+            platformFee: platformFee,
+            totalAmount: totalAmountNum,
+            clubAmount: clubAmount,
+            currency: session.currency || "usd",
+            status: "confirmed",
+            paymentIntentId: session.payment_intent as string,
+            stripeSessionId: session.id,
+            transferredToClub: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          console.log(`Ticket order created for user ${userId}, event ${eventId}`);
+        } catch (error) {
+          console.error("Error creating ticket order from checkout:", error);
         }
       }
       break;

@@ -301,6 +301,33 @@ export interface TicketPayment {
   createdAt: Timestamp;
 }
 
+export interface TicketOrder {
+  id: string;
+  eventId: string;
+  clubId: string;
+  clubName: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  eventName: string;
+  eventImage?: string;
+  eventDate?: Timestamp;
+  quantity: number;
+  ticketPrice: number;
+  processingFee: number;
+  platformFee: number;
+  totalAmount: number;
+  clubAmount: number;
+  currency: string;
+  status: 'confirmed' | 'checked_in' | 'cancelled' | 'refunded';
+  paymentIntentId: string;
+  stripeSessionId?: string;
+  transferredToClub: boolean;
+  checkedInAt?: Timestamp;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
 export interface RallyCreditRedemption {
   id: string;
   clubId: string;
@@ -671,7 +698,7 @@ export const joinClub = async (clubId: string, userId: string, userEmail: string
     // If club is public, add user directly
     if (club.isPublic) {
       await updateDoc(doc(db, 'clubs', clubId), {
-        clubMembers: arrayUnion(userId),
+        members: arrayUnion(userId),
         updatedAt: serverTimestamp()
       });
       return { success: true, approved: true };
@@ -1886,6 +1913,120 @@ export const getClubTicketPayments = async (clubId: string) => {
 };
 
 /**
+ * Create a ticket order
+ */
+export const createTicketOrder = async (order: Omit<TicketOrder, 'id' | 'createdAt' | 'updatedAt'>) => {
+  try {
+    const orderRef = collection(db, 'ticketOrders');
+    const docRef = await addDoc(orderRef, {
+      ...order,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+
+    return { success: true, orderId: docRef.id };
+  } catch (error: any) {
+    console.error('Error creating ticket order:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Update ticket order status
+ */
+export const updateTicketOrderStatus = async (
+  orderId: string,
+  status: TicketOrder['status'],
+  additionalUpdates?: Partial<TicketOrder>
+) => {
+  try {
+    const orderRef = doc(db, 'ticketOrders', orderId);
+    const updates: any = {
+      status,
+      updatedAt: serverTimestamp(),
+      ...additionalUpdates
+    };
+
+    if (status === 'checked_in') {
+      updates.checkedInAt = serverTimestamp();
+    }
+
+    await updateDoc(orderRef, updates);
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error updating ticket order status:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Get user's ticket orders
+ */
+export const getUserTicketOrders = async (userId: string) => {
+  try {
+    const ordersRef = collection(db, 'ticketOrders');
+    const q = query(ordersRef, where('userId', '==', userId), orderBy('createdAt', 'desc'));
+
+    const querySnapshot = await getDocs(q);
+    const orders: TicketOrder[] = [];
+
+    querySnapshot.forEach((doc) => {
+      orders.push({ id: doc.id, ...doc.data() } as TicketOrder);
+    });
+
+    return { success: true, orders };
+  } catch (error: any) {
+    console.error('Error getting user ticket orders:', error);
+    return { success: false, error: error.message, orders: [] };
+  }
+};
+
+/**
+ * Get club's ticket orders
+ */
+export const getClubTicketOrders = async (clubId: string) => {
+  try {
+    const ordersRef = collection(db, 'ticketOrders');
+    const q = query(ordersRef, where('clubId', '==', clubId), orderBy('createdAt', 'desc'));
+
+    const querySnapshot = await getDocs(q);
+    const orders: TicketOrder[] = [];
+
+    querySnapshot.forEach((doc) => {
+      orders.push({ id: doc.id, ...doc.data() } as TicketOrder);
+    });
+
+    return { success: true, orders };
+  } catch (error: any) {
+    console.error('Error getting club ticket orders:', error);
+    return { success: false, error: error.message, orders: [] };
+  }
+};
+
+/**
+ * Get ticket orders for a specific event
+ */
+export const getEventTicketOrders = async (eventId: string) => {
+  try {
+    const ordersRef = collection(db, 'ticketOrders');
+    const q = query(ordersRef, where('eventId', '==', eventId), orderBy('createdAt', 'desc'));
+
+    const querySnapshot = await getDocs(q);
+    const orders: TicketOrder[] = [];
+
+    querySnapshot.forEach((doc) => {
+      orders.push({ id: doc.id, ...doc.data() } as TicketOrder);
+    });
+
+    return { success: true, orders };
+  } catch (error: any) {
+    console.error('Error getting event ticket orders:', error);
+    return { success: false, error: error.message, orders: [] };
+  }
+};
+
+/**
  * Save shipping address to user profile
  */
 export const saveShippingAddress = async (userId: string, address: Omit<ShippingAddress, 'id'>) => {
@@ -2619,6 +2760,7 @@ export type {
   StoreItem,
   StoreItemVariant,
   StoreOrder,
+  TicketOrder,
   ShippingAddress,
   RallyCreditRedemption,
   UserRallyCredits,

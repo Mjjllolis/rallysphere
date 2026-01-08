@@ -441,13 +441,12 @@ export default function EventSwipeCard({
       </View>
 
       {/* Payment Sheet Modal */}
-      {/*
       <PaymentSheet
         visible={paymentSheetVisible}
         event={event}
         onDismiss={() => setPaymentSheetVisible(false)}
         onSuccess={handlePaymentSuccess}
-      /> */}
+      />
     </Pressable>
   );
 }

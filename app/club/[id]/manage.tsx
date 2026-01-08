@@ -101,9 +101,9 @@ export default function ClubManageDashboard() {
   const adminActions = [
     { title: 'Member Management', description: 'Manage members and join requests', icon: 'account-group', route: `/club/${clubId}/manage-members`, badge: pendingRequests },
     { title: 'Analytics', description: 'View club performance metrics', icon: 'chart-line', route: `/club/${clubId}/analytics` },
-    { title: 'Ticket Sales', description: 'View event ticket payments', icon: 'ticket-confirmation', route: `/club/${clubId}/ticket-sales` },
+    { title: 'Ticket Orders', description: 'View and manage event ticket sales', icon: 'ticket-confirmation', route: `/club/${clubId}/manage-ticket-orders` },
     { title: 'Manage Store', description: 'Add and edit store products', icon: 'store', route: `/club/${clubId}/manage-store` },
-    { title: 'Manage Orders', description: 'Fulfill customer orders', icon: 'package-variant', route: `/club/${clubId}/manage-orders`, badge: analytics?.pendingOrders },
+    { title: 'Store Orders', description: 'Fulfill customer store orders', icon: 'package-variant', route: `/club/${clubId}/manage-orders`, badge: analytics?.pendingOrders },
     { title: 'Create Event', description: 'Create a new club event', icon: 'calendar-plus', route: `/(tabs)/create-event?clubId=${clubId}` },
     { title: 'Edit Club', description: 'Update club profile and settings', icon: 'pencil', route: `/club/edit/${clubId}` },
     { title: 'Payouts', description: 'Configure Stripe payouts', icon: 'bank', route: `/club/${clubId}/payouts` },

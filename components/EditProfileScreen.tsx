@@ -221,7 +221,11 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
 
           {/* Background Image - Upper portion only */}
           {formData.backgroundImage && (
-            <View style={styles.profileBackgroundPreview} pointerEvents="none">
+            <TouchableOpacity
+              style={styles.profileBackgroundPreview}
+              onPress={pickBackgroundImage}
+              activeOpacity={0.8}
+            >
               <Image source={{ uri: formData.backgroundImage }} style={styles.profileBackgroundImage} />
               <LinearGradient
                 colors={[
@@ -238,7 +242,7 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
                 style={StyleSheet.absoluteFill}
                 pointerEvents="none"
               />
-            </View>
+            </TouchableOpacity>
           )}
 
           <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -255,7 +259,8 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
 
                 <TouchableOpacity style={styles.backgroundButton} onPress={pickBackgroundImage} disabled={loading}>
                   <BlurView intensity={40} tint="dark" style={styles.backgroundButtonBlur}>
-                    <IconButton icon="image" size={20} iconColor="white" />
+                    <IconButton icon="image" size={16} iconColor="white" style={{ margin: 0 }} />
+                    <Text style={styles.backgroundButtonText}>Change{'\n'}Background</Text>
                   </BlurView>
                 </TouchableOpacity>
               </View>
@@ -273,7 +278,11 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
               >
                 {/* Profile Picture */}
                 <View style={styles.avatarSection}>
-                  <View style={styles.avatarContainer}>
+                  <TouchableOpacity
+                    style={styles.avatarContainer}
+                    onPress={showProfilePictureOptions}
+                    disabled={uploadingImage}
+                  >
                     {formData.avatar ? (
                       <Image source={{ uri: formData.avatar }} style={styles.avatarImage} />
                     ) : formData.profileEmoji ? (
@@ -296,7 +305,7 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
                         <Text style={styles.uploadingText}>Uploading...</Text>
                       </View>
                     )}
-                  </View>
+                  </TouchableOpacity>
 
                   {/* Change Picture Link */}
                   <Menu
@@ -449,17 +458,23 @@ const styles = StyleSheet.create({
     color: 'white',
   },
   backgroundButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    borderRadius: 12,
     overflow: 'hidden',
   },
   backgroundButtonBlur: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 4,
+  },
+  backgroundButtonText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: 'white',
+    textAlign: 'center',
+    lineHeight: 12,
   },
   keyboardAvoid: {
     flex: 1,

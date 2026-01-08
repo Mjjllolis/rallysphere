@@ -28,6 +28,10 @@ service cloud.firestore {
       allow update: if request.auth != null &&
         (request.auth.uid in resource.data.get('clubAdmins', []) ||
          request.auth.uid in resource.data.get('admins', []));
+      // Allow users to join/leave public clubs (only modify members array)
+      allow update: if request.auth != null &&
+        resource.data.isPublic == true &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'updatedAt']);
       // Only admins can delete clubs
       allow delete: if request.auth != null &&
         (request.auth.uid in resource.data.get('clubAdmins', []) ||
