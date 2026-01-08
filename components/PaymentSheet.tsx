@@ -503,34 +503,34 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
         onPress={onDismiss}
       />
 
-        <Animated.View
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: theme.colors.surface,
-              transform: [{ translateY: slideAnim }],
-            }
-          ]}
+      <Animated.View
+        style={[
+          styles.sheet,
+          {
+            backgroundColor: theme.dark ? '#1c1c1e' : '#ffffff',
+            transform: [{ translateY: slideAnim }],
+          }
+        ]}
+      >
+        {/* Handle Bar */}
+        <View style={styles.handleContainer}>
+          <View style={[styles.handle, { backgroundColor: theme.dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)' }]} />
+        </View>
+
+        {/* Close Button */}
+        <TouchableOpacity
+          style={[styles.closeButton, { backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
+          onPress={onDismiss}
         >
-          {/* Handle Bar */}
-          <View style={styles.handleContainer}>
-            <View style={[styles.handle, { backgroundColor: theme.dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)' }]} />
-          </View>
+          <Text style={[styles.closeIcon, { color: theme.dark ? '#fff' : '#666' }]}>✕</Text>
+        </TouchableOpacity>
 
-          {/* Close Button */}
-          <TouchableOpacity
-            style={[styles.closeButton, { backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
-            onPress={onDismiss}
-          >
-            <Text style={[styles.closeIcon, { color: theme.dark ? '#fff' : '#666' }]}>✕</Text>
-          </TouchableOpacity>
-
-          <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.content}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.content}>
             <Text variant="headlineSmall" style={styles.title}>
               Complete Purchase
             </Text>
@@ -596,8 +596,8 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
               )}
             </TouchableOpacity>
           </View>
-          </ScrollView>
-        </Animated.View>
+        </ScrollView>
+      </Animated.View>
     </Modal>
   );
 }
@@ -605,7 +605,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
 const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'transparent',
   },
   webMessage: {
     margin: 'auto',

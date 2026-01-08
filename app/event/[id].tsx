@@ -10,7 +10,8 @@ import {
   Divider,
   useTheme,
   List,
-  Surface
+  Surface,
+  ActivityIndicator
 } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,6 +20,7 @@ import { useAuth } from '../_layout';
 import { getEvents, joinEvent, leaveEvent } from '../../lib/firebase';
 import type { Event } from '../../lib/firebase';
 import BackButton from '../../components/BackButton';
+import PaymentSheet from '../../components/PaymentSheet';
 
 const { width } = Dimensions.get('window');
 
@@ -31,6 +33,7 @@ export default function EventDetailScreen() {
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
 
   useEffect(() => {
     if (eventId) {
@@ -63,7 +66,14 @@ export default function EventDetailScreen() {
 
   const handleJoinEvent = async () => {
     if (!user || !event) return;
-    
+
+    // If event has a ticket price, show payment sheet
+    if (event.ticketPrice && event.ticketPrice > 0) {
+      setPaymentSheetVisible(true);
+      return;
+    }
+
+    // Free event - join directly
     setActionLoading(true);
     try {
       const result = await joinEvent(event.id, user.uid);
@@ -83,6 +93,11 @@ export default function EventDetailScreen() {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handlePaymentSuccess = async () => {
+    Alert.alert('Success!', 'You have successfully purchased a ticket for this event!');
+    await loadEventData(); // Refresh event data
   };
 
   const handleLeaveEvent = async () => {
@@ -251,7 +266,15 @@ export default function EventDetailScreen() {
                   buttonColor={isAttending || isWaitlisted ? 'transparent' : '#4F8CC9'}
                   textColor={isAttending || isWaitlisted ? '#fff' : '#fff'}
                 >
-                  {isWaitlisted ? 'Leave Waitlist' : isAttending ? 'Leave Event' : isFull ? 'Event Full' : 'Join Event'}
+                  {isWaitlisted
+                    ? 'Leave Waitlist'
+                    : isAttending
+                    ? 'Leave Event'
+                    : isFull
+                    ? 'Event Full'
+                    : event.ticketPrice && event.ticketPrice > 0
+                    ? `Buy Ticket - $${event.ticketPrice}`
+                    : 'Join Event'}
                 </Button>
               )}
             </View>
@@ -425,6 +448,16 @@ export default function EventDetailScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Payment Sheet Modal */}
+      {event && (
+        <PaymentSheet
+          visible={paymentSheetVisible}
+          event={event}
+          onDismiss={() => setPaymentSheetVisible(false)}
+          onSuccess={handlePaymentSuccess}
+        />
+      )}
     </View>
   );
 }

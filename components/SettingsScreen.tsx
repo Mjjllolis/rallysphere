@@ -100,6 +100,25 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
               <TouchableOpacity
                 onPress={() => {
                   onClose();
+                  router.push('/profile/tickets');
+                }}
+              >
+                <BlurView intensity={40} tint="dark" style={styles.settingItem}>
+                  <View style={styles.settingContent}>
+                    <View style={styles.settingTextContainer}>
+                      <Text style={styles.settingTitle}>Your Tickets</Text>
+                      <Text style={styles.settingDescription}>
+                        View your event tickets and purchase history
+                      </Text>
+                    </View>
+                    <IconButton icon="chevron-right" size={24} iconColor="white" />
+                  </View>
+                </BlurView>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => {
+                  onClose();
                   router.push('/profile/orders');
                 }}
               >
@@ -108,7 +127,7 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
                     <View style={styles.settingTextContainer}>
                       <Text style={styles.settingTitle}>Your Orders</Text>
                       <Text style={styles.settingDescription}>
-                        View your order history and track shipments
+                        View your store order history and track shipments
                       </Text>
                     </View>
                     <IconButton icon="chevron-right" size={24} iconColor="white" />
