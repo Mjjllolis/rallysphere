@@ -177,7 +177,25 @@ export default function ClubsPage() {
     }
   };
 
+  const getUserClubRole = (club: Club): string => {
+    if (!user) return 'Member';
+    if (club.owner === user.uid || club.createdBy === user.uid) return 'Owner';
+    if (club.admins.includes(user.uid)) return 'Admin';
+    if (club.subscribers?.includes(user.uid)) return 'Subscriber';
+    return 'Member';
+  };
+
+  const getRoleBadgeStyle = (role: string) => {
+    switch (role) {
+      case 'Owner': return styles.ownerBadge;
+      case 'Admin': return styles.adminBadge;
+      case 'Subscriber': return styles.subscriberBadge;
+      default: return styles.memberBadge;
+    }
+  };
+
   const renderClubCard = (club: Club, isJoined: boolean) => {
+    const role = getUserClubRole(club);
     return (
       <TouchableOpacity
         key={club.id}
@@ -224,8 +242,13 @@ export default function ClubsPage() {
 
                 <View style={styles.badgesColumn}>
                   {isJoined && (
-                    <View style={styles.memberBadge}>
-                      <Text style={styles.memberBadgeText}>Member</Text>
+                    <View style={[styles.memberBadge, getRoleBadgeStyle(role)]}>
+                      <Text style={[
+                        styles.memberBadgeText,
+                        role === 'Owner' && { color: '#FFD700' },
+                        role === 'Admin' && { color: '#60A5FA' },
+                        role === 'Subscriber' && { color: '#4CAF50' },
+                      ]}>{role}</Text>
                     </View>
                   )}
                   {isJoined && user && (
@@ -673,6 +696,18 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#22C55E',
+  },
+  ownerBadge: {
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    borderColor: '#FFD700',
+  },
+  adminBadge: {
+    backgroundColor: 'rgba(96, 165, 250, 0.2)',
+    borderColor: '#60A5FA',
+  },
+  subscriberBadge: {
+    backgroundColor: 'rgba(76, 175, 80, 0.2)',
+    borderColor: '#4CAF50',
   },
   clubDescription: {
     fontSize: 13,

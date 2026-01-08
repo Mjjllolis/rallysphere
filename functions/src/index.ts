@@ -1184,6 +1184,57 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
           console.error("Error processing user pro subscription:", error);
         }
       }
+
+      // Handle Club Subscription checkout (user subscribing to a club)
+      if (session.metadata?.type === "club_subscription") {
+        const {clubId, clubName, userId} = session.metadata;
+
+        if (!clubId || !userId) {
+          console.error("Missing metadata in club subscription session");
+          break;
+        }
+
+        try {
+          // Get subscription from Stripe
+          const stripeInstance = getStripe();
+          const subscription = await stripeInstance.subscriptions.retrieve(
+            session.subscription as string
+          );
+
+          // Create club subscription record
+          await admin.firestore().collection("clubSubscriptions").add({
+            clubId,
+            clubName,
+            userId,
+            stripeCustomerId: session.customer as string,
+            stripeSubscriptionId: subscription.id,
+            status: subscription.status,
+            priceId: subscription.items.data[0].price.id,
+            amount: subscription.items.data[0].price.unit_amount ?
+              subscription.items.data[0].price.unit_amount / 100 : 0,
+            currency: subscription.currency,
+            currentPeriodStart: admin.firestore.Timestamp.fromDate(
+              new Date(subscription.current_period_start * 1000)
+            ),
+            currentPeriodEnd: admin.firestore.Timestamp.fromDate(
+              new Date(subscription.current_period_end * 1000)
+            ),
+            cancelAtPeriodEnd: subscription.cancel_at_period_end,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          // Add user to club's subscribers array
+          await admin.firestore().collection("clubs").doc(clubId).update({
+            subscribers: admin.firestore.FieldValue.arrayUnion(userId),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          console.log(`Club subscription activated for user ${userId} to club ${clubId}`);
+        } catch (error) {
+          console.error("Error processing club subscription:", error);
+        }
+      }
       break;
     }
 
@@ -1261,6 +1312,31 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
 
           console.log(`User subscription ${subscription.id} updated`);
         }
+
+        // Check if this is a club subscription (user subscribing to club)
+        const clubMemberSubSnapshot = await admin.firestore()
+          .collection("clubSubscriptions")
+          .where("stripeSubscriptionId", "==", subscription.id)
+          .get();
+
+        if (!clubMemberSubSnapshot.empty) {
+          const subDoc = clubMemberSubSnapshot.docs[0];
+
+          // Update subscription record
+          await subDoc.ref.update({
+            status: subscription.status,
+            currentPeriodStart: admin.firestore.Timestamp.fromDate(
+              new Date(subscription.current_period_start * 1000)
+            ),
+            currentPeriodEnd: admin.firestore.Timestamp.fromDate(
+              new Date(subscription.current_period_end * 1000)
+            ),
+            cancelAtPeriodEnd: subscription.cancel_at_period_end,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          console.log(`Club member subscription ${subscription.id} updated`);
+        }
       } catch (error) {
         console.error("Error updating subscription:", error);
       }
@@ -1324,6 +1400,32 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
           });
 
           console.log(`User Pro subscription canceled for user ${subData.userId}`);
+        }
+
+        // Check if this is a club subscription (user subscribing to club)
+        const clubMemberSubSnapshot = await admin.firestore()
+          .collection("clubSubscriptions")
+          .where("stripeSubscriptionId", "==", subscription.id)
+          .get();
+
+        if (!clubMemberSubSnapshot.empty) {
+          const subDoc = clubMemberSubSnapshot.docs[0];
+          const subData = subDoc.data();
+
+          // Update subscription record
+          await subDoc.ref.update({
+            status: "canceled",
+            canceledAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          // Remove user from club's subscribers array
+          await admin.firestore().collection("clubs").doc(subData.clubId).update({
+            subscribers: admin.firestore.FieldValue.arrayRemove(subData.userId),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          console.log(`Club subscription canceled for user ${subData.userId} to club ${subData.clubId}`);
         }
       } catch (error) {
         console.error("Error canceling subscription:", error);
@@ -1978,6 +2080,240 @@ export const cancelUserProSubscription = functions.https.onCall(
       return {success: true};
     } catch (error: any) {
       console.error("Error canceling user pro subscription:", error);
+      throw new functions.https.HttpsError(
+        "internal",
+        `Failed to cancel subscription: ${error.message}`
+      );
+    }
+  }
+);
+
+// ============================================================================
+// CLUB SUBSCRIPTION FUNCTIONS
+// ============================================================================
+
+/**
+ * Create Club subscription checkout session
+ * Users can subscribe to clubs with recurring monthly payments
+ * Platform takes 10% fee, club receives 90%
+ */
+export const createClubSubscription = functions.https.onCall(
+  {enforceAppCheck: false},
+  async (request: any) => {
+    const data = request.data;
+    const auth = request.auth;
+
+    if (!auth) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "User must be authenticated"
+      );
+    }
+
+    const {clubId, userId, userEmail, userName} = data;
+
+    if (!clubId || !userId || !userEmail) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Missing required fields"
+      );
+    }
+
+    try {
+      // Get club document
+      const clubDoc = await admin.firestore().collection("clubs").doc(clubId).get();
+      if (!clubDoc.exists) {
+        throw new functions.https.HttpsError(
+          "not-found",
+          "Club not found"
+        );
+      }
+
+      const club = clubDoc.data();
+
+      // Check if club has subscription enabled
+      if (!club?.subscriptionEnabled || !club?.subscriptionPrice) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "Club does not have subscriptions enabled"
+        );
+      }
+
+      // Check if user is already subscribed
+      const existingSub = await admin.firestore()
+        .collection("clubSubscriptions")
+        .where("userId", "==", userId)
+        .where("clubId", "==", clubId)
+        .where("status", "==", "active")
+        .get();
+
+      if (!existingSub.empty) {
+        throw new functions.https.HttpsError(
+          "already-exists",
+          "User already has active subscription to this club"
+        );
+      }
+
+      // Get club's Stripe account for transfers
+      const stripeAccountId = club.stripeAccountId;
+      if (!stripeAccountId) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "Club has not set up payment receiving"
+        );
+      }
+
+      // Calculate fees (10% platform fee)
+      const subscriptionPrice = club.subscriptionPrice;
+      const totalAmount = subscriptionPrice * 100; // Total in cents
+
+      // Create or get Stripe customer
+      const stripeInstance = getStripe();
+
+      // Get user doc for existing customer ID
+      const userDoc = await admin.firestore().collection("users").doc(userId).get();
+      let customerId = userDoc.data()?.stripeCustomerId;
+
+      if (!customerId) {
+        const customer = await stripeInstance.customers.create({
+          email: userEmail,
+          name: userName || userEmail,
+          metadata: {
+            userId,
+            type: "club_subscriber",
+          },
+        });
+        customerId = customer.id;
+
+        // Save customer ID to user
+        await admin.firestore().collection("users").doc(userId).update({
+          stripeCustomerId: customerId,
+        });
+      }
+
+      // Create checkout session for subscription
+      const session = await stripeInstance.checkout.sessions.create({
+        customer: customerId,
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              product_data: {
+                name: `${club.name} Club Subscription`,
+                description: club.subscriptionDescription || `Monthly subscription to ${club.name}`,
+              },
+              unit_amount: totalAmount,
+              recurring: {
+                interval: "month",
+              },
+            },
+            quantity: 1,
+          },
+        ],
+        mode: "subscription",
+        success_url: `rallysphere://club-subscription-success?session_id={CHECKOUT_SESSION_ID}&club_id=${clubId}`,
+        cancel_url: `rallysphere://club-subscription-cancel`,
+        subscription_data: {
+          application_fee_percent: 10, // 10% platform fee
+          transfer_data: {
+            destination: stripeAccountId,
+          },
+          metadata: {
+            type: "club_subscription",
+            clubId,
+            clubName: club.name,
+            userId,
+            userName: userName || "",
+            userEmail,
+            subscriptionPrice: subscriptionPrice.toString(),
+            platformFee: (subscriptionPrice * 0.10).toFixed(2),
+            clubAmount: (subscriptionPrice * 0.90).toFixed(2),
+          },
+        },
+        metadata: {
+          type: "club_subscription",
+          clubId,
+          clubName: club.name,
+          userId,
+          userName: userName || "",
+          userEmail,
+        },
+      });
+
+      console.log("Club subscription checkout created:", session.id);
+
+      return {
+        sessionId: session.id,
+        checkoutUrl: session.url,
+      };
+    } catch (error: any) {
+      console.error("Error creating club subscription:", error);
+      throw new functions.https.HttpsError(
+        "internal",
+        `Failed to create subscription: ${error.message}`
+      );
+    }
+  }
+);
+
+/**
+ * Cancel Club subscription
+ */
+export const cancelClubSubscription = functions.https.onCall(
+  {enforceAppCheck: false},
+  async (request: any) => {
+    const data = request.data;
+    const auth = request.auth;
+
+    if (!auth) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "User must be authenticated"
+      );
+    }
+
+    const {subscriptionId, userId} = data;
+
+    if (!subscriptionId || !userId) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Missing required fields"
+      );
+    }
+
+    try {
+      // Verify user owns this subscription
+      if (auth.uid !== userId) {
+        throw new functions.https.HttpsError(
+          "permission-denied",
+          "You can only cancel your own subscription"
+        );
+      }
+
+      // Cancel subscription at period end
+      const stripeInstance = getStripe();
+      await stripeInstance.subscriptions.update(subscriptionId, {
+        cancel_at_period_end: true,
+      });
+
+      // Update Firestore subscription record
+      const subQuery = await admin.firestore()
+        .collection("clubSubscriptions")
+        .where("stripeSubscriptionId", "==", subscriptionId)
+        .get();
+
+      subQuery.forEach((doc) => {
+        doc.ref.update({
+          cancelAtPeriodEnd: true,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      });
+
+      console.log("Club subscription canceled:", subscriptionId);
+
+      return {success: true};
+    } catch (error: any) {
+      console.error("Error canceling club subscription:", error);
       throw new functions.https.HttpsError(
         "internal",
         `Failed to cancel subscription: ${error.message}`

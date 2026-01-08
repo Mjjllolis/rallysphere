@@ -205,5 +205,36 @@ service cloud.firestore {
       // Only server (Firebase Functions) can write subscriptions
       allow write: if false;
     }
+
+    // Club Subscriptions - User subscriptions to clubs
+    match /clubSubscriptions/{subscriptionId} {
+      // Users can read their own subscriptions
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      // Club admins can read subscriptions for their club
+      allow read: if request.auth != null &&
+        exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
+        (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
+         request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []));
+      // Only server (Firebase Functions) can write subscriptions
+      allow write: if false;
+    }
+
+    // Ticket Orders - Event ticket purchases
+    match /ticketOrders/{orderId} {
+      // Users can read their own ticket orders
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      // Club admins can read ticket orders for their club's events
+      allow read: if request.auth != null &&
+        exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
+        (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
+         request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []));
+      // Only server (Firebase Functions) can create orders
+      allow create: if false;
+      // Club admins can update order status
+      allow update: if request.auth != null &&
+        exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
+        (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
+         request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []));
+    }
   }
 }
