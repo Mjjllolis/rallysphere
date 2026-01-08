@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Pressable,
   Alert,
-  Linking,
   Share,
   Platform
 } from 'react-native';
@@ -17,9 +16,8 @@ import { router } from 'expo-router';
 import type { Event } from '../../../../lib/firebase';
 import { useAuth } from '../../../_layout';
 import { joinEvent, getEventById, bookmarkEvent, unbookmarkEvent, getUserBookmarks, likeEvent, unlikeEvent, getUserLikes } from '../../../../lib/firebase';
-import PaymentSheet from '../../../../components/PaymentSheet';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface EventSwipeCardProps {
   event: Event;
@@ -439,25 +437,16 @@ export default function EventSwipeCard({
           <Text style={styles.actionText}>Info</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Payment Sheet Modal */}
-      {/*
-      <PaymentSheet
-        visible={paymentSheetVisible}
-        event={event}
-        onDismiss={() => setPaymentSheetVisible(false)}
-        onSuccess={handlePaymentSuccess}
-      /> */}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
     width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
     backgroundColor: '#000',
-    borderRadius: 30,
+    borderRadius: 25,
     overflow: 'hidden',
   },
   media: {
@@ -495,8 +484,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 80,
     padding: 20,
-    paddingBottom: 120,
-    paddingTop: 140,
+    paddingBottom: 40,
   },
   eventInfo: {
     gap: 8,
@@ -563,7 +551,7 @@ const styles = StyleSheet.create({
   rightActions: {
     position: 'absolute',
     right: 8,
-    bottom: 120,
+    bottom: 40,
     gap: 16,
   },
   actionButton: {

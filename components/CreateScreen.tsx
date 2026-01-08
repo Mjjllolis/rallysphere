@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Animated,
   Image,
-  Pressable,
 } from 'react-native';
 import { Text, IconButton } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -36,7 +35,7 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
   const scaleAnim = useRef(new Animated.Value(0)).current;
 
   // Scroll tracking for modal gesture control
-  const { scrollHandlers, shouldAllowGesture, shouldBounce, reset: resetScrollState } = useScrollTracking();
+  const { scrollHandlers, shouldAllowGesture, scrollEnabled, setGestureLock, reset: resetScrollState } = useScrollTracking();
 
   useEffect(() => {
     if (dropdownVisible) {
@@ -75,6 +74,7 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
       visible={visible}
       onClose={onClose}
       onShouldAllowGesture={shouldAllowGesture}
+      onGestureStateChange={setGestureLock}
     >
       <View style={styles.container}>
         {/* Background Image or Black Background */}
@@ -112,8 +112,38 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
 
           {/* Header - Fixed swipeable area */}
           <View style={styles.headerContainer}>
-            {/* Semi-transparent swipe zone background - captures touches for swipe gesture */}
-            <Pressable style={styles.headerSwipeZone} />
+            {/* Glass header background with highlights */}
+            <View style={styles.headerGlassBackground}>
+              {/* Top horizontal gradient highlights */}
+              <LinearGradient
+                colors={['rgba(255, 255, 255, 0.4)', 'rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                locations={[0, 0.15, 0.5]}
+                style={styles.headerTopHighlightGradientLeft}
+              />
+              <LinearGradient
+                colors={['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.4)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                locations={[0.5, 0.85, 1]}
+                style={styles.headerTopHighlightGradientRight}
+              />
+              {/* Vertical edge highlights that fade down */}
+              <LinearGradient
+                colors={['rgba(255, 255, 255, 0.35)', 'rgba(255, 255, 255, 0)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={styles.headerLeftEdgeHighlight}
+              />
+              <LinearGradient
+                colors={['rgba(255, 255, 255, 0.35)', 'rgba(255, 255, 255, 0)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={styles.headerRightEdgeHighlight}
+              />
+              <View style={styles.headerBorder} />
+            </View>
 
             <View style={styles.headerContent}>
               {/* Type Selector Dropdown */}
@@ -195,10 +225,14 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
             contentContainerStyle={styles.contentContainer}
             showsVerticalScrollIndicator={true}
             indicatorStyle="white"
-            bounces={shouldBounce}
+            bounces={true}
             alwaysBounceVertical={false}
+            bouncesZoom={false}
             overScrollMode="never"
-            scrollEnabled={true}
+            decelerationRate="normal"
+            scrollIndicatorInsets={{ top: 0, bottom: 0 }}
+            contentInsetAdjustmentBehavior="never"
+            scrollEnabled={scrollEnabled}
             {...scrollHandlers}
           >
             {selectedType === 'Event' && (
@@ -236,17 +270,55 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     paddingTop: 20,
-    paddingBottom: 8,
+    paddingBottom: 16,
     paddingHorizontal: 16,
     position: 'relative',
   },
-  headerSwipeZone: {
+  headerGlassBackground: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  headerTopHighlightGradientLeft: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '50%',
+    height: 1.2,
+  },
+  headerTopHighlightGradientRight: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: '50%',
+    height: 1.2,
+  },
+  headerLeftEdgeHighlight: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 1,
+    height: 70,
+  },
+  headerRightEdgeHighlight: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 1,
+    height: 70,
+  },
+  headerBorder: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 0.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   headerContent: {
     flexDirection: 'row',
@@ -254,15 +326,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 44,
   },
-  typeSelectorWrapper: {
-    position: 'relative',
-    zIndex: 1000,
-  },
   typeSelector: {
     borderRadius: 18,
     overflow: 'hidden',
     minWidth: 120,
     maxWidth: 120,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   typeSelectorBlur: {
     flexDirection: 'row',
@@ -271,10 +344,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 18,
-    borderWidth: 0.5,
+    borderWidth: 1,
+    borderTopWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderTopColor: 'rgba(255, 255, 255, 0.4)',
     overflow: 'hidden',
     height: 36,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   typeSelectorText: {
     fontSize: 16,
