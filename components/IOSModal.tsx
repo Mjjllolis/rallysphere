@@ -34,6 +34,7 @@ interface IOSModalProps {
   onClose: () => void;
   children: ReactNode;
   onShouldAllowGesture?: () => boolean;
+  onGestureStateChange?: (isActive: boolean) => void;
 }
 
 export default function IOSModal({
@@ -41,6 +42,7 @@ export default function IOSModal({
   onClose,
   children,
   onShouldAllowGesture,
+  onGestureStateChange,
 }: IOSModalProps) {
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -117,7 +119,7 @@ export default function IOSModal({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (evt, gestureState) => {
         const isVertical = Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
-        const isDownward = gestureState.dy > 10;
+        const isDownward = gestureState.dy > 5;
 
         if (!isVertical || !isDownward) return false;
 
@@ -134,36 +136,62 @@ export default function IOSModal({
 
         return true;
       },
+      onMoveShouldSetPanResponderCapture: (evt, gestureState) => {
+        // Only capture DOWNWARD gestures when at top to take priority over ScrollView
+        // Allow upward gestures to go through to ScrollView (including "catching" the bounce)
+        const isVertical = Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        const isDownward = gestureState.dy > 5;
+
+        // Don't capture if not vertical or not downward
+        if (!isVertical || !isDownward) return false;
+
+        // Check if touch is in header swipe zone
+        const touchY = evt.nativeEvent.pageY;
+        const topPadding = Platform.OS === 'ios' ? 60 : 40;
+        const touchInHeader = touchY < topPadding + HEADER_SWIPE_ZONE_HEIGHT;
+
+        // Always capture if in header zone
+        if (touchInHeader) {
+          // Pre-lock scroll immediately on capture
+          if (onGestureStateChange) {
+            onGestureStateChange(true);
+          }
+          return true;
+        }
+
+        // Otherwise, only capture if at top and moving down
+        if (onShouldAllowGesture) {
+          const shouldCapture = onShouldAllowGesture();
+          if (shouldCapture && onGestureStateChange) {
+            // Pre-lock scroll immediately on capture
+            onGestureStateChange(true);
+          }
+          return shouldCapture;
+        }
+        return false;
+      },
       onPanResponderGrant: () => {
         gestureStateRef.current.isGestureActive = true;
-        translateY.extractOffset();
+
+        // Scroll is already locked from onMoveShouldSetPanResponderCapture
+        // No need to lock again here
+
+        // Don't extract offset - keep current position stable
+        translateY.setOffset(0);
+        translateY.setValue(0);
       },
       onPanResponderMove: (evt, gestureState) => {
         if (!gestureStateRef.current.isGestureActive) return;
 
         const { dy } = gestureState;
 
-        const touchY = evt.nativeEvent.pageY;
-        const topPadding = Platform.OS === 'ios' ? 60 : 40;
-        const touchInHeader = touchY < topPadding + HEADER_SWIPE_ZONE_HEIGHT;
-
-        const isAtTop = onShouldAllowGesture ? onShouldAllowGesture() : true;
-
-        if (!isAtTop && !touchInHeader) {
-          translateY.flattenOffset();
-          gestureStateRef.current.isGestureActive = false;
-          return;
-        }
-
+        // Only prevent upward drag beyond bounds
         if (dy >= 0) {
           translateY.setValue(dy);
           updateBackdropDuringDrag(dy);
         } else {
-          if (!isAtTop) {
-            translateY.setValue(dy * 0.1);
-          } else {
-            translateY.setValue(0);
-          }
+          // Resistance when dragging upward
+          translateY.setValue(dy * 0.1);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
@@ -174,7 +202,6 @@ export default function IOSModal({
         }
 
         const { dy, vy } = gestureState;
-
         translateY.flattenOffset();
 
         const shouldDismiss =
@@ -182,6 +209,11 @@ export default function IOSModal({
           vy > DISMISS_VELOCITY_THRESHOLD;
 
         gestureStateRef.current.isGestureActive = false;
+
+        // Unlock scroll state
+        if (onGestureStateChange) {
+          onGestureStateChange(false);
+        }
 
         if (shouldDismiss) {
           dismissModal();
@@ -192,6 +224,12 @@ export default function IOSModal({
       onPanResponderTerminate: () => {
         translateY.flattenOffset();
         gestureStateRef.current.isGestureActive = false;
+
+        // Unlock scroll state
+        if (onGestureStateChange) {
+          onGestureStateChange(false);
+        }
+
         snapBack();
       },
     })
@@ -326,6 +364,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: MODAL_BORDER_RADIUS,
     borderTopRightRadius: MODAL_BORDER_RADIUS,
     overflow: 'hidden',
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
   },
 });

@@ -4,42 +4,47 @@ import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 export function useScrollTracking() {
   const scrollY = useRef(0);
   const isAtTop = useRef(true);
-  const isDismissReady = useRef(false);
-  const [shouldBounce, setShouldBounce] = useState(false);
+  const isGestureLocked = useRef(false); // Prevents scroll from modifying state during pan
+  const [scrollEnabled, setScrollEnabled] = useState(true); // Controls ScrollView
 
   const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    // CRITICAL: Don't modify state if gesture is active
+    if (isGestureLocked.current) {
+      return;
+    }
+
     const offsetY = event.nativeEvent.contentOffset.y;
-
     scrollY.current = offsetY;
-    isAtTop.current = offsetY <= 10;
 
-    setShouldBounce(true);
-    isDismissReady.current = false;
+    // Update isAtTop with small threshold for stability
+    isAtTop.current = offsetY <= 0;
   }, []);
 
   const onScrollEndDrag = useCallback(() => {
-    if (isAtTop.current) {
-      isDismissReady.current = true;
-      setShouldBounce(false);
-    }
   }, []);
 
   const onMomentumScrollEnd = useCallback(() => {
-    if (isAtTop.current) {
-      isDismissReady.current = true;
-      setShouldBounce(false);
-    }
+    // No special handling needed - just let it settle
   }, []);
 
+  // Called by IOSModal's onMoveShouldSetPanResponder
   const shouldAllowGesture = useCallback(() => {
-    return isAtTop.current;
+    // Only allow dismiss if at top (offsetY = 0)
+    return scrollY.current === 0;
+  }, []);
+
+  // Called when pan gesture starts/ends
+  const setGestureLock = useCallback((locked: boolean) => {
+    isGestureLocked.current = locked;
+    // Immediately disable scroll - no delay
+    setScrollEnabled(!locked);
   }, []);
 
   const reset = useCallback(() => {
     scrollY.current = 0;
     isAtTop.current = true;
-    isDismissReady.current = false;
-    setShouldBounce(false);
+    isGestureLocked.current = false;
+    setScrollEnabled(true);
   }, []);
 
   return {
@@ -50,7 +55,8 @@ export function useScrollTracking() {
       scrollEventThrottle: 16,
     },
     shouldAllowGesture,
-    shouldBounce,
+    scrollEnabled, // Expose for ScrollView
+    setGestureLock,   // For IOSModal to call
     reset,
   };
 }
