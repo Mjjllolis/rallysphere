@@ -15,9 +15,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../_layout';
-import { getClub, joinClub, leaveClub, getEvents, getClubStoreItems, getUserRallyCredits, getUserProfile } from '../../lib/firebase';
+import { getClub, joinClub, leaveClub, getEvents, getClubStoreItems, getUserRallyCredits, getUserProfile, isUserSubscribedToClub } from '../../lib/firebase';
 import type { Club, Event, StoreItem, UserRallyCredits, UserProfile } from '../../lib/firebase';
 import JoinClubModal from '../../components/JoinClubModal';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 const { width } = Dimensions.get('window');
 
@@ -37,6 +38,8 @@ export default function ClubDetailScreen() {
   const [storeItems, setStoreItems] = useState<any[]>([]);
   const [userCredits, setUserCredits] = useState<UserRallyCredits | null>(null);
   const [membersData, setMembersData] = useState<Map<string, UserProfile>>(new Map());
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
 
   useEffect(() => {
     if (clubId) {
@@ -99,6 +102,10 @@ export default function ClubDetailScreen() {
         if (creditsResult.success && creditsResult.credits) {
           setUserCredits(creditsResult.credits);
         }
+
+        // Check if user is subscribed to this club
+        const subResult = await isUserSubscribedToClub(user.uid, clubId);
+        setIsSubscribed(subResult.isSubscribed);
       }
     } catch (error) {
       console.error('Error loading club data:', error);
@@ -165,6 +172,72 @@ export default function ClubDetailScreen() {
     );
   };
 
+  const handleSubscribe = async () => {
+    if (!user || !club) return;
+    if (!club.subscriptionEnabled || !club.subscriptionPrice) {
+      Alert.alert('Unavailable', 'This club does not have subscriptions enabled.');
+      return;
+    }
+
+    setSubscriptionLoading(true);
+    try {
+      const functions = getFunctions();
+      const createClubSubscription = httpsCallable(functions, 'createClubSubscription');
+      const result = await createClubSubscription({ clubId: club.id });
+      const data = result.data as any;
+
+      if (data.url) {
+        // Open Stripe checkout in browser
+        Linking.openURL(data.url);
+      } else {
+        Alert.alert('Error', 'Failed to start subscription process');
+      }
+    } catch (error: any) {
+      console.error('Error subscribing to club:', error);
+      Alert.alert('Error', error.message || 'Failed to subscribe to club');
+    } finally {
+      setSubscriptionLoading(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    if (!user || !club) return;
+
+    Alert.alert(
+      'Cancel Subscription',
+      'Are you sure you want to cancel your subscription to this club?',
+      [
+        { text: 'Keep Subscription', style: 'cancel' },
+        {
+          text: 'Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            setSubscriptionLoading(true);
+            try {
+              const functions = getFunctions();
+              const cancelClubSubscription = httpsCallable(functions, 'cancelClubSubscription');
+              const result = await cancelClubSubscription({ clubId: club.id });
+              const data = result.data as any;
+
+              if (data.success) {
+                Alert.alert('Subscription Canceled', 'Your subscription will end at the end of the current billing period.');
+                setIsSubscribed(false);
+                await loadClubData();
+              } else {
+                Alert.alert('Error', 'Failed to cancel subscription');
+              }
+            } catch (error: any) {
+              console.error('Error canceling subscription:', error);
+              Alert.alert('Error', error.message || 'Failed to cancel subscription');
+            } finally {
+              setSubscriptionLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const openSocialLink = (url: string) => {
     if (url.startsWith('http')) {
       Linking.openURL(url);
@@ -194,7 +267,8 @@ export default function ClubDetailScreen() {
 
   const isJoined = user ? club.members.includes(user.uid) : false;
   const isAdmin = user ? club.admins.includes(user.uid) : false;
-  const isOwner = user ? club.createdBy === user.uid : false;
+  const isOwner = user ? (club.owner === user.uid || club.createdBy === user.uid) : false;
+  const isSubscriber = user ? (club.subscribers?.includes(user.uid) || false) : false;
 
   const sortedEvents = [...events].sort((a, b) => {
     const dateA = a.startDate.toDate ? a.startDate.toDate() : new Date(a.startDate);
@@ -348,6 +422,47 @@ export default function ClubDetailScreen() {
                 >
                   Join Club
                 </Button>
+              )}
+
+              {/* Subscription Buttons */}
+              {user && isJoined && club.subscriptionEnabled && club.subscriptionPrice && (
+                <View style={styles.subscriptionSection}>
+                  {isSubscribed ? (
+                    <View style={styles.subscribedContainer}>
+                      <Chip
+                        icon="check-circle"
+                        style={styles.subscribedChip}
+                        textStyle={styles.subscribedChipText}
+                      >
+                        Subscribed
+                      </Chip>
+                      <TouchableOpacity onPress={handleCancelSubscription} disabled={subscriptionLoading}>
+                        <Text style={styles.cancelSubscriptionText}>
+                          {subscriptionLoading ? 'Processing...' : 'Cancel'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <View style={styles.subscribeContainer}>
+                      <Button
+                        mode="contained"
+                        onPress={handleSubscribe}
+                        loading={subscriptionLoading}
+                        style={styles.subscribeButton}
+                        contentStyle={styles.heroJoinButtonContent}
+                        labelStyle={styles.heroJoinButtonLabel}
+                        icon="star"
+                      >
+                        Subscribe - ${club.subscriptionPrice}/mo
+                      </Button>
+                      {club.subscriptionDescription && (
+                        <Text style={styles.subscriptionDescription}>
+                          {club.subscriptionDescription}
+                        </Text>
+                      )}
+                    </View>
+                  )}
+                </View>
               )}
             </View>
           </LinearGradient>
@@ -576,11 +691,21 @@ export default function ClubDetailScreen() {
                           {displayName}
                         </Text>
                       </View>
-                      {club.admins.includes(userId) && (
-                        <Chip icon="crown" style={styles.adminChip}>
-                          Admin
-                        </Chip>
-                      )}
+                      <View style={styles.memberBadges}>
+                        {(club.owner === userId || club.createdBy === userId) ? (
+                          <Chip icon="crown" style={styles.ownerChip}>
+                            Owner
+                          </Chip>
+                        ) : club.admins.includes(userId) ? (
+                          <Chip icon="shield-account" style={styles.adminChip}>
+                            Admin
+                          </Chip>
+                        ) : club.subscribers?.includes(userId) ? (
+                          <Chip icon="star" style={styles.subscriberChip}>
+                            Subscriber
+                          </Chip>
+                        ) : null}
+                      </View>
                     </View>
                   );
                 })}
@@ -870,6 +995,43 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  subscriptionSection: {
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  subscribedContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  subscribedChip: {
+    backgroundColor: '#4CAF50',
+  },
+  subscribedChipText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  cancelSubscriptionText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 14,
+    textDecorationLine: 'underline',
+  },
+  subscribeContainer: {
+    alignItems: 'center',
+  },
+  subscribeButton: {
+    minWidth: 200,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+    backgroundColor: '#FFD700',
+  },
+  subscriptionDescription: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
+    marginTop: 8,
+    textAlign: 'center',
+    maxWidth: 280,
+  },
   content: {
     flexGrow: 1,
     minHeight: '100%',
@@ -1069,7 +1231,17 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
   },
+  memberBadges: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  ownerChip: {
+    backgroundColor: 'rgba(255, 215, 0, 0.3)',
+  },
   adminChip: {
-    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    backgroundColor: 'rgba(96, 165, 250, 0.2)',
+  },
+  subscriberChip: {
+    backgroundColor: 'rgba(76, 175, 80, 0.2)',
   },
 });

@@ -90,7 +90,9 @@ export default function ProfilePage() {
 
   const getUserClubRole = (club: Club): string => {
     if (!user) return 'Member';
+    if (club.owner === user.uid || club.createdBy === user.uid) return 'Owner';
     if (club.admins.includes(user.uid)) return 'Admin';
+    if (club.subscribers?.includes(user.uid)) return 'Subscriber';
     return 'Member';
   };
 
@@ -319,7 +321,12 @@ export default function ProfilePage() {
                       </LinearGradient>
                     )}
                     <Text style={styles.clubCircleName} numberOfLines={1}>{club.name}</Text>
-                    <View style={[styles.clubRoleBadge, getUserClubRole(club) === 'Admin' && styles.clubAdminBadge]}>
+                    <View style={[
+                      styles.clubRoleBadge,
+                      getUserClubRole(club) === 'Owner' && styles.clubOwnerBadge,
+                      getUserClubRole(club) === 'Admin' && styles.clubAdminBadge,
+                      getUserClubRole(club) === 'Subscriber' && styles.clubSubscriberBadge,
+                    ]}>
                       <Text style={styles.clubRoleText}>{getUserClubRole(club)}</Text>
                     </View>
                   </TouchableOpacity>
@@ -694,8 +701,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     marginTop: 4,
   },
+  clubOwnerBadge: {
+    backgroundColor: 'rgba(255, 215, 0, 0.4)',
+  },
   clubAdminBadge: {
-    backgroundColor: 'rgba(234, 179, 8, 0.3)',
+    backgroundColor: 'rgba(96, 165, 250, 0.3)',
+  },
+  clubSubscriberBadge: {
+    backgroundColor: 'rgba(76, 175, 80, 0.3)',
   },
   clubRoleText: {
     fontSize: 9,

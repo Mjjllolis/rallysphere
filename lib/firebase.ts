@@ -110,11 +110,17 @@ export interface Club {
   coverImage?: string;
   logo?: string;
   createdBy: string;
+  owner: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
   members: string[];
   admins: string[];
+  subscribers: string[];
   isPublic: boolean;
+  // Subscription settings
+  subscriptionEnabled?: boolean;
+  subscriptionPrice?: number; // Monthly price in dollars
+  subscriptionDescription?: string;
   tags?: string[];
   contactEmail?: string;
   socialLinks?: {
@@ -207,6 +213,26 @@ export interface ClubJoinRequest {
   createdAt: Timestamp;
   respondedAt?: Timestamp;
   respondedBy?: string;
+}
+
+export interface ClubSubscription {
+  id: string;
+  clubId: string;
+  clubName: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  stripeSubscriptionId: string;
+  stripeCustomerId: string;
+  pricePerMonth: number;
+  platformFee: number; // 10% of pricePerMonth
+  clubAmount: number; // 90% of pricePerMonth
+  status: 'active' | 'canceled' | 'past_due' | 'unpaid';
+  currentPeriodStart: Timestamp;
+  currentPeriodEnd: Timestamp;
+  cancelAtPeriodEnd: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 }
 
 export interface FeaturedEvent {
@@ -610,6 +636,7 @@ export const getClubs = async (userId?: string) => {
     
     querySnapshot.forEach((doc) => {
       const data = doc.data();
+      const ownerUserId = data.clubOwner || data.owner || data.createdBy;
       // Map database fields to app fields
       const club: Club = {
         id: doc.id,
@@ -618,19 +645,27 @@ export const getClubs = async (userId?: string) => {
         category: data.category,
         coverImage: data.coverImage,
         logo: data.logo,
-        createdBy: data.clubOwner || data.createdBy,
+        createdBy: ownerUserId,
+        owner: ownerUserId,
         createdAt: data.createdAt,
         updatedAt: data.updatedAt,
         members: data.clubMembers || data.members || [],
         admins: data.clubAdmins || data.admins || [],
+        subscribers: data.subscribers || [],
         isPublic: data.isPublic,
+        // Subscription settings
+        subscriptionEnabled: data.subscriptionEnabled || false,
+        subscriptionPrice: data.subscriptionPrice,
+        subscriptionDescription: data.subscriptionDescription,
         tags: data.tags,
         contactEmail: data.contactEmail,
         socialLinks: data.socialLinks,
         // Stripe Connect fields
         stripeAccountId: data.stripeAccountId,
         stripeAccountStatus: data.stripeAccountStatus,
-        stripeOnboardingComplete: data.stripeOnboardingComplete
+        stripeOnboardingComplete: data.stripeOnboardingComplete,
+        // Pro subscription
+        isPro: data.isPro
       };
       clubs.push(club);
     });
@@ -655,6 +690,7 @@ export const getClub = async (clubId: string) => {
 
     if (clubDoc.exists()) {
       const data = clubDoc.data();
+      const ownerUserId = data.clubOwner || data.owner || data.createdBy;
       const club: Club = {
         id: clubDoc.id,
         name: data.clubName || data.name,
@@ -662,19 +698,27 @@ export const getClub = async (clubId: string) => {
         category: data.category,
         coverImage: data.coverImage,
         logo: data.logo,
-        createdBy: data.clubOwner || data.createdBy,
+        createdBy: ownerUserId,
+        owner: ownerUserId,
         createdAt: data.createdAt,
         updatedAt: data.updatedAt,
         members: data.clubMembers || data.members || [],
         admins: data.clubAdmins || data.admins || [],
+        subscribers: data.subscribers || [],
         isPublic: data.isPublic,
+        // Subscription settings
+        subscriptionEnabled: data.subscriptionEnabled || false,
+        subscriptionPrice: data.subscriptionPrice,
+        subscriptionDescription: data.subscriptionDescription,
         tags: data.tags,
         contactEmail: data.contactEmail,
         socialLinks: data.socialLinks,
         // Stripe Connect fields
         stripeAccountId: data.stripeAccountId,
         stripeAccountStatus: data.stripeAccountStatus,
-        stripeOnboardingComplete: data.stripeOnboardingComplete
+        stripeOnboardingComplete: data.stripeOnboardingComplete,
+        // Pro subscription
+        isPro: data.isPro
       };
       return { success: true, club };
     }
@@ -724,14 +768,103 @@ export const joinClub = async (clubId: string, userId: string, userEmail: string
 export const leaveClub = async (clubId: string, userId: string) => {
   try {
     await updateDoc(doc(db, 'clubs', clubId), {
-      clubMembers: arrayRemove(userId),
-      clubAdmins: arrayRemove(userId),
+      members: arrayRemove(userId),
+      subscribers: arrayRemove(userId),
       updatedAt: serverTimestamp()
     });
     return { success: true };
   } catch (error: any) {
     console.error('Error leaving club:', error);
     return { success: false, error: error.message };
+  }
+};
+
+// --- Club Subscription Functions ---
+
+/**
+ * Update club subscription settings
+ */
+export const updateClubSubscriptionSettings = async (
+  clubId: string,
+  settings: {
+    subscriptionEnabled: boolean;
+    subscriptionPrice?: number;
+    subscriptionDescription?: string;
+  }
+) => {
+  try {
+    await updateDoc(doc(db, 'clubs', clubId), {
+      ...settings,
+      updatedAt: serverTimestamp()
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error updating subscription settings:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Get user's club subscriptions
+ */
+export const getUserClubSubscriptions = async (userId: string) => {
+  try {
+    const q = query(
+      collection(db, 'clubSubscriptions'),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc')
+    );
+    const snapshot = await getDocs(q);
+    const subscriptions: ClubSubscription[] = [];
+    snapshot.forEach((doc) => {
+      subscriptions.push({ id: doc.id, ...doc.data() } as ClubSubscription);
+    });
+    return { success: true, subscriptions };
+  } catch (error: any) {
+    console.error('Error getting user subscriptions:', error);
+    return { success: false, error: error.message, subscriptions: [] };
+  }
+};
+
+/**
+ * Get club's subscribers
+ */
+export const getClubSubscribers = async (clubId: string) => {
+  try {
+    const q = query(
+      collection(db, 'clubSubscriptions'),
+      where('clubId', '==', clubId),
+      where('status', '==', 'active'),
+      orderBy('createdAt', 'desc')
+    );
+    const snapshot = await getDocs(q);
+    const subscriptions: ClubSubscription[] = [];
+    snapshot.forEach((doc) => {
+      subscriptions.push({ id: doc.id, ...doc.data() } as ClubSubscription);
+    });
+    return { success: true, subscriptions };
+  } catch (error: any) {
+    console.error('Error getting club subscribers:', error);
+    return { success: false, error: error.message, subscriptions: [] };
+  }
+};
+
+/**
+ * Check if user is subscribed to a club
+ */
+export const isUserSubscribedToClub = async (userId: string, clubId: string) => {
+  try {
+    const q = query(
+      collection(db, 'clubSubscriptions'),
+      where('userId', '==', userId),
+      where('clubId', '==', clubId),
+      where('status', '==', 'active')
+    );
+    const snapshot = await getDocs(q);
+    return { success: true, isSubscribed: !snapshot.empty };
+  } catch (error: any) {
+    console.error('Error checking subscription:', error);
+    return { success: false, error: error.message, isSubscribed: false };
   }
 };
 
