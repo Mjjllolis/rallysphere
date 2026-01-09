@@ -503,5 +503,138 @@ export const createStoreCheckoutSession = async (
   }
 };
 
+// ============================================================================
+// LEAVE EVENT WITH REFUND
+// ============================================================================
+
+export interface LeaveEventResult {
+  success: boolean;
+  refundProcessed?: boolean;
+  refundAmount?: number;
+  creditsForfeited?: number;
+  error?: string;
+}
+
+/**
+ * Leave an event and get a refund if it was a paid event
+ * Also forfeits any rally credits earned from the event
+ */
+export const leaveEventWithRefund = async (
+  eventId: string
+): Promise<LeaveEventResult> => {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      return {
+        success: false,
+        error: 'You must be logged in to leave events',
+      };
+    }
+
+    const leaveFn = httpsCallable(functions, 'leaveEventWithRefund');
+    const result = await leaveFn({ eventId });
+    const data = result.data as any;
+
+    return {
+      success: true,
+      refundProcessed: data.refundProcessed,
+      refundAmount: data.refundAmount,
+      creditsForfeited: data.creditsForfeited,
+    };
+  } catch (error: any) {
+    console.error('Error leaving event with refund:', error);
+    const errorMessage = error.details?.message || error.message || 'Failed to leave event';
+    return {
+      success: false,
+      error: errorMessage,
+    };
+  }
+};
+
+// ============================================================================
+// REFUND FUNCTIONS
+// ============================================================================
+
+export interface RefundResult {
+  success: boolean;
+  refundId?: string;
+  refundAmount?: number;
+  error?: string;
+}
+
+/**
+ * Refund a ticket order
+ * Only club admins can process refunds
+ */
+export const refundTicketOrder = async (
+  orderId: string,
+  clubId: string
+): Promise<RefundResult> => {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      return {
+        success: false,
+        error: 'You must be logged in to process refunds',
+      };
+    }
+
+    const refundFn = httpsCallable(functions, 'refundTicketOrder');
+    const result = await refundFn({ orderId, clubId });
+    const data = result.data as any;
+
+    return {
+      success: true,
+      refundId: data.refundId,
+      refundAmount: data.refundAmount,
+    };
+  } catch (error: any) {
+    console.error('Error refunding ticket order:', error);
+    // Extract the actual error message from Firebase Functions error
+    const errorMessage = error.details?.message || error.message || 'Failed to process refund';
+    return {
+      success: false,
+      error: errorMessage,
+    };
+  }
+};
+
+/**
+ * Refund a store order
+ * Only club admins can process refunds
+ */
+export const refundStoreOrder = async (
+  orderId: string,
+  clubId: string
+): Promise<RefundResult> => {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      return {
+        success: false,
+        error: 'You must be logged in to process refunds',
+      };
+    }
+
+    const refundFn = httpsCallable(functions, 'refundStoreOrder');
+    const result = await refundFn({ orderId, clubId });
+    const data = result.data as any;
+
+    return {
+      success: true,
+      refundId: data.refundId,
+      refundAmount: data.refundAmount,
+    };
+  } catch (error: any) {
+    console.error('Error refunding store order:', error);
+    // Extract the actual error message from Firebase Functions error
+    const errorMessage = error.details?.message || error.message || 'Failed to process refund';
+    return {
+      success: false,
+      error: errorMessage,
+    };
+  }
+};
+
 // Export the useStripe hook for use in components
 export { useStripe };

@@ -174,23 +174,23 @@ export default function StoreItemDetailScreen() {
   };
 
   const calculateTotal = () => {
-    if (!item) return { itemTotal: 0, tax: 0, adminFee: 0, transactionFee: 0, shipping: 0, creditsDiscount: 0, total: 0 };
+    if (!item) return { itemTotal: 0, processingFee: 0, shipping: 0, creditsDiscount: 0, total: 0 };
 
     const itemTotal = item.price * quantity;
     const shipping = deliveryMethod === 'shipping' ? (item.shippingCost || 0) : 0;
     const subtotal = itemTotal + shipping;
 
-    // Calculate individual fees
-    const tax = subtotal * (item.taxRate / 100);
-    const adminFee = subtotal * ((item.adminFeeRate || 0) / 100);
-    const transactionFee = subtotal * ((item.transactionFeeRate || 0) / 100);
+    // Processing fee: 6% + $0.29
+    const PROCESSING_FEE_PERCENTAGE = 0.06;
+    const PROCESSING_FEE_FIXED = 0.29;
+    const processingFee = (subtotal * PROCESSING_FEE_PERCENTAGE) + PROCESSING_FEE_FIXED;
 
     // Rally Credits discount (1 credit = $0.01)
-    const creditsDiscount = applyCredits ? Math.min(creditsToUse * 0.01, subtotal + tax + adminFee + transactionFee) : 0;
+    const creditsDiscount = applyCredits ? Math.min(creditsToUse * 0.01, subtotal + processingFee) : 0;
 
-    const total = Math.max(0, subtotal + tax + adminFee + transactionFee - creditsDiscount);
+    const total = Math.max(0, subtotal + processingFee - creditsDiscount);
 
-    return { itemTotal, tax, adminFee, transactionFee, shipping, creditsDiscount, total };
+    return { itemTotal, processingFee, shipping, creditsDiscount, total };
   };
 
   // Get available credits for this club
@@ -208,8 +208,10 @@ export default function StoreItemDetailScreen() {
     const itemTotal = item.price * quantity;
     const shipping = deliveryMethod === 'shipping' ? (item.shippingCost || 0) : 0;
     const subtotal = itemTotal + shipping;
-    const tax = subtotal * (item.taxRate / 100);
-    const totalBeforeCredits = subtotal + tax;
+
+    // Processing fee: 6% + $0.29
+    const processingFee = (subtotal * 0.06) + 0.29;
+    const totalBeforeCredits = subtotal + processingFee;
 
     // Max credits = total in cents (1 credit = $0.01)
     const maxCreditsForOrder = Math.floor(totalBeforeCredits * 100);
@@ -308,7 +310,7 @@ export default function StoreItemDetailScreen() {
     try {
       setPurchasing(true);
 
-      const { total, tax, adminFee, transactionFee, shipping } = calculateTotal();
+      const { total, processingFee, shipping } = calculateTotal();
 
       // Get selected address
       let shippingAddress: ShippingAddress | undefined;
@@ -472,7 +474,7 @@ export default function StoreItemDetailScreen() {
   }
 
   const inStock = item.inventory - item.sold >= quantity;
-  const { itemTotal, tax, adminFee, transactionFee, shipping, total } = calculateTotal();
+  const { itemTotal, processingFee, shipping, total } = calculateTotal();
 
   return (
     <View style={styles.container}>
@@ -970,12 +972,10 @@ export default function StoreItemDetailScreen() {
                   </View>
                 )}
 
-                {calculateTotal().tax > 0 && (
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Sales Tax</Text>
-                    <Text style={styles.summaryValue}>${calculateTotal().tax.toFixed(2)}</Text>
-                  </View>
-                )}
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Processing Fee (6% + $0.29)</Text>
+                  <Text style={styles.summaryValue}>${calculateTotal().processingFee.toFixed(2)}</Text>
+                </View>
 
                 {calculateTotal().creditsDiscount > 0 && (
                   <View style={styles.summaryRow}>

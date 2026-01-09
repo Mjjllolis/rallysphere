@@ -72,15 +72,22 @@ export default function CreateEventScreen() {
     if (!user) return;
     const result = await getClubs();
     if (result.success) {
-      // Filter clubs where user is admin or member
+      // Filter clubs where user is owner, admin, or member
       const userClubs = result.clubs.filter(c =>
-        c.admins.includes(user.uid) || c.members.includes(user.uid)
+        c.owner === user.uid ||
+        c.createdBy === user.uid ||
+        c.admins.includes(user.uid) ||
+        c.members.includes(user.uid)
       );
+      console.log('[CreateEvent] Available clubs:', userClubs.map(c => ({ id: c.id, name: c.name })));
       setAvailableClubs(userClubs);
 
-      // If no club selected and user has clubs, select first one
-      if (!clubId && userClubs.length > 0) {
-        setClubId(userClubs[0].id);
+      // Only set club if one was passed via URL params - don't auto-select
+      if (initialClubId && userClubs.some(c => c.id === initialClubId)) {
+        console.log('[CreateEvent] Using passed clubId:', initialClubId);
+        setClubId(initialClubId);
+      } else if (!initialClubId) {
+        console.log('[CreateEvent] No clubId passed - user must select one');
       }
     }
   };
@@ -132,7 +139,7 @@ export default function CreateEventScreen() {
       return false;
     }
     if (!clubId || !club) {
-      Alert.alert('Error', 'Club information is missing');
+      Alert.alert('Select a Club', 'Please select which club this event is for');
       return false;
     }
     if (!formData.location.trim()) {
@@ -162,6 +169,7 @@ export default function CreateEventScreen() {
         coverImageUrl = await uploadImage(coverImage, imagePath) || undefined;
       }
 
+      console.log('[CreateEvent] Creating event for club:', clubId, club.name);
       const eventData = {
         title: formData.title.trim(),
         description: formData.description.trim(),
@@ -188,7 +196,7 @@ export default function CreateEventScreen() {
           'Your event has been created successfully!',
           [{
             text: 'OK',
-            onPress: () => router.push(`/(tabs)/event-detail?id=${result.eventId}`)
+            onPress: () => router.push(`/event/${result.eventId}`)
           }]
         );
       } else {
@@ -331,11 +339,17 @@ export default function CreateEventScreen() {
                 onDismiss={() => setClubMenuVisible(false)}
                 anchor={
                   <TouchableOpacity
-                    style={styles.clubSelector}
+                    style={[
+                      styles.clubSelector,
+                      !club && styles.clubSelectorEmpty
+                    ]}
                     onPress={() => setClubMenuVisible(true)}
                   >
-                    <Text style={styles.clubSelectorText}>
-                      {club ? club.name : 'Select a club...'}
+                    <Text style={[
+                      styles.clubSelectorText,
+                      !club && styles.clubSelectorTextEmpty
+                    ]}>
+                      {club ? club.name : '⚠️ Select a club (required)'}
                     </Text>
                     <IconButton icon="chevron-down" size={20} />
                   </TouchableOpacity>
@@ -718,6 +732,15 @@ const styles = StyleSheet.create({
   clubSelectorText: {
     fontSize: 16,
     flex: 1,
+  },
+  clubSelectorEmpty: {
+    borderColor: '#F59E0B',
+    borderWidth: 2,
+    backgroundColor: '#FEF3C7',
+  },
+  clubSelectorTextEmpty: {
+    color: '#92400E',
+    fontWeight: '600',
   },
   coverImageContainer: {
     height: 160,

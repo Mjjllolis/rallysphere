@@ -96,16 +96,24 @@ const SavedFeed = ({ isActive }: SavedFeedProps) => {
           .filter(result => result.success && result.event)
           .map(result => result.event!);
 
+        // Filter out past events
+        const now = new Date();
+        const upcomingEvents = fetchedEvents.filter(event => {
+          if (!event.startDate) return true; // Include events without a start date
+          const eventDate = event.startDate.toDate ? event.startDate.toDate() : new Date(event.startDate);
+          return eventDate >= now;
+        });
+
         // Sort by start date (upcoming first)
-        fetchedEvents.sort((a, b) => {
+        upcomingEvents.sort((a, b) => {
           const dateA = a.startDate?.toDate ? a.startDate.toDate() : new Date(a.startDate);
           const dateB = b.startDate?.toDate ? b.startDate.toDate() : new Date(b.startDate);
           return dateA.getTime() - dateB.getTime();
         });
 
         // Store all events and only display initial batch
-        setAllEvents(fetchedEvents);
-        setDisplayedEvents(fetchedEvents.slice(0, INITIAL_LOAD));
+        setAllEvents(upcomingEvents);
+        setDisplayedEvents(upcomingEvents.slice(0, INITIAL_LOAD));
       } else {
         setAllEvents([]);
         setDisplayedEvents([]);

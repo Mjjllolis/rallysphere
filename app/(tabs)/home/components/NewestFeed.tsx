@@ -63,8 +63,16 @@ const NewestFeed = ({ isActive }: NewestFeedProps) => {
       const eventsResult = await getAllEvents(false);
 
       if (eventsResult.success) {
+        // Filter out past events
+        const now = new Date();
+        const upcomingEvents = eventsResult.events.filter(event => {
+          if (!event.startDate) return true; // Include events without a start date
+          const eventDate = event.startDate.toDate ? event.startDate.toDate() : new Date(event.startDate);
+          return eventDate >= now;
+        });
+
         // Sort by createdAt (newest first)
-        const sortedEvents = [...eventsResult.events].sort((a, b) => {
+        const sortedEvents = [...upcomingEvents].sort((a, b) => {
           const dateA = a.createdAt?.toDate?.() || new Date(0);
           const dateB = b.createdAt?.toDate?.() || new Date(0);
           return dateB.getTime() - dateA.getTime();

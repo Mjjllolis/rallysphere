@@ -555,7 +555,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
 
               {feeBreakdown && (
                 <View style={styles.breakdownRow}>
-                  <Text variant="bodyMedium" style={{ opacity: 0.7 }}>Processing Fee</Text>
+                  <Text variant="bodyMedium" style={{ opacity: 0.7 }}>Processing Fee (6% + $0.29)</Text>
                   <Text variant="bodyMedium" style={{ opacity: 0.7 }}>
                     {formatPrice(feeBreakdown.processingFee, event.currency)}
                   </Text>

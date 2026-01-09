@@ -12,7 +12,7 @@ export default function PaymentCancel() {
 
   const handleTryAgain = () => {
     if (eventId) {
-      router.replace(`/(tabs)/event-detail?id=${eventId}`);
+      router.replace(`/event/${eventId}`);
     } else {
       router.replace('/(tabs)/events');
     }

@@ -1,5 +1,5 @@
 // app/club/[id].tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Alert, Image, Linking, ImageBackground, Dimensions, TouchableOpacity } from 'react-native';
 import {
   Text,
@@ -13,7 +13,7 @@ import {
 } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useAuth } from '../_layout';
 import { getClub, joinClub, leaveClub, getEvents, getClubStoreItems, getUserRallyCredits, getUserProfile, isUserSubscribedToClub } from '../../lib/firebase';
 import type { Club, Event, StoreItem, UserRallyCredits, UserProfile } from '../../lib/firebase';
@@ -52,6 +52,26 @@ export default function ClubDetailScreen() {
       loadMembersData(club.members);
     }
   }, [club?.members]);
+
+  // Refresh credits when screen comes into focus (e.g., returning from event page)
+  useFocusEffect(
+    useCallback(() => {
+      const refreshCredits = async () => {
+        if (user && clubId) {
+          console.log('[ClubDetail] Refreshing credits for user:', user.uid, 'club:', clubId);
+          const creditsResult = await getUserRallyCredits(user.uid);
+          console.log('[ClubDetail] Credits result:', creditsResult);
+          if (creditsResult.success && creditsResult.credits) {
+            console.log('[ClubDetail] Current clubId:', clubId);
+            console.log('[ClubDetail] All club credits:', creditsResult.credits.clubCredits);
+            console.log('[ClubDetail] Credits for THIS club:', creditsResult.credits.clubCredits?.[clubId]);
+            setUserCredits(creditsResult.credits);
+          }
+        }
+      };
+      refreshCredits();
+    }, [user, clubId])
+  );
 
   const loadMembersData = async (memberIds: string[]) => {
     const newData = new Map<string, UserProfile>();
@@ -270,6 +290,17 @@ export default function ClubDetailScreen() {
   const isOwner = user ? (club.owner === user.uid || club.createdBy === user.uid) : false;
   const isSubscriber = user ? (club.subscribers?.includes(user.uid) || false) : false;
 
+  // Debug logging for credits display
+  console.log('[ClubDetail] Display conditions:', {
+    hasUser: !!user,
+    isJoined,
+    isAdmin,
+    isOwner,
+    hasUserCredits: !!userCredits,
+    shouldShow: !!(user && (isJoined || isAdmin || isOwner) && userCredits),
+    creditsValue: userCredits?.clubCredits?.[clubId]
+  });
+
   const sortedEvents = [...events].sort((a, b) => {
     const dateA = a.startDate.toDate ? a.startDate.toDate() : new Date(a.startDate);
     const dateB = b.startDate.toDate ? b.startDate.toDate() : new Date(b.startDate);
@@ -315,7 +346,7 @@ export default function ClubDetailScreen() {
 
               <View style={styles.rightControls}>
                 {/* RallyCredits Display */}
-                {user && (isJoined || isAdmin) && userCredits && (
+                {user && (isJoined || isAdmin || isOwner) && userCredits && (
                   <Surface style={styles.creditsChip} elevation={2}>
                     <View style={styles.creditsContent}>
                       <IconButton
@@ -729,7 +760,7 @@ export default function ClubDetailScreen() {
                         <TouchableOpacity
                           key={event.id}
                           style={styles.eventTile}
-                          onPress={() => router.push(`/(tabs)/event-detail?id=${event.id}`)}
+                          onPress={() => router.push(`/event/${event.id}`)}
                         >
                           <Card style={styles.tileCard}>
                             {event.coverImage && (

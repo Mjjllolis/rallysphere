@@ -352,7 +352,7 @@ export default function ProfilePage() {
                   <TouchableOpacity
                     key={event.id}
                     style={styles.eventGridItem}
-                    onPress={() => router.push(`/(tabs)/event-detail?id=${event.id}`)}
+                    onPress={() => router.push(`/event/${event.id}`)}
                   >
                     {event.coverImage ? (
                       <Image source={{ uri: event.coverImage }} style={styles.eventGridImage} />

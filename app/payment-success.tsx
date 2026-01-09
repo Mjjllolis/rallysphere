@@ -56,7 +56,7 @@ export default function PaymentSuccess() {
 
   const handleViewEvent = () => {
     if (eventId) {
-      router.replace(`/(tabs)/event-detail?id=${eventId}`);
+      router.replace(`/event/${eventId}`);
     } else {
       router.replace('/(tabs)/events');
     }

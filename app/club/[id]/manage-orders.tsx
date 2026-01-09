@@ -30,6 +30,7 @@ import {
   updateStoreOrderStatus,
   getClub,
 } from '../../../lib/firebase';
+import { refundStoreOrder } from '../../../lib/stripe';
 import type { StoreOrder } from '../../../lib/firebase';
 
 const getStatusColor = (status: StoreOrder['status'], theme: any) => {
@@ -149,6 +150,11 @@ export default function ManageOrdersScreen() {
   };
 
   const openStatusModal = (order: StoreOrder) => {
+    // Don't allow status changes for refunded orders
+    if (order.status === 'refunded') {
+      Alert.alert('Cannot Update', 'This order has been refunded and cannot be updated.');
+      return;
+    }
     setSelectedOrder(order);
     setNewStatus(order.status);
     setStatusModalVisible(true);
@@ -159,6 +165,42 @@ export default function ManageOrdersScreen() {
 
     try {
       setUpdating(true);
+
+      // Handle refund specially
+      if (newStatus === 'refunded') {
+        // Show confirmation for refund
+        Alert.alert(
+          'Confirm Refund',
+          `Are you sure you want to refund $${selectedOrder.totalAmount.toFixed(2)} to the customer? This action cannot be undone.`,
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel',
+              onPress: () => setUpdating(false),
+            },
+            {
+              text: 'Refund',
+              style: 'destructive',
+              onPress: async () => {
+                const refundResult = await refundStoreOrder(selectedOrder.id, clubId);
+
+                if (refundResult.success) {
+                  Alert.alert(
+                    'Refund Successful',
+                    `$${refundResult.refundAmount?.toFixed(2)} has been refunded to the customer.`
+                  );
+                  await loadData();
+                  setStatusModalVisible(false);
+                } else {
+                  Alert.alert('Refund Failed', refundResult.error || 'Failed to process refund');
+                }
+                setUpdating(false);
+              },
+            },
+          ]
+        );
+        return;
+      }
 
       const result = await updateStoreOrderStatus(selectedOrder.id, newStatus);
 
@@ -394,12 +436,12 @@ export default function ManageOrdersScreen() {
                             <Text variant="bodySmall">${order.shipping.toFixed(2)}</Text>
                           </View>
                         )}
-                        {order.tax > 0 && (
-                          <View style={styles.priceRow}>
-                            <Text variant="bodySmall">Tax</Text>
-                            <Text variant="bodySmall">${order.tax.toFixed(2)}</Text>
-                          </View>
-                        )}
+                        <View style={styles.priceRow}>
+                          <Text variant="bodySmall">Processing Fee (6% + $0.29)</Text>
+                          <Text variant="bodySmall">
+                            ${(order.totalAmount - order.price - (order.shipping || 0)).toFixed(2)}
+                          </Text>
+                        </View>
                         <Divider style={{ marginVertical: 4 }} />
                         <View style={styles.priceRow}>
                           <Text variant="bodyMedium" style={{ fontWeight: 'bold' }}>Total Charged</Text>
@@ -414,57 +456,37 @@ export default function ManageOrdersScreen() {
                         <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 4 }}>
                           CLUB PAYOUT
                         </Text>
-                        {(order as any).platformFee > 0 ? (
-                          <>
-                            <View style={styles.priceRow}>
-                              <Text variant="bodySmall">Subtotal</Text>
-                              <Text variant="bodySmall">${order.price.toFixed(2)}</Text>
-                            </View>
-                            <View style={styles.priceRow}>
-                              <Text variant="bodySmall">Platform Fee (10%)</Text>
-                              <Text variant="bodySmall" style={{ color: theme.colors.error }}>
-                                -${((order as any).platformFee || 0).toFixed(2)}
-                              </Text>
-                            </View>
-                            {order.shipping > 0 && (
-                              <View style={styles.priceRow}>
-                                <Text variant="bodySmall">+ Shipping</Text>
-                                <Text variant="bodySmall">${order.shipping.toFixed(2)}</Text>
-                              </View>
-                            )}
-                            {order.tax > 0 && (
-                              <View style={styles.priceRow}>
-                                <Text variant="bodySmall">+ Tax (you remit)</Text>
-                                <Text variant="bodySmall">${order.tax.toFixed(2)}</Text>
-                              </View>
-                            )}
-                            <Divider style={{ marginVertical: 4 }} />
-                            <View style={styles.priceRow}>
-                              <Text variant="bodyMedium" style={{ fontWeight: 'bold' }}>You Receive</Text>
-                              <Text variant="bodyMedium" style={{ fontWeight: 'bold', color: theme.colors.primary }}>
-                                ${((order as any).clubAmount || 0).toFixed(2)}
-                              </Text>
-                            </View>
-                            <View style={[styles.priceRow, { marginTop: 8 }]}>
-                              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                                Transfer Status
-                              </Text>
-                              <Text
-                                variant="bodySmall"
-                                style={{
-                                  color: (order as any).transferredToClub ? theme.colors.primary : theme.colors.tertiary,
-                                  fontWeight: '600',
-                                }}
-                              >
-                                {(order as any).transferredToClub ? 'Transferred' : 'Pending'}
-                              </Text>
-                            </View>
-                          </>
-                        ) : (
-                          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                            Legacy order (no fee split)
-                          </Text>
+                        <View style={styles.priceRow}>
+                          <Text variant="bodySmall">Subtotal</Text>
+                          <Text variant="bodySmall">${order.price.toFixed(2)}</Text>
+                        </View>
+                        {order.shipping > 0 && (
+                          <View style={styles.priceRow}>
+                            <Text variant="bodySmall">+ Shipping</Text>
+                            <Text variant="bodySmall">${order.shipping.toFixed(2)}</Text>
+                          </View>
                         )}
+                        <Divider style={{ marginVertical: 4 }} />
+                        <View style={styles.priceRow}>
+                          <Text variant="bodyMedium" style={{ fontWeight: 'bold' }}>You Receive</Text>
+                          <Text variant="bodyMedium" style={{ fontWeight: 'bold', color: theme.colors.primary }}>
+                            ${(order.price + (order.shipping || 0)).toFixed(2)}
+                          </Text>
+                        </View>
+                        <View style={[styles.priceRow, { marginTop: 8 }]}>
+                          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                            Transfer Status
+                          </Text>
+                          <Text
+                            variant="bodySmall"
+                            style={{
+                              color: (order as any).transferredToClub ? theme.colors.primary : theme.colors.tertiary,
+                              fontWeight: '600',
+                            }}
+                          >
+                            {(order as any).transferredToClub ? 'Transferred' : 'Pending'}
+                          </Text>
+                        </View>
                       </View>
 
                       {/* Update Status Button */}
