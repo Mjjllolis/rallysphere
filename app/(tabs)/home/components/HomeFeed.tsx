@@ -36,6 +36,7 @@ const HomeFeed = ({ feedType, isActive }: HomeFeedProps) => {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [containerHeight, setContainerHeight] = useState(SCREEN_HEIGHT);
   const hasLoadedRef = useRef(false);
 
   const viewabilityConfig = useRef({
@@ -46,19 +47,22 @@ const HomeFeed = ({ feedType, isActive }: HomeFeedProps) => {
     if (viewableItems.length > 0) {
       const index = viewableItems[0].index || 0;
       setActiveIndex(index);
-
-      // Track featured event impression
-      const event = displayedEvents[index];
-      if (event?.isFeatured && event.featuredId) {
-        trackFeaturedImpression(event.featuredId);
-      }
-
-      // Load more when approaching the end
-      if (index >= displayedEvents.length - 2 && displayedEvents.length < allEvents.length) {
-        loadMoreEvents();
-      }
     }
   }).current;
+
+  // Handle loading more events and tracking impressions separately
+  useEffect(() => {
+    // Track featured event impression
+    const event = displayedEvents[activeIndex];
+    if (event?.isFeatured && event.featuredId) {
+      trackFeaturedImpression(event.featuredId);
+    }
+
+    // Load more when approaching the end
+    if (activeIndex >= displayedEvents.length - 2 && displayedEvents.length < allEvents.length && !loadingMore) {
+      loadMoreEvents();
+    }
+  }, [activeIndex, displayedEvents.length, allEvents.length]);
 
   useEffect(() => {
     // Ensure load once its mounted
@@ -159,17 +163,19 @@ const HomeFeed = ({ feedType, isActive }: HomeFeedProps) => {
   };
 
   const renderItem = ({ item, index }: { item: EventWithMeta; index: number }) => (
-    <EventSwipeCard
-      event={item}
-      isActive={index === activeIndex}
-      isFeatured={item.isFeatured}
-      onFeaturedClick={() => {
-        // Track click when user interacts with featured event
-        if (item.featuredId) {
-          // trackFeaturedClick will be called in EventSwipeCard when user clicks
-        }
-      }}
-    />
+    <View style={{ height: containerHeight, paddingBottom: 16 }}>
+      <EventSwipeCard
+        event={item}
+        isActive={index === activeIndex}
+        isFeatured={item.isFeatured}
+        onFeaturedClick={() => {
+          // Track click when user interacts with featured event
+          if (item.featuredId) {
+            // trackFeaturedClick will be called in EventSwipeCard when user clicks
+          }
+        }}
+      />
+    </View>
   );
 
   if (loading) {
@@ -199,7 +205,13 @@ const HomeFeed = ({ feedType, isActive }: HomeFeedProps) => {
   }
 
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+      onLayout={(event) => {
+        const { height } = event.nativeEvent.layout;
+        setContainerHeight(height);
+      }}
+    >
       <Stack.Screen options={{ headerShown: false }} />
       <FlatList
         data={displayedEvents}
@@ -207,7 +219,7 @@ const HomeFeed = ({ feedType, isActive }: HomeFeedProps) => {
         keyExtractor={(item) => item.id}
         pagingEnabled
         showsVerticalScrollIndicator={false}
-        snapToInterval={SCREEN_HEIGHT}
+        snapToInterval={containerHeight}
         snapToAlignment="start"
         decelerationRate="fast"
         onViewableItemsChanged={onViewableItemsChanged}
@@ -234,6 +246,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
+    overflow: 'hidden',
+    marginBottom: 8,
   },
   loadingMoreContainer: {
     height: 100,
