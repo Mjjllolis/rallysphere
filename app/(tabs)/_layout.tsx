@@ -2,14 +2,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Tabs } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useTheme } from "react-native-paper";
 import CreateScreen from "../../components/CreateScreen";
-import { Image, StyleSheet, Animated, Dimensions, View } from "react-native";
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
+import { Image, StyleSheet, Animated, View, Dimensions } from "react-native";
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const TAB_COUNT = 6; // Home, Events, Store, Clubs, Create, Profile
+const TAB_COUNT = 6;
 const TAB_WIDTH = SCREEN_WIDTH / TAB_COUNT;
 
 // Animated tab icon component
@@ -74,70 +71,32 @@ const AnimatedImageIcon = ({ source, color, focused }: any) => {
 };
 
 export default function TabLayout() {
-  const { colors } = useTheme();
   const [isModalVisible, setIsModalVisible] = useState(false);
 
   const openModal = () => setIsModalVisible(true);
   const closeModal = () => setIsModalVisible(false);
-  const EventIcon = require("../../assets/ticket.png");
 
   return (
     <>
       <View style={{ position: 'relative', flex: 1 }}>
         <Tabs
           screenOptions={{
-            tabBarActiveTintColor: colors.primary,
-            tabBarInactiveTintColor: colors.onSurfaceVariant,
+            tabBarActiveTintColor: '#fff',
+            tabBarInactiveTintColor: 'rgba(255, 255, 255, 0.5)',
             tabBarStyle: {
-              backgroundColor: 'transparent',
+              backgroundColor: '#000',
               borderTopColor: 'transparent',
               borderTopWidth: 0,
-              height: 85,
-              paddingBottom: 25,
-              paddingTop: 10,
+              height: 80,
+              paddingBottom: 30,
+              paddingTop: 2,
               paddingLeft: 0,
               paddingRight: 0,
               position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
             },
-            tabBarBackground: () => (
-              <View
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  overflow: 'hidden',
-                }}
-              >
-                {/* making center circle blur */}
-                <View
-                  style={{
-                    position: 'absolute',
-                    top: -305,
-                    left: 0,
-                    width: SCREEN_WIDTH,
-                    height: 400,
-                  }}
-                >
-                  <BlurView
-                    intensity={50}
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: SCREEN_WIDTH,
-                      height: 400,
-                    }}
-                  />
-                  <LinearGradient
-                    colors={['transparent', 'transparent', '#000000']}
-                    locations={[0, 0.3, 1]}
-                    style={{ position: 'absolute', width: SCREEN_WIDTH, height: 400 }}
-                  />
-                </View>
-              </View>
-            ),
           tabBarItemStyle: {
             width: TAB_WIDTH,
             justifyContent: 'center',
@@ -153,11 +112,9 @@ export default function TabLayout() {
             marginRight: 0,
           },
           tabBarLabelStyle: {
-            fontSize: 11,
-            marginTop: 4,
-            marginBottom: 0,
-            textAlign: 'center',
+            display: 'none',
           },
+          tabBarShowLabel: false,
           headerShown: false,
         }}
       >
@@ -243,20 +200,6 @@ export default function TabLayout() {
         />
 
       </Tabs>
-
-        {/* shimmer line on top of tab bar */}
-        <LinearGradient
-          colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.3)', 'rgba(255,255,255,0)']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={{
-            position: 'absolute',
-            bottom: 85,
-            left: 0,
-            right: 0,
-            height: 1,
-          }}
-        />
       </View>
 
       <CreateScreen visible={isModalVisible} onClose={closeModal} />

@@ -32,6 +32,7 @@ const SavedFeed = ({ isActive }: SavedFeedProps) => {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [containerHeight, setContainerHeight] = useState(SCREEN_HEIGHT);
   const hasLoadedRef = useRef(false);
   const wasActiveRef = useRef(false);
 
@@ -146,11 +147,15 @@ const SavedFeed = ({ isActive }: SavedFeedProps) => {
   };
 
   const renderItem = ({ item, index }: { item: Event; index: number }) => (
-    <EventSwipeCard
-      event={item}
-      isActive={index === activeIndex}
-      isFeatured={false}
-    />
+    <View style={{ height: containerHeight }}>
+      <View style={{ flex: 1, marginBottom: 2 }}>
+        <EventSwipeCard
+          event={item}
+          isActive={index === activeIndex}
+          isFeatured={false}
+        />
+      </View>
+    </View>
   );
 
   if (loading) {
@@ -194,7 +199,13 @@ const SavedFeed = ({ isActive }: SavedFeedProps) => {
   }
 
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+      onLayout={(event) => {
+        const { height } = event.nativeEvent.layout;
+        setContainerHeight(height);
+      }}
+    >
       <Stack.Screen options={{ headerShown: false }} />
       <FlatList
         data={displayedEvents}
@@ -202,7 +213,7 @@ const SavedFeed = ({ isActive }: SavedFeedProps) => {
         keyExtractor={(item) => item.id}
         pagingEnabled
         showsVerticalScrollIndicator={false}
-        snapToInterval={SCREEN_HEIGHT}
+        snapToInterval={containerHeight}
         snapToAlignment="start"
         decelerationRate="fast"
         onViewableItemsChanged={onViewableItemsChanged}
@@ -229,6 +240,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
+    overflow: 'hidden',
   },
   loadingMoreContainer: {
     height: SCREEN_HEIGHT,
