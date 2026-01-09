@@ -2,12 +2,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
+  Modal,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
   Animated,
   Image,
-  Pressable,
 } from 'react-native';
 import { Text, IconButton } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,8 +16,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import EventForm from './forms/EventForm';
 import PostForm from './forms/PostForm';
 import ClubForm from './forms/ClubForm';
-import IOSModal from './IOSModal';
-import { useScrollTracking } from '../hooks/useScrollTracking';
 
 type CreateType = 'Event' | 'Post' | 'Club';
 
@@ -35,9 +33,6 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
 
   const scaleAnim = useRef(new Animated.Value(0)).current;
 
-  // Scroll tracking for modal gesture control
-  const { scrollHandlers, shouldAllowGesture, shouldBounce, reset: resetScrollState } = useScrollTracking();
-
   useEffect(() => {
     if (dropdownVisible) {
       Animated.spring(scaleAnim, {
@@ -50,13 +45,6 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
       scaleAnim.setValue(0);
     }
   }, [dropdownVisible]);
-
-  // Reset scroll state when modal opens
-  useEffect(() => {
-    if (visible) {
-      resetScrollState();
-    }
-  }, [visible, resetScrollState]);
 
   const handleTypeSelect = (type: CreateType) => {
     setSelectedType(type);
@@ -71,69 +59,75 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
   };
 
   return (
-    <IOSModal
+    <Modal
       visible={visible}
-      onClose={onClose}
-      onShouldAllowGesture={shouldAllowGesture}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+      transparent={false}
     >
-      <View style={styles.container}>
-        {/* Background Image or Black Background */}
-        {backgroundImage ? (
-          <>
-            <View style={StyleSheet.absoluteFill}>
-              <Image source={{ uri: backgroundImage }} style={styles.backgroundImage} blurRadius={0} />
-            </View>
-            {/* Frosted Glass Overlay */}
-            <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
-          </>
-        ) : (
-          <>
-            {/* Black Background */}
-            <View style={StyleSheet.absoluteFill}>
-              <View style={styles.blackBackground} />
-            </View>
+      <View style={styles.modalWrapper}>
+        <View style={styles.container}>
+          {/* Background Image or Black Background */}
+          {backgroundImage ? (
+            <>
+              <View style={StyleSheet.absoluteFill}>
+                <Image source={{ uri: backgroundImage }} style={styles.backgroundImage} blurRadius={0} />
+              </View>
+              {/* Frosted Glass Overlay */}
+              <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+            </>
+          ) : (
+            <>
+              {/* Black Background */}
+              <View style={StyleSheet.absoluteFill}>
+                <View style={styles.blackBackground} />
+              </View>
 
-            {/* Subtle Gradient Overlay */}
-            <LinearGradient
-              colors={[
-                `rgba(${parseInt(backgroundColors[0].slice(1, 3), 16)}, ${parseInt(backgroundColors[0].slice(3, 5), 16)}, ${parseInt(backgroundColors[0].slice(5, 7), 16)}, 0.25)`,
-                `rgba(${parseInt(backgroundColors[1].slice(1, 3), 16)}, ${parseInt(backgroundColors[1].slice(3, 5), 16)}, ${parseInt(backgroundColors[1].slice(5, 7), 16)}, 0.15)`,
-                `rgba(${parseInt(backgroundColors[2].slice(1, 3), 16)}, ${parseInt(backgroundColors[2].slice(3, 5), 16)}, ${parseInt(backgroundColors[2].slice(5, 7), 16)}, 0.08)`,
-                'rgba(0, 0, 0, 0)'
-              ]}
-              locations={[0, 0.3, 0.6, 1]}
-              style={StyleSheet.absoluteFill}
-              pointerEvents="none"
-            />
-          </>
-        )}
+              {/* Subtle Gradient Overlay */}
+              <LinearGradient
+                colors={[
+                  `rgba(${parseInt(backgroundColors[0].slice(1, 3), 16)}, ${parseInt(backgroundColors[0].slice(3, 5), 16)}, ${parseInt(backgroundColors[0].slice(5, 7), 16)}, 0.25)`,
+                  `rgba(${parseInt(backgroundColors[1].slice(1, 3), 16)}, ${parseInt(backgroundColors[1].slice(3, 5), 16)}, ${parseInt(backgroundColors[1].slice(5, 7), 16)}, 0.15)`,
+                  `rgba(${parseInt(backgroundColors[2].slice(1, 3), 16)}, ${parseInt(backgroundColors[2].slice(3, 5), 16)}, ${parseInt(backgroundColors[2].slice(5, 7), 16)}, 0.08)`,
+                  'rgba(0, 0, 0, 0)'
+                ]}
+                locations={[0, 0.3, 0.6, 1]}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+              />
+            </>
+          )}
 
-        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <SafeAreaView style={styles.safeArea} edges={['top']}>
 
-          {/* Header - Fixed swipeable area */}
+          {/* Header */}
           <View style={styles.headerContainer}>
-            {/* Semi-transparent swipe zone background - captures touches for swipe gesture */}
-            <Pressable style={styles.headerSwipeZone} />
-
             <View style={styles.headerContent}>
+              {/* Close Button */}
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={onClose}
+              >
+                <IconButton icon="close" size={24} iconColor="rgba(255, 255, 255, 0.8)" style={{ margin: 0 }} />
+              </TouchableOpacity>
+
               {/* Type Selector Dropdown */}
-              <View>
+              <View style={styles.typeSelectorWrapper}>
                 <TouchableOpacity
                   style={styles.typeSelector}
                   onPress={() => setDropdownVisible(!dropdownVisible)}
-                  delayLongPress={0}
                 >
-                  <BlurView intensity={60} tint="dark" style={styles.typeSelectorBlur}>
-                    <Text style={styles.typeSelectorText}>{selectedType}</Text>
-                    <IconButton
-                      icon={dropdownVisible ? 'chevron-up' : 'chevron-down'}
-                      size={20}
-                      iconColor="white"
-                    />
-                  </BlurView>
+                  <Text style={styles.typeSelectorText}>{selectedType}</Text>
+                  <IconButton
+                    icon={dropdownVisible ? 'chevron-up' : 'chevron-down'}
+                    size={20}
+                    iconColor="white"
+                    style={{ margin: 0 }}
+                  />
                 </TouchableOpacity>
 
-                {/* Absolute Positioned Dropdown Menu */}
+                {/* Dropdown Menu */}
                 {dropdownVisible && (
                   <Animated.View
                     style={[
@@ -144,36 +138,34 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
                       },
                     ]}
                   >
-                    <BlurView intensity={90} tint="dark" style={styles.dropdownAbsoluteBlur}>
-                      <View style={styles.dropdownAbsoluteContent}>
-                        {(['Club', 'Event', 'Post'] as CreateType[]).map((type, index) => (
-                          <TouchableOpacity
-                            key={type}
+                    <View style={styles.dropdownAbsoluteContent}>
+                      {(['Club', 'Event', 'Post'] as CreateType[]).map((type, index) => (
+                        <TouchableOpacity
+                          key={type}
+                          style={[
+                            styles.dropdownAbsoluteItem,
+                            selectedType === type && styles.dropdownAbsoluteItemSelected,
+                            index === 2 && styles.dropdownAbsoluteItemLast,
+                          ]}
+                          onPress={() => handleTypeSelect(type)}
+                          activeOpacity={0.7}
+                        >
+                          <Text
                             style={[
-                              styles.dropdownAbsoluteItem,
-                              selectedType === type && styles.dropdownAbsoluteItemSelected,
-                              index === 2 && styles.dropdownAbsoluteItemLast,
+                              styles.dropdownAbsoluteItemText,
+                              selectedType === type && styles.dropdownAbsoluteItemTextSelected,
                             ]}
-                            onPress={() => handleTypeSelect(type)}
-                            activeOpacity={0.7}
                           >
-                            <Text
-                              style={[
-                                styles.dropdownAbsoluteItemText,
-                                selectedType === type && styles.dropdownAbsoluteItemTextSelected,
-                              ]}
-                            >
-                              {type}
-                            </Text>
-                            {selectedType === type && (
-                              <View style={styles.checkmarkContainer}>
-                                <IconButton icon="check" size={18} iconColor="white" style={styles.checkIcon} />
-                              </View>
-                            )}
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </BlurView>
+                            {type}
+                          </Text>
+                          {selectedType === type && (
+                            <View style={styles.checkmarkContainer}>
+                              <IconButton icon="check" size={18} iconColor="white" style={styles.checkIcon} />
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
                   </Animated.View>
                 )}
               </View>
@@ -195,11 +187,7 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
             contentContainerStyle={styles.contentContainer}
             showsVerticalScrollIndicator={true}
             indicatorStyle="white"
-            bounces={shouldBounce}
-            alwaysBounceVertical={false}
-            overScrollMode="never"
-            scrollEnabled={true}
-            {...scrollHandlers}
+            bounces={true}
           >
             {selectedType === 'Event' && (
               <EventForm onColorsExtracted={handleColorsExtracted} onSuccess={onClose} />
@@ -212,15 +200,23 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
             )}
           </ScrollView>
         </SafeAreaView>
+        </View>
       </View>
-    </IOSModal>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  modalWrapper: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
   container: {
     flex: 1,
     backgroundColor: '#000000',
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
+    overflow: 'hidden',
   },
   backgroundImage: {
     width: '100%',
@@ -235,52 +231,43 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerContainer: {
-    paddingTop: 20,
-    paddingBottom: 8,
+    paddingTop: 8,
+    paddingBottom: 12,
     paddingHorizontal: 16,
-    position: 'relative',
-  },
-  headerSwipeZone: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'transparent',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     minHeight: 44,
   },
+  closeButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   typeSelectorWrapper: {
-    position: 'relative',
-    zIndex: 1000,
+    flex: 1,
+    alignItems: 'center',
+    marginRight: 40, // Balance for close button
   },
   typeSelector: {
-    borderRadius: 18,
-    overflow: 'hidden',
-    minWidth: 120,
-    maxWidth: 120,
-  },
-  typeSelectorBlur: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 18,
-    borderWidth: 0.5,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    overflow: 'hidden',
-    height: 36,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   typeSelectorText: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
     color: 'white',
-    marginRight: 2,
+    marginRight: 4,
   },
   content: {
     flex: 1,
@@ -289,41 +276,36 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 40,
   },
-  // Absolute Positioned Dropdown Styles
   dropdownAbsolute: {
     position: 'absolute',
     top: '100%',
     left: '50%',
-    marginLeft: -60, // Half of width (120/2)
+    marginLeft: -70,
     marginTop: 8,
-    width: 120,
-    borderRadius: 14,
+    width: 140,
+    borderRadius: 16,
     overflow: 'hidden',
+    backgroundColor: 'rgba(20, 20, 20, 0.95)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
     elevation: 8,
     zIndex: 1000,
   },
-  dropdownAbsoluteBlur: {
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    overflow: 'hidden',
-  },
   dropdownAbsoluteContent: {
-    paddingVertical: 2,
+    paddingVertical: 4,
   },
   dropdownAbsoluteItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-    minHeight: 36,
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
   },
   dropdownAbsoluteItemLast: {
     borderBottomWidth: 0,
@@ -332,18 +314,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   dropdownAbsoluteItemText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.9)',
-    textAlign: 'center',
-    flex: 1,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   dropdownAbsoluteItemTextSelected: {
     color: 'white',
     fontWeight: '600',
   },
   checkmarkContainer: {
-    marginLeft: 4,
     width: 20,
     height: 20,
     justifyContent: 'center',
