@@ -212,7 +212,7 @@ export default function EventsScreen() {
       <TouchableOpacity
         key={event.id}
         style={styles.featuredCard}
-        onPress={() => router.push(`/(tabs)/event-detail?id=${event.id}`)}
+        onPress={() => router.push(`/event/${event.id}`)}
         activeOpacity={0.9}
       >
         <BlurView intensity={20} tint="dark" style={styles.featuredCardBlur}>
@@ -296,7 +296,7 @@ export default function EventsScreen() {
       <TouchableOpacity
         key={event.id}
         style={styles.eventCard}
-        onPress={() => router.push(`/(tabs)/event-detail?id=${event.id}`)}
+        onPress={() => router.push(`/event/${event.id}`)}
         activeOpacity={0.9}
       >
         <BlurView intensity={20} tint="dark" style={styles.eventCardBlur}>

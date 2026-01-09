@@ -278,7 +278,7 @@ export default function RootLayout() {
               text: 'View Event',
               onPress: () => {
                 if (eventId) {
-                  router.push(`/(tabs)/event-detail?id=${eventId}`);
+                  router.push(`/event/${eventId}`);
                 }
               },
             },
@@ -303,7 +303,7 @@ export default function RootLayout() {
               text: 'Try Again',
               onPress: () => {
                 if (eventId) {
-                  router.push(`/(tabs)/event-detail?id=${eventId}`);
+                  router.push(`/event/${eventId}`);
                 }
               },
             },

@@ -208,7 +208,7 @@ export default function EventSwipeCard({
     if (isFeatured && onFeaturedClick) {
       onFeaturedClick();
     }
-    router.push(`/(tabs)/event-detail?id=${event.id}`);
+    router.push(`/event/${event.id}`);
   };
 
   // Generate link with id

@@ -1,6 +1,6 @@
 // app/event/[id].tsx
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Image, Linking, ImageBackground, Dimensions, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Image, Linking, ImageBackground, Dimensions, TouchableOpacity, ActivityIndicator } from 'react-native';
 import {
   Text,
   Button,
@@ -11,16 +11,18 @@ import {
   useTheme,
   List,
   Surface,
-  ActivityIndicator
+  Menu
 } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../_layout';
-import { getEvents, joinEvent, leaveEvent } from '../../lib/firebase';
-import type { Event } from '../../lib/firebase';
+import { getEventById, joinEvent, getUserRallyCredits, getClub, getUserProfile } from '../../lib/firebase';
+import { leaveEventWithRefund } from '../../lib/stripe';
+import type { Event, UserRallyCredits, UserProfile } from '../../lib/firebase';
 import BackButton from '../../components/BackButton';
 import PaymentSheet from '../../components/PaymentSheet';
+import RallyCreditsPaidModal from '../../components/RallyCreditsPaidModal';
 
 const { width } = Dimensions.get('window');
 
@@ -29,11 +31,21 @@ export default function EventDetailScreen() {
   const { user } = useAuth();
   const { id } = useLocalSearchParams();
   const eventId = id as string;
-  
+
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [userCredits, setUserCredits] = useState<UserRallyCredits | null>(null);
+  const [menuVisible, setMenuVisible] = useState(false);
   const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
+  const [showPayoutModal, setShowPayoutModal] = useState(false);
+  const [payoutInfo, setPayoutInfo] = useState<{
+    amount: number;
+    clubId: string;
+    clubName: string;
+    isAlreadyMember: boolean;
+  } | null>(null);
+  const [attendeesData, setAttendeesData] = useState<Map<string, UserProfile>>(new Map());
 
   useEffect(() => {
     if (eventId) {
@@ -41,20 +53,63 @@ export default function EventDetailScreen() {
     }
   }, [eventId]);
 
+  useEffect(() => {
+    if (event?.attendees?.length) {
+      loadAttendeesData(event.attendees);
+    }
+  }, [event?.attendees]);
+
+  const loadAttendeesData = async (attendeeIds: string[]) => {
+    const newData = new Map<string, UserProfile>();
+    await Promise.all(
+      attendeeIds.map(async (userId) => {
+        if (!attendeesData.has(userId)) {
+          try {
+            const profile = await getUserProfile(userId);
+            if (profile) {
+              newData.set(userId, profile);
+            }
+          } catch (e) {
+            console.error('Error loading attendee:', e);
+          }
+        } else {
+          newData.set(userId, attendeesData.get(userId)!);
+        }
+      })
+    );
+    setAttendeesData(newData);
+  };
+
+  useEffect(() => {
+    if (user && event) {
+      loadUserCredits();
+    }
+  }, [user, event]);
+
+  const loadUserCredits = async () => {
+    if (!user || !event) return;
+
+    try {
+      const result = await getUserRallyCredits(user.uid);
+      if (result.success && result.credits) {
+        setUserCredits(result.credits);
+      }
+    } catch (error) {
+      console.error('Error loading user credits:', error);
+    }
+  };
+
   const loadEventData = async () => {
     try {
       setLoading(true);
-      
-      // Load all events and find the specific one
-      const eventsResult = await getEvents();
-      if (eventsResult.success) {
-        const foundEvent = eventsResult.events.find(e => e.id === eventId);
-        if (foundEvent) {
-          setEvent(foundEvent);
-        } else {
-          Alert.alert('Error', 'Event not found');
-          router.back();
-        }
+
+      // Load the specific event by ID
+      const result = await getEventById(eventId);
+      if (result.success && result.event) {
+        setEvent(result.event);
+      } else {
+        Alert.alert('Error', 'Event not found');
+        router.back();
       }
     } catch (error) {
       console.error('Error loading event data:', error);
@@ -67,7 +122,7 @@ export default function EventDetailScreen() {
   const handleJoinEvent = async () => {
     if (!user || !event) return;
 
-    // If event has a ticket price, show payment sheet
+    // If event has a ticket price, show native payment sheet
     if (event.ticketPrice && event.ticketPrice > 0) {
       setPaymentSheetVisible(true);
       return;
@@ -75,15 +130,34 @@ export default function EventDetailScreen() {
 
     // Free event - join directly
     setActionLoading(true);
+    console.log('[EventDetail] Joining free event:', event.id, 'clubId:', event.clubId, 'rallyCreditsAwarded:', event.rallyCreditsAwarded);
     try {
       const result = await joinEvent(event.id, user.uid);
+      console.log('[EventDetail] Join result:', result);
       if (result.success) {
         if (result.waitlisted) {
           Alert.alert('Added to Waitlist!', 'You have been added to the waitlist for this event.');
         } else {
-          Alert.alert('Success!', 'You have joined the event!');
+          // Check if event has Rally Credits payout
+          console.log('[EventDetail] Checking for rally credits payout:', event.rallyCreditsAwarded);
+          if (event.rallyCreditsAwarded && event.rallyCreditsAwarded > 0) {
+            // Check if user is already a club member
+            const clubResult = await getClub(event.clubId);
+            const isAlreadyMember = clubResult.success && clubResult.club?.members.includes(user.uid);
+
+            setPayoutInfo({
+              amount: event.rallyCreditsAwarded,
+              clubId: event.clubId,
+              clubName: event.clubName,
+              isAlreadyMember: isAlreadyMember || false
+            });
+            setShowPayoutModal(true);
+          } else {
+            Alert.alert('Success!', 'You have joined the event!');
+          }
         }
         await loadEventData(); // Refresh event data
+        await loadUserCredits(); // Refresh user credits
       } else {
         Alert.alert('Error', result.error || 'Failed to join event');
       }
@@ -96,28 +170,68 @@ export default function EventDetailScreen() {
   };
 
   const handlePaymentSuccess = async () => {
-    Alert.alert('Success!', 'You have successfully purchased a ticket for this event!');
-    await loadEventData(); // Refresh event data
+    // Refresh event data after successful payment
+    await loadEventData();
+    await loadUserCredits();
+
+    // Show Rally Credits payout modal if event awards credits
+    if (event?.rallyCreditsAwarded && event.rallyCreditsAwarded > 0) {
+      // Check if user is already a club member
+      const clubResult = await getClub(event.clubId);
+      const isAlreadyMember = clubResult.success && clubResult.club?.members.includes(user?.uid || '');
+
+      setPayoutInfo({
+        amount: event.rallyCreditsAwarded,
+        clubId: event.clubId,
+        clubName: event.clubName,
+        isAlreadyMember: isAlreadyMember || false
+      });
+      setShowPayoutModal(true);
+    }
   };
 
   const handleLeaveEvent = async () => {
     if (!user || !event) return;
-    
+
+    // Build confirmation message based on whether it's a paid event
+    const isPaidEvent = event.ticketPrice && event.ticketPrice > 0;
+    const hasCredits = event.rallyCreditsAwarded && event.rallyCreditsAwarded > 0;
+
+    let message = 'Are you sure you want to leave this event?';
+    if (isPaidEvent || hasCredits) {
+      const parts = [];
+      if (isPaidEvent) {
+        parts.push(`You will be refunded $${event.ticketPrice.toFixed(2)}`);
+      }
+      if (hasCredits) {
+        parts.push(`${event.rallyCreditsAwarded} Rally Credits will be forfeited`);
+      }
+      message = `${message}\n\n${parts.join('\n')}`;
+    }
+
     Alert.alert(
       'Leave Event',
-      'Are you sure you want to leave this event?',
+      message,
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Leave', 
+        {
+          text: 'Leave',
           style: 'destructive',
           onPress: async () => {
             setActionLoading(true);
             try {
-              const result = await leaveEvent(event.id, user.uid);
+              const result = await leaveEventWithRefund(event.id);
               if (result.success) {
-                Alert.alert('Success', 'You have left the event');
+                let successMessage = 'You have left the event.';
+                if (result.refundProcessed && result.refundAmount) {
+                  successMessage += `\n\nRefunded: $${result.refundAmount.toFixed(2)}`;
+                }
+                if (result.creditsForfeited && result.creditsForfeited > 0) {
+                  successMessage += `\n${result.creditsForfeited} Rally Credits forfeited.`;
+                }
+                Alert.alert('Success', successMessage);
                 await loadEventData(); // Refresh event data
+                await loadUserCredits(); // Refresh credits
               } else {
                 Alert.alert('Error', result.error || 'Failed to leave event');
               }
@@ -142,10 +256,10 @@ export default function EventDetailScreen() {
   const formatDate = (date: any) => {
     if (!date) return '';
     const eventDate = date.toDate ? date.toDate() : new Date(date);
-    return eventDate.toLocaleDateString([], { 
+    return eventDate.toLocaleDateString([], {
       weekday: 'long',
       year: 'numeric',
-      month: 'long', 
+      month: 'long',
       day: 'numeric'
     });
   };
@@ -153,8 +267,8 @@ export default function EventDetailScreen() {
   const formatTime = (date: any) => {
     if (!date) return '';
     const eventDate = date.toDate ? date.toDate() : new Date(date);
-    return eventDate.toLocaleTimeString([], { 
-      hour: 'numeric', 
+    return eventDate.toLocaleTimeString([], {
+      hour: 'numeric',
       minute: '2-digit',
       hour12: true
     });
@@ -162,9 +276,9 @@ export default function EventDetailScreen() {
 
   if (loading || !event) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text variant="bodyLarge">Loading...</Text>
+          <Text variant="bodyLarge" style={{ color: '#fff' }}>Loading...</Text>
         </View>
       </View>
     );
@@ -190,7 +304,7 @@ export default function EventDetailScreen() {
             colors={['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.95)']}
             style={styles.heroGradient}
           >
-            {/* Back Button */}
+            {/* Back Button and Menu */}
             <View style={styles.topControl}>
               <Surface style={styles.controlButton} elevation={2}>
                 <IconButton
@@ -200,6 +314,33 @@ export default function EventDetailScreen() {
                   onPress={() => router.back()}
                 />
               </Surface>
+
+              {/* Menu for additional options */}
+              {user && (isAttending || isWaitlisted) && (
+                <Menu
+                  visible={menuVisible}
+                  onDismiss={() => setMenuVisible(false)}
+                  anchor={
+                    <Surface style={styles.controlButton} elevation={2}>
+                      <IconButton
+                        icon="dots-vertical"
+                        iconColor="#fff"
+                        size={24}
+                        onPress={() => setMenuVisible(true)}
+                      />
+                    </Surface>
+                  }
+                >
+                  <Menu.Item
+                    onPress={() => {
+                      setMenuVisible(false);
+                      handleLeaveEvent();
+                    }}
+                    title={isWaitlisted ? "Leave Waitlist" : "Leave Event"}
+                    leadingIcon="exit-to-app"
+                  />
+                </Menu>
+              )}
             </View>
 
             {/* Event Info Overlay */}
@@ -248,41 +389,51 @@ export default function EventDetailScreen() {
                 <View style={styles.quickInfoItem}>
                   <IconButton icon="account-group" iconColor="#fff" size={20} />
                   <Text variant="bodyMedium" style={styles.quickInfoText}>
-                    {event.attendees.length}{event.maxAttendees ? `/${event.maxAttendees}` : ''}
+                    {event.attendees.length.toString()}{event.maxAttendees ? `/${event.maxAttendees.toString()}` : ''}
                   </Text>
                 </View>
               </View>
 
               {/* Action Button */}
-              {user && isUpcoming && !isCreator && (
-                <Button
-                  mode={isAttending || isWaitlisted ? "outlined" : "contained"}
+              {user && isUpcoming && (
+                <TouchableOpacity
                   onPress={isAttending || isWaitlisted ? handleLeaveEvent : handleJoinEvent}
-                  loading={actionLoading}
-                  disabled={!isAttending && !isWaitlisted && isFull}
-                  style={styles.heroActionButton}
-                  contentStyle={styles.heroActionButtonContent}
-                  labelStyle={styles.heroActionButtonLabel}
-                  buttonColor={isAttending || isWaitlisted ? 'transparent' : '#4F8CC9'}
-                  textColor={isAttending || isWaitlisted ? '#fff' : '#fff'}
+                  disabled={actionLoading || (!isAttending && !isWaitlisted && isFull)}
+                  activeOpacity={0.8}
+                  style={styles.heroActionButtonWrapper}
                 >
-                  {isWaitlisted
-                    ? 'Leave Waitlist'
-                    : isAttending
-                    ? 'Leave Event'
-                    : isFull
-                    ? 'Event Full'
-                    : event.ticketPrice && event.ticketPrice > 0
-                    ? `Buy Ticket - $${event.ticketPrice}`
-                    : 'Join Event'}
-                </Button>
+                  <LinearGradient
+                    colors={isAttending || isWaitlisted ? ['transparent', 'transparent'] : [theme.colors.primary, theme.colors.primary]}
+                    style={[
+                      styles.heroActionButton,
+                      (isAttending || isWaitlisted) && styles.heroActionButtonOutlined,
+                      (actionLoading || (!isAttending && !isWaitlisted && isFull)) && styles.heroActionButtonDisabled
+                    ]}
+                  >
+                    {actionLoading ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <Text style={styles.heroActionButtonText}>
+                        {isWaitlisted
+                          ? 'Leave Waitlist'
+                          : isAttending
+                          ? 'Leave Event'
+                          : isFull
+                          ? 'Event Full'
+                          : event.ticketPrice && event.ticketPrice > 0
+                          ? `Buy Ticket - $${event.ticketPrice.toString()}`
+                          : 'Join Event'}
+                      </Text>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
               )}
             </View>
           </LinearGradient>
         </ImageBackground>
 
         {/* Content Section */}
-        <View style={[styles.content, { backgroundColor: theme.colors.background }]}>
+        <View style={styles.content}>
           {/* Description */}
           <View style={styles.section}>
             <Text variant="titleLarge" style={styles.sectionTitle}>
@@ -336,13 +487,37 @@ export default function EventDetailScreen() {
               )}
             </View>
 
-            {event.ticketPrice && (
+            {event.ticketPrice > 0 && (
               <View style={styles.detailRow}>
                 <IconButton icon="currency-usd" size={24} />
                 <View style={styles.detailContent}>
                   <Text variant="labelLarge">Price</Text>
                   <Text variant="bodyMedium" style={styles.detailText}>
-                    ${event.ticketPrice} {event.currency || 'USD'}
+                    ${event.ticketPrice.toString()} {typeof event.currency === 'string' && event.currency.trim() !== '' ? event.currency : 'USD'}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {event.rallyCreditsAwarded > 0 && (
+              <View style={styles.detailRow}>
+                <IconButton icon="star-circle" size={24} iconColor="#FFD700" />
+                <View style={styles.detailContent}>
+                  <Text variant="labelLarge">Rally Credits Payout</Text>
+                  <Text variant="bodyMedium" style={styles.detailText}>
+                    +{event.rallyCreditsAwarded?.toString() || '0'} credits for joining
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {user && userCredits && event.clubId && (
+              <View style={styles.detailRow}>
+                <IconButton icon="wallet" size={24} iconColor="#FFD700" />
+                <View style={styles.detailContent}>
+                  <Text variant="labelLarge">Your {event.clubName} Credits</Text>
+                  <Text variant="bodyMedium" style={styles.detailText}>
+                    {(userCredits.clubCredits?.[event.clubId] || 0).toString()} total credits
                   </Text>
                 </View>
               </View>
@@ -353,17 +528,17 @@ export default function EventDetailScreen() {
           <View style={styles.statsContainer}>
             <View style={styles.statCard}>
               <Text variant="headlineSmall" style={styles.statNumber}>
-                {event.attendees.length}
+                {event.attendees.length.toString()}
               </Text>
               <Text variant="bodyMedium" style={styles.statLabel}>
                 Attending
               </Text>
             </View>
 
-            {event.maxAttendees && (
+            {(event.maxAttendees ?? 0) > 0 && (
               <View style={styles.statCard}>
                 <Text variant="headlineSmall" style={styles.statNumber}>
-                  {event.maxAttendees - event.attendees.length}
+                  {(event.maxAttendees - event.attendees.length).toString()}
                 </Text>
                 <Text variant="bodyMedium" style={styles.statLabel}>
                   Spots Left
@@ -374,7 +549,7 @@ export default function EventDetailScreen() {
             {event.waitlist.length > 0 && (
               <View style={styles.statCard}>
                 <Text variant="headlineSmall" style={styles.statNumber}>
-                  {event.waitlist.length}
+                  {event.waitlist.length.toString()}
                 </Text>
                 <Text variant="bodyMedium" style={styles.statLabel}>
                   Waitlisted
@@ -388,7 +563,7 @@ export default function EventDetailScreen() {
             <View style={styles.section}>
               <Card style={styles.virtualCard}>
                 <Card.Content style={styles.virtualContent}>
-                  <IconButton icon="video" size={48} iconColor="#4F8CC9" />
+                  <IconButton icon="video" size={48} iconColor={theme.colors.primary} />
                   <Text variant="titleLarge" style={styles.virtualTitle}>
                     Join Virtual Event
                   </Text>
@@ -397,7 +572,6 @@ export default function EventDetailScreen() {
                     onPress={openVirtualLink}
                     icon="open-in-new"
                     style={styles.virtualButton}
-                    buttonColor="#4F8CC9"
                   >
                     Open Meeting Link
                   </Button>
@@ -413,20 +587,37 @@ export default function EventDetailScreen() {
                 Attendees ({event.attendees.length})
               </Text>
               <View style={styles.membersList}>
-                {event.attendees.map((userId, index) => (
-                  <View key={userId} style={styles.memberRow}>
-                    <View style={styles.memberInfo}>
-                      <View style={styles.avatarCircle}>
-                        <Text variant="labelLarge" style={styles.avatarText}>
-                          {index + 1}
+                {event.attendees.map((userId) => {
+                  const attendee = attendeesData.get(userId);
+                  const displayName = attendee
+                    ? `${attendee.firstName || ''} ${attendee.lastName || ''}`.trim() || 'User'
+                    : 'Loading...';
+                  const initials = attendee
+                    ? `${attendee.firstName?.[0] || ''}${attendee.lastName?.[0] || ''}`.toUpperCase() || '?'
+                    : '?';
+
+                  return (
+                    <View key={userId} style={styles.memberRow}>
+                      <View style={styles.memberInfo}>
+                        {attendee?.avatar ? (
+                          <Image
+                            source={{ uri: attendee.avatar }}
+                            style={styles.attendeeAvatar}
+                          />
+                        ) : (
+                          <View style={styles.avatarCircle}>
+                            <Text variant="labelLarge" style={styles.avatarText}>
+                              {initials}
+                            </Text>
+                          </View>
+                        )}
+                        <Text variant="bodyLarge" style={styles.memberId} numberOfLines={1}>
+                          {displayName}
                         </Text>
                       </View>
-                      <Text variant="bodyLarge" style={styles.memberId} numberOfLines={1}>
-                        {userId}
-                      </Text>
                     </View>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
             </View>
           )}
@@ -458,6 +649,18 @@ export default function EventDetailScreen() {
           onSuccess={handlePaymentSuccess}
         />
       )}
+
+      {/* Rally Credits Payout Modal */}
+      {payoutInfo && (
+        <RallyCreditsPaidModal
+          visible={showPayoutModal}
+          onClose={() => setShowPayoutModal(false)}
+          amount={payoutInfo.amount}
+          clubId={payoutInfo.clubId}
+          clubName={payoutInfo.clubName}
+          isAlreadyMember={payoutInfo.isAlreadyMember}
+        />
+      )}
     </View>
   );
 }
@@ -465,12 +668,13 @@ export default function EventDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#000000',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    flexGrow: 1,
+    paddingBottom: 120,
   },
   loadingContainer: {
     flex: 1,
@@ -490,6 +694,9 @@ const styles = StyleSheet.create({
   },
   topControl: {
     paddingHorizontal: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   controlButton: {
     borderRadius: 25,
@@ -510,13 +717,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   statusChipAttending: {
-    backgroundColor: 'rgba(100, 200, 100, 0.25)',
+    backgroundColor: 'rgba(76, 175, 80, 0.3)',
   },
   statusChipWaitlist: {
-    backgroundColor: 'rgba(255, 200, 0, 0.25)',
+    backgroundColor: 'rgba(255, 193, 7, 0.3)',
   },
   statusChipPast: {
-    backgroundColor: 'rgba(150, 150, 150, 0.25)',
+    backgroundColor: 'rgba(158, 158, 158, 0.3)',
   },
   statusChipText: {
     color: '#fff',
@@ -546,21 +753,34 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginLeft: -8,
   },
-  heroActionButton: {
+  heroActionButtonWrapper: {
     width: '100%',
     maxWidth: 300,
+    alignSelf: 'center',
+  },
+  heroActionButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroActionButtonOutlined: {
+    borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.5)',
   },
-  heroActionButtonContent: {
-    paddingVertical: 8,
+  heroActionButtonDisabled: {
+    opacity: 0.5,
   },
-  heroActionButtonLabel: {
+  heroActionButtonText: {
+    color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+    textAlign: 'center',
   },
   content: {
-    flexGrow: 1,
-    minHeight: '100%',
+    flex: 1,
+    backgroundColor: '#000000',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     marginTop: -24,
@@ -637,27 +857,6 @@ const styles = StyleSheet.create({
   topicChip: {
     borderRadius: 20,
   },
-  attendeeScroll: {
-    paddingRight: 20,
-  },
-  attendeeAvatar: {
-    marginRight: 12,
-  },
-  avatarCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#60A5FA',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  waitlistAvatar: {
-    backgroundColor: '#94A3B8',
-  },
-  avatarText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
   membersList: {
     gap: 0,
   },
@@ -676,6 +875,23 @@ const styles = StyleSheet.create({
     gap: 12,
     flex: 1,
     minWidth: 0,
+  },
+  avatarCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#60A5FA',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  attendeeAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+  },
+  avatarText: {
+    color: '#fff',
+    fontWeight: 'bold',
   },
   memberId: {
     flex: 1,

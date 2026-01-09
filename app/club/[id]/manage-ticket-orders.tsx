@@ -30,6 +30,7 @@ import {
   updateTicketOrderStatus,
   getClub,
 } from '../../../lib/firebase';
+import { refundTicketOrder } from '../../../lib/stripe';
 import type { TicketOrder } from '../../../lib/firebase';
 
 const getStatusColor = (status: TicketOrder['status'], theme: any) => {
@@ -138,6 +139,11 @@ export default function ManageTicketOrdersScreen() {
   };
 
   const openStatusModal = (order: TicketOrder) => {
+    // Don't allow status changes for refunded orders
+    if (order.status === 'refunded') {
+      Alert.alert('Cannot Update', 'This order has been refunded and cannot be updated.');
+      return;
+    }
     setSelectedOrder(order);
     setNewStatus(order.status);
     setStatusModalVisible(true);
@@ -148,6 +154,42 @@ export default function ManageTicketOrdersScreen() {
 
     try {
       setUpdating(true);
+
+      // Handle refund specially
+      if (newStatus === 'refunded') {
+        // Show confirmation for refund
+        Alert.alert(
+          'Confirm Refund',
+          `Are you sure you want to refund $${selectedOrder.totalAmount.toFixed(2)} to the customer? This will also remove them from the event attendees. This action cannot be undone.`,
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel',
+              onPress: () => setUpdating(false),
+            },
+            {
+              text: 'Refund',
+              style: 'destructive',
+              onPress: async () => {
+                const refundResult = await refundTicketOrder(selectedOrder.id, clubId);
+
+                if (refundResult.success) {
+                  Alert.alert(
+                    'Refund Successful',
+                    `$${refundResult.refundAmount?.toFixed(2)} has been refunded to the customer.`
+                  );
+                  await loadData();
+                  setStatusModalVisible(false);
+                } else {
+                  Alert.alert('Refund Failed', refundResult.error || 'Failed to process refund');
+                }
+                setUpdating(false);
+              },
+            },
+          ]
+        );
+        return;
+      }
 
       const result = await updateTicketOrderStatus(selectedOrder.id, newStatus);
 
@@ -374,12 +416,10 @@ export default function ManageTicketOrdersScreen() {
                           <Text variant="bodySmall">Ticket Price</Text>
                           <Text variant="bodySmall">${order.ticketPrice.toFixed(2)}</Text>
                         </View>
-                        {order.processingFee > 0 && (
-                          <View style={styles.priceRow}>
-                            <Text variant="bodySmall">Processing Fee</Text>
-                            <Text variant="bodySmall">${order.processingFee.toFixed(2)}</Text>
-                          </View>
-                        )}
+                        <View style={styles.priceRow}>
+                          <Text variant="bodySmall">Processing Fee (6% + $0.29)</Text>
+                          <Text variant="bodySmall">${order.processingFee.toFixed(2)}</Text>
+                        </View>
                         <Divider style={{ marginVertical: 4 }} />
                         <View style={styles.priceRow}>
                           <Text variant="bodyMedium" style={{ fontWeight: 'bold' }}>Total Charged</Text>
@@ -395,20 +435,9 @@ export default function ManageTicketOrdersScreen() {
                           CLUB PAYOUT
                         </Text>
                         <View style={styles.priceRow}>
-                          <Text variant="bodySmall">Ticket Price</Text>
-                          <Text variant="bodySmall">${order.ticketPrice.toFixed(2)}</Text>
-                        </View>
-                        <View style={styles.priceRow}>
-                          <Text variant="bodySmall">Platform Fee (10%)</Text>
-                          <Text variant="bodySmall" style={{ color: theme.colors.error }}>
-                            -${order.platformFee.toFixed(2)}
-                          </Text>
-                        </View>
-                        <Divider style={{ marginVertical: 4 }} />
-                        <View style={styles.priceRow}>
                           <Text variant="bodyMedium" style={{ fontWeight: 'bold' }}>You Receive</Text>
                           <Text variant="bodyMedium" style={{ fontWeight: 'bold', color: theme.colors.primary }}>
-                            ${order.clubAmount.toFixed(2)}
+                            ${order.ticketPrice.toFixed(2)}
                           </Text>
                         </View>
                         <View style={[styles.priceRow, { marginTop: 8 }]}>

@@ -64,7 +64,10 @@
       "Bash(open:*)",
       "Bash(curl:*)",
       "Bash(echo:*)",
-      "Bash(npm run deploy:*)"
+      "Bash(npm run deploy:*)",
+      "Bash(node:*)",
+      "Bash(export GOOGLE_APPLICATION_CREDENTIALS=\"\")",
+      "Bash(GOOGLE_CLOUD_PROJECT=rally-sphere node:*)"
     ],
     "deny": [],
     "ask": []

@@ -167,7 +167,7 @@ export default function TicketsScreen() {
       <TouchableOpacity
         key={ticket.id}
         style={styles.ticketCard}
-        onPress={() => router.push(`/(tabs)/event-detail?id=${ticket.eventId}`)}
+        onPress={() => router.push(`/event/${ticket.eventId}`)}
         activeOpacity={0.9}
       >
         <BlurView intensity={20} tint="dark" style={styles.ticketCardBlur}>

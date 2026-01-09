@@ -234,22 +234,22 @@ export const createPaymentIntent = functions.https.onCall(
       );
     }
 
-    // Calculate fees
-    const PLATFORM_FEE_PERCENTAGE = 0.10; // 10% of ticket price
-    const STRIPE_FEE_PERCENTAGE = 0.029; // 2.9%
-    const STRIPE_FEE_FIXED = 0.30; // $0.30
+    // Calculate fees - User pays: price + 6% processing + $0.29
+    // Club receives the base ticket price
+    const PROCESSING_FEE_PERCENTAGE = 0.06; // 6%
+    const PROCESSING_FEE_FIXED = 0.29; // $0.29
 
-    // Calculate Stripe processing fee on ticket price
-    const stripeFee = (ticketPrice * STRIPE_FEE_PERCENTAGE) + STRIPE_FEE_FIXED;
+    // Calculate processing fee
+    const processingFee = (ticketPrice * PROCESSING_FEE_PERCENTAGE) + PROCESSING_FEE_FIXED;
 
-    // Platform fee is 10% of ticket price only (not including Stripe fees)
-    const platformFee = ticketPrice * PLATFORM_FEE_PERCENTAGE;
+    // Total amount to charge user (ticket price + processing fee)
+    const totalAmount = ticketPrice + processingFee;
 
-    // Total amount to charge user (ticket + stripe fee)
-    const totalAmount = ticketPrice + stripeFee;
+    // Club receives the full ticket price (no platform fee deducted)
+    const clubAmount = ticketPrice;
 
-    // Amount club receives (90% of ticket price)
-    const clubAmount = ticketPrice - platformFee;
+    // Platform fee is effectively the processing fee (for record keeping)
+    const platformFee = processingFee;
 
     // Create payment intent with Stripe
     const stripe = getStripe();
@@ -275,8 +275,8 @@ export const createPaymentIntent = functions.https.onCall(
       paymentIntentId: paymentIntent.id,
       breakdown: {
         ticketPrice: ticketPrice,
-        processingFee: stripeFee,
-        platformFee: platformFee,
+        processingFee: processingFee,
+        platformFee: 0, // No platform fee - club gets full ticket price
         totalAmount: totalAmount,
         clubReceives: clubAmount,
       },
@@ -387,17 +387,22 @@ export const createStorePaymentIntent = functions.https.onCall(
       const shipping = deliveryMethod === "shipping" ? (item.shippingCost || 0) : 0;
       const itemAndShipping = subtotal + shipping;
 
-      // Calculate fees
-      const tax = itemAndShipping * (item.taxRate / 100);
+      // No tax calculation - just processing fee
+      const tax = 0;
 
-      // Platform fee: 10% of item subtotal only (not shipping/tax)
-      const PLATFORM_FEE_PERCENTAGE = 0.10;
-      const platformFee = subtotal * PLATFORM_FEE_PERCENTAGE;
+      // Processing fee: 6% + $0.29 on total (subtotal + shipping)
+      const PROCESSING_FEE_PERCENTAGE = 0.06; // 6%
+      const PROCESSING_FEE_FIXED = 0.29; // $0.29
+      const processingFee = (itemAndShipping * PROCESSING_FEE_PERCENTAGE) + PROCESSING_FEE_FIXED;
 
-      // Club receives: 90% of subtotal + shipping + tax (they remit tax)
-      const clubAmount = (subtotal - platformFee) + shipping + tax;
+      // Platform fee is effectively the processing fee (for record keeping)
+      const platformFee = processingFee;
 
-      const totalAmount = itemAndShipping + tax;
+      // Club receives: subtotal + shipping (full amount, no platform fee deducted)
+      const clubAmount = itemAndShipping;
+
+      // Total amount user pays: subtotal + shipping + processing fee
+      const totalAmount = itemAndShipping + processingFee;
 
       // Create payment intent with Stripe
       const stripe = getStripe();
@@ -432,8 +437,9 @@ export const createStorePaymentIntent = functions.https.onCall(
         breakdown: {
           subtotal,
           shipping,
-          tax,
-          platformFee,
+          tax: 0, // No tax
+          processingFee,
+          platformFee: 0, // No platform fee - club gets full amount
           clubReceives: clubAmount,
           totalAmount,
         },
@@ -536,8 +542,11 @@ export const createCheckoutSession = functions.https.onCall(
         );
       }
 
-      // Calculate fees
-      const PLATFORM_FEE_PERCENTAGE = 0.10; // 10%
+      // Calculate fees - User pays: price + 6% processing + $0.29
+      const PROCESSING_FEE_PERCENTAGE = 0.06; // 6%
+      const PROCESSING_FEE_FIXED = 0.29; // $0.29
+      const processingFee = (ticketPrice * PROCESSING_FEE_PERCENTAGE) + PROCESSING_FEE_FIXED;
+      // totalAmount = ticketPrice + processingFee (calculated via line items)
 
       // Create Stripe Checkout Session
       const stripe = getStripe();
@@ -560,6 +569,17 @@ export const createCheckoutSession = functions.https.onCall(
             },
             quantity: 1,
           },
+          {
+            price_data: {
+              currency: currency.toLowerCase(),
+              product_data: {
+                name: "Processing Fee",
+                description: "6% + $0.29 processing fee",
+              },
+              unit_amount: Math.round(processingFee * 100), // Convert to cents
+            },
+            quantity: 1,
+          },
         ],
         mode: "payment",
         success_url: successUrl || defaultSuccessUrl,
@@ -571,7 +591,8 @@ export const createCheckoutSession = functions.https.onCall(
           eventTitle: event?.title || "Event Ticket",
           clubName: event?.clubName || "",
           ticketPrice: ticketPrice.toString(),
-          platformFeePercentage: PLATFORM_FEE_PERCENTAGE.toString(),
+          processingFee: processingFee.toFixed(2),
+          clubAmount: ticketPrice.toString(),
           stripeAccountId: club.stripeAccountId,
         },
         payment_intent_data: {
@@ -582,7 +603,8 @@ export const createCheckoutSession = functions.https.onCall(
             eventTitle: event?.title || "Event Ticket",
             clubName: event?.clubName || "",
             ticketPrice: ticketPrice.toString(),
-            platformFeePercentage: PLATFORM_FEE_PERCENTAGE.toString(),
+            processingFee: processingFee.toFixed(2),
+            clubAmount: ticketPrice.toString(),
             stripeAccountId: club.stripeAccountId,
           },
           description: `Ticket for ${event?.title || "event"}`,
@@ -891,6 +913,60 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
         });
 
         console.log(`User ${userId} added to event ${eventId}. Club receives $${clubAmount}. Ticket order created.`);
+
+        // Award Rally Credits if the event has them configured
+        if (eventData?.rallyCreditsAwarded && eventData.rallyCreditsAwarded > 0) {
+          try {
+            const creditsRef = admin.firestore().collection("rallyCredits").doc(userId);
+            const creditsDoc = await creditsRef.get();
+
+            const transaction = {
+              id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              userId,
+              clubId: paymentIntent.metadata.clubId,
+              clubName: eventData.clubName || "",
+              type: "earned",
+              amount: eventData.rallyCreditsAwarded,
+              eventId,
+              eventName: eventData.title || "",
+              description: `Earned ${eventData.rallyCreditsAwarded} credits for purchasing ticket to ${eventData.title}`,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            };
+
+            if (!creditsDoc.exists) {
+              // Create new credits document
+              await creditsRef.set({
+                userId,
+                totalCredits: eventData.rallyCreditsAwarded,
+                availableCredits: eventData.rallyCreditsAwarded,
+                usedCredits: 0,
+                clubCredits: {
+                  [paymentIntent.metadata.clubId]: eventData.rallyCreditsAwarded,
+                },
+                transactions: [transaction],
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+            } else {
+              // Update existing credits
+              const currentCredits = creditsDoc.data();
+              const clubCredits = currentCredits?.clubCredits || {};
+              await creditsRef.update({
+                totalCredits: (currentCredits?.totalCredits || 0) + eventData.rallyCreditsAwarded,
+                availableCredits: (currentCredits?.availableCredits || 0) + eventData.rallyCreditsAwarded,
+                clubCredits: {
+                  ...clubCredits,
+                  [paymentIntent.metadata.clubId]: (clubCredits[paymentIntent.metadata.clubId] || 0) + eventData.rallyCreditsAwarded,
+                },
+                transactions: admin.firestore.FieldValue.arrayUnion(transaction),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+            }
+            console.log(`Awarded ${eventData.rallyCreditsAwarded} Rally Credits to user ${userId}`);
+          } catch (creditsError) {
+            console.error("Error awarding Rally Credits:", creditsError);
+            // Don't fail the whole process, just log it
+          }
+        }
       } catch (error) {
         console.error("Error processing payment:", error);
       }
@@ -1009,12 +1085,12 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
             });
           }
 
-          // Calculate fees
+          // Calculate fees - 6% + $0.29 processing fee, club gets full ticket price
           const ticketPriceNum = parseFloat(ticketPrice || "0");
           const totalAmountNum = (session.amount_total || 0) / 100;
           const processingFee = totalAmountNum - ticketPriceNum;
-          const platformFee = ticketPriceNum * 0.10; // 10% platform fee
-          const clubAmount = ticketPriceNum - platformFee;
+          const platformFee = 0; // No platform fee - club gets full ticket price
+          const clubAmount = ticketPriceNum;
 
           // Create ticket order
           await admin.firestore().collection("ticketOrders").add({
@@ -1043,6 +1119,59 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
           });
 
           console.log(`Ticket order created for user ${userId}, event ${eventId}`);
+
+          // Award Rally Credits if the event has them configured
+          if (eventData?.rallyCreditsAwarded && eventData.rallyCreditsAwarded > 0) {
+            try {
+              const creditsRef = admin.firestore().collection("rallyCredits").doc(userId);
+              const creditsDoc = await creditsRef.get();
+
+              const transaction = {
+                id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                userId,
+                clubId: clubId || eventData.clubId || "",
+                clubName: eventData.clubName || "",
+                type: "earned",
+                amount: eventData.rallyCreditsAwarded,
+                eventId,
+                eventName: eventData.title || "",
+                description: `Earned ${eventData.rallyCreditsAwarded} credits for purchasing ticket to ${eventData.title}`,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              };
+
+              const eventClubId = clubId || eventData.clubId || "";
+
+              if (!creditsDoc.exists) {
+                await creditsRef.set({
+                  userId,
+                  totalCredits: eventData.rallyCreditsAwarded,
+                  availableCredits: eventData.rallyCreditsAwarded,
+                  usedCredits: 0,
+                  clubCredits: {
+                    [eventClubId]: eventData.rallyCreditsAwarded,
+                  },
+                  transactions: [transaction],
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+              } else {
+                const currentCredits = creditsDoc.data();
+                const clubCredits = currentCredits?.clubCredits || {};
+                await creditsRef.update({
+                  totalCredits: (currentCredits?.totalCredits || 0) + eventData.rallyCreditsAwarded,
+                  availableCredits: (currentCredits?.availableCredits || 0) + eventData.rallyCreditsAwarded,
+                  clubCredits: {
+                    ...clubCredits,
+                    [eventClubId]: (clubCredits[eventClubId] || 0) + eventData.rallyCreditsAwarded,
+                  },
+                  transactions: admin.firestore.FieldValue.arrayUnion(transaction),
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+              }
+              console.log(`Awarded ${eventData.rallyCreditsAwarded} Rally Credits to user ${userId}`);
+            } catch (creditsError) {
+              console.error("Error awarding Rally Credits:", creditsError);
+            }
+          }
         } catch (error) {
           console.error("Error creating ticket order from checkout:", error);
         }
@@ -1604,15 +1733,17 @@ export const createStoreCheckoutSession = functions.https.onCall(
       const shipping = deliveryMethod === "shipping" ?
         (item.shippingCost || 0) : 0;
       const itemAndShipping = subtotal + shipping;
-      const tax = itemAndShipping * (item.taxRate / 100);
-      const totalAmount = itemAndShipping + tax;
 
-      // Platform fee: 10% of item subtotal only (not shipping/tax)
-      const PLATFORM_FEE_PERCENTAGE = 0.10;
-      const platformFee = subtotal * PLATFORM_FEE_PERCENTAGE;
+      // Processing fee: 6% + $0.29 on total (subtotal + shipping)
+      const PROCESSING_FEE_PERCENTAGE = 0.06; // 6%
+      const PROCESSING_FEE_FIXED = 0.29; // $0.29
+      const processingFee = (itemAndShipping * PROCESSING_FEE_PERCENTAGE) + PROCESSING_FEE_FIXED;
 
-      // Club receives: 90% of subtotal + shipping + tax (they remit tax)
-      const clubAmount = (subtotal - platformFee) + shipping + tax;
+      // No tax - just processing fee
+      const totalAmount = itemAndShipping + processingFee;
+
+      // Club receives: subtotal + shipping (full amount)
+      const clubAmount = itemAndShipping;
 
       // Build line items
       const lineItems: any[] = [
@@ -1645,19 +1776,18 @@ export const createStoreCheckoutSession = functions.https.onCall(
         });
       }
 
-      // Add tax line item if applicable
-      if (tax > 0) {
-        lineItems.push({
-          price_data: {
-            currency: "usd",
-            product_data: {
-              name: `Tax (${item.taxRate}%)`,
-            },
-            unit_amount: Math.round(tax * 100),
+      // Add processing fee line item
+      lineItems.push({
+        price_data: {
+          currency: "usd",
+          product_data: {
+            name: "Processing Fee",
+            description: "6% + $0.29 processing fee",
           },
-          quantity: 1,
-        });
-      }
+          unit_amount: Math.round(processingFee * 100),
+        },
+        quantity: 1,
+      });
 
       // Create Stripe checkout session
       const session = await stripe.checkout.sessions.create({
@@ -1678,9 +1808,10 @@ export const createStoreCheckoutSession = functions.https.onCall(
           shippingAddress: shippingAddress ?
             JSON.stringify(shippingAddress) : "",
           subtotal: subtotal.toString(),
-          tax: tax.toString(),
+          tax: "0",
           shipping: shipping.toString(),
-          platformFee: platformFee.toFixed(2),
+          processingFee: processingFee.toFixed(2),
+          platformFee: "0",
           clubAmount: clubAmount.toFixed(2),
           stripeAccountId: stripeAccountId,
           totalAmount: totalAmount.toString(),
@@ -1697,9 +1828,10 @@ export const createStoreCheckoutSession = functions.https.onCall(
             shippingAddress: shippingAddress ?
               JSON.stringify(shippingAddress) : "",
             subtotal: subtotal.toString(),
-            tax: tax.toString(),
+            tax: "0",
             shipping: shipping.toString(),
-            platformFee: platformFee.toFixed(2),
+            processingFee: processingFee.toFixed(2),
+            platformFee: "0",
             clubAmount: clubAmount.toFixed(2),
             stripeAccountId: stripeAccountId,
             totalAmount: totalAmount.toString(),
@@ -2322,9 +2454,655 @@ export const cancelClubSubscription = functions.https.onCall(
   }
 );
 
+// ============================================================================
+// LEAVE EVENT WITH REFUND (User self-service)
+// ============================================================================
+
 /**
- * Webhook handler for Stripe events (store purchases and subscriptions)
- * This needs to be added to the existing stripeWebhook function
+ * Leave an event and get a refund (for the ticket owner)
+ * This allows users to leave paid events and get their money back
+ * Also forfeits any rally credits earned from the event
  */
-// Note: The actual webhook handler should be updated in the existing
-// stripeWebhook function to handle store purchase completion
+export const leaveEventWithRefund = functions.https.onCall(
+  {enforceAppCheck: false},
+  async (request: any) => {
+    const data = request.data;
+    const auth = request.auth;
+
+    if (!auth) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "User must be authenticated"
+      );
+    }
+
+    const {eventId} = data;
+
+    if (!eventId) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Missing required field: eventId"
+      );
+    }
+
+    try {
+      const db = admin.firestore();
+      const userId = auth.uid;
+      console.log(`Leave event with refund request:`, {eventId, userId});
+
+      // Get the event
+      const eventDoc = await db.collection("events").doc(eventId).get();
+      if (!eventDoc.exists) {
+        throw new functions.https.HttpsError("not-found", "Event not found");
+      }
+
+      const eventData = eventDoc.data();
+
+      // Check if user is actually attending
+      if (!eventData?.attendees?.includes(userId)) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "You are not attending this event"
+        );
+      }
+
+      // Find the user's ticket order for this event
+      const ticketOrdersQuery = await db.collection("ticketOrders")
+        .where("eventId", "==", eventId)
+        .where("userId", "==", userId)
+        .where("status", "==", "confirmed")
+        .limit(1)
+        .get();
+
+      let refundProcessed = false;
+      let refundAmount = 0;
+
+      if (!ticketOrdersQuery.empty) {
+        // User has a paid ticket - process refund
+        const ticketOrder = ticketOrdersQuery.docs[0];
+        const orderData = ticketOrder.data();
+        const paymentIntentId = orderData.paymentIntentId;
+
+        if (paymentIntentId) {
+          try {
+            // Process refund via Stripe (full amount)
+            const stripe = getStripe();
+            const refund = await stripe.refunds.create({
+              payment_intent: paymentIntentId,
+              reason: "requested_by_customer",
+            });
+
+            console.log(`Refund created: ${refund.id} for leaving event ${eventId}`);
+            refundAmount = refund.amount / 100;
+            refundProcessed = true;
+
+            // Update ticket order status
+            await ticketOrder.ref.update({
+              status: "refunded",
+              refundId: refund.id,
+              refundAmount: refundAmount,
+              refundedAt: admin.firestore.FieldValue.serverTimestamp(),
+              refundReason: "User left event",
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          } catch (refundError: any) {
+            console.error("Error processing refund:", refundError);
+            throw new functions.https.HttpsError(
+              "internal",
+              `Failed to process refund: ${refundError.message}`
+            );
+          }
+        }
+      }
+
+      // Remove user from event attendees/waitlist
+      await db.collection("events").doc(eventId).update({
+        attendees: admin.firestore.FieldValue.arrayRemove(userId),
+        waitlist: admin.firestore.FieldValue.arrayRemove(userId),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Forfeit rally credits if the event awarded them
+      if (eventData?.rallyCreditsAwarded && eventData.rallyCreditsAwarded > 0) {
+        try {
+          const creditsRef = db.collection("rallyCredits").doc(userId);
+          const creditsDoc = await creditsRef.get();
+
+          if (creditsDoc.exists) {
+            const currentCredits = creditsDoc.data();
+            const clubCredits = currentCredits?.clubCredits || {};
+            const clubId = eventData.clubId || "";
+            const amountToForfeit = Math.min(
+              eventData.rallyCreditsAwarded,
+              clubCredits[clubId] || 0,
+              currentCredits?.availableCredits || 0
+            );
+
+            if (amountToForfeit > 0) {
+              const transaction = {
+                id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                userId,
+                clubId,
+                clubName: eventData.clubName || "",
+                type: "forfeited",
+                amount: -amountToForfeit,
+                eventId,
+                eventName: eventData.title || "",
+                description: `Forfeited ${amountToForfeit} credits for leaving ${eventData.title}`,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              };
+
+              await creditsRef.update({
+                availableCredits: (currentCredits?.availableCredits || 0) - amountToForfeit,
+                clubCredits: {
+                  ...clubCredits,
+                  [clubId]: (clubCredits[clubId] || 0) - amountToForfeit,
+                },
+                transactions: admin.firestore.FieldValue.arrayUnion(transaction),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+
+              console.log(`Forfeited ${amountToForfeit} rally credits for user ${userId}`);
+            }
+          }
+        } catch (creditsError) {
+          console.error("Error forfeiting rally credits:", creditsError);
+          // Don't fail the whole operation for credits error
+        }
+      }
+
+      return {
+        success: true,
+        refundProcessed,
+        refundAmount,
+        creditsForfeited: eventData?.rallyCreditsAwarded || 0,
+      };
+    } catch (error: any) {
+      console.error("Error leaving event with refund:", error);
+
+      if (error instanceof functions.https.HttpsError) {
+        throw error;
+      }
+
+      throw new functions.https.HttpsError(
+        "internal",
+        `Failed to leave event: ${error.message}`
+      );
+    }
+  }
+);
+
+// ============================================================================
+// REFUND FUNCTIONS
+// ============================================================================
+
+/**
+ * Refund a ticket order
+ * Only club admins can refund orders
+ * Returns full amount (ticket price + processing fee) to customer
+ */
+export const refundTicketOrder = functions.https.onCall(
+  {enforceAppCheck: false},
+  async (request: any) => {
+    const data = request.data;
+    const auth = request.auth;
+
+    if (!auth) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "User must be authenticated"
+      );
+    }
+
+    const {orderId, clubId} = data;
+
+    if (!orderId || !clubId) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Missing required fields: orderId, clubId"
+      );
+    }
+
+    try {
+      const db = admin.firestore();
+      console.log(`Refund ticket order request:`, {orderId, clubId, userId: auth.uid});
+
+      // Verify user is club admin
+      const clubDoc = await db.collection("clubs").doc(clubId).get();
+      if (!clubDoc.exists) {
+        console.error(`Club not found: ${clubId}`);
+        throw new functions.https.HttpsError(
+          "not-found",
+          "Club not found. Please try again."
+        );
+      }
+
+      const club = clubDoc.data();
+      // Owner can be stored as owner, clubOwner, or createdBy (single string, not array)
+      const ownerId = club?.owner || club?.clubOwner || club?.createdBy;
+      const isOwner = ownerId === auth.uid;
+      const isAdmin = club?.admins?.includes(auth.uid);
+      console.log(`User permissions:`, {userId: auth.uid, ownerId, isOwner, isAdmin});
+
+      if (!isOwner && !isAdmin) {
+        throw new functions.https.HttpsError(
+          "permission-denied",
+          "Only club owners or admins can process refunds"
+        );
+      }
+
+      // Get the order
+      console.log(`Looking for ticket order: ${orderId}`);
+      const orderDoc = await db.collection("ticketOrders").doc(orderId).get();
+      if (!orderDoc.exists) {
+        console.error(`Ticket order not found: ${orderId}`);
+        throw new functions.https.HttpsError(
+          "not-found",
+          "Order not found. It may have been deleted."
+        );
+      }
+
+      const order = orderDoc.data();
+      console.log(`Found ticket order:`, {
+        id: orderId,
+        status: order?.status,
+        hasPaymentIntentId: !!order?.paymentIntentId,
+      });
+
+      // Check if already refunded
+      if (order?.status === "refunded") {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "Order has already been refunded"
+        );
+      }
+
+      // Get payment intent ID
+      const paymentIntentId = order?.paymentIntentId;
+      if (!paymentIntentId) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "This order cannot be refunded because it was created before payment tracking was enabled. Please refund manually through the Stripe dashboard."
+        );
+      }
+
+      // Process refund via Stripe (full amount)
+      const stripe = getStripe();
+      const refund = await stripe.refunds.create({
+        payment_intent: paymentIntentId,
+        reason: "requested_by_customer",
+      });
+
+      console.log(`Refund created: ${refund.id} for ticket order ${orderId}`);
+
+      // Update order status
+      await db.collection("ticketOrders").doc(orderId).update({
+        status: "refunded",
+        refundId: refund.id,
+        refundAmount: refund.amount / 100,
+        refundedAt: admin.firestore.FieldValue.serverTimestamp(),
+        refundedBy: auth.uid,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Remove user from event attendees
+      if (order?.eventId && order?.userId) {
+        await db.collection("events").doc(order.eventId).update({
+          attendees: admin.firestore.FieldValue.arrayRemove(order.userId),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      return {
+        success: true,
+        refundId: refund.id,
+        refundAmount: refund.amount / 100,
+      };
+    } catch (error: any) {
+      console.error("Error processing ticket refund:", error);
+
+      if (error instanceof functions.https.HttpsError) {
+        throw error;
+      }
+
+      throw new functions.https.HttpsError(
+        "internal",
+        `Failed to process refund: ${error.message}`
+      );
+    }
+  }
+);
+
+/**
+ * Refund a store order
+ * Only club admins can refund orders
+ * Returns full amount (item price + shipping + processing fee) to customer
+ */
+export const refundStoreOrder = functions.https.onCall(
+  {enforceAppCheck: false},
+  async (request: any) => {
+    const data = request.data;
+    const auth = request.auth;
+
+    if (!auth) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "User must be authenticated"
+      );
+    }
+
+    const {orderId, clubId} = data;
+
+    if (!orderId || !clubId) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Missing required fields: orderId, clubId"
+      );
+    }
+
+    try {
+      const db = admin.firestore();
+      console.log(`Refund store order request:`, {orderId, clubId, userId: auth.uid});
+
+      // Verify user is club admin
+      const clubDoc = await db.collection("clubs").doc(clubId).get();
+      if (!clubDoc.exists) {
+        console.error(`Club not found: ${clubId}`);
+        throw new functions.https.HttpsError(
+          "not-found",
+          "Club not found. Please try again."
+        );
+      }
+
+      const club = clubDoc.data();
+      // Owner can be stored as owner, clubOwner, or createdBy (single string, not array)
+      const ownerId = club?.owner || club?.clubOwner || club?.createdBy;
+      const isOwner = ownerId === auth.uid;
+      const isAdmin = club?.admins?.includes(auth.uid);
+      console.log(`User permissions:`, {userId: auth.uid, ownerId, isOwner, isAdmin});
+
+      if (!isOwner && !isAdmin) {
+        throw new functions.https.HttpsError(
+          "permission-denied",
+          "Only club owners or admins can process refunds"
+        );
+      }
+
+      // Get the order
+      console.log(`Looking for store order: ${orderId}`);
+      const orderDoc = await db.collection("storeOrders").doc(orderId).get();
+      if (!orderDoc.exists) {
+        console.error(`Store order not found: ${orderId}`);
+        throw new functions.https.HttpsError(
+          "not-found",
+          "Order not found. It may have been deleted."
+        );
+      }
+
+      const order = orderDoc.data();
+      console.log(`Found order:`, {
+        id: orderId,
+        status: order?.status,
+        hasPaymentIntentId: !!order?.paymentIntentId,
+      });
+
+      // Check if already refunded
+      if (order?.status === "refunded") {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "Order has already been refunded"
+        );
+      }
+
+      // Get payment intent ID
+      const paymentIntentId = order?.paymentIntentId;
+      if (!paymentIntentId) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "This order cannot be refunded because it was created before payment tracking was enabled. Please refund manually through the Stripe dashboard."
+        );
+      }
+
+      // Process refund via Stripe (full amount)
+      const stripe = getStripe();
+      const refund = await stripe.refunds.create({
+        payment_intent: paymentIntentId,
+        reason: "requested_by_customer",
+      });
+
+      console.log(`Refund created: ${refund.id} for store order ${orderId}`);
+
+      // Update order status
+      await db.collection("storeOrders").doc(orderId).update({
+        status: "refunded",
+        refundId: refund.id,
+        refundAmount: refund.amount / 100,
+        refundedAt: admin.firestore.FieldValue.serverTimestamp(),
+        refundedBy: auth.uid,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Restore inventory
+      if (order?.itemId && order?.quantity) {
+        await db.collection("storeItems").doc(order.itemId).update({
+          sold: admin.firestore.FieldValue.increment(-order.quantity),
+        });
+      }
+
+      return {
+        success: true,
+        refundId: refund.id,
+        refundAmount: refund.amount / 100,
+      };
+    } catch (error: any) {
+      console.error("Error processing store refund:", error);
+
+      if (error instanceof functions.https.HttpsError) {
+        throw error;
+      }
+
+      throw new functions.https.HttpsError(
+        "internal",
+        `Failed to process refund: ${error.message}`
+      );
+    }
+  }
+);
+
+// ============================================================================
+// DATA FIX: Fix events and recalculate rally credits
+// ============================================================================
+
+/**
+ * Fix all events to have correct clubId and recalculate all rally credits
+ * This is a one-time migration function
+ */
+export const fixEventsAndCredits = functions.https.onCall(
+  {enforceAppCheck: false},
+  async (request: any) => {
+    const db = admin.firestore();
+
+    // Require authentication
+    if (!request.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "Must be authenticated");
+    }
+
+    console.log("Starting fixEventsAndCredits...");
+
+    const results = {
+      eventsChecked: 0,
+      eventsFixed: 0,
+      eventErrors: [] as string[],
+      creditsReset: 0,
+      creditsAwarded: 0,
+      creditErrors: [] as string[],
+    };
+
+    try {
+      // Step 1: Load all clubs into a map for quick lookup
+      console.log("Loading all clubs...");
+      const clubsSnapshot = await db.collection("clubs").get();
+      const clubsByName = new Map<string, any>();
+      const clubsById = new Map<string, any>();
+
+      clubsSnapshot.docs.forEach((doc) => {
+        const clubData = doc.data();
+        const club = { id: doc.id, name: clubData.clubName || clubData.name, ...clubData };
+        clubsById.set(doc.id, club);
+        // Store by lowercase name for case-insensitive matching
+        if (club.name) {
+          clubsByName.set(club.name.toLowerCase(), club);
+        }
+      });
+
+      console.log(`Loaded ${clubsById.size} clubs`);
+
+      // Step 2: Fix all events
+      console.log("Checking all events...");
+      const eventsSnapshot = await db.collection("events").get();
+
+      for (const eventDoc of eventsSnapshot.docs) {
+        results.eventsChecked++;
+        const event = eventDoc.data();
+        const eventId = eventDoc.id;
+
+        try {
+          // Check if clubId is valid
+          const currentClub = clubsById.get(event.clubId);
+
+          if (!currentClub) {
+            // Club doesn't exist - try to find by name
+            const correctClub = clubsByName.get(event.clubName?.toLowerCase());
+
+            if (correctClub) {
+              console.log(`Fixing event ${eventId}: clubId ${event.clubId} -> ${correctClub.id}`);
+              await db.collection("events").doc(eventId).update({
+                clubId: correctClub.id,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+              results.eventsFixed++;
+            } else {
+              results.eventErrors.push(`Event ${eventId}: Club not found - ${event.clubName}`);
+            }
+          } else if (currentClub.name !== event.clubName) {
+            // Club exists but name doesn't match - try to find correct club by name
+            const correctClub = clubsByName.get(event.clubName?.toLowerCase());
+
+            if (correctClub && correctClub.id !== event.clubId) {
+              console.log(`Fixing event ${eventId}: clubId ${event.clubId} -> ${correctClub.id} (name mismatch)`);
+              await db.collection("events").doc(eventId).update({
+                clubId: correctClub.id,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+              results.eventsFixed++;
+            }
+          }
+        } catch (err: any) {
+          results.eventErrors.push(`Event ${eventId}: ${err.message}`);
+        }
+      }
+
+      console.log(`Events: checked ${results.eventsChecked}, fixed ${results.eventsFixed}`);
+
+      // Step 3: Recalculate all rally credits from scratch
+      console.log("Recalculating all rally credits...");
+
+      // First, get all users who have rally credits and reset them
+      const creditsSnapshot = await db.collection("rallyCredits").get();
+
+      for (const creditDoc of creditsSnapshot.docs) {
+        try {
+          await db.collection("rallyCredits").doc(creditDoc.id).delete();
+          results.creditsReset++;
+        } catch (err: any) {
+          results.creditErrors.push(`Reset ${creditDoc.id}: ${err.message}`);
+        }
+      }
+
+      console.log(`Reset ${results.creditsReset} credit documents`);
+
+      // Now recalculate credits based on event attendance
+      // Re-fetch events since we may have updated clubIds
+      const updatedEventsSnapshot = await db.collection("events").get();
+
+      for (const eventDoc of updatedEventsSnapshot.docs) {
+        const event = eventDoc.data();
+        const eventId = eventDoc.id;
+
+        // Skip events without rally credits
+        if (!event.rallyCreditsAwarded || event.rallyCreditsAwarded <= 0) {
+          continue;
+        }
+
+        // Award credits to each attendee
+        for (const userId of (event.attendees || [])) {
+          try {
+            const creditsRef = db.collection("rallyCredits").doc(userId);
+            const creditsDoc = await creditsRef.get();
+
+            const transaction = {
+              id: `fix_${eventId}_${Date.now()}`,
+              userId,
+              clubId: event.clubId,
+              clubName: event.clubName,
+              type: "earned",
+              amount: event.rallyCreditsAwarded,
+              eventId,
+              eventName: event.title,
+              description: `Earned ${event.rallyCreditsAwarded} credits for attending ${event.title}`,
+              createdAt: new Date(), // Use Date instead of serverTimestamp for array compatibility
+            };
+
+            if (!creditsDoc.exists) {
+              // Create new credits document
+              await creditsRef.set({
+                userId,
+                totalCredits: event.rallyCreditsAwarded,
+                availableCredits: event.rallyCreditsAwarded,
+                usedCredits: 0,
+                clubCredits: {
+                  [event.clubId]: event.rallyCreditsAwarded,
+                },
+                transactions: [transaction],
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+            } else {
+              // Update existing credits
+              const currentCredits = creditsDoc.data();
+              const clubCredits = currentCredits?.clubCredits || {};
+              const existingTransactions = currentCredits?.transactions || [];
+
+              await creditsRef.update({
+                totalCredits: (currentCredits?.totalCredits || 0) + event.rallyCreditsAwarded,
+                availableCredits: (currentCredits?.availableCredits || 0) + event.rallyCreditsAwarded,
+                clubCredits: {
+                  ...clubCredits,
+                  [event.clubId]: (clubCredits[event.clubId] || 0) + event.rallyCreditsAwarded,
+                },
+                transactions: [transaction, ...existingTransactions].slice(0, 100), // Keep last 100
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+            }
+
+            results.creditsAwarded++;
+          } catch (err: any) {
+            results.creditErrors.push(`Award ${userId}/${eventId}: ${err.message}`);
+          }
+        }
+      }
+
+      console.log(`Credits awarded: ${results.creditsAwarded}`);
+
+      return {
+        success: true,
+        results,
+      };
+    } catch (error: any) {
+      console.error("Error in fixEventsAndCredits:", error);
+      throw new functions.https.HttpsError(
+        "internal",
+        `Failed to fix data: ${error.message}`
+      );
+    }
+  }
+);

@@ -75,6 +75,14 @@ const HomeFeed = ({ feedType, isActive }: HomeFeedProps) => {
       const eventsResult = await getAllEvents(false);
 
       if (eventsResult.success) {
+        // Filter out past events
+        const now = new Date();
+        const upcomingEvents = eventsResult.events.filter(event => {
+          if (!event.startDate) return true; // Include events without a start date
+          const eventDate = event.startDate.toDate ? event.startDate.toDate() : new Date(event.startDate);
+          return eventDate >= now;
+        });
+
         // Get featured events
         const featuredResult = await getActiveFeaturedEvents('home_feed');
         const featuredEventIds = featuredResult.success
@@ -88,7 +96,7 @@ const HomeFeed = ({ feedType, isActive }: HomeFeedProps) => {
         }
 
         // Mark events as featured and interleave them
-        const allEvents = eventsResult.events;
+        const allEvents = upcomingEvents;
         const featuredEvents: EventWithMeta[] = [];
         const regularEvents: EventWithMeta[] = [];
 

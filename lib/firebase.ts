@@ -1209,8 +1209,13 @@ export const joinEvent = async (eventId: string, userId: string) => {
       });
 
       // Award RallyCredits if the event has them
+      console.log('[joinEvent] Checking rally credits:', {
+        rallyCreditsAwarded: event.rallyCreditsAwarded,
+        hasCredits: event.rallyCreditsAwarded && event.rallyCreditsAwarded > 0
+      });
       if (event.rallyCreditsAwarded && event.rallyCreditsAwarded > 0) {
-        await awardRallyCredits(
+        console.log('[joinEvent] Awarding rally credits:', event.rallyCreditsAwarded);
+        const creditsResult = await awardRallyCredits(
           userId,
           event.clubId,
           event.clubName,
@@ -1218,6 +1223,7 @@ export const joinEvent = async (eventId: string, userId: string) => {
           event.title,
           event.rallyCreditsAwarded
         );
+        console.log('[joinEvent] Award result:', creditsResult);
       }
 
       return { success: true, waitlisted: false };
@@ -2307,8 +2313,10 @@ export const getUserAddresses = async (userId: string) => {
  */
 export const getUserRallyCredits = async (userId: string) => {
   try {
+    console.log('[getUserRallyCredits] Fetching credits for user:', userId);
     const creditsRef = doc(db, 'rallyCredits', userId);
     const creditsDoc = await getDoc(creditsRef);
+    console.log('[getUserRallyCredits] Doc exists:', creditsDoc.exists());
 
     if (!creditsDoc.exists()) {
       // Initialize credits for new user
@@ -2327,9 +2335,13 @@ export const getUserRallyCredits = async (userId: string) => {
     }
 
     const credits = creditsDoc.data() as UserRallyCredits;
+    console.log('[getUserRallyCredits] Returning credits:', {
+      totalCredits: credits.totalCredits,
+      clubCredits: credits.clubCredits
+    });
     return { success: true, credits };
   } catch (error: any) {
-    console.error('Error getting rally credits:', error);
+    console.error('[getUserRallyCredits] Error getting rally credits:', error);
     return { success: false, error: error.message };
   }
 };
@@ -2346,8 +2358,10 @@ export const awardRallyCredits = async (
   amount: number
 ) => {
   try {
+    console.log('[awardRallyCredits] Starting award:', { userId, clubId, clubName, eventId, eventName, amount });
     const creditsRef = doc(db, 'rallyCredits', userId);
     const creditsDoc = await getDoc(creditsRef);
+    console.log('[awardRallyCredits] Existing credits doc exists:', creditsDoc.exists());
 
     let currentCredits: UserRallyCredits;
 
@@ -2390,10 +2404,16 @@ export const awardRallyCredits = async (
       updatedAt: serverTimestamp() as Timestamp,
     };
 
+    console.log('[awardRallyCredits] Saving updated credits:', {
+      totalCredits: updatedCredits.totalCredits,
+      availableCredits: updatedCredits.availableCredits,
+      clubCredits: updatedCredits.clubCredits
+    });
     await setDoc(creditsRef, updatedCredits);
+    console.log('[awardRallyCredits] Credits saved successfully');
     return { success: true, credits: updatedCredits };
   } catch (error: any) {
-    console.error('Error awarding rally credits:', error);
+    console.error('[awardRallyCredits] Error awarding rally credits:', error);
     return { success: false, error: error.message };
   }
 };
@@ -2876,10 +2896,32 @@ export const getClubAnalytics = async (clubId: string) => {
   }
 };
 
-// --- 14. Legacy Support - Backward compatibility exports ---
+// --- 14. Data Fix Functions ---
+
+/**
+ * Fix all events and recalculate rally credits
+ * This function calls a Cloud Function to:
+ * 1. Fix events that have mismatched clubIds
+ * 2. Reset all rally credits
+ * 3. Recalculate credits based on actual event attendance
+ */
+export const fixEventsAndCredits = async () => {
+  try {
+    console.log('[fixEventsAndCredits] Calling Cloud Function to fix data...');
+    const fixFunction = httpsCallable(functions, 'fixEventsAndCredits');
+    const result = await fixFunction({});
+    console.log('[fixEventsAndCredits] Result:', result.data);
+    return { success: true, data: result.data };
+  } catch (error: any) {
+    console.error('[fixEventsAndCredits] Error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// --- 15. Legacy Support - Backward compatibility exports ---
 // onAuthStateChange is already exported above, no need to redeclare
 
-// --- 14. Export Firebase instances ---
+// --- 15. Export Firebase instances ---
 export { auth, db, storage, app };
 
 // --- 15. Export all types for convenience ---
