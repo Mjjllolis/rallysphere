@@ -17,16 +17,7 @@
     "production": {
       "node": "22.14.0",
       "env": {
-        "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
-        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyDXRHfV-RjRvXH8E7d07XTZi7bv07la7hY",
-        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "rally-sphere.firebaseapp.com",
-        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "rally-sphere",
-        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "rally-sphere.firebasestorage.app",
-        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "335059242542",
-        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:335059242542:web:63a9fe021cbebebb8599bf",
-        "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-H2R70NP5NE",
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51SFj6QCfj1UagI6Cm6Bq1AoVTGqHt2gLPv8VNpm2hds4i2wTma392iNPzutHZ7LK07e22RPJBq4f5Gb1a6bVAjPJ00kA8ppjdw",
-        "EXPO_PUBLIC_GOOGLE_API_KEY": "AIzaSyBwiR24mFu5kp_KpfWyNk--XkkmU4ddtkk"
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       },
       "ios": {
         "autoIncrement": "buildNumber",
