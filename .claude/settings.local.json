@@ -67,7 +67,9 @@
       "Bash(npm run deploy:*)",
       "Bash(node:*)",
       "Bash(export GOOGLE_APPLICATION_CREDENTIALS=\"\")",
-      "Bash(GOOGLE_CLOUD_PROJECT=rally-sphere node:*)"
+      "Bash(GOOGLE_CLOUD_PROJECT=rally-sphere node:*)",
+      "Bash(eas secret:create:*)",
+      "Bash(eas env:create:*)"
     ],
     "deny": [],
     "ask": []
