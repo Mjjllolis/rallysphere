@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Text } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getUserRallyCredits } from '../lib/firebase';
+import { getUserRallyCredits, confirmAllPendingCredits } from '../lib/firebase';
 import type { UserRallyCredits } from '../lib/firebase';
 
 interface RallyCreditsDisplayProps {
@@ -28,6 +28,11 @@ export default function RallyCreditsDisplay({
   const loadCredits = async () => {
     try {
       setLoading(true);
+
+      // First, try to confirm any pending credits for events user has been checked into
+      await confirmAllPendingCredits(userId);
+
+      // Then load the (potentially updated) credits
       const result = await getUserRallyCredits(userId);
       if (result.success && result.credits) {
         setCredits(result.credits);
@@ -40,6 +45,7 @@ export default function RallyCreditsDisplay({
   };
 
   const clubCredits = credits?.clubCredits?.[clubId] || 0;
+  const pendingCredits = credits?.pendingClubCredits?.[clubId] || 0;
 
   if (loading) {
     return (
@@ -67,6 +73,11 @@ export default function RallyCreditsDisplay({
           <View style={styles.compactContent}>
             <Text style={styles.compactIcon}>⭐</Text>
             <Text style={styles.compactAmount}>{clubCredits.toLocaleString()}</Text>
+            {pendingCredits > 0 && (
+              <View style={styles.compactPendingBadge}>
+                <Text style={styles.compactPendingText}>+{pendingCredits}</Text>
+              </View>
+            )}
           </View>
         </LinearGradient>
       </Container>
@@ -92,6 +103,9 @@ export default function RallyCreditsDisplay({
           <View style={styles.textContainer}>
             <Text style={styles.amount}>{clubCredits.toLocaleString()}</Text>
             <Text style={styles.label}>Rally Credits</Text>
+            {pendingCredits > 0 && (
+              <Text style={styles.pendingLabel}>({pendingCredits} pending)</Text>
+            )}
           </View>
         </View>
       </LinearGradient>
@@ -140,6 +154,12 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.7)',
     fontWeight: '500',
   },
+  pendingLabel: {
+    fontSize: 10,
+    color: '#F59E0B',
+    fontWeight: '500',
+    marginTop: 2,
+  },
   // Compact styles
   compactContainer: {
     borderRadius: 8,
@@ -166,5 +186,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#FFD700',
+  },
+  compactPendingBadge: {
+    backgroundColor: 'rgba(245, 158, 11, 0.3)',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    marginLeft: 4,
+  },
+  compactPendingText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#F59E0B',
   },
 });
