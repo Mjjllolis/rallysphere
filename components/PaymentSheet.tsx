@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, Alert, Platform, TouchableOpacity, Animated, Dimensions, ScrollView, Modal } from 'react-native';
-import { Button, Text, ActivityIndicator, useTheme, Divider, TextInput } from 'react-native-paper';
-import type { Event } from '../lib/firebase';
-import { db, auth } from '../lib/firebase';
+import { Button, Text, ActivityIndicator, useTheme, Divider, TextInput, IconButton } from 'react-native-paper';
+import type { Event, RallyCreditRedemption, UserRallyCredits } from '../lib/firebase';
+import { db, auth, getClubRallyRedemptions, getUserRallyCredits, spendRallyCredits } from '../lib/firebase';
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { LinearGradient } from 'expo-linear-gradient';
 
 // Conditionally import Stripe based on platform
 let CardField: any = null;
@@ -58,6 +59,13 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
   const [cardComplete, setCardComplete] = useState(false);
   const [feeBreakdown, setFeeBreakdown] = useState<any>(null);
 
+  // Rally Credits discount state
+  const [showDiscounts, setShowDiscounts] = useState(false);
+  const [eventRedemptions, setEventRedemptions] = useState<RallyCreditRedemption[]>([]);
+  const [userCredits, setUserCredits] = useState<UserRallyCredits | null>(null);
+  const [selectedDiscount, setSelectedDiscount] = useState<RallyCreditRedemption | null>(null);
+  const [loadingDiscounts, setLoadingDiscounts] = useState(false);
+
   // Animation
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
@@ -76,8 +84,13 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
         friction: 8,
       }).start();
 
-      // Load fee breakdown when sheet opens
-      loadFeeBreakdown();
+      // Load fee breakdown when sheet opens - always use original price
+      loadFeeBreakdown(event.ticketPrice, event.ticketPrice);
+      // Load rally credit discounts
+      loadDiscounts();
+      // Reset selected discount
+      setSelectedDiscount(null);
+      setShowDiscounts(false);
     } else {
       // Slide down
       Animated.timing(slideAnim, {
@@ -88,13 +101,52 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
     }
   }, [visible]);
 
-  const loadFeeBreakdown = async () => {
-    if (!event.ticketPrice) return;
+  const loadDiscounts = async () => {
+    if (!event.clubId) return;
 
     try {
+      setLoadingDiscounts(true);
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+
+      // Load user's rally credits
+      const creditsResult = await getUserRallyCredits(userId);
+      if (creditsResult.success && creditsResult.credits) {
+        setUserCredits(creditsResult.credits);
+      }
+
+      // Load club's event redemptions (event_discount and event_free_admission)
+      const redemptionsResult = await getClubRallyRedemptions(event.clubId);
+      if (redemptionsResult.success && redemptionsResult.redemptions) {
+        const eventDiscounts = redemptionsResult.redemptions.filter(
+          (r: RallyCreditRedemption) =>
+            r.isActive && (r.type === 'event_discount' || r.type === 'event_free_admission')
+        );
+        setEventRedemptions(eventDiscounts);
+      }
+    } catch (error) {
+      console.error('Error loading discounts:', error);
+    } finally {
+      setLoadingDiscounts(false);
+    }
+  };
+
+  const loadFeeBreakdown = async (ticketPrice?: number, originalPrice?: number) => {
+    const priceToUse = ticketPrice ?? event.ticketPrice;
+    const originalPriceToUse = originalPrice ?? event.ticketPrice;
+    if (!priceToUse) return;
+
+    try {
+      console.log('🔍 loadFeeBreakdown params:', {
+        ticketPrice: priceToUse,
+        originalPrice: originalPriceToUse,
+        eventTicketPrice: event.ticketPrice
+      });
+
       const paymentIntentResult = await createPaymentIntent({
         eventId: event.id,
-        ticketPrice: event.ticketPrice,
+        ticketPrice: priceToUse,
+        originalPrice: originalPriceToUse, // Always use original price for fee calculations
         currency: event.currency || 'usd',
       });
 
@@ -143,6 +195,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
       const paymentIntentResult = await createPaymentIntent({
         eventId: event.id,
         ticketPrice: event.ticketPrice,
+        originalPrice: event.ticketPrice, // Always pass original price for fee calculations
         currency: event.currency || 'usd',
       });
 
@@ -208,6 +261,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
       const paymentIntentResult = await createPaymentIntent({
         eventId: event.id,
         ticketPrice: event.ticketPrice,
+        originalPrice: event.ticketPrice, // Always pass original price for fee calculations
         currency: event.currency || 'usd',
       });
 
@@ -288,6 +342,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
       const paymentIntentResult = await createPaymentIntent({
         eventId: event.id,
         ticketPrice: event.ticketPrice,
+        originalPrice: event.ticketPrice, // Always pass original price for fee calculations
         currency: event.currency || 'usd',
       });
 
@@ -361,11 +416,64 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
     setLoading(true);
 
     try {
-      // Step 1: Create payment intent
+      const userId = auth.currentUser?.uid;
+      if (!userId) {
+        Alert.alert('Error', 'You must be logged in to purchase tickets');
+        setLoading(false);
+        return;
+      }
+
+      // Handle FREE ticket redemption (using Rally Credits for free admission)
+      if (isFree && selectedDiscount) {
+        // Spend the rally credits
+        const spendResult = await spendRallyCredits(
+          userId,
+          event.clubId,
+          selectedDiscount.creditsRequired,
+          selectedDiscount.id,
+          `Event ticket: ${event.title}`
+        );
+
+        if (!spendResult.success) {
+          Alert.alert('Error', spendResult.error || 'Failed to redeem Rally Credits');
+          setLoading(false);
+          return;
+        }
+
+        // Add user to event
+        await addUserToEvent();
+
+        Alert.alert(
+          'Ticket Claimed!',
+          `You've successfully claimed your free ticket using ${selectedDiscount.creditsRequired} Rally Credits.`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                onSuccess();
+                onDismiss();
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      // Step 1: Create payment intent with discounted price
       const paymentIntentResult = await createPaymentIntent({
         eventId: event.id,
-        ticketPrice: event.ticketPrice,
+        ticketPrice: discountedTicketPrice, // Discounted price user pays
+        originalPrice: event.ticketPrice, // Original price for fee calculations
+        discountAmount: discountAmount, // Amount of discount applied
         currency: event.currency || 'usd',
+        // Pass discount info for record-keeping
+        discountApplied: selectedDiscount ? {
+          redemptionId: selectedDiscount.id,
+          redemptionName: selectedDiscount.name,
+          originalPrice: event.ticketPrice,
+          discountAmount: discountAmount,
+          creditsUsed: selectedDiscount.creditsRequired,
+        } : undefined,
       });
 
       if (!paymentIntentResult.success || !paymentIntentResult.clientSecret) {
@@ -379,7 +487,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
         setFeeBreakdown(paymentIntentResult.breakdown);
       }
 
-      const totalAmount = paymentIntentResult.breakdown?.totalAmount || event.ticketPrice;
+      const totalAmount = paymentIntentResult.breakdown?.totalAmount || discountedTicketPrice;
 
       // Step 2: Initialize Stripe Payment Sheet (includes Link, Venmo, etc.)
       const { error: initError } = await initPaymentSheet({
@@ -419,6 +527,23 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
         return;
       }
 
+      // Step 4: Spend Rally Credits if a discount was applied
+      if (selectedDiscount) {
+        const spendResult = await spendRallyCredits(
+          userId,
+          event.clubId,
+          selectedDiscount.creditsRequired,
+          selectedDiscount.id,
+          `Event discount: ${event.title}`
+        );
+
+        if (!spendResult.success) {
+          console.error('Failed to spend rally credits:', spendResult.error);
+          // Note: Payment already succeeded, so we don't fail the transaction
+          // The credits spend is best-effort
+        }
+      }
+
       // Success - add user to event immediately
       await addUserToEvent();
 
@@ -449,25 +574,94 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
     setLoading(true);
 
     try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) {
+        Alert.alert('Error', 'You must be logged in to purchase tickets');
+        setLoading(false);
+        return;
+      }
+
+      // Handle FREE ticket redemption (using Rally Credits for free admission)
+      if (isFree && selectedDiscount) {
+        // Spend the rally credits
+        const spendResult = await spendRallyCredits(
+          userId,
+          event.clubId,
+          selectedDiscount.creditsRequired,
+          selectedDiscount.id,
+          `Event ticket: ${event.title}`
+        );
+
+        if (!spendResult.success) {
+          Alert.alert('Error', spendResult.error || 'Failed to redeem Rally Credits');
+          setLoading(false);
+          return;
+        }
+
+        // Add user to event
+        await addUserToEvent();
+
+        Alert.alert(
+          'Ticket Claimed!',
+          `You've successfully claimed your free ticket using ${selectedDiscount.creditsRequired} Rally Credits.`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                onSuccess();
+                onDismiss();
+              },
+            },
+          ]
+        );
+        return;
+      }
+
       // Import createCheckoutSession from stripe lib
       const { createCheckoutSession } = require('../lib/stripe');
 
       // Get current URL origin for redirect
       const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
-      // Create Stripe Checkout Session with web-friendly URLs
+      // Build success URL with discount info if applicable
+      let successUrl = `${origin}/payment-success?session_id={CHECKOUT_SESSION_ID}&event_id=${event.id}`;
+      if (selectedDiscount) {
+        successUrl += `&redemption_id=${selectedDiscount.id}&credits_used=${selectedDiscount.creditsRequired}`;
+      }
+
+      // Create Stripe Checkout Session with discounted price
       const result = await createCheckoutSession({
         eventId: event.id,
-        ticketPrice: event.ticketPrice,
+        ticketPrice: discountedTicketPrice, // Use discounted price
         currency: event.currency || 'usd',
-        successUrl: `${origin}/payment-success?session_id={CHECKOUT_SESSION_ID}&event_id=${event.id}`,
+        successUrl,
         cancelUrl: `${origin}/payment-cancel?event_id=${event.id}`,
+        // Pass discount info for record-keeping
+        discountApplied: selectedDiscount ? {
+          redemptionId: selectedDiscount.id,
+          redemptionName: selectedDiscount.name,
+          originalPrice: event.ticketPrice,
+          discountAmount: discountAmount,
+          creditsUsed: selectedDiscount.creditsRequired,
+        } : undefined,
       });
 
       if (!result.success || !result.checkoutUrl) {
         Alert.alert('Error', result.error || 'Failed to initialize payment');
         setLoading(false);
         return;
+      }
+
+      // For web, spend credits on successful redirect back (handled by payment-success page)
+      // Store discount info in session storage for the success page to use
+      if (selectedDiscount && typeof window !== 'undefined') {
+        window.sessionStorage.setItem('pendingCreditSpend', JSON.stringify({
+          userId,
+          clubId: event.clubId,
+          amount: selectedDiscount.creditsRequired,
+          redemptionId: selectedDiscount.id,
+          description: `Event discount: ${event.title}`,
+        }));
       }
 
       // Redirect to Stripe Checkout
@@ -480,13 +674,105 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
   };
 
   const formatPrice = (price: number, currency: string = 'USD') => {
-    // Ensure currency is a valid string, default to 'USD' if not
     const validCurrency = currency && typeof currency === 'string' ? currency : 'USD';
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: validCurrency.toUpperCase(),
     }).format(price);
   };
+
+  // Calculate discounted ticket price
+  const calculateDiscountedPrice = (): { ticketPrice: number; discount: number; isFree: boolean } => {
+    const originalPrice = event.ticketPrice || 0;
+
+    if (!selectedDiscount) {
+      return { ticketPrice: originalPrice, discount: 0, isFree: false };
+    }
+
+    // Free admission
+    if (selectedDiscount.type === 'event_free_admission') {
+      return { ticketPrice: 0, discount: originalPrice, isFree: true };
+    }
+
+    // Percentage discount
+    if (selectedDiscount.discountPercent != null) {
+      const discountPercent = Number(selectedDiscount.discountPercent);
+      if (!isNaN(discountPercent)) {
+        const discount = Math.round((originalPrice * discountPercent) / 100 * 100) / 100;
+        const newPrice = Math.round(Math.max(0, originalPrice - discount) * 100) / 100;
+        return { ticketPrice: newPrice, discount, isFree: newPrice === 0 };
+      }
+    }
+
+    // Fixed amount discount
+    if (selectedDiscount.discountAmount != null) {
+      const discountAmount = Number(selectedDiscount.discountAmount);
+      if (!isNaN(discountAmount)) {
+        const discount = Math.round(Math.min(originalPrice, discountAmount) * 100) / 100;
+        const newPrice = Math.round(Math.max(0, originalPrice - discount) * 100) / 100;
+        return { ticketPrice: newPrice, discount, isFree: newPrice === 0 };
+      }
+    }
+
+    return { ticketPrice: originalPrice, discount: 0, isFree: false };
+  };
+
+  // Check if user can afford a discount
+  const canAffordDiscount = (redemption: RallyCreditRedemption): boolean => {
+    if (!userCredits) return false;
+    return userCredits.availableCredits >= redemption.creditsRequired;
+  };
+
+  // Get discount description with type
+  const getDiscountDescription = (redemption: RallyCreditRedemption): string => {
+    const typeLabel = redemption.type === 'event_discount' ? 'Event Discount' :
+                      redemption.type === 'event_free_admission' ? 'Free Event Admission' : '';
+
+    if (redemption.type === 'event_free_admission') {
+      return 'Free Admission';
+    }
+
+    let discountValue = '';
+    if (redemption.discountPercent) {
+      discountValue = `${redemption.discountPercent}% off`;
+    } else if (redemption.discountAmount) {
+      discountValue = `$${redemption.discountAmount.toFixed(2)} off`;
+    } else {
+      discountValue = 'Discount';
+    }
+
+    return typeLabel ? `${discountValue} (${typeLabel})` : discountValue;
+  };
+
+  // Handle applying a discount
+  const handleApplyDiscount = async (redemption: RallyCreditRedemption) => {
+    if (!canAffordDiscount(redemption)) {
+      Alert.alert(
+        'Insufficient Credits',
+        `You need ${redemption.creditsRequired} Rally Credits to apply this discount. You have ${userCredits?.availableCredits || 0} credits.`
+      );
+      return;
+    }
+
+    setSelectedDiscount(redemption);
+    setShowDiscounts(false);
+  };
+
+  // Handle removing a discount
+  const handleRemoveDiscount = () => {
+    setSelectedDiscount(null);
+  };
+
+  // Reload fee breakdown when discount changes
+  useEffect(() => {
+    if (visible && event.ticketPrice) {
+      const { ticketPrice: discountedPrice } = calculateDiscountedPrice();
+      // Always pass original price for fee calculations, even when showing discounted price
+      loadFeeBreakdown(discountedPrice, event.ticketPrice);
+    }
+  }, [selectedDiscount]);
+
+  const { ticketPrice: discountedTicketPrice, discount: discountAmount, isFree } = calculateDiscountedPrice();
 
   return (
     <Modal
@@ -544,16 +830,149 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
               <Text variant="bodyLarge">{event.clubName}</Text>
             </View>
 
+            {/* Rally Credits Discount Section */}
+            {eventRedemptions.length > 0 && (
+              <View style={styles.discountSection}>
+                <Text variant="labelMedium" style={styles.sectionLabel}>RALLY CREDITS REWARDS</Text>
+
+                {selectedDiscount ? (
+                  // Show applied discount
+                  <View style={styles.appliedDiscount}>
+                    <LinearGradient
+                      colors={['rgba(255, 215, 0, 0.15)', 'rgba(255, 165, 0, 0.1)']}
+                      style={styles.appliedDiscountGradient}
+                    >
+                      <View style={styles.appliedDiscountContent}>
+                        <View style={styles.appliedDiscountLeft}>
+                          <Text style={styles.appliedDiscountIcon}>⭐</Text>
+                          <View>
+                            <Text style={styles.appliedDiscountName}>{selectedDiscount.name}</Text>
+                            <Text style={styles.appliedDiscountValue}>
+                              {getDiscountDescription(selectedDiscount)} • {selectedDiscount.creditsRequired} credits
+                            </Text>
+                          </View>
+                        </View>
+                        <TouchableOpacity onPress={handleRemoveDiscount} style={styles.removeDiscountButton}>
+                          <IconButton icon="close" size={18} iconColor="#F59E0B" style={{ margin: 0 }} />
+                        </TouchableOpacity>
+                      </View>
+                    </LinearGradient>
+                  </View>
+                ) : (
+                  // Show button to reveal discounts
+                  <TouchableOpacity
+                    style={styles.showDiscountsButton}
+                    onPress={() => setShowDiscounts(!showDiscounts)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.showDiscountsContent}>
+                      <Text style={styles.showDiscountsIcon}>⭐</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.showDiscountsText}>Apply Rally Credits Reward</Text>
+                        <Text style={styles.showDiscountsSubtext}>
+                          You have {userCredits?.availableCredits || 0} credits available
+                        </Text>
+                      </View>
+                      <IconButton
+                        icon={showDiscounts ? 'chevron-up' : 'chevron-down'}
+                        size={24}
+                        iconColor="#F59E0B"
+                        style={{ margin: 0 }}
+                      />
+                    </View>
+                  </TouchableOpacity>
+                )}
+
+                {/* Discounts List */}
+                {showDiscounts && !selectedDiscount && (
+                  <View style={styles.discountsList}>
+                    {loadingDiscounts ? (
+                      <ActivityIndicator size="small" color="#F59E0B" style={{ padding: 20 }} />
+                    ) : (
+                      eventRedemptions.map((redemption) => {
+                        const canAfford = canAffordDiscount(redemption);
+                        return (
+                          <TouchableOpacity
+                            key={redemption.id}
+                            style={[
+                              styles.discountItem,
+                              !canAfford && styles.discountItemDisabled,
+                            ]}
+                            onPress={() => handleApplyDiscount(redemption)}
+                            disabled={!canAfford}
+                            activeOpacity={0.7}
+                          >
+                            <View style={styles.discountItemContent}>
+                              <View style={styles.discountItemLeft}>
+                                <View style={[styles.discountItemIcon, !canAfford && { opacity: 0.5 }]}>
+                                  <Text style={{ fontSize: 20 }}>
+                                    {redemption.type === 'event_free_admission' ? '🎟️' : '🏷️'}
+                                  </Text>
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={[styles.discountItemName, !canAfford && { opacity: 0.5 }]}>
+                                    {redemption.name}
+                                  </Text>
+                                  <Text style={[styles.discountItemValue, !canAfford && { opacity: 0.5 }]}>
+                                    {getDiscountDescription(redemption)}
+                                  </Text>
+                                </View>
+                              </View>
+                              <View style={styles.discountItemRight}>
+                                <View style={[styles.creditsBadge, !canAfford && styles.creditsBadgeDisabled]}>
+                                  <Text style={styles.creditsBadgeIcon}>⭐</Text>
+                                  <Text style={[styles.creditsBadgeText, !canAfford && { color: '#999' }]}>
+                                    {redemption.creditsRequired}
+                                  </Text>
+                                </View>
+                                {!canAfford && (
+                                  <Text style={styles.notEnoughCredits}>Need more credits</Text>
+                                )}
+                              </View>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })
+                    )}
+                  </View>
+                )}
+              </View>
+            )}
+
             {/* Price Breakdown */}
             <View style={styles.breakdown}>
               <Text variant="labelMedium" style={styles.sectionLabel}>PAYMENT DETAILS</Text>
 
               <View style={styles.breakdownRow}>
                 <Text variant="bodyLarge">Ticket Price</Text>
-                <Text variant="bodyLarge">{formatPrice(event.ticketPrice || 0, event.currency)}</Text>
+                <Text variant="bodyLarge" style={selectedDiscount ? styles.strikethroughPrice : undefined}>
+                  {formatPrice(event.ticketPrice || 0, event.currency)}
+                </Text>
               </View>
 
-              {feeBreakdown && (
+              {/* Show discount line if applied */}
+              {selectedDiscount && discountAmount > 0 && (
+                <View style={styles.breakdownRow}>
+                  <Text variant="bodyMedium" style={styles.discountText}>
+                    Rally Credits Discount
+                  </Text>
+                  <Text variant="bodyMedium" style={styles.discountText}>
+                    -{formatPrice(discountAmount, event.currency)}
+                  </Text>
+                </View>
+              )}
+
+              {/* Show discounted price */}
+              {selectedDiscount && (
+                <View style={styles.breakdownRow}>
+                  <Text variant="bodyLarge">Discounted Price</Text>
+                  <Text variant="bodyLarge" style={{ color: '#10B981', fontWeight: '600' }}>
+                    {isFree ? 'FREE' : formatPrice(discountedTicketPrice, event.currency)}
+                  </Text>
+                </View>
+              )}
+
+              {feeBreakdown && !isFree && discountedTicketPrice > 0 && (
                 <View style={styles.breakdownRow}>
                   <Text variant="bodyMedium" style={{ opacity: 0.7 }}>Processing Fee (6% + $0.29)</Text>
                   <Text variant="bodyMedium" style={{ opacity: 0.7 }}>
@@ -566,18 +985,32 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
 
               <View style={styles.breakdownRow}>
                 <Text variant="titleMedium" style={{ fontWeight: 'bold' }}>Total</Text>
-                <Text variant="titleLarge" style={[{ fontWeight: 'bold' }, { color: theme.colors.primary }]}>
-                  {feeBreakdown
-                    ? formatPrice(event.ticketPrice + feeBreakdown.processingFee, event.currency)
-                    : formatPrice(event.ticketPrice || 0, event.currency)
+                <Text variant="titleLarge" style={[{ fontWeight: 'bold' }, { color: isFree ? '#10B981' : theme.colors.primary }]}>
+                  {isFree
+                    ? 'FREE'
+                    : feeBreakdown
+                      ? formatPrice(feeBreakdown.totalAmount, event.currency)
+                      : formatPrice(discountedTicketPrice, event.currency)
                   }
                 </Text>
               </View>
+
+              {/* Show credits to be spent */}
+              {selectedDiscount && (
+                <View style={styles.creditsToSpend}>
+                  <Text style={styles.creditsToSpendText}>
+                    ⭐ {selectedDiscount.creditsRequired} Rally Credits will be spent
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* Continue to Payment Button */}
             <TouchableOpacity
-              style={[styles.continueButton, { backgroundColor: theme.colors.primary }]}
+              style={[
+                styles.continueButton,
+                { backgroundColor: isFree ? '#10B981' : theme.colors.primary },
+              ]}
               onPress={Platform.OS === 'web' ? handleWebPayment : handleMorePaymentOptions}
               disabled={loading}
             >
@@ -585,11 +1018,15 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
                 <ActivityIndicator color="#fff" />
               ) : (
                 <>
-                  <Text style={styles.continueButtonText}>Continue to Payment</Text>
+                  <Text style={styles.continueButtonText}>
+                    {isFree ? 'Claim Free Ticket' : 'Continue to Payment'}
+                  </Text>
                   <Text style={styles.continueButtonSubtext}>
-                    {Platform.OS === 'web'
-                      ? 'Secure payment via Stripe'
-                      : 'Apple Pay, Card, Link & more options available'
+                    {isFree
+                      ? `Using ${selectedDiscount?.creditsRequired} Rally Credits`
+                      : Platform.OS === 'web'
+                        ? 'Secure payment via Stripe'
+                        : 'Apple Pay, Card, Link & more options available'
                     }
                   </Text>
                 </>
@@ -941,5 +1378,166 @@ const styles = StyleSheet.create({
     opacity: 0.9,
     marginTop: 4,
     fontWeight: '400',
+  },
+  // Rally Credits Discount Styles
+  discountSection: {
+    marginBottom: 20,
+  },
+  showDiscountsButton: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+    backgroundColor: 'rgba(255, 215, 0, 0.08)',
+    overflow: 'hidden',
+  },
+  showDiscountsContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 12,
+  },
+  showDiscountsIcon: {
+    fontSize: 24,
+  },
+  showDiscountsText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#F59E0B',
+  },
+  showDiscountsSubtext: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: 2,
+  },
+  discountsList: {
+    marginTop: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden',
+  },
+  discountItem: {
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  discountItemDisabled: {
+    opacity: 0.6,
+  },
+  discountItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  discountItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  discountItemIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  discountItemName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  discountItemValue: {
+    fontSize: 13,
+    color: '#10B981',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  discountItemRight: {
+    alignItems: 'flex-end',
+  },
+  creditsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
+  },
+  creditsBadgeDisabled: {
+    backgroundColor: 'rgba(128, 128, 128, 0.2)',
+  },
+  creditsBadgeIcon: {
+    fontSize: 12,
+  },
+  creditsBadgeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFD700',
+  },
+  notEnoughCredits: {
+    fontSize: 11,
+    color: '#EF4444',
+    marginTop: 4,
+  },
+  appliedDiscount: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  appliedDiscountGradient: {
+    padding: 2,
+    borderRadius: 12,
+  },
+  appliedDiscountContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 14,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 10,
+  },
+  appliedDiscountLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  appliedDiscountIcon: {
+    fontSize: 24,
+  },
+  appliedDiscountName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFD700',
+  },
+  appliedDiscountValue: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 2,
+  },
+  removeDiscountButton: {
+    padding: 4,
+  },
+  strikethroughPrice: {
+    textDecorationLine: 'line-through',
+    opacity: 0.5,
+  },
+  discountText: {
+    color: '#10B981',
+    fontWeight: '500',
+  },
+  creditsToSpend: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 215, 0, 0.2)',
+    alignItems: 'center',
+  },
+  creditsToSpendText: {
+    fontSize: 13,
+    color: '#F59E0B',
+    fontWeight: '500',
   },
 });

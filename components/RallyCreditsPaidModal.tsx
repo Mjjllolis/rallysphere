@@ -55,18 +55,25 @@ export default function RallyCreditsPaidModal({
                 </LinearGradient>
               </View>
 
-              <Text style={styles.title}>You've Been Paid!</Text>
+              <Text style={styles.title}>Credits Pending!</Text>
 
               <View style={styles.creditsContainer}>
                 <Text style={styles.creditsAmount}>+{amount}</Text>
                 <Text style={styles.creditsLabel}>Rally Credits</Text>
+                <View style={styles.pendingBadge}>
+                  <Text style={styles.pendingBadgeText}>PENDING</Text>
+                </View>
               </View>
 
               <Text style={styles.description}>
-                {isAlreadyMember
-                  ? `Your Rally Credits have been added to your ${clubName} rewards balance!`
-                  : `Welcome to ${clubName}! Your Rally Credits are waiting for you.`}
+                You've earned {amount} Rally Credits! These credits will be added to your balance when you're checked in at the event.
               </Text>
+
+              <View style={styles.infoBox}>
+                <Text style={styles.infoText}>
+                  Check in with {clubName} staff when you arrive to unlock your credits.
+                </Text>
+              </View>
 
               <TouchableOpacity
                 style={styles.viewRewardsButton}
@@ -171,6 +178,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.7)',
     fontWeight: '600',
+  },
+  pendingBadge: {
+    backgroundColor: 'rgba(245, 158, 11, 0.3)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  pendingBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#F59E0B',
+    letterSpacing: 1,
+  },
+  infoBox: {
+    backgroundColor: 'rgba(96, 165, 250, 0.1)',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(96, 165, 250, 0.2)',
+  },
+  infoText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
+    lineHeight: 20,
   },
   description: {
     fontSize: 16,

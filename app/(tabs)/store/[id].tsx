@@ -1,5 +1,5 @@
 // app/store/[id].tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,90 +8,44 @@ import {
   Dimensions,
   Alert,
   TouchableOpacity,
-  Platform,
   StatusBar,
-  FlatList,
-  Animated,
 } from 'react-native';
-import {
-  Text,
-  Button,
-  useTheme,
-  Chip,
-  Divider,
-  ActivityIndicator,
-  RadioButton,
-  Portal,
-  Modal,
-  IconButton,
-} from 'react-native-paper';
+import { Text, ActivityIndicator, RadioButton, Portal, Modal, IconButton } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../../_layout';
-import { getStoreItem, getUserAddresses, getUserRallyCredits } from '../../../lib/firebase';
-import type { StoreItem, ShippingAddress, UserRallyCredits } from '../../../lib/firebase';
-import { createStoreCheckoutSession, createStorePaymentIntent } from '../../../lib/stripe';
-import { Linking } from 'react-native';
-import { useStripe, usePaymentSheet } from '@stripe/stripe-react-native';
+import { getStoreItem, getUserAddresses } from '../../../lib/firebase';
+import type { StoreItem, ShippingAddress } from '../../../lib/firebase';
 import { useCart } from '../../../lib/cartContext';
 import { useFavorites } from '../../../lib/favoritesContext';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import StorePaymentSheet from '../../../components/StorePaymentSheet';
 
 const { width } = Dimensions.get('window');
 
 export default function StoreItemDetailScreen() {
-  const theme = useTheme();
   const { user } = useAuth();
   const { id } = useLocalSearchParams();
   const itemId = id as string;
   const { addToCart } = useCart();
   const { addToFavorites, removeFromFavorites, isFavorite } = useFavorites();
 
-  // Stripe hooks for native payments
-  const stripe = Platform.OS !== 'web' ? useStripe() : null;
-  const { initPaymentSheet, presentPaymentSheet } = Platform.OS !== 'web' ? usePaymentSheet() : { initPaymentSheet: null, presentPaymentSheet: null };
-
   const [item, setItem] = useState<StoreItem | null>(null);
   const [loading, setLoading] = useState(true);
-  const [purchasing, setPurchasing] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [selectedVariants, setSelectedVariants] = useState<{ [key: string]: string }>({});
   const [deliveryMethod, setDeliveryMethod] = useState<'shipping' | 'pickup'>('shipping');
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
-  // Purchase modal
-  const [purchaseModalVisible, setPurchaseModalVisible] = useState(false);
-  const slideAnim = useRef(new Animated.Value(1000)).current;
-
-  // Animate modal
-  useEffect(() => {
-    if (purchaseModalVisible) {
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 65,
-        friction: 11,
-      }).start();
-    } else {
-      Animated.timing(slideAnim, {
-        toValue: 1000,
-        duration: 250,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [purchaseModalVisible]);
+  // Payment sheet
+  const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
 
   // Address modal
   const [addressModalVisible, setAddressModalVisible] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<ShippingAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
-
-  // Rally Credits
-  const [userCredits, setUserCredits] = useState<UserRallyCredits | null>(null);
-  const [creditsToUse, setCreditsToUse] = useState(0);
-  const [applyCredits, setApplyCredits] = useState(false);
 
   const [newAddress, setNewAddress] = useState<Omit<ShippingAddress, 'id' | 'isDefault'>>({
     fullName: '',
@@ -113,22 +67,8 @@ export default function StoreItemDetailScreen() {
   useEffect(() => {
     if (user) {
       loadUserAddresses();
-      loadUserCredits();
     }
   }, [user]);
-
-  const loadUserCredits = async () => {
-    if (!user) return;
-
-    try {
-      const result = await getUserRallyCredits(user.uid);
-      if (result.success && result.credits) {
-        setUserCredits(result.credits);
-      }
-    } catch (error) {
-      console.error('Error loading rally credits:', error);
-    }
-  };
 
   const loadItemData = async () => {
     try {
@@ -174,7 +114,7 @@ export default function StoreItemDetailScreen() {
   };
 
   const calculateTotal = () => {
-    if (!item) return { itemTotal: 0, processingFee: 0, shipping: 0, creditsDiscount: 0, total: 0 };
+    if (!item) return { itemTotal: 0, processingFee: 0, shipping: 0, total: 0 };
 
     const itemTotal = item.price * quantity;
     const shipping = deliveryMethod === 'shipping' ? (item.shippingCost || 0) : 0;
@@ -185,69 +125,9 @@ export default function StoreItemDetailScreen() {
     const PROCESSING_FEE_FIXED = 0.29;
     const processingFee = (subtotal * PROCESSING_FEE_PERCENTAGE) + PROCESSING_FEE_FIXED;
 
-    // Rally Credits discount (1 credit = $0.01)
-    const creditsDiscount = applyCredits ? Math.min(creditsToUse * 0.01, subtotal + processingFee) : 0;
+    const total = subtotal + processingFee;
 
-    const total = Math.max(0, subtotal + processingFee - creditsDiscount);
-
-    return { itemTotal, processingFee, shipping, creditsDiscount, total };
-  };
-
-  // Get available credits for this club
-  const getAvailableCreditsForClub = () => {
-    if (!userCredits || !item) return 0;
-    return userCredits.clubCredits?.[item.clubId] || 0;
-  };
-
-  // Max credits that can be applied (limited by available and total)
-  const getMaxCreditsToApply = () => {
-    const available = getAvailableCreditsForClub();
-    if (!item) return 0;
-
-    // Calculate max based on order total (before credits)
-    const itemTotal = item.price * quantity;
-    const shipping = deliveryMethod === 'shipping' ? (item.shippingCost || 0) : 0;
-    const subtotal = itemTotal + shipping;
-
-    // Processing fee: 6% + $0.29
-    const processingFee = (subtotal * 0.06) + 0.29;
-    const totalBeforeCredits = subtotal + processingFee;
-
-    // Max credits = total in cents (1 credit = $0.01)
-    const maxCreditsForOrder = Math.floor(totalBeforeCredits * 100);
-
-    return Math.min(available, maxCreditsForOrder);
-  };
-
-  const openPurchaseModal = () => {
-    if (!user || !item) return;
-
-    // Validate variant selection
-    if (item.variants && item.variants.length > 0) {
-      for (const variant of item.variants) {
-        if (!selectedVariants[variant.name]) {
-          Alert.alert('Missing Selection', `Please select ${variant.name}`);
-          return;
-        }
-      }
-    }
-
-    // Check stock
-    const inStock = item.inventory - item.sold >= quantity;
-    if (!inStock) {
-      Alert.alert('Out of Stock', 'Not enough items in stock');
-      return;
-    }
-
-    // Validate shipping address if shipping (moved after stock check)
-    if (deliveryMethod === 'shipping' && !selectedAddressId) {
-      Alert.alert('Missing Address', 'Please select or add a shipping address');
-      setAddressModalVisible(true);
-      return;
-    }
-
-    // Open purchase modal
-    setPurchaseModalVisible(true);
+    return { itemTotal, processingFee, shipping, total };
   };
 
   const handleAddToCart = () => {
@@ -270,179 +150,20 @@ export default function StoreItemDetailScreen() {
       return;
     }
 
-    // Buy Now - directly open purchase modal instead of adding to cart
-    setPurchaseModalVisible(true);
-  };
-
-  const handlePurchase = async () => {
-    if (!user || !item) return;
-
-    // Validate variant selection
-    if (item.variants && item.variants.length > 0) {
-      for (const variant of item.variants) {
-        if (!selectedVariants[variant.name]) {
-          Alert.alert('Missing Selection', `Please select ${variant.name}`);
-          return;
-        }
-      }
-    }
-
-    // Check stock
-    const inStock = item.inventory - item.sold >= quantity;
-    if (!inStock) {
-      Alert.alert('Out of Stock', 'Not enough items in stock');
-      return;
-    }
-
-    // Validate shipping address if shipping
+    // Validate shipping address if shipping is selected
     if (deliveryMethod === 'shipping' && !selectedAddressId) {
-      Alert.alert('Missing Address', 'Please select or add a shipping address');
+      Alert.alert('Missing Address', 'Please select a shipping address');
       setAddressModalVisible(true);
       return;
     }
 
-    // Web: Use Stripe Checkout (redirect)
-    if (Platform.OS === 'web') {
-      return handleWebPurchase();
-    }
-
-    // Native: Use in-app payment sheet
-    try {
-      setPurchasing(true);
-
-      const { total, processingFee, shipping } = calculateTotal();
-
-      // Get selected address
-      let shippingAddress: ShippingAddress | undefined;
-      if (deliveryMethod === 'shipping' && selectedAddressId) {
-        shippingAddress = savedAddresses.find(addr => addr.id === selectedAddressId);
-      }
-
-      // Step 1: Create payment intent
-      const paymentIntentResult = await createStorePaymentIntent({
-        itemId: item.id,
-        quantity,
-        selectedVariants,
-        deliveryMethod,
-        shippingAddress,
-      });
-
-      if (!paymentIntentResult.success || !paymentIntentResult.clientSecret) {
-        Alert.alert('Error', paymentIntentResult.error || 'Failed to initialize payment');
-        setPurchasing(false);
-        return;
-      }
-
-      // Step 2: Initialize Stripe Payment Sheet
-      if (!initPaymentSheet) {
-        Alert.alert('Error', 'Payment system not initialized');
-        setPurchasing(false);
-        return;
-      }
-
-      const { error: initError } = await initPaymentSheet({
-        merchantDisplayName: 'RallySphere',
-        paymentIntentClientSecret: paymentIntentResult.clientSecret,
-        allowsDelayedPaymentMethods: true,
-        googlePay: {
-          merchantCountryCode: 'US',
-          testEnv: __DEV__,
-          currencyCode: 'USD',
-        },
-        applePay: {
-          merchantCountryCode: 'US',
-        },
-        returnURL: 'rallysphere://payment-return',
-      });
-
-      if (initError) {
-        console.error('Payment Sheet init error:', {
-          code: initError.code,
-          message: initError.message,
-          localizedMessage: initError.localizedMessage,
-        });
-        Alert.alert('Payment Error', `${initError.message}\n\nCode: ${initError.code}`);
-        setPurchasing(false);
-        return;
-      }
-
-      // Step 3: Present the payment sheet
-      if (!presentPaymentSheet) {
-        Alert.alert('Error', 'Payment system not initialized');
-        setPurchasing(false);
-        return;
-      }
-
-      const { error: presentError } = await presentPaymentSheet();
-
-      if (presentError) {
-        if (presentError.code !== 'Canceled') {
-          Alert.alert('Payment Failed', presentError.message);
-        }
-        setPurchasing(false);
-        return;
-      }
-
-      // Success - close modal and show success message
-      setPurchaseModalVisible(false);
-
-      Alert.alert(
-        'Purchase Successful!',
-        'Your order has been placed successfully.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Navigate back or refresh
-              router.back();
-            },
-          },
-        ]
-      );
-    } catch (error: any) {
-      console.error('Payment error:', error);
-      Alert.alert('Error', error.message || 'An unexpected error occurred');
-    } finally {
-      setPurchasing(false);
-    }
+    // Open payment sheet
+    setPaymentSheetVisible(true);
   };
 
-  const handleWebPurchase = async () => {
-    if (!user || !item) return;
-
-    try {
-      setPurchasing(true);
-
-      // Get selected address
-      let shippingAddress: ShippingAddress | undefined;
-      if (deliveryMethod === 'shipping' && selectedAddressId) {
-        shippingAddress = savedAddresses.find(addr => addr.id === selectedAddressId);
-      }
-
-      // Create checkout session for web
-      const result = await createStoreCheckoutSession({
-        itemId: item.id,
-        quantity,
-        selectedVariants,
-        deliveryMethod,
-        shippingAddress,
-      });
-
-      if (result.success && result.checkoutUrl) {
-        // Close modal
-        setPurchaseModalVisible(false);
-
-        // Redirect to Stripe checkout
-        window.location.href = result.checkoutUrl;
-      } else {
-        Alert.alert('Error', result.error || 'Failed to create checkout');
-      }
-    } catch (error) {
-      console.error('Error purchasing item:', error);
-      Alert.alert('Error', 'Failed to process purchase');
-    } finally {
-      setPurchasing(false);
-    }
+  const handlePaymentSuccess = () => {
+    // Reload item data to update stock
+    loadItemData();
   };
 
   if (loading) {
@@ -557,7 +278,7 @@ export default function StoreItemDetailScreen() {
 
           {/* Image Grid (Facebook Marketplace style) */}
           {item.images && item.images.length > 1 && (
-            <View style={styles.imageGridContainer}>
+            <View style={styles.imageGrid}>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -817,7 +538,7 @@ export default function StoreItemDetailScreen() {
                 activeOpacity={0.8}
               >
                 <LinearGradient
-                  colors={!inStock ? ['#666', '#444'] : ['#60A5FA', '#3B82F6']}
+                  colors={!inStock ? ['#666', '#444'] : ['#10B981', '#059669']}
                   style={styles.buyButton}
                 >
                   <Text style={styles.buyButtonText}>
@@ -829,204 +550,6 @@ export default function StoreItemDetailScreen() {
           </BlurView>
         </View>
       </SafeAreaView>
-
-      {/* Purchase Confirmation Modal */}
-      <Portal>
-        <Modal
-          visible={purchaseModalVisible}
-          onDismiss={() => setPurchaseModalVisible(false)}
-          contentContainerStyle={styles.purchaseModalContent}
-        >
-          <BlurView intensity={80} tint="dark" style={styles.modalBlur}>
-            {/* Header */}
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalHeaderText}>Confirm Purchase</Text>
-              <TouchableOpacity onPress={() => setPurchaseModalVisible(false)}>
-                <IconButton icon="close" iconColor="white" size={24} style={{ margin: 0 }} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
-              {/* Product Info */}
-              <View style={styles.modalSection}>
-                <View style={styles.modalProductRow}>
-                  {item.images && item.images.length > 0 && (
-                    <Image source={{ uri: item.images[0] }} style={styles.modalItemImage} />
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.modalItemName}>{item.name}</Text>
-                    <Text style={styles.modalItemClub}>{item.clubName}</Text>
-                    <Text style={styles.modalItemQuantity}>Quantity: {quantity}</Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.modalDivider} />
-
-              {/* Delivery Method */}
-              <View style={styles.modalSection}>
-                <Text style={styles.modalSectionTitle}>Delivery Method</Text>
-                <View style={styles.modalDeliveryBadge}>
-                  <Ionicons
-                    name={deliveryMethod === 'shipping' ? 'car' : 'location'}
-                    size={16}
-                    color="#60A5FA"
-                  />
-                  <Text style={styles.modalDeliveryText}>
-                    {deliveryMethod === 'shipping' ? 'Shipping' : 'Pickup'}
-                  </Text>
-                </View>
-
-                {deliveryMethod === 'shipping' && selectedAddressId && (
-                  <View style={styles.modalAddressCard}>
-                    {savedAddresses.find(addr => addr.id === selectedAddressId) && (
-                      <>
-                        <Text style={styles.modalAddressName}>
-                          {savedAddresses.find(addr => addr.id === selectedAddressId)!.fullName}
-                        </Text>
-                        <Text style={styles.modalAddressText}>
-                          {savedAddresses.find(addr => addr.id === selectedAddressId)!.addressLine1}
-                        </Text>
-                        <Text style={styles.modalAddressText}>
-                          {savedAddresses.find(addr => addr.id === selectedAddressId)!.city}, {savedAddresses.find(addr => addr.id === selectedAddressId)!.state} {savedAddresses.find(addr => addr.id === selectedAddressId)!.zipCode}
-                        </Text>
-                      </>
-                    )}
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.modalDivider} />
-
-              {/* Rally Credits Section */}
-              {getAvailableCreditsForClub() > 0 && (
-                <>
-                  <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>Rally Credits</Text>
-                    <View style={styles.creditsContainer}>
-                      <View style={styles.creditsInfo}>
-                        <Ionicons name="star" size={20} color="#FFD700" />
-                        <Text style={styles.creditsText}>
-                          {getAvailableCreditsForClub()} credits available
-                        </Text>
-                        <Text style={styles.creditsValue}>
-                          (${(getAvailableCreditsForClub() * 0.01).toFixed(2)})
-                        </Text>
-                      </View>
-
-                      <TouchableOpacity
-                        onPress={() => {
-                          if (!applyCredits) {
-                            setApplyCredits(true);
-                            setCreditsToUse(getMaxCreditsToApply());
-                          } else {
-                            setApplyCredits(false);
-                            setCreditsToUse(0);
-                          }
-                        }}
-                        style={[
-                          styles.applyCreditsButton,
-                          applyCredits && styles.applyCreditsButtonActive,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.applyCreditsText,
-                            applyCredits && styles.applyCreditsTextActive,
-                          ]}
-                        >
-                          {applyCredits ? 'Applied' : 'Apply'}
-                        </Text>
-                        {applyCredits && (
-                          <Ionicons name="checkmark" size={16} color="#22C55E" />
-                        )}
-                      </TouchableOpacity>
-                    </View>
-
-                    {applyCredits && (
-                      <View style={styles.creditsAppliedBadge}>
-                        <Ionicons name="gift" size={16} color="#22C55E" />
-                        <Text style={styles.creditsAppliedText}>
-                          -{creditsToUse} credits (−${(creditsToUse * 0.01).toFixed(2)})
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  <View style={styles.modalDivider} />
-                </>
-              )}
-
-              {/* Price Summary */}
-              <View style={styles.modalSection}>
-                <Text style={styles.modalSectionTitle}>Order Summary</Text>
-
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Item Total</Text>
-                  <Text style={styles.summaryValue}>${calculateTotal().itemTotal.toFixed(2)}</Text>
-                </View>
-
-                {calculateTotal().shipping > 0 && (
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Shipping</Text>
-                    <Text style={styles.summaryValue}>${calculateTotal().shipping.toFixed(2)}</Text>
-                  </View>
-                )}
-
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Processing Fee (6% + $0.29)</Text>
-                  <Text style={styles.summaryValue}>${calculateTotal().processingFee.toFixed(2)}</Text>
-                </View>
-
-                {calculateTotal().creditsDiscount > 0 && (
-                  <View style={styles.summaryRow}>
-                    <Text style={[styles.summaryLabel, { color: '#22C55E' }]}>Rally Credits</Text>
-                    <Text style={[styles.summaryValue, { color: '#22C55E' }]}>
-                      -${calculateTotal().creditsDiscount.toFixed(2)}
-                    </Text>
-                  </View>
-                )}
-
-                <View style={styles.modalDivider} />
-
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryTotalLabel}>Total</Text>
-                  <Text style={styles.summaryTotalValue}>${calculateTotal().total.toFixed(2)}</Text>
-                </View>
-              </View>
-            </ScrollView>
-
-            {/* Footer */}
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                onPress={() => setPurchaseModalVisible(false)}
-                disabled={purchasing}
-                style={styles.modalCancelButton}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handlePurchase}
-                disabled={purchasing}
-                style={styles.modalPayButton}
-                activeOpacity={0.7}
-              >
-                <LinearGradient
-                  colors={['#60A5FA', '#3B82F6']}
-                  style={styles.modalPayButtonGradient}
-                >
-                  {purchasing ? (
-                    <ActivityIndicator color="white" />
-                  ) : (
-                    <Text style={styles.modalPayText}>Pay Now</Text>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          </BlurView>
-        </Modal>
-      </Portal>
 
       {/* Address Selection Modal */}
       <Portal>
@@ -1060,17 +583,21 @@ export default function StoreItemDetailScreen() {
                   </TouchableOpacity>
                 ))}
               </RadioButton.Group>
+
+              <TouchableOpacity
+                style={styles.addNewAddressButton}
+                onPress={() => {
+                  setAddressModalVisible(false);
+                  Alert.alert('Coming Soon', 'Add new address feature coming soon!');
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add-circle" size={20} color="#60A5FA" />
+                <Text style={styles.addNewAddressText}>Add New Address</Text>
+              </TouchableOpacity>
             </ScrollView>
 
             <View style={styles.modalFooter}>
-              <TouchableOpacity
-                onPress={() => router.push('/profile/addresses')}
-                style={styles.modalCancelButton}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.modalCancelText}>Manage</Text>
-              </TouchableOpacity>
-
               <TouchableOpacity
                 onPress={() => setAddressModalVisible(false)}
                 style={styles.modalPayButton}
@@ -1087,6 +614,21 @@ export default function StoreItemDetailScreen() {
           </BlurView>
         </Modal>
       </Portal>
+
+      {/* Store Payment Sheet */}
+      {item && user && (
+        <StorePaymentSheet
+          visible={paymentSheetVisible}
+          item={item}
+          quantity={quantity}
+          deliveryMethod={deliveryMethod}
+          selectedAddress={savedAddresses.find(addr => addr.id === selectedAddressId) || null}
+          selectedVariants={selectedVariants}
+          onDismiss={() => setPaymentSheetVisible(false)}
+          onSuccess={handlePaymentSuccess}
+          userId={user.uid}
+        />
+      )}
     </View>
   );
 }
@@ -1682,5 +1224,143 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#22C55E',
+  },
+  // Rally Credit Rewards Styles
+  showRewardsButton: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+    backgroundColor: 'rgba(255, 215, 0, 0.08)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+  },
+  showRewardsText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#F59E0B',
+  },
+  showRewardsSubtext: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: 2,
+  },
+  rewardsList: {
+    marginTop: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden',
+  },
+  rewardItem: {
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  rewardItemDisabled: {
+    opacity: 0.6,
+  },
+  rewardItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  rewardItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  rewardItemIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rewardItemName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  rewardItemValue: {
+    fontSize: 13,
+    color: '#10B981',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  rewardItemRight: {
+    alignItems: 'flex-end',
+  },
+  creditsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
+  },
+  creditsBadgeDisabled: {
+    backgroundColor: 'rgba(128, 128, 128, 0.2)',
+  },
+  creditsBadgeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFD700',
+  },
+  notEnoughCredits: {
+    fontSize: 11,
+    color: '#EF4444',
+    marginTop: 4,
+  },
+  appliedReward: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  appliedRewardGradient: {
+    padding: 2,
+    borderRadius: 12,
+  },
+  appliedRewardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 14,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 10,
+  },
+  appliedRewardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  appliedRewardName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFD700',
+  },
+  appliedRewardValue: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 2,
+  },
+  removeRewardButton: {
+    padding: 4,
+  },
+  creditsToSpendNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+    padding: 10,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderRadius: 8,
+  },
+  creditsToSpendText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#F59E0B',
+    fontWeight: '500',
   },
 });
