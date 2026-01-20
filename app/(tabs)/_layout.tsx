@@ -199,6 +199,13 @@ export default function TabLayout() {
           }}
         />
 
+        <Tabs.Screen
+          name="event-detail"
+          options={{
+            href: null,
+          }}
+        />
+
       </Tabs>
       </View>
 
