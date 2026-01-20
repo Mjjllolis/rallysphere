@@ -179,20 +179,20 @@ export const createPaymentIntent = functions.https.onCall(
       );
     }
 
-  const {eventId, ticketPrice, currency = "usd"} = data;
+  const {eventId, ticketPrice, originalPrice, discountAmount, currency = "usd", discountApplied} = data;
 
   // Validate input
-  if (!eventId || !ticketPrice) {
+  if (!eventId || ticketPrice == null) {
     throw new functions.https.HttpsError(
       "invalid-argument",
       "Missing required fields: eventId and ticketPrice"
     );
   }
 
-  if (ticketPrice <= 0) {
+  if (ticketPrice < 0) {
     throw new functions.https.HttpsError(
       "invalid-argument",
-      "Ticket price must be greater than 0"
+      "Ticket price cannot be negative"
     );
   }
 
@@ -234,22 +234,25 @@ export const createPaymentIntent = functions.https.onCall(
       );
     }
 
+    // Use originalPrice for fee calculations (or ticketPrice if no discount)
+    const priceForFees = originalPrice || ticketPrice;
+
     // Calculate fees - User pays: price + 6% processing + $0.29
-    // Club receives the base ticket price
+    // Club receives the full ticket price (no platform fee on events)
     const PROCESSING_FEE_PERCENTAGE = 0.06; // 6%
     const PROCESSING_FEE_FIXED = 0.29; // $0.29
 
-    // Calculate processing fee
+    // Calculate processing fee on ticket price
     const processingFee = (ticketPrice * PROCESSING_FEE_PERCENTAGE) + PROCESSING_FEE_FIXED;
 
-    // Total amount to charge user (ticket price + processing fee)
+    // No platform fee on events - club gets full ticket price
+    const platformFee = 0;
+
+    // Total amount to charge user (ticket + processing fee)
     const totalAmount = ticketPrice + processingFee;
 
-    // Club receives the full ticket price (no platform fee deducted)
+    // Amount club receives (full ticket price)
     const clubAmount = ticketPrice;
-
-    // Platform fee is effectively the processing fee (for record keeping)
-    const platformFee = processingFee;
 
     // Create payment intent with Stripe
     const stripe = getStripe();
@@ -263,9 +266,16 @@ export const createPaymentIntent = functions.https.onCall(
         eventTitle: event?.title || "Event Ticket",
         clubName: event?.clubName || "",
         ticketPrice: ticketPrice.toString(),
+        originalPrice: (originalPrice || ticketPrice).toString(),
+        discountAmount: (discountAmount || 0).toString(),
         platformFee: platformFee.toFixed(2),
         clubAmount: clubAmount.toFixed(2),
         stripeAccountId: club.stripeAccountId,
+        ...(discountApplied && {
+          discountRedemptionId: discountApplied.redemptionId,
+          discountRedemptionName: discountApplied.redemptionName,
+          creditsUsed: discountApplied.creditsUsed?.toString(),
+        }),
       },
       description: `Ticket for ${event?.title || "event"}`,
     });
@@ -321,6 +331,7 @@ export const createStorePaymentIntent = functions.https.onCall(
       selectedVariants,
       deliveryMethod,
       shippingAddress,
+      rewardDiscount,
     } = data;
 
     // Validate input
@@ -383,26 +394,28 @@ export const createStorePaymentIntent = functions.https.onCall(
       }
 
       // Calculate pricing
-      const subtotal = item.price * quantity;
+      const itemPrice = item.price * quantity;
       const shipping = deliveryMethod === "shipping" ? (item.shippingCost || 0) : 0;
+
+      // ORIGINAL price before any discount (for fee calculation)
+      const originalItemAndShipping = itemPrice + shipping;
+
+      // Apply reward discount if provided
+      const discountAmount = rewardDiscount?.discountAmount || 0;
+      const subtotal = Math.max(0, itemPrice - discountAmount);
       const itemAndShipping = subtotal + shipping;
 
-      // No tax calculation - just processing fee
-      const tax = 0;
+      // Calculate fees
+      const tax = itemAndShipping * (item.taxRate / 100);
 
-      // Processing fee: 6% + $0.29 on total (subtotal + shipping)
-      const PROCESSING_FEE_PERCENTAGE = 0.06; // 6%
-      const PROCESSING_FEE_FIXED = 0.29; // $0.29
-      const processingFee = (itemAndShipping * PROCESSING_FEE_PERCENTAGE) + PROCESSING_FEE_FIXED;
+      // Platform fee: 10% of item subtotal only (not shipping/tax)
+      const PLATFORM_FEE_PERCENTAGE = 0.10;
+      const platformFee = subtotal * PLATFORM_FEE_PERCENTAGE;
 
-      // Platform fee is effectively the processing fee (for record keeping)
-      const platformFee = processingFee;
+      // Club receives: 90% of subtotal + shipping + tax (they remit tax)
+      const clubAmount = (subtotal - platformFee) + shipping + tax;
 
-      // Club receives: subtotal + shipping (full amount, no platform fee deducted)
-      const clubAmount = itemAndShipping;
-
-      // Total amount user pays: subtotal + shipping + processing fee
-      const totalAmount = itemAndShipping + processingFee;
+      const totalAmount = itemAndShipping + tax;
 
       // Create payment intent with Stripe
       const stripe = getStripe();
@@ -427,6 +440,13 @@ export const createStorePaymentIntent = functions.https.onCall(
           shipping: shipping.toString(),
           totalAmount: totalAmount.toString(),
           stripeAccountId: stripeAccountId,
+          originalItemPrice: itemPrice.toString(),
+          discountAmount: discountAmount.toString(),
+          ...(rewardDiscount && {
+            rewardRedemptionId: rewardDiscount.redemptionId,
+            rewardRedemptionName: rewardDiscount.redemptionName,
+            creditsUsed: rewardDiscount.creditsRequired?.toString(),
+          }),
         },
         description: `${item.name || "Store item"} (x${quantity})`,
       });
@@ -437,9 +457,8 @@ export const createStorePaymentIntent = functions.https.onCall(
         breakdown: {
           subtotal,
           shipping,
-          tax: 0, // No tax
-          processingFee,
-          platformFee: 0, // No platform fee - club gets full amount
+          tax,
+          platformFee,
           clubReceives: clubAmount,
           totalAmount,
         },
@@ -991,6 +1010,9 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
           tax,
           shipping,
           totalAmount,
+          rallyCreditsDiscount,
+          redemptionId,
+          creditsUsed,
         } = session.metadata;
 
         try {
@@ -1037,6 +1059,10 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
             status: "pending",
             paymentIntentId: session.payment_intent as string,
             stripeSessionId: session.id,
+            ...(rallyCreditsDiscount && {
+              rallyCreditsUsed: parseInt(creditsUsed || "0"),
+              discountAmount: parseFloat(rallyCreditsDiscount),
+            }),
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
@@ -1675,6 +1701,7 @@ export const createStoreCheckoutSession = functions.https.onCall(
       selectedVariants,
       deliveryMethod,
       shippingAddress,
+      rewardDiscount,
     } = data;
 
     if (!itemId || !quantity || !deliveryMethod) {
@@ -1734,16 +1761,21 @@ export const createStoreCheckoutSession = functions.https.onCall(
         (item.shippingCost || 0) : 0;
       const itemAndShipping = subtotal + shipping;
 
-      // Processing fee: 6% + $0.29 on total (subtotal + shipping)
+      // Apply rally credits discount if provided
+      const discountAmountValue = rewardDiscount?.discountAmount || 0;
+      const discountedSubtotal = Math.max(0, subtotal - discountAmountValue);
+      const discountedItemAndShipping = discountedSubtotal + shipping;
+
+      // Processing fee: 6% + $0.29 on ORIGINAL total (before discount)
       const PROCESSING_FEE_PERCENTAGE = 0.06; // 6%
       const PROCESSING_FEE_FIXED = 0.29; // $0.29
       const processingFee = (itemAndShipping * PROCESSING_FEE_PERCENTAGE) + PROCESSING_FEE_FIXED;
 
-      // No tax - just processing fee
-      const totalAmount = itemAndShipping + processingFee;
+      // Total amount charged to user (after discount)
+      const totalAmount = discountedItemAndShipping + processingFee;
 
-      // Club receives: subtotal + shipping (full amount)
-      const clubAmount = itemAndShipping;
+      // Club receives: discounted subtotal + shipping
+      const clubAmount = discountedItemAndShipping;
 
       // Build line items
       const lineItems: any[] = [
@@ -1771,6 +1803,21 @@ export const createStoreCheckoutSession = functions.https.onCall(
               name: "Shipping",
             },
             unit_amount: Math.round(shipping * 100),
+          },
+          quantity: 1,
+        });
+      }
+
+      // Add rally credits discount as negative line item if applicable
+      if (discountAmountValue > 0 && rewardDiscount) {
+        lineItems.push({
+          price_data: {
+            currency: "usd",
+            product_data: {
+              name: `Rally Credits Discount - ${rewardDiscount.redemptionName || 'Reward'}`,
+              description: `${rewardDiscount.creditsRequired || 0} credits redeemed`,
+            },
+            unit_amount: -Math.round(discountAmountValue * 100), // Negative amount for discount
           },
           quantity: 1,
         });
@@ -1815,6 +1862,12 @@ export const createStoreCheckoutSession = functions.https.onCall(
           clubAmount: clubAmount.toFixed(2),
           stripeAccountId: stripeAccountId,
           totalAmount: totalAmount.toString(),
+          ...(rewardDiscount && {
+            rallyCreditsDiscount: discountAmountValue.toFixed(2),
+            redemptionId: rewardDiscount.redemptionId,
+            redemptionName: rewardDiscount.redemptionName,
+            creditsUsed: rewardDiscount.creditsRequired?.toString() || "0",
+          }),
         },
         payment_intent_data: {
           metadata: {
@@ -1835,6 +1888,12 @@ export const createStoreCheckoutSession = functions.https.onCall(
             clubAmount: clubAmount.toFixed(2),
             stripeAccountId: stripeAccountId,
             totalAmount: totalAmount.toString(),
+            ...(rewardDiscount && {
+              rallyCreditsDiscount: discountAmountValue.toFixed(2),
+              redemptionId: rewardDiscount.redemptionId,
+              redemptionName: rewardDiscount.redemptionName,
+              creditsUsed: rewardDiscount.creditsRequired?.toString() || "0",
+            }),
           },
         },
       });
