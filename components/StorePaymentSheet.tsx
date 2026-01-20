@@ -151,10 +151,9 @@ export default function StorePaymentSheet({
     const taxRate = item.taxRate || 0;
     const tax = Math.round(itemAndShipping * (taxRate / 100) * 100) / 100;
 
-    // CRITICAL: Stripe processing fee ALWAYS calculated on ORIGINAL price (before discount)
-    const STRIPE_FEE_PERCENTAGE = 0.029;
-    const STRIPE_FEE_FIXED = 0.30;
-    const processingFee = Math.round(((originalItemAndShipping * STRIPE_FEE_PERCENTAGE) + STRIPE_FEE_FIXED) * 100) / 100;
+    const PROCESSING_FEE_PERCENTAGE = 0.06;  // 6%
+    const PROCESSING_FEE_FIXED = 0.29;  // $0.29
+    const processingFee = Math.round(((originalItemAndShipping * PROCESSING_FEE_PERCENTAGE) + PROCESSING_FEE_FIXED) * 100) / 100;
 
     // Total: discounted item + shipping + tax + processing fee (on original)
     const total = Math.round((itemAndShipping + tax + processingFee) * 100) / 100;
