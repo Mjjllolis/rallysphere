@@ -28,11 +28,11 @@ service cloud.firestore {
       allow update: if request.auth != null &&
         (request.auth.uid in resource.data.get('clubAdmins', []) ||
          request.auth.uid in resource.data.get('admins', []));
-      // Allow users to join/leave public clubs (only modify members array)
+      // Allow users to join/leave public clubs (only modify clubMembers array)
       allow update: if request.auth != null &&
         resource.data.isPublic == true &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'updatedAt']);
-      // Only admins can delete clubs
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clubMembers', 'updatedAt']);
+            // Only admins can delete clubs
       allow delete: if request.auth != null &&
         (request.auth.uid in resource.data.get('clubAdmins', []) ||
          request.auth.uid in resource.data.get('admins', []));
@@ -57,6 +57,12 @@ service cloud.firestore {
       // Join Event Permission - users can add/remove themselves from attendees/waitlist
       allow update: if request.auth != null &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attendees', 'waitlist', 'updatedAt']);
+      // Club admins can update checkedIn array for event check-ins
+      allow update: if request.auth != null &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedIn', 'updatedAt']) &&
+        exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
+        (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
+         request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []));
       // Only event creator and club admins can delete events
       allow delete: if request.auth != null &&
         (request.auth.uid == resource.data.createdBy);
@@ -151,12 +157,14 @@ service cloud.firestore {
     }
 
     // RallyCredits - User credits tracking
+    // Users own their own credits document - no admin writes needed
+    // Credit confirmation happens on the user's client after check-in
     match /rallyCredits/{userId} {
       // Users can read their own credits
       allow read: if request.auth != null && request.auth.uid == userId;
       // Users can create their own credits document
       allow create: if request.auth != null && request.auth.uid == userId;
-      // Users can update their own credits (when earning or redeeming)
+      // Users can update their own credits (pending, confirm, redeem)
       allow update: if request.auth != null && request.auth.uid == userId;
     }
 
@@ -175,7 +183,11 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/clubs/$(request.resource.data.clubId)) &&
         (request.auth.uid in get(/databases/$(database)/documents/clubs/$(request.resource.data.clubId)).data.get('clubAdmins', []) ||
          request.auth.uid in get(/databases/$(database)/documents/clubs/$(request.resource.data.clubId)).data.get('admins', []));
-      // Only club admins can update their club's redemptions
+      // Users can update usedCount when redeeming rewards
+      allow update: if request.auth != null &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedCount', 'updatedAt']) &&
+        request.resource.data.usedCount == resource.data.usedCount + 1;
+      // Only club admins can update their club's redemptions (other fields)
       allow update: if request.auth != null &&
         exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
         (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||

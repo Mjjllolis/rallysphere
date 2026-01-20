@@ -316,19 +316,24 @@ export default function ClubDetailScreen() {
               <View style={styles.rightControls}>
                 {/* RallyCredits Display */}
                 {user && (isJoined || isAdmin) && userCredits && (
-                  <Surface style={styles.creditsChip} elevation={2}>
-                    <View style={styles.creditsContent}>
-                      <IconButton
-                        icon="star-circle"
-                        iconColor="#FFD700"
-                        size={20}
-                        style={{ margin: 0 }}
-                      />
-                      <Text variant="titleMedium" style={styles.creditsText}>
-                        {userCredits.clubCredits?.[clubId] || 0}
-                      </Text>
-                    </View>
-                  </Surface>
+                  <TouchableOpacity
+                    onPress={() => router.push(`/club/${club.id}/redeem-credits`)}
+                    activeOpacity={0.7}
+                  >
+                    <Surface style={styles.creditsChip} elevation={2}>
+                      <View style={styles.creditsContent}>
+                        <IconButton
+                          icon="star-circle"
+                          iconColor="#FFD700"
+                          size={20}
+                          style={{ margin: 0 }}
+                        />
+                        <Text variant="titleMedium" style={styles.creditsText}>
+                          {userCredits.clubCredits?.[clubId] || 0}
+                        </Text>
+                      </View>
+                    </Surface>
+                  </TouchableOpacity>
                 )}
 
                 {/* Admin/Owner: Direct link to dashboard */}

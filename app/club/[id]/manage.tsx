@@ -99,9 +99,12 @@ export default function ClubManageDashboard() {
   }
 
   const adminActions = [
+    { title: 'Event Check-in', description: 'Check in attendees and award credits', icon: 'qrcode-scan', route: `/club/${clubId}/event-checkin` },
     { title: 'Member Management', description: 'Manage members and join requests', icon: 'account-group', route: `/club/${clubId}/manage-members`, badge: pendingRequests },
     { title: 'Subscribers', description: 'Manage subscriber settings and pricing', icon: 'star-circle', route: `/club/${clubId}/manage-subscriptions`, badge: club?.subscribers?.length || 0 },
     { title: 'Analytics', description: 'View club performance metrics', icon: 'chart-line', route: `/club/${clubId}/analytics` },
+    { title: 'Rally Credit Rewards', description: 'Set up rewards members can redeem', icon: 'star-settings', route: `/club/${clubId}/rally-credit-redemptions` },
+    { title: 'Manage Member Credits', description: 'Add, remove, or adjust member credits', icon: 'cash-multiple', route: `/club/${clubId}/manage-credits` },
     { title: 'Ticket Orders', description: 'View and manage event ticket sales', icon: 'ticket-confirmation', route: `/club/${clubId}/manage-ticket-orders` },
     { title: 'Manage Store', description: 'Add and edit store products', icon: 'store', route: `/club/${clubId}/manage-store` },
     { title: 'Store Orders', description: 'Fulfill customer store orders', icon: 'package-variant', route: `/club/${clubId}/manage-orders`, badge: analytics?.pendingOrders },

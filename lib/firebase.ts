@@ -15,23 +15,24 @@ import {
   type Auth
 } from 'firebase/auth';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
-import { 
-  getFirestore, 
-  doc, 
-  setDoc, 
-  getDoc, 
-  updateDoc, 
-  collection, 
-  addDoc, 
-  query, 
-  where, 
-  orderBy, 
-  getDocs, 
-  arrayUnion, 
-  arrayRemove, 
-  serverTimestamp, 
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  collection,
+  addDoc,
+  query,
+  where,
+  orderBy,
+  getDocs,
+  arrayUnion,
+  arrayRemove,
+  serverTimestamp,
   onSnapshot,
-  type Timestamp 
+  increment,
+  type Timestamp
 } from 'firebase/firestore';
 import {
   getStorage,
@@ -72,6 +73,9 @@ export interface User {
 export interface UserProfile {
   firstName: string;
   lastName: string;
+  displayName?: string;
+  email?: string;
+  photoURL?: string;
   bio?: string;
   avatar?: string;
   profileEmoji?: string;
@@ -200,6 +204,7 @@ export interface Event {
   ticketPrice?: number;
   currency?: string;
   rallyCreditsAwarded?: number;  // RallyCredits users earn for attending
+  checkedIn?: string[];  // Users who have been checked in at the event
 }
 
 export interface ClubJoinRequest {
@@ -375,10 +380,12 @@ export interface RallyCreditRedemption {
 
 export interface UserRallyCredits {
   userId: string;
-  totalCredits: number;  // Total credits earned all-time
-  availableCredits: number;  // Credits available to spend
+  totalCredits: number;  // Total confirmed credits earned all-time
+  availableCredits: number;  // Confirmed credits available to spend
+  pendingCredits: number;  // Credits waiting for event check-in
   usedCredits: number;  // Credits that have been spent
-  clubCredits: { [clubId: string]: number };  // Credits earned per club
+  clubCredits: { [clubId: string]: number };  // Confirmed credits per club
+  pendingClubCredits: { [clubId: string]: number };  // Pending credits per club
   transactions: RallyCreditTransaction[];
   updatedAt: Timestamp;
 }
@@ -388,15 +395,15 @@ export interface RallyCreditTransaction {
   userId: string;
   clubId: string;
   clubName: string;
-  type: 'earned' | 'redeemed' | 'expired' | 'forfeited';
-  amount: number;  // Positive for earned, negative for redeemed/forfeited
+  type: 'earned' | 'redeemed' | 'expired' | 'forfeited' | 'forfeited_pending' | 'pending' | 'confirmed' | 'spent';
+  amount: number;  // Positive for earned/pending/confirmed, negative for redeemed/forfeited/spent
   eventId?: string;  // If earned from or forfeited due to event
   eventName?: string;
-  redemptionId?: string;  // If redeemed
+  redemptionId?: string;  // If redeemed or spent
   redemptionName?: string;
   orderId?: string;  // If used in order
   description: string;
-  createdAt: Timestamp;
+  createdAt: Timestamp | string;
 }
 
 // --- 3. Firebase Configuration ---
@@ -742,7 +749,7 @@ export const joinClub = async (clubId: string, userId: string, userEmail: string
     // If club is public, add user directly
     if (club.isPublic) {
       await updateDoc(doc(db, 'clubs', clubId), {
-        members: arrayUnion(userId),
+        clubMembers: arrayUnion(userId),
         updatedAt: serverTimestamp()
       });
       return { success: true, approved: true };
@@ -768,7 +775,7 @@ export const joinClub = async (clubId: string, userId: string, userEmail: string
 export const leaveClub = async (clubId: string, userId: string) => {
   try {
     await updateDoc(doc(db, 'clubs', clubId), {
-      members: arrayRemove(userId),
+      clubMembers: arrayRemove(userId),
       subscribers: arrayRemove(userId),
       updatedAt: serverTimestamp()
     });
@@ -2316,8 +2323,10 @@ export const getUserRallyCredits = async (userId: string) => {
         userId,
         totalCredits: 0,
         availableCredits: 0,
+        pendingCredits: 0,
         usedCredits: 0,
         clubCredits: {},
+        pendingClubCredits: {},
         transactions: [],
         updatedAt: serverTimestamp() as Timestamp,
       };
@@ -2335,7 +2344,8 @@ export const getUserRallyCredits = async (userId: string) => {
 };
 
 /**
- * Award RallyCredits to a user for joining an event
+ * Award RallyCredits to a user for joining an event (as pending until check-in)
+ * Prevents duplicate awards for the same event
  */
 export const awardRallyCredits = async (
   userId: string,
@@ -2348,50 +2358,51 @@ export const awardRallyCredits = async (
   try {
     const creditsRef = doc(db, 'rallyCredits', userId);
     const creditsDoc = await getDoc(creditsRef);
+    const currentCredits = creditsDoc.exists() ? creditsDoc.data() as UserRallyCredits : null;
 
-    let currentCredits: UserRallyCredits;
-
-    if (!creditsDoc.exists()) {
-      currentCredits = {
-        userId,
-        totalCredits: 0,
-        availableCredits: 0,
-        usedCredits: 0,
-        clubCredits: {},
-        transactions: [],
-        updatedAt: serverTimestamp() as Timestamp,
-      };
-    } else {
-      currentCredits = creditsDoc.data() as UserRallyCredits;
+    // Check if already awarded pending credits for this event (prevent duplicates)
+    const alreadyAwarded = currentCredits?.transactions?.some(
+      (t: any) => t.eventId === eventId && t.type === 'pending'
+    );
+    if (alreadyAwarded) {
+      return { success: true, message: 'Credits already awarded for this event' };
     }
 
-    const transaction: RallyCreditTransaction = {
-      id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    const transaction = {
+      id: `${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
       userId,
       clubId,
       clubName,
-      type: 'earned',
+      type: 'pending',
       amount,
       eventId,
       eventName,
-      description: `Earned ${amount} credits for attending ${eventName}`,
-      createdAt: new Date() as unknown as Timestamp,
+      description: `Pending ${amount} credits for ${eventName} (awarded at check-in)`,
+      createdAt: new Date().toISOString(),
     };
 
-    const updatedCredits: UserRallyCredits = {
-      ...currentCredits,
-      totalCredits: currentCredits.totalCredits + amount,
-      availableCredits: currentCredits.availableCredits + amount,
-      clubCredits: {
-        ...currentCredits.clubCredits,
-        [clubId]: (currentCredits.clubCredits[clubId] || 0) + amount,
-      },
-      transactions: [transaction, ...currentCredits.transactions].slice(0, 100), // Keep last 100 transactions
-      updatedAt: serverTimestamp() as Timestamp,
-    };
-
-    await setDoc(creditsRef, updatedCredits);
-    return { success: true, credits: updatedCredits };
+    // Award as pending credits (not available until check-in)
+    if (currentCredits) {
+      await updateDoc(creditsRef, {
+        pendingCredits: (currentCredits.pendingCredits || 0) + amount,
+        [`pendingClubCredits.${clubId}`]: ((currentCredits.pendingClubCredits || {})[clubId] || 0) + amount,
+        transactions: [transaction, ...(currentCredits.transactions || [])].slice(0, 100),
+        updatedAt: serverTimestamp(),
+      });
+    } else {
+      await setDoc(creditsRef, {
+        userId,
+        totalCredits: 0,
+        availableCredits: 0,
+        pendingCredits: amount,
+        usedCredits: 0,
+        clubCredits: {},
+        pendingClubCredits: { [clubId]: amount },
+        transactions: [transaction],
+        updatedAt: serverTimestamp(),
+      });
+    }
+    return { success: true };
   } catch (error: any) {
     console.error('Error awarding rally credits:', error);
     return { success: false, error: error.message };
@@ -2399,8 +2410,67 @@ export const awardRallyCredits = async (
 };
 
 /**
+ * Confirm pending RallyCredits when user is checked in at event
+ */
+export const confirmRallyCredits = async (
+  userId: string,
+  clubId: string,
+  clubName: string,
+  eventId: string,
+  eventName: string,
+  amount: number
+) => {
+  try {
+    const creditsRef = doc(db, 'rallyCredits', userId);
+    const creditsDoc = await getDoc(creditsRef);
+
+    if (!creditsDoc.exists()) {
+      return { success: false, error: 'No credits found for user' };
+    }
+
+    const currentCredits = creditsDoc.data() as UserRallyCredits;
+    const pendingAmount = Math.min(amount, (currentCredits.pendingClubCredits || {})[clubId] || 0);
+
+    if (pendingAmount <= 0) {
+      return { success: true, message: 'No pending credits to confirm' };
+    }
+
+    const transaction = {
+      id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      userId,
+      clubId,
+      clubName,
+      type: 'confirmed',
+      amount: pendingAmount,
+      eventId,
+      eventName,
+      description: `Confirmed ${pendingAmount} credits for checking in at ${eventName}`,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Move credits from pending to available
+    // lastConfirmedByClubId is needed by Firestore rules for admin updates
+    await updateDoc(creditsRef, {
+      totalCredits: (currentCredits.totalCredits || 0) + pendingAmount,
+      availableCredits: (currentCredits.availableCredits || 0) + pendingAmount,
+      pendingCredits: Math.max(0, (currentCredits.pendingCredits || 0) - pendingAmount),
+      [`clubCredits.${clubId}`]: ((currentCredits.clubCredits || {})[clubId] || 0) + pendingAmount,
+      [`pendingClubCredits.${clubId}`]: Math.max(0, ((currentCredits.pendingClubCredits || {})[clubId] || 0) - pendingAmount),
+      transactions: [transaction, ...(currentCredits.transactions || [])].slice(0, 100),
+      lastConfirmedByClubId: clubId,
+      updatedAt: serverTimestamp(),
+    });
+
+    return { success: true, confirmedAmount: pendingAmount };
+  } catch (error: any) {
+    console.error('Error confirming rally credits:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
  * Forfeit Rally Credits when leaving an event
- * This removes the credits that were awarded for joining the event
+ * Only forfeits PENDING credits (confirmed credits are never forfeited)
  */
 export const forfeitRallyCredits = async (
   userId: string,
@@ -2421,75 +2491,56 @@ export const forfeitRallyCredits = async (
 
     const currentCredits = creditsDoc.data() as UserRallyCredits;
 
-    // Check if user has enough credits to forfeit
-    const clubCreditsAmount = currentCredits.clubCredits[clubId] || 0;
-    if (clubCreditsAmount < amount) {
-      // User doesn't have enough club credits (may have already spent some)
-      // Forfeit what they have left for this club, but don't go negative
-      const amountToForfeit = Math.min(amount, clubCreditsAmount, currentCredits.availableCredits);
+    // Find the original pending transaction for this event
+    const existingTransactions = currentCredits.transactions || [];
+    const pendingTransactionIndex = existingTransactions.findIndex(
+      (t: any) => t.eventId === eventId && t.type === 'pending'
+    );
 
-      if (amountToForfeit <= 0) {
-        return { success: true, message: 'No available credits to forfeit' };
-      }
+    // Only forfeit from pending credits (confirmed credits are safe)
+    const pendingClubCredits = (currentCredits.pendingClubCredits || {})[clubId] || 0;
+    const amountToForfeit = Math.min(amount, pendingClubCredits, currentCredits.pendingCredits || 0);
 
-      // Forfeit the available amount
-      const transaction: RallyCreditTransaction = {
-        id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        userId,
-        clubId,
-        clubName,
-        type: 'forfeited',
-        amount: -amountToForfeit,
-        eventId,
-        eventName,
-        description: `Forfeited ${amountToForfeit} credits for leaving ${eventName}`,
-        createdAt: new Date() as unknown as Timestamp,
-      };
-
-      const updatedCredits: UserRallyCredits = {
-        ...currentCredits,
-        totalCredits: Math.max(0, currentCredits.totalCredits - amountToForfeit),
-        availableCredits: Math.max(0, currentCredits.availableCredits - amountToForfeit),
-        clubCredits: {
-          ...currentCredits.clubCredits,
-          [clubId]: Math.max(0, clubCreditsAmount - amountToForfeit),
-        },
-        transactions: [transaction, ...currentCredits.transactions].slice(0, 100),
-        updatedAt: serverTimestamp() as Timestamp,
-      };
-
-      await setDoc(creditsRef, updatedCredits);
-      return { success: true, credits: updatedCredits, amountForfeited: amountToForfeit };
+    if (amountToForfeit <= 0) {
+      return { success: true, message: 'No pending credits to forfeit' };
     }
 
-    // User has enough credits, forfeit the full amount
-    const transaction: RallyCreditTransaction = {
-      id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    // Update transactions: mark original pending as forfeited and add forfeiture record
+    let updatedTransactions = [...existingTransactions];
+
+    // Mark the original pending transaction as forfeited (so history shows it was canceled)
+    if (pendingTransactionIndex !== -1) {
+      updatedTransactions[pendingTransactionIndex] = {
+        ...updatedTransactions[pendingTransactionIndex],
+        type: 'forfeited_pending', // Change type to show it was forfeited
+        description: `${amountToForfeit} credits forfeited (left event)`,
+      };
+    }
+
+    // Add new forfeiture transaction at the top
+    const forfeitTransaction: RallyCreditTransaction = {
+      id: `${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
       userId,
       clubId,
       clubName,
-      type: 'forfeited',
-      amount: -amount,
+      type: 'forfeited' as const,
+      amount: -amountToForfeit,
       eventId,
       eventName,
-      description: `Forfeited ${amount} credits for leaving ${eventName}`,
-      createdAt: new Date() as unknown as Timestamp,
+      description: `Forfeited ${amountToForfeit} pending credits for leaving ${eventName}`,
+      createdAt: new Date().toISOString(),
     };
 
-    const updatedCredits: UserRallyCredits = {
-      ...currentCredits,
-      totalCredits: currentCredits.totalCredits - amount,
-      availableCredits: currentCredits.availableCredits - amount,
-      clubCredits: {
-        ...currentCredits.clubCredits,
-        [clubId]: clubCreditsAmount - amount,
-      },
-      transactions: [transaction, ...currentCredits.transactions].slice(0, 100),
-      updatedAt: serverTimestamp() as Timestamp,
-    };
+    updatedTransactions = [forfeitTransaction, ...updatedTransactions].slice(0, 100);
 
-    await setDoc(creditsRef, updatedCredits);
-    return { success: true, credits: updatedCredits, amountForfeited: amount };
+    await updateDoc(creditsRef, {
+      pendingCredits: Math.max(0, (currentCredits.pendingCredits || 0) - amountToForfeit),
+      [`pendingClubCredits.${clubId}`]: Math.max(0, pendingClubCredits - amountToForfeit),
+      transactions: updatedTransactions,
+      updatedAt: serverTimestamp(),
+    });
+
+    return { success: true, amountForfeited: amountToForfeit };
   } catch (error: any) {
     console.error('Error forfeiting rally credits:', error);
     return { success: false, error: error.message };
@@ -2539,6 +2590,181 @@ export const createRedemption = async (redemption: Omit<RallyCreditRedemption, '
 };
 
 /**
+ * Spend RallyCredits when user redeems a discount/reward
+ */
+export const spendRallyCredits = async (
+  userId: string,
+  clubId: string,
+  amount: number,
+  redemptionId: string,
+  description: string
+) => {
+  try {
+    const creditsRef = doc(db, 'rallyCredits', userId);
+    const creditsDoc = await getDoc(creditsRef);
+
+    if (!creditsDoc.exists()) {
+      return { success: false, error: 'No credits found for user' };
+    }
+
+    const currentCredits = creditsDoc.data() as UserRallyCredits;
+
+    // Check if user has enough available credits
+    if ((currentCredits.availableCredits || 0) < amount) {
+      return { success: false, error: 'Insufficient available credits' };
+    }
+
+    // Check if user has enough club-specific credits
+    const clubCredits = (currentCredits.clubCredits || {})[clubId] || 0;
+    if (clubCredits < amount) {
+      return { success: false, error: 'Insufficient credits from this club' };
+    }
+
+    const transaction = {
+      id: `${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+      userId,
+      clubId,
+      type: 'spent',
+      amount: -amount, // Negative to indicate spending
+      redemptionId,
+      description,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Update credits - deduct from available and club-specific
+    await updateDoc(creditsRef, {
+      availableCredits: (currentCredits.availableCredits || 0) - amount,
+      usedCredits: (currentCredits.usedCredits || 0) + amount,
+      [`clubCredits.${clubId}`]: clubCredits - amount,
+      transactions: [transaction, ...(currentCredits.transactions || [])].slice(0, 100),
+      updatedAt: serverTimestamp(),
+    });
+
+    // Update the redemption's totalRedeemed count
+    try {
+      const redemptionRef = doc(db, 'rallyCreditRedemptions', redemptionId);
+      await updateDoc(redemptionRef, {
+        totalRedeemed: increment(1),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (redemptionError) {
+      console.error('Error updating redemption count:', redemptionError);
+      // Don't fail the spend operation if this update fails
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error spending rally credits:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Get active redemption options for a club
+ */
+export const getClubRallyRedemptions = async (clubId: string) => {
+  try {
+    const redemptionsRef = collection(db, 'rallyCreditRedemptions');
+    const q = query(
+      redemptionsRef,
+      where('clubId', '==', clubId),
+      where('isActive', '==', true)
+    );
+    const snapshot = await getDocs(q);
+
+    const redemptions = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as RallyCreditRedemption[];
+
+    return { success: true, redemptions };
+  } catch (error: any) {
+    console.error('Error getting club rally redemptions:', error);
+    return { success: false, error: error.message, redemptions: [] };
+  }
+};
+
+/**
+ * Get all redemption options for a club (including inactive) - Admin only
+ * This requires the caller to be a club admin to have proper permissions
+ */
+export const getAllClubRallyRedemptions = async (clubId: string) => {
+  try {
+    const redemptionsRef = collection(db, 'rallyCreditRedemptions');
+    const q = query(redemptionsRef, where('clubId', '==', clubId));
+    const snapshot = await getDocs(q);
+
+    const redemptions = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as RallyCreditRedemption[];
+
+    return { success: true, redemptions };
+  } catch (error: any) {
+    console.error('Error getting all club rally redemptions:', error);
+    return { success: false, error: error.message, redemptions: [] };
+  }
+};
+
+/**
+ * Create a new rally credit redemption option
+ */
+export const createRallyRedemption = async (redemptionData: Partial<RallyCreditRedemption>) => {
+  try {
+    const redemptionsRef = collection(db, 'rallyCreditRedemptions');
+    const newRedemption = {
+      ...redemptionData,
+      totalRedeemed: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    const docRef = await addDoc(redemptionsRef, newRedemption);
+    return { success: true, redemptionId: docRef.id };
+  } catch (error: any) {
+    console.error('Error creating rally redemption:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Update a rally credit redemption option
+ */
+export const updateRallyRedemption = async (
+  redemptionId: string,
+  updates: Partial<RallyCreditRedemption>
+) => {
+  try {
+    const redemptionRef = doc(db, 'rallyCreditRedemptions', redemptionId);
+    await updateDoc(redemptionRef, {
+      ...updates,
+      updatedAt: serverTimestamp(),
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error updating rally redemption:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Delete (deactivate) a rally credit redemption option
+ */
+export const deleteRallyRedemption = async (redemptionId: string) => {
+  try {
+    const redemptionRef = doc(db, 'rallyCreditRedemptions', redemptionId);
+    await updateDoc(redemptionRef, {
+      isActive: false,
+      updatedAt: serverTimestamp(),
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error deleting rally redemption:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
  * Redeem RallyCredits for a reward
  */
 export const redeemRallyCredits = async (
@@ -2574,7 +2800,7 @@ export const redeemRallyCredits = async (
     }
 
     // Create transaction
-    const transaction: RallyCreditTransaction = {
+    const transaction = {
       id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       userId,
       clubId,
@@ -2584,19 +2810,16 @@ export const redeemRallyCredits = async (
       redemptionId,
       redemptionName: redemption.name,
       description: `Redeemed ${redemption.creditsRequired} credits for ${redemption.name}`,
-      createdAt: new Date() as unknown as Timestamp,
+      createdAt: new Date().toISOString(),
     };
 
     // Update user credits
-    const updatedCredits: UserRallyCredits = {
-      ...currentCredits,
+    await updateDoc(creditsRef, {
       availableCredits: currentCredits.availableCredits - redemption.creditsRequired,
       usedCredits: currentCredits.usedCredits + redemption.creditsRequired,
-      transactions: [transaction, ...currentCredits.transactions].slice(0, 100),
-      updatedAt: serverTimestamp() as Timestamp,
-    };
-
-    await setDoc(creditsRef, updatedCredits);
+      transactions: [transaction, ...(currentCredits.transactions || [])].slice(0, 100),
+      updatedAt: serverTimestamp(),
+    });
 
     // Update redemption count
     await updateDoc(redemptionRef, {
@@ -2604,14 +2827,546 @@ export const redeemRallyCredits = async (
       updatedAt: serverTimestamp(),
     });
 
-    return { success: true, credits: updatedCredits, redemption };
+    return { success: true, redemption };
   } catch (error: any) {
     console.error('Error redeeming rally credits:', error);
     return { success: false, error: error.message };
   }
 };
 
-// --- 13. Pro Subscription Functions ---
+/**
+ * Admin: Add Rally Credits to a user
+ * Only callable by club admins for their club members
+ */
+export const adminAddRallyCredits = async (
+  adminUserId: string,
+  targetUserId: string,
+  clubId: string,
+  clubName: string,
+  amount: number,
+  reason: string
+) => {
+  try {
+    // Verify admin has permission (caller should check this, but we validate clubId exists)
+    const clubRef = doc(db, 'clubs', clubId);
+    const clubDoc = await getDoc(clubRef);
+
+    if (!clubDoc.exists()) {
+      return { success: false, error: 'Club not found' };
+    }
+
+    const club = clubDoc.data() as Club;
+
+    // Verify admin is actually an admin of this club
+    if (!club.admins?.includes(adminUserId)) {
+      return { success: false, error: 'Unauthorized: Admin access required' };
+    }
+
+    // Get or create user's credits document
+    const creditsRef = doc(db, 'rallyCredits', targetUserId);
+    const creditsDoc = await getDoc(creditsRef);
+    const currentCredits = creditsDoc.exists() ? creditsDoc.data() as UserRallyCredits : null;
+
+    // Create transaction record
+    const transaction = {
+      id: `${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+      userId: targetUserId,
+      clubId,
+      clubName,
+      type: 'earned',
+      amount,
+      description: `Admin added: ${reason}`,
+      createdAt: new Date().toISOString(),
+      adminUserId,
+    };
+
+    if (currentCredits) {
+      // Update existing credits
+      await updateDoc(creditsRef, {
+        totalCredits: (currentCredits.totalCredits || 0) + amount,
+        availableCredits: (currentCredits.availableCredits || 0) + amount,
+        [`clubCredits.${clubId}`]: ((currentCredits.clubCredits || {})[clubId] || 0) + amount,
+        transactions: [transaction, ...(currentCredits.transactions || [])].slice(0, 100),
+        updatedAt: serverTimestamp(),
+      });
+    } else {
+      // Create new credits document
+      await setDoc(creditsRef, {
+        userId: targetUserId,
+        totalCredits: amount,
+        availableCredits: amount,
+        pendingCredits: 0,
+        usedCredits: 0,
+        clubCredits: { [clubId]: amount },
+        pendingClubCredits: {},
+        transactions: [transaction],
+        updatedAt: serverTimestamp(),
+      });
+    }
+
+    return { success: true, amount };
+  } catch (error: any) {
+    console.error('Error adding rally credits (admin):', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Admin: Remove Rally Credits from a user
+ * Only callable by club admins for their club members
+ */
+export const adminRemoveRallyCredits = async (
+  adminUserId: string,
+  targetUserId: string,
+  clubId: string,
+  clubName: string,
+  amount: number,
+  reason: string
+) => {
+  try {
+    // Verify admin has permission
+    const clubRef = doc(db, 'clubs', clubId);
+    const clubDoc = await getDoc(clubRef);
+
+    if (!clubDoc.exists()) {
+      return { success: false, error: 'Club not found' };
+    }
+
+    const club = clubDoc.data() as Club;
+
+    if (!club.admins?.includes(adminUserId)) {
+      return { success: false, error: 'Unauthorized: Admin access required' };
+    }
+
+    // Get user's credits
+    const creditsRef = doc(db, 'rallyCredits', targetUserId);
+    const creditsDoc = await getDoc(creditsRef);
+
+    if (!creditsDoc.exists()) {
+      return { success: false, error: 'User has no credits to remove' };
+    }
+
+    const currentCredits = creditsDoc.data() as UserRallyCredits;
+    const currentClubCredits = (currentCredits.clubCredits || {})[clubId] || 0;
+
+    // Don't allow removing more than they have
+    if (currentClubCredits < amount) {
+      return { success: false, error: `User only has ${currentClubCredits} credits for this club` };
+    }
+
+    // Create transaction record
+    const transaction = {
+      id: `${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+      userId: targetUserId,
+      clubId,
+      clubName,
+      type: 'spent',
+      amount: -amount,
+      description: `Admin removed: ${reason}`,
+      createdAt: new Date().toISOString(),
+      adminUserId,
+    };
+
+    // Update credits
+    await updateDoc(creditsRef, {
+      totalCredits: Math.max(0, (currentCredits.totalCredits || 0) - amount),
+      availableCredits: Math.max(0, (currentCredits.availableCredits || 0) - amount),
+      usedCredits: (currentCredits.usedCredits || 0) + amount,
+      [`clubCredits.${clubId}`]: Math.max(0, currentClubCredits - amount),
+      transactions: [transaction, ...(currentCredits.transactions || [])].slice(0, 100),
+      updatedAt: serverTimestamp(),
+    });
+
+    return { success: true, amount };
+  } catch (error: any) {
+    console.error('Error removing rally credits (admin):', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Admin: Set Rally Credits for a user to a specific amount
+ * Only callable by club admins for their club members
+ */
+export const adminSetRallyCredits = async (
+  adminUserId: string,
+  targetUserId: string,
+  clubId: string,
+  clubName: string,
+  newAmount: number,
+  reason: string
+) => {
+  try {
+    // Verify admin has permission
+    const clubRef = doc(db, 'clubs', clubId);
+    const clubDoc = await getDoc(clubRef);
+
+    if (!clubDoc.exists()) {
+      return { success: false, error: 'Club not found' };
+    }
+
+    const club = clubDoc.data() as Club;
+
+    if (!club.admins?.includes(adminUserId)) {
+      return { success: false, error: 'Unauthorized: Admin access required' };
+    }
+
+    // Get or create user's credits document
+    const creditsRef = doc(db, 'rallyCredits', targetUserId);
+    const creditsDoc = await getDoc(creditsRef);
+    const currentCredits = creditsDoc.exists() ? creditsDoc.data() as UserRallyCredits : null;
+
+    const currentClubCredits = currentCredits ? ((currentCredits.clubCredits || {})[clubId] || 0) : 0;
+    const difference = newAmount - currentClubCredits;
+
+    // Create transaction record
+    const transaction = {
+      id: `${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+      userId: targetUserId,
+      clubId,
+      clubName,
+      type: difference >= 0 ? 'earned' : 'spent',
+      amount: difference,
+      description: `Admin set to ${newAmount}: ${reason}`,
+      createdAt: new Date().toISOString(),
+      adminUserId,
+    };
+
+    if (currentCredits) {
+      // Calculate new totals
+      const newTotalCredits = Math.max(0, (currentCredits.totalCredits || 0) + difference);
+      const newAvailableCredits = Math.max(0, (currentCredits.availableCredits || 0) + difference);
+      const newUsedCredits = difference < 0
+        ? (currentCredits.usedCredits || 0) + Math.abs(difference)
+        : currentCredits.usedCredits || 0;
+
+      await updateDoc(creditsRef, {
+        totalCredits: newTotalCredits,
+        availableCredits: newAvailableCredits,
+        usedCredits: newUsedCredits,
+        [`clubCredits.${clubId}`]: newAmount,
+        transactions: [transaction, ...(currentCredits.transactions || [])].slice(0, 100),
+        updatedAt: serverTimestamp(),
+      });
+    } else {
+      // Create new credits document
+      await setDoc(creditsRef, {
+        userId: targetUserId,
+        totalCredits: newAmount,
+        availableCredits: newAmount,
+        pendingCredits: 0,
+        usedCredits: 0,
+        clubCredits: { [clubId]: newAmount },
+        pendingClubCredits: {},
+        transactions: [transaction],
+        updatedAt: serverTimestamp(),
+      });
+    }
+
+    return { success: true, amount: newAmount };
+  } catch (error: any) {
+    console.error('Error setting rally credits (admin):', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Event Check-in Functions
+
+/**
+ * Check in an attendee at an event (admin only updates event document)
+ * Credit confirmation is handled separately by the user's client via confirmMyCredits
+ */
+export const checkInAttendee = async (eventId: string, userId: string) => {
+  try {
+    const eventRef = doc(db, 'events', eventId);
+    const eventDoc = await getDoc(eventRef);
+
+    if (!eventDoc.exists()) {
+      return { success: false, error: 'Event not found' };
+    }
+
+    const event = eventDoc.data() as Event;
+
+    // Check if user is an attendee
+    if (!event.attendees.includes(userId)) {
+      return { success: false, error: 'User is not an attendee of this event' };
+    }
+
+    // Check if already checked in
+    if (event.checkedIn?.includes(userId)) {
+      return { success: false, error: 'User is already checked in' };
+    }
+
+    // Add user to checked in list (admin can do this per Firestore rules)
+    await updateDoc(eventRef, {
+      checkedIn: arrayUnion(userId),
+      updatedAt: serverTimestamp(),
+    });
+
+    // Return event info so caller knows about credits
+    return {
+      success: true,
+      creditsAwarded: event.rallyCreditsAwarded || 0,
+      clubId: event.clubId,
+      clubName: event.clubName,
+      eventTitle: event.title,
+    };
+  } catch (error: any) {
+    console.error('Error checking in attendee:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * User confirms their own pending credits after being checked in at an event
+ * Called by the USER's client (not admin) so it passes Firestore rules
+ */
+export const confirmMyCredits = async (
+  eventId: string,
+  currentUserId: string
+) => {
+  try {
+    // Get event to verify check-in and get credit amount
+    const eventRef = doc(db, 'events', eventId);
+    const eventDoc = await getDoc(eventRef);
+
+    if (!eventDoc.exists()) {
+      return { success: false, error: 'Event not found' };
+    }
+
+    const event = eventDoc.data() as Event;
+
+    // Verify user is checked in
+    if (!event.checkedIn?.includes(currentUserId)) {
+      return { success: false, error: 'You must be checked in to confirm credits' };
+    }
+
+    // Check if event awards credits
+    if (!event.rallyCreditsAwarded || event.rallyCreditsAwarded <= 0) {
+      return { success: true, message: 'No credits to confirm for this event' };
+    }
+
+    // Get user's credits document
+    const creditsRef = doc(db, 'rallyCredits', currentUserId);
+    const creditsDoc = await getDoc(creditsRef);
+
+    if (!creditsDoc.exists()) {
+      return { success: false, error: 'No credits document found' };
+    }
+
+    const currentCredits = creditsDoc.data() as UserRallyCredits;
+    const clubId = event.clubId;
+    const pendingAmount = Math.min(
+      event.rallyCreditsAwarded,
+      (currentCredits.pendingClubCredits || {})[clubId] || 0
+    );
+
+    if (pendingAmount <= 0) {
+      return { success: true, message: 'No pending credits to confirm' };
+    }
+
+    // Check if already confirmed for this event (prevent double confirmation)
+    const alreadyConfirmed = currentCredits.transactions?.some(
+      (t: any) => t.eventId === eventId && t.type === 'confirmed'
+    );
+    if (alreadyConfirmed) {
+      return { success: true, message: 'Credits already confirmed for this event' };
+    }
+
+    const transaction = {
+      id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      userId: currentUserId,
+      clubId,
+      clubName: event.clubName,
+      type: 'confirmed',
+      amount: pendingAmount,
+      eventId,
+      eventName: event.title,
+      description: `Confirmed ${pendingAmount} credits for checking in at ${event.title}`,
+      createdAt: new Date().toISOString(),
+    };
+
+    // User updates their own document (allowed by Firestore rules)
+    await updateDoc(creditsRef, {
+      totalCredits: (currentCredits.totalCredits || 0) + pendingAmount,
+      availableCredits: (currentCredits.availableCredits || 0) + pendingAmount,
+      pendingCredits: Math.max(0, (currentCredits.pendingCredits || 0) - pendingAmount),
+      [`clubCredits.${clubId}`]: ((currentCredits.clubCredits || {})[clubId] || 0) + pendingAmount,
+      [`pendingClubCredits.${clubId}`]: Math.max(0, ((currentCredits.pendingClubCredits || {})[clubId] || 0) - pendingAmount),
+      transactions: [transaction, ...(currentCredits.transactions || [])].slice(0, 100),
+      updatedAt: serverTimestamp(),
+    });
+
+    return { success: true, confirmedAmount: pendingAmount };
+  } catch (error: any) {
+    console.error('Error confirming credits:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Confirm all pending credits for events the user has been checked into
+ * Also forfeits credits for events that have ended without check-in
+ * This scans pending transactions to find events that need confirmation or forfeiture
+ */
+export const confirmAllPendingCredits = async (currentUserId: string) => {
+  try {
+    // Get user's credits document
+    const creditsRef = doc(db, 'rallyCredits', currentUserId);
+    const creditsDoc = await getDoc(creditsRef);
+
+    if (!creditsDoc.exists()) {
+      return { success: true, message: 'No credits document' };
+    }
+
+    const currentCredits = creditsDoc.data() as UserRallyCredits;
+
+    // Find pending transactions that haven't been confirmed or forfeited yet
+    const pendingTransactions = (currentCredits.transactions || []).filter(
+      (t: any) => t.type === 'pending'
+    );
+
+    if (pendingTransactions.length === 0) {
+      return { success: true, message: 'No pending credits to check' };
+    }
+
+    // Get unique event IDs from pending transactions
+    const pendingEventIds = [...new Set(pendingTransactions.map((t: any) => t.eventId))];
+
+    let totalConfirmed = 0;
+    let totalForfeited = 0;
+
+    // Check each event to see if user is checked in or if event has ended
+    for (const eventId of pendingEventIds) {
+      // Skip if already confirmed for this event
+      const alreadyConfirmed = currentCredits.transactions?.some(
+        (t: any) => t.eventId === eventId && t.type === 'confirmed'
+      );
+      if (alreadyConfirmed) continue;
+
+      // Skip if already forfeited for this event
+      const alreadyForfeited = currentCredits.transactions?.some(
+        (t: any) => t.eventId === eventId && t.type === 'forfeited'
+      );
+      if (alreadyForfeited) continue;
+
+      // Get event details
+      try {
+        const eventRef = doc(db, 'events', eventId);
+        const eventDoc = await getDoc(eventRef);
+
+        if (!eventDoc.exists()) {
+          // Event deleted - forfeit credits
+          const pendingTx = pendingTransactions.find((t: any) => t.eventId === eventId);
+          if (pendingTx) {
+            await forfeitRallyCredits(
+              currentUserId,
+              pendingTx.clubId,
+              pendingTx.clubName || '',
+              eventId,
+              pendingTx.eventName || 'Deleted Event',
+              pendingTx.amount
+            );
+            totalForfeited += pendingTx.amount;
+          }
+          continue;
+        }
+
+        const event = eventDoc.data() as Event;
+        const isCheckedIn = event.checkedIn?.includes(currentUserId);
+
+        // Get event end time
+        const endDate = event.endDate?.toDate?.() || event.startDate?.toDate?.();
+        const eventEnded = endDate && new Date() > endDate;
+
+        if (isCheckedIn) {
+          // User is checked in - confirm credits
+          const result = await confirmMyCredits(eventId, currentUserId);
+          if (result.success && result.confirmedAmount) {
+            totalConfirmed += result.confirmedAmount;
+          }
+        } else if (eventEnded) {
+          // Event has ended and user never checked in - forfeit credits
+          await forfeitRallyCredits(
+            currentUserId,
+            event.clubId,
+            event.clubName,
+            eventId,
+            event.title,
+            event.rallyCreditsAwarded || 0
+          );
+          totalForfeited += event.rallyCreditsAwarded || 0;
+        }
+        // If event hasn't ended and user isn't checked in, leave as pending
+      } catch (eventError) {
+        console.error(`Error processing event ${eventId}:`, eventError);
+        // Continue with other events
+      }
+    }
+
+    return { success: true, totalConfirmed, totalForfeited };
+  } catch (error: any) {
+    console.error('Error confirming all pending credits:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Get all attendees for an event with their check-in status and user details
+ */
+export const getEventAttendees = async (eventId: string) => {
+  try {
+    const eventRef = doc(db, 'events', eventId);
+    const eventDoc = await getDoc(eventRef);
+
+    if (!eventDoc.exists()) {
+      return { success: false, error: 'Event not found', attendees: [] };
+    }
+
+    const event = eventDoc.data() as Event;
+    const attendeeIds = event.attendees || [];
+    const checkedInIds = event.checkedIn || [];
+
+    // Fetch user details for all attendees
+    const attendeesWithDetails = await Promise.all(
+      attendeeIds.map(async (userId) => {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', userId));
+          const userData = userDoc.exists() ? userDoc.data() : null;
+          return {
+            userId,
+            displayName: userData?.displayName || userData?.email || 'Unknown',
+            email: userData?.email || '',
+            photoURL: userData?.photoURL || null,
+            profileEmoji: userData?.profile?.profileEmoji || null,
+            isCheckedIn: checkedInIds.includes(userId),
+          };
+        } catch (error) {
+          return {
+            userId,
+            displayName: 'Unknown',
+            email: '',
+            photoURL: null,
+            profileEmoji: null,
+            isCheckedIn: checkedInIds.includes(userId),
+          };
+        }
+      })
+    );
+
+    return {
+      success: true,
+      attendees: attendeesWithDetails,
+      totalAttendees: attendeeIds.length,
+      checkedInCount: checkedInIds.length,
+    };
+  } catch (error: any) {
+    console.error('Error getting event attendees:', error);
+    return { success: false, error: error.message, attendees: [] };
+  }
+};
+
+// --- 14. Pro Subscription Functions ---
 
 // Create Pro subscription checkout session
 export const createProSubscription = async (clubId: string, userId: string) => {
@@ -2882,24 +3637,4 @@ export const getClubAnalytics = async (clubId: string) => {
 // --- 14. Export Firebase instances ---
 export { auth, db, storage, app };
 
-// --- 15. Export all types for convenience ---
-export type {
-  User,
-  UserProfile,
-  Club,
-  Event,
-  ClubJoinRequest,
-  FeaturedEvent,
-  StoreItem,
-  StoreItemVariant,
-  StoreOrder,
-  TicketOrder,
-  ShippingAddress,
-  RallyCreditRedemption,
-  UserRallyCredits,
-  RallyCreditTransaction,
-  ProSubscription,
-  UserProSubscription,
-  Timestamp,
-  FirebaseUser
-};
+// --- 15. All types are already exported via 'export interface' declarations throughout this file ---

@@ -1,6 +1,6 @@
 // app/event/[id].tsx
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Image, Linking, ImageBackground, Dimensions, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Image, Linking, ImageBackground, Dimensions, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import {
   Text,
   Button,
@@ -17,7 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../_layout';
-import { getEventById, joinEvent, leaveEvent, getUserRallyCredits, getClub, getUserProfile } from '../../lib/firebase';
+import { getEventById, joinEvent, leaveEvent, getUserRallyCredits, getClub, getUserProfile, confirmMyCredits, awardRallyCredits } from '../../lib/firebase';
 import type { Event, UserRallyCredits, UserProfile } from '../../lib/firebase';
 import BackButton from '../../components/BackButton';
 import PaymentSheet from '../../components/PaymentSheet';
@@ -85,6 +85,32 @@ export default function EventDetailScreen() {
     }
   }, [user, event]);
 
+  // Auto-confirm pending credits when user views an event they're checked into
+  useEffect(() => {
+    const autoConfirmCredits = async () => {
+      if (!user || !event) return;
+
+      // Only attempt if user is checked in and event awards credits
+      const isCheckedIn = event.checkedIn?.includes(user.uid);
+      const hasCredits = event.rallyCreditsAwarded && event.rallyCreditsAwarded > 0;
+
+      if (isCheckedIn && hasCredits) {
+        try {
+          const result = await confirmMyCredits(event.id, user.uid);
+          if (result.success && result.confirmedAmount) {
+            // Refresh credits display after confirmation
+            loadUserCredits();
+          }
+        } catch (error) {
+          // Silent fail - user can manually refresh
+          console.error('Auto-confirm credits error:', error);
+        }
+      }
+    };
+
+    autoConfirmCredits();
+  }, [user, event?.id, event?.checkedIn]);
+
   const loadUserCredits = async () => {
     if (!user || !event) return;
 
@@ -121,7 +147,7 @@ export default function EventDetailScreen() {
   const handleJoinEvent = async () => {
     if (!user || !event) return;
 
-    // If event has a ticket price, show native payment sheet
+    // If event has a ticket price, show PaymentSheet directly
     if (event.ticketPrice && event.ticketPrice > 0) {
       setPaymentSheetVisible(true);
       return;
@@ -168,7 +194,42 @@ export default function EventDetailScreen() {
   const handlePaymentSuccess = async () => {
     // Refresh event data after successful payment
     await loadEventData();
+
+    // Award pending credits client-side as backup (Cloud Function also does this)
+    // This ensures credits are awarded even if the webhook is delayed
+    if (event?.rallyCreditsAwarded && event.rallyCreditsAwarded > 0 && user) {
+      try {
+        await awardRallyCredits(
+          user.uid,
+          event.clubId,
+          event.clubName,
+          event.id,
+          event.title,
+          event.rallyCreditsAwarded
+        );
+      } catch (error) {
+        // Silent fail - Cloud Function may have already awarded them
+        console.log('Client-side credit award (backup):', error);
+      }
+    }
+
+    await loadUserCredits();
+
+    // Show Rally Credits payout modal if the event awards credits
+    if (event?.rallyCreditsAwarded && event.rallyCreditsAwarded > 0) {
+      const clubResult = await getClub(event.clubId);
+      const isAlreadyMember = clubResult.success && clubResult.club?.members.includes(user?.uid || '');
+
+      setPayoutInfo({
+        amount: event.rallyCreditsAwarded,
+        clubId: event.clubId,
+        clubName: event.clubName,
+        isAlreadyMember: isAlreadyMember || false
+      });
+      setShowPayoutModal(true);
+    }
   };
+
 
   const handleLeaveEvent = async () => {
     if (!user || !event) return;
@@ -359,7 +420,7 @@ export default function EventDetailScreen() {
                   style={styles.heroActionButtonWrapper}
                 >
                   <LinearGradient
-                    colors={isAttending || isWaitlisted ? ['transparent', 'transparent'] : [theme.colors.primary, theme.colors.primary]}
+                    colors={isAttending || isWaitlisted ? ['transparent', 'transparent'] : event.ticketPrice && event.ticketPrice > 0 ? ['#FF0000', '#FF0000'] : [theme.colors.primary, theme.colors.primary]}
                     style={[
                       styles.heroActionButton,
                       (isAttending || isWaitlisted) && styles.heroActionButtonOutlined,
@@ -478,6 +539,7 @@ export default function EventDetailScreen() {
                 </View>
               </View>
             )}
+
           </View>
 
           {/* Attendee Info */}

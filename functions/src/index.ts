@@ -179,20 +179,20 @@ export const createPaymentIntent = functions.https.onCall(
       );
     }
 
-  const {eventId, ticketPrice, currency = "usd"} = data;
+  const {eventId, ticketPrice, originalPrice, discountAmount, currency = "usd", discountApplied} = data;
 
   // Validate input
-  if (!eventId || !ticketPrice) {
+  if (!eventId || ticketPrice == null) {
     throw new functions.https.HttpsError(
       "invalid-argument",
       "Missing required fields: eventId and ticketPrice"
     );
   }
 
-  if (ticketPrice <= 0) {
+  if (ticketPrice < 0) {
     throw new functions.https.HttpsError(
       "invalid-argument",
-      "Ticket price must be greater than 0"
+      "Ticket price cannot be negative"
     );
   }
 
@@ -234,22 +234,25 @@ export const createPaymentIntent = functions.https.onCall(
       );
     }
 
+    // Use originalPrice for fee calculations (or ticketPrice if no discount)
+    const priceForFees = originalPrice || ticketPrice;
+
     // Calculate fees
     const PLATFORM_FEE_PERCENTAGE = 0.10; // 10% of ticket price
     const STRIPE_FEE_PERCENTAGE = 0.029; // 2.9%
     const STRIPE_FEE_FIXED = 0.30; // $0.30
 
-    // Calculate Stripe processing fee on ticket price
-    const stripeFee = (ticketPrice * STRIPE_FEE_PERCENTAGE) + STRIPE_FEE_FIXED;
+    // CRITICAL: Stripe processing fee ALWAYS calculated on ORIGINAL price (before discount)
+    const stripeFee = (priceForFees * STRIPE_FEE_PERCENTAGE) + STRIPE_FEE_FIXED;
 
-    // Platform fee is 10% of ticket price only (not including Stripe fees)
-    const platformFee = ticketPrice * PLATFORM_FEE_PERCENTAGE;
+    // Platform fee is 10% of ORIGINAL ticket price only (not including Stripe fees)
+    const platformFee = priceForFees * PLATFORM_FEE_PERCENTAGE;
 
-    // Total amount to charge user (ticket + stripe fee)
+    // Total amount to charge user (discounted ticket price + stripe fee on original price)
     const totalAmount = ticketPrice + stripeFee;
 
-    // Amount club receives (90% of ticket price)
-    const clubAmount = ticketPrice - platformFee;
+    // Amount club receives (90% of ORIGINAL ticket price)
+    const clubAmount = priceForFees - platformFee;
 
     // Create payment intent with Stripe
     const stripe = getStripe();
@@ -263,9 +266,16 @@ export const createPaymentIntent = functions.https.onCall(
         eventTitle: event?.title || "Event Ticket",
         clubName: event?.clubName || "",
         ticketPrice: ticketPrice.toString(),
+        originalPrice: (originalPrice || ticketPrice).toString(),
+        discountAmount: (discountAmount || 0).toString(),
         platformFee: platformFee.toFixed(2),
         clubAmount: clubAmount.toFixed(2),
         stripeAccountId: club.stripeAccountId,
+        ...(discountApplied && {
+          discountRedemptionId: discountApplied.redemptionId,
+          discountRedemptionName: discountApplied.redemptionName,
+          creditsUsed: discountApplied.creditsUsed?.toString(),
+        }),
       },
       description: `Ticket for ${event?.title || "event"}`,
     });
@@ -321,6 +331,7 @@ export const createStorePaymentIntent = functions.https.onCall(
       selectedVariants,
       deliveryMethod,
       shippingAddress,
+      rewardDiscount,
     } = data;
 
     // Validate input
@@ -383,21 +394,35 @@ export const createStorePaymentIntent = functions.https.onCall(
       }
 
       // Calculate pricing
-      const subtotal = item.price * quantity;
+      const itemPrice = item.price * quantity;
       const shipping = deliveryMethod === "shipping" ? (item.shippingCost || 0) : 0;
+
+      // ORIGINAL price before any discount (for fee calculation)
+      const originalItemAndShipping = itemPrice + shipping;
+
+      // Apply reward discount if provided
+      const discountAmount = rewardDiscount?.discountAmount || 0;
+      const subtotal = Math.max(0, itemPrice - discountAmount);
       const itemAndShipping = subtotal + shipping;
 
-      // Calculate fees
-      const tax = itemAndShipping * (item.taxRate / 100);
+      // Calculate tax on item + shipping (after discount)
+      const taxRate = item.taxRate || 0;
+      const tax = Math.round(itemAndShipping * (taxRate / 100) * 100) / 100;
 
-      // Platform fee: 10% of item subtotal only (not shipping/tax)
+      // CRITICAL: Stripe processing fee ALWAYS calculated on ORIGINAL price (before discount)
+      const STRIPE_FEE_PERCENTAGE = 0.029;
+      const STRIPE_FEE_FIXED = 0.30;
+      const processingFee = Math.round(((originalItemAndShipping * STRIPE_FEE_PERCENTAGE) + STRIPE_FEE_FIXED) * 100) / 100;
+
+      // Platform fee: 10% of ORIGINAL item subtotal only (not shipping/tax)
       const PLATFORM_FEE_PERCENTAGE = 0.10;
-      const platformFee = subtotal * PLATFORM_FEE_PERCENTAGE;
+      const platformFee = itemPrice * PLATFORM_FEE_PERCENTAGE;
 
-      // Club receives: 90% of subtotal + shipping + tax (they remit tax)
-      const clubAmount = (subtotal - platformFee) + shipping + tax;
+      // Club receives: 90% of ORIGINAL subtotal + shipping + tax (they remit tax)
+      const clubAmount = (itemPrice - platformFee) + shipping + tax;
 
-      const totalAmount = itemAndShipping + tax;
+      // Total: discounted item + shipping + tax + processing fee (on original)
+      const totalAmount = Math.round((itemAndShipping + tax + processingFee) * 100) / 100;
 
       // Create payment intent with Stripe
       const stripe = getStripe();
@@ -422,6 +447,13 @@ export const createStorePaymentIntent = functions.https.onCall(
           shipping: shipping.toString(),
           totalAmount: totalAmount.toString(),
           stripeAccountId: stripeAccountId,
+          originalItemPrice: itemPrice.toString(),
+          discountAmount: discountAmount.toString(),
+          ...(rewardDiscount && {
+            rewardRedemptionId: rewardDiscount.redemptionId,
+            rewardRedemptionName: rewardDiscount.redemptionName,
+            creditsUsed: rewardDiscount.creditsRequired?.toString(),
+          }),
         },
         description: `${item.name || "Store item"} (x${quantity})`,
       });
@@ -433,7 +465,9 @@ export const createStorePaymentIntent = functions.https.onCall(
           subtotal,
           shipping,
           tax,
+          processingFee,
           platformFee,
+          rewardDiscount: discountAmount,
           clubReceives: clubAmount,
           totalAmount,
         },
