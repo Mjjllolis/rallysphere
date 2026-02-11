@@ -61,15 +61,15 @@ export default function UserProfileScreen() {
     });
   }, [id]);
 
-  // use loaded profile, fall back to params, only show 'User' once profile is done loading
+  // build display name from whatever name parts are available
   const displayName =
-    profile?.firstName && profile?.lastName
-      ? `${profile.firstName} ${profile.lastName}`
-      : paramFirst && paramLast
-      ? `${paramFirst} ${paramLast}`
+    profile?.firstName || profile?.lastName
+      ? `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim()  // loaded profile
+      : paramFirst || paramLast
+      ? `${paramFirst || ''} ${paramLast || ''}`.trim()                  // params from attendee row
       : profile !== null
-      ? 'User'   // profile loaded but no name stored
-      : '';      // still loading - show nothing rather than a wrong fallback
+      ? 'User'   // profile loaded but has no name
+      : '';      // still loading, show nothing
 
   const avatarUri = profile?.avatar || paramAvatar || null;
 

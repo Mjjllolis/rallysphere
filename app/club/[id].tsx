@@ -14,7 +14,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
-import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect, Stack } from 'expo-router';
 import { useAuth } from '../_layout';
 import { getClub, joinClub, leaveClub, getEvents, getClubStoreItems, getUserRallyCredits, getUserProfile, isUserSubscribedToClub } from '../../lib/firebase';
 import type { Club, Event, StoreItem, UserRallyCredits, UserProfile } from '../../lib/firebase';
@@ -279,6 +279,8 @@ export default function ClubDetailScreen() {
   if (loading || !club) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        {/* set slide animation here too so it applies even before data loads */}
+        <Stack.Screen options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true, gestureDirection: 'horizontal' }} />
         <View style={styles.loadingContainer}>
           <Text variant="bodyLarge">Loading...</Text>
         </View>
@@ -323,6 +325,8 @@ export default function ClubDetailScreen() {
 
   return (
     <View style={styles.container}>
+      {/* slide in from right, swipe to go back */}
+      <Stack.Screen options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true, gestureDirection: 'horizontal' }} />
       {/* Full-screen blurred background image */}
       {club.coverImage ? (
         <Image

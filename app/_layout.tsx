@@ -365,7 +365,7 @@ export default function RootLayout() {
 
   const content = (
     <PaperProvider theme={theme}>
-      <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true, gestureDirection: 'horizontal' }} />
+      <Stack screenOptions={{ headerShown: false, animation: 'none' }} />
     </PaperProvider>
   );
 
