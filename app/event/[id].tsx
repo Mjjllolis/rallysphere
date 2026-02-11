@@ -13,7 +13,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, Stack } from 'expo-router';
 import { useAuth } from '../_layout';
 import { getEventById, joinEvent, getUserRallyCredits, getClub, getUserProfile } from '../../lib/firebase';
 import { leaveEventWithRefund } from '../../lib/stripe';
@@ -275,6 +275,8 @@ export default function EventDetailScreen() {
   if (loading || !event) {
     return (
       <View style={styles.container}>
+        {/* set slide animation here too so it applies even before data loads */}
+        <Stack.Screen options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true, gestureDirection: 'horizontal' }} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#fff" />
           <Text variant="bodyLarge" style={{ color: '#fff', marginTop: 16 }}>Loading...</Text>
@@ -292,6 +294,8 @@ export default function EventDetailScreen() {
 
   return (
     <View style={styles.container}>
+      {/* slide in from right, swipe to go back */}
+      <Stack.Screen options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true, gestureDirection: 'horizontal' }} />
       {/* Full-screen blurred background image */}
       {event.coverImage && (
         <Image
