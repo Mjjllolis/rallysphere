@@ -8,22 +8,25 @@ interface GlassInputProps extends TextInputProps {
   label: string;
   icon?: string;
   error?: string;
+  compact?: boolean;
 }
 
-export default function GlassInput({ label, icon, error, style, ...props }: GlassInputProps) {
+export default function GlassInput({ label, icon, error, style, compact, ...props }: GlassInputProps) {
+  const isMultiline = props.multiline;
+
   return (
-    <View style={[styles.container, style]}>
+    <View style={[styles.container, isMultiline && styles.containerMultiline, style]}>
       <Text style={styles.label}>{label}</Text>
       <View style={styles.inputWrapper}>
         <BlurView intensity={40} tint="light" style={styles.blur}>
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, isMultiline && styles.inputContainerMultiline]}>
             {icon && (
-              <View style={styles.iconContainer}>
-                <IconButton icon={icon} size={20} iconColor="white" />
+              <View style={[styles.iconContainer, compact && styles.iconContainerCompact]}>
+                <IconButton icon={icon} size={20} iconColor="white" style={compact ? { margin: 0, padding: 0 } : undefined} />
               </View>
             )}
             <TextInput
-              style={[styles.input, icon && styles.inputWithIcon]}
+              style={[styles.input, icon && styles.inputWithIcon, isMultiline && styles.inputMultiline]}
               placeholderTextColor="rgba(255, 255, 255, 0.5)"
               {...props}
             />
@@ -38,6 +41,9 @@ export default function GlassInput({ label, icon, error, style, ...props }: Glas
 const styles = StyleSheet.create({
   container: {
     marginBottom: 16,
+  },
+  containerMultiline: {
+    marginBottom: 8,
   },
   label: {
     fontSize: 14,
@@ -60,10 +66,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  inputContainerMultiline: {
+    alignItems: 'flex-start',
+  },
   iconContainer: {
     width: 44,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  iconContainerCompact: {
+    width: 32,
+    marginLeft: 4,
   },
   input: {
     flex: 1,
@@ -72,6 +85,12 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
     minHeight: 52,
+  },
+  inputMultiline: {
+    height: 100,
+    minHeight: 100,
+    paddingTop: 14,
+    textAlignVertical: 'top',
   },
   inputWithIcon: {
     paddingLeft: 0,

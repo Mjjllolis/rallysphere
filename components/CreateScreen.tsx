@@ -64,10 +64,8 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
       animationType="slide"
       presentationStyle="pageSheet"
       onRequestClose={onClose}
-      transparent={false}
     >
-      <View style={styles.modalWrapper}>
-        <View style={styles.container}>
+      <View style={styles.container}>
           {/* Background Image or Black Background */}
           {backgroundImage ? (
             <>
@@ -200,23 +198,15 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
             )}
           </ScrollView>
         </SafeAreaView>
-        </View>
       </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  modalWrapper: {
-    flex: 1,
-    backgroundColor: '#000000',
-  },
   container: {
     flex: 1,
     backgroundColor: '#000000',
-    borderTopLeftRadius: 25,
-    borderTopRightRadius: 25,
-    overflow: 'hidden',
   },
   backgroundImage: {
     width: '100%',

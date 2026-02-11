@@ -239,7 +239,9 @@ export default function ProfilePage() {
             {/* User Info */}
             <View style={styles.userInfo}>
               <Text style={styles.userName}>
-                {user.displayName || `${profile?.firstName} ${profile?.lastName}` || 'User'}
+                {profile?.firstName && profile?.lastName
+                  ? `${profile.firstName} ${profile.lastName}`
+                  : user.displayName || 'User'}
               </Text>
               {profile?.bio && (
                 <Text style={styles.userBio}>{profile.bio}</Text>
@@ -267,7 +269,7 @@ export default function ProfilePage() {
                   >
                     <IconButton
                       icon="instagram"
-                      size={18}
+                      size={16}
                       iconColor="white"
                       style={styles.instagramIcon}
                     />
@@ -622,11 +624,12 @@ const styles = StyleSheet.create({
   instagramLink: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    marginLeft: -8,
   },
   instagramIcon: {
     margin: 0,
     padding: 0,
+    marginRight: -4,
   },
   section: {
     paddingHorizontal: 20,

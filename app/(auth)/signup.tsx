@@ -143,6 +143,10 @@ export default function SignupScreen() {
                                     mode="outlined"
                                     style={[styles.input, styles.halfInput]}
                                     left={<TextInput.Icon icon="account" />}
+                                    textColor="#1a1a1a"
+                                    outlineColor="rgba(0,0,0,0.3)"
+                                    activeOutlineColor="#2C5282"
+                                    theme={{ colors: { onSurfaceVariant: 'rgba(0,0,0,0.6)' } }}
                                 />
                                 <TextInput
                                     label="Last Name"
@@ -150,6 +154,10 @@ export default function SignupScreen() {
                                     onChangeText={setLastName}
                                     mode="outlined"
                                     style={[styles.input, styles.halfInput]}
+                                    textColor="#1a1a1a"
+                                    outlineColor="rgba(0,0,0,0.3)"
+                                    activeOutlineColor="#2C5282"
+                                    theme={{ colors: { onSurfaceVariant: 'rgba(0,0,0,0.6)' } }}
                                 />
                             </View>
 
@@ -162,6 +170,10 @@ export default function SignupScreen() {
                                 autoCapitalize="none"
                                 style={styles.input}
                                 left={<TextInput.Icon icon="email" />}
+                                textColor="#1a1a1a"
+                                outlineColor="rgba(0,0,0,0.3)"
+                                activeOutlineColor="#2C5282"
+                                theme={{ colors: { onSurfaceVariant: 'rgba(0,0,0,0.6)' } }}
                             />
 
                             <TextInput
@@ -173,6 +185,10 @@ export default function SignupScreen() {
                                 style={styles.input}
                                 left={<TextInput.Icon icon="lock" />}
                                 right={<TextInput.Affix text="6+ chars" />}
+                                textColor="#1a1a1a"
+                                outlineColor="rgba(0,0,0,0.3)"
+                                activeOutlineColor="#2C5282"
+                                theme={{ colors: { onSurfaceVariant: 'rgba(0,0,0,0.6)' } }}
                             />
 
                             <Button

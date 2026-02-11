@@ -141,6 +141,10 @@ export default function LoginScreen() {
                                 autoCapitalize="none"
                                 style={styles.input}
                                 left={<TextInput.Icon icon="email" />}
+                                textColor="#1a1a1a"
+                                outlineColor="rgba(0,0,0,0.3)"
+                                activeOutlineColor="#2C5282"
+                                theme={{ colors: { onSurfaceVariant: 'rgba(0,0,0,0.6)' } }}
                             />
 
                             <TextInput
@@ -151,6 +155,10 @@ export default function LoginScreen() {
                                 secureTextEntry
                                 style={styles.input}
                                 left={<TextInput.Icon icon="lock" />}
+                                textColor="#1a1a1a"
+                                outlineColor="rgba(0,0,0,0.3)"
+                                activeOutlineColor="#2C5282"
+                                theme={{ colors: { onSurfaceVariant: 'rgba(0,0,0,0.6)' } }}
                             />
 
                             <Button

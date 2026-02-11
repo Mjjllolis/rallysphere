@@ -33,18 +33,34 @@ export default function GlassImageCard({
   placeholder = 'Tap to add image',
 }: GlassImageCardProps) {
   const [themeIndex, setThemeIndex] = useState(0);
+  const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null);
 
-  // Calculate dynamic height based on aspect ratio
-  // Assuming width is roughly 90% of screen (accounting for padding)
+  // Dynamic height based on actual image aspect ratio
   const CARD_WIDTH = 350; // Approximate card width after padding
-  const cardHeight = (CARD_WIDTH * aspectRatio[1]) / aspectRatio[0];
+  const cardHeight = imageAspectRatio
+    ? (CARD_WIDTH / imageAspectRatio) + 4 // Add 4px to account for border/rounding
+    : CARD_WIDTH * 1.4; // Default 5:7 ratio when no image
 
   useEffect(() => {
-    if (imageUri && onColorsExtracted) {
-      // Cycle through gradient themes when image changes
-      const newIndex = (themeIndex + 1) % GRADIENT_THEMES.length;
-      setThemeIndex(newIndex);
-      onColorsExtracted(GRADIENT_THEMES[newIndex], imageUri);
+    if (imageUri) {
+      // Get image dimensions to calculate aspect ratio
+      Image.getSize(
+        imageUri,
+        (width, height) => {
+          setImageAspectRatio(width / height);
+        },
+        (error) => {
+          console.error('Error getting image size:', error);
+          setImageAspectRatio(null);
+        }
+      );
+
+      if (onColorsExtracted) {
+        // Cycle through gradient themes when image changes
+        const newIndex = (themeIndex + 1) % GRADIENT_THEMES.length;
+        setThemeIndex(newIndex);
+        onColorsExtracted(GRADIENT_THEMES[newIndex], imageUri);
+      }
     }
   }, [imageUri]);
 
@@ -58,8 +74,7 @@ export default function GlassImageCard({
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: 'images',
-        allowsEditing: true,
-        aspect: aspectRatio,
+        allowsEditing: false,
         quality: 0.8,
       });
 
@@ -94,7 +109,7 @@ export default function GlassImageCard({
                   </View>
                   <Text style={styles.placeholderText}>{placeholder}</Text>
                   <Text style={styles.placeholderHint}>
-                    {aspectRatio[0]}:{aspectRatio[1]} recommended
+                    Image will adapt to size
                   </Text>
                 </View>
               )}
@@ -121,9 +136,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   imageContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    overflow: 'hidden',
+    borderRadius: 20,
   },
   image: {
     width: '100%',
@@ -147,6 +162,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   placeholder: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,

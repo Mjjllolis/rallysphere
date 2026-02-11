@@ -11,6 +11,7 @@ import GlassDropdown from '../GlassDropdown';
 import GlassImageCard from '../GlassImageCard';
 import GlassButton from '../GlassButton';
 import GlassDateTimePicker from '../GlassDateTimePicker';
+import GlassTagInput from '../GlassTagInput';
 import type { Club } from '../../lib/firebase';
 
 interface EventFormProps {
@@ -35,6 +36,7 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
     rallyCreditsPayout: '',
   });
 
+  const [tags, setTags] = useState<string[]>([]);
   const [isPublic, setIsPublic] = useState(true);
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date(Date.now() + 2 * 60 * 60 * 1000));
@@ -138,6 +140,7 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
       const eventData = {
         title: formData.title.trim(),
         description: formData.description.trim(),
+        tags,
         clubId: selectedClub.id,
         clubName: selectedClub.name,
         createdBy: user.uid,
@@ -156,17 +159,8 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
 
       const result = await createEvent(eventData);
       if (result.success) {
-        Alert.alert(
-          'Success!',
-          'Your event has been created successfully!',
-          [{
-            text: 'OK',
-            onPress: () => {
-              onSuccess();
-              router.push(`/(tabs)/event-detail?id=${result.eventId}`);
-            }
-          }]
-        );
+        onSuccess();
+        router.push(`/event/${result.eventId}`);
       } else {
         Alert.alert('Error', result.error || 'Failed to create event');
       }
@@ -215,7 +209,14 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
         placeholder="What's this event about?"
         multiline
         numberOfLines={4}
-        style={{ height: 100 }}
+      />
+
+      {/* Tags Section */}
+      <GlassTagInput
+        label="Tags"
+        tags={tags}
+        onTagsChange={setTags}
+        placeholder="Type and press return to add tags..."
       />
 
       <GlassInput

@@ -74,18 +74,18 @@ export default function FavoritesScreen() {
   if (favorites.length === 0) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
-        <View style={styles.header}>
+        <View style={[styles.header, { backgroundColor: theme.colors.background, borderBottomWidth: 0 }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#333" />
+            <Ionicons name="arrow-back" size={24} color={theme.colors.onBackground} />
           </TouchableOpacity>
-          <Text variant="titleLarge" style={{ fontWeight: '600' }}>Favorites</Text>
+          <Text variant="titleLarge" style={{ fontWeight: '600', color: theme.colors.onBackground }}>Favorites</Text>
           <View style={{ width: 40 }} />
         </View>
 
         <View style={styles.emptyContainer}>
-          <Ionicons name="heart-outline" size={80} color="#ccc" />
-          <Text style={styles.emptyTitle}>No favorites yet</Text>
-          <Text style={styles.emptySubtitle}>
+          <Ionicons name="heart-outline" size={80} color={theme.colors.onSurfaceVariant} />
+          <Text style={[styles.emptyTitle, { color: theme.colors.onBackground }]}>No favorites yet</Text>
+          <Text style={[styles.emptySubtitle, { color: theme.colors.onSurfaceVariant }]}>
             Tap the heart icon on items you love
           </Text>
         </View>
@@ -96,12 +96,12 @@ export default function FavoritesScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.colors.background }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={24} color={theme.colors.onBackground} />
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text variant="titleLarge" style={{ fontWeight: '600' }}>Favorites</Text>
+          <Text variant="titleLarge" style={{ fontWeight: '600', color: theme.colors.onBackground }}>Favorites</Text>
           <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
             {favorites.length} {favorites.length === 1 ? 'item' : 'items'}
           </Text>
@@ -130,9 +130,6 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 16,
     paddingVertical: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -142,6 +139,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 40,
+    marginTop: -60,
   },
   emptyTitle: {
     fontSize: 20,
@@ -151,7 +149,6 @@ const styles = StyleSheet.create({
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#999',
     textAlign: 'center',
   },
   gridContainer: {

@@ -191,7 +191,6 @@ export default function ClubForm({ onColorsExtracted, onSuccess }: ClubFormProps
         placeholder="What is your club about?"
         multiline
         numberOfLines={4}
-        style={{ height: 100 }}
       />
 
       {/* Category */}

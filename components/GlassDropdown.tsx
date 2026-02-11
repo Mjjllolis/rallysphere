@@ -45,88 +45,77 @@ export default function GlassDropdown({
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
-      <View>
-        <TouchableOpacity
-          onPress={() => setDropdownVisible(!dropdownVisible)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.selectWrapper}>
-            <BlurView intensity={40} tint="light" style={styles.blur}>
-              <View style={styles.selectContainer}>
-                {icon && (
-                  <View style={styles.iconContainer}>
-                    <IconButton icon={icon} size={20} iconColor="white" />
-                  </View>
-                )}
-                <Text style={[styles.selectText, !value && styles.placeholderText]}>
-                  {value || placeholder}
-                </Text>
-                <IconButton
-                  icon={dropdownVisible ? 'chevron-up' : 'chevron-down'}
-                  size={20}
-                  iconColor="white"
-                />
-              </View>
-            </BlurView>
-          </View>
-        </TouchableOpacity>
+      <TouchableOpacity
+        onPress={() => setDropdownVisible(!dropdownVisible)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.selectWrapper}>
+          <BlurView intensity={40} tint="light" style={styles.blur}>
+            <View style={styles.selectContainer}>
+              {icon && (
+                <View style={styles.iconContainer}>
+                  <IconButton icon={icon} size={20} iconColor="white" />
+                </View>
+              )}
+              <Text style={[styles.selectText, !value && styles.placeholderText]}>
+                {value || placeholder}
+              </Text>
+              <IconButton
+                icon={dropdownVisible ? 'chevron-up' : 'chevron-down'}
+                size={20}
+                iconColor="white"
+              />
+            </View>
+          </BlurView>
+        </View>
+      </TouchableOpacity>
 
-        {/* Absolute Positioned Dropdown Menu */}
-        {dropdownVisible && (
-          <Animated.View
-            style={[
-              styles.dropdownAbsolute,
-              {
-                transform: [{ scale: scaleAnim }],
-                opacity: scaleAnim,
-              },
-            ]}
-          >
-            <BlurView intensity={90} tint="dark" style={styles.dropdownAbsoluteBlur}>
-              <ScrollView
-                style={styles.dropdownAbsoluteScroll}
-                contentContainerStyle={styles.dropdownAbsoluteContent}
-                showsVerticalScrollIndicator={false}
-              >
-                {options.map((option, index) => (
-                  <TouchableOpacity
-                    key={option}
-                    style={[
-                      styles.dropdownAbsoluteItem,
-                      value === option && styles.dropdownAbsoluteItemSelected,
-                      index === options.length - 1 && styles.dropdownAbsoluteItemLast,
-                    ]}
-                    onPress={() => handleSelect(option)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.dropdownAbsoluteItemText,
-                        value === option && styles.dropdownAbsoluteItemTextSelected,
-                      ]}
-                    >
-                      {option}
-                    </Text>
-                    {value === option && (
-                      <View style={styles.checkmarkContainer}>
-                        <IconButton icon="check" size={18} iconColor="white" style={styles.checkIcon} />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </BlurView>
-          </Animated.View>
-        )}
-      </View>
-
-      {/* Tap Outside to Close Dropdown */}
+      {/* Inline Dropdown Menu - Pushes content down */}
       {dropdownVisible && (
-        <TouchableOpacity
-          style={styles.backdrop}
-          activeOpacity={1}
-          onPress={() => setDropdownVisible(false)}
-        />
+        <Animated.View
+          style={[
+            styles.dropdownInline,
+            {
+              transform: [{ scale: scaleAnim }],
+              opacity: scaleAnim,
+            },
+          ]}
+        >
+          <BlurView intensity={90} tint="dark" style={styles.dropdownBlur}>
+            <ScrollView
+              style={styles.dropdownScroll}
+              contentContainerStyle={styles.dropdownContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {options.map((option, index) => (
+                <TouchableOpacity
+                  key={option}
+                  style={[
+                    styles.dropdownItem,
+                    value === option && styles.dropdownItemSelected,
+                    index === options.length - 1 && styles.dropdownItemLast,
+                  ]}
+                  onPress={() => handleSelect(option)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.dropdownItemText,
+                      value === option && styles.dropdownItemTextSelected,
+                    ]}
+                  >
+                    {option}
+                  </Text>
+                  {value === option && (
+                    <View style={styles.checkmarkContainer}>
+                      <IconButton icon="check" size={18} iconColor="white" style={styles.checkIcon} />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </BlurView>
+        </Animated.View>
       )}
     </View>
   );
@@ -135,7 +124,6 @@ export default function GlassDropdown({
 const styles = StyleSheet.create({
   container: {
     marginBottom: 16,
-    zIndex: 1,
   },
   label: {
     fontSize: 14,
@@ -175,42 +163,24 @@ const styles = StyleSheet.create({
   placeholderText: {
     color: 'rgba(255, 255, 255, 0.5)',
   },
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    left: -1000,
-    right: -1000,
-    bottom: -1000,
-    zIndex: 998,
-  },
-  dropdownAbsolute: {
-    position: 'absolute',
-    top: '100%',
-    left: 0,
-    right: 0,
+  dropdownInline: {
     marginTop: 8,
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-    zIndex: 999,
   },
-  dropdownAbsoluteBlur: {
+  dropdownBlur: {
     borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
     overflow: 'hidden',
   },
-  dropdownAbsoluteScroll: {
+  dropdownScroll: {
     maxHeight: 240,
   },
-  dropdownAbsoluteContent: {
+  dropdownContent: {
     paddingVertical: 4,
   },
-  dropdownAbsoluteItem: {
+  dropdownItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -219,19 +189,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
-  dropdownAbsoluteItemLast: {
+  dropdownItemLast: {
     borderBottomWidth: 0,
   },
-  dropdownAbsoluteItemSelected: {
+  dropdownItemSelected: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
-  dropdownAbsoluteItemText: {
+  dropdownItemText: {
     fontSize: 16,
     fontWeight: '500',
     color: 'rgba(255, 255, 255, 0.9)',
     flex: 1,
   },
-  dropdownAbsoluteItemTextSelected: {
+  dropdownItemTextSelected: {
     color: 'white',
     fontWeight: '600',
   },
