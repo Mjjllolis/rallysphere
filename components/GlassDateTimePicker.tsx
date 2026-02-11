@@ -1,11 +1,12 @@
 // components/GlassDateTimePicker.tsx
 import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Animated, Dimensions } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Animated, Dimensions, ScrollView, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Text, IconButton } from 'react-native-paper';
 import { BlurView } from 'expo-blur';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const CAROUSEL_HEIGHT = 220;
+const CAROUSEL_HEIGHT = 340;
+const ITEM_HEIGHT = 44;
 
 interface GlassDateTimePickerProps {
   label: string;
@@ -25,6 +26,13 @@ export default function GlassDateTimePicker({
   const heightAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
+  // ScrollView refs for each carousel column
+  const monthScrollRef = useRef<ScrollView>(null);
+  const dayScrollRef = useRef<ScrollView>(null);
+  const yearScrollRef = useRef<ScrollView>(null);
+  const hourScrollRef = useRef<ScrollView>(null);
+  const minuteScrollRef = useRef<ScrollView>(null);
+
   // Date state
   const [selectedMonth, setSelectedMonth] = useState(date.getMonth());
   const [selectedDay, setSelectedDay] = useState(date.getDate());
@@ -34,6 +42,24 @@ export default function GlassDateTimePicker({
   const [selectedHour, setSelectedHour] = useState(date.getHours());
   const [selectedMinute, setSelectedMinute] = useState(date.getMinutes());
   const [isPM, setIsPM] = useState(date.getHours() >= 12);
+
+  // Scroll to selected items when picker opens
+  useEffect(() => {
+    if (isExpanded) {
+      setTimeout(() => {
+        if (activeTab === 'date') {
+          monthScrollRef.current?.scrollTo({ y: selectedMonth * ITEM_HEIGHT, animated: false });
+          dayScrollRef.current?.scrollTo({ y: (selectedDay - 1) * ITEM_HEIGHT, animated: false });
+          const yearIndex = years.indexOf(selectedYear);
+          yearScrollRef.current?.scrollTo({ y: yearIndex * ITEM_HEIGHT, animated: false });
+        } else {
+          const displayHour = selectedHour === 0 ? 12 : selectedHour > 12 ? selectedHour - 12 : selectedHour;
+          hourScrollRef.current?.scrollTo({ y: (displayHour - 1) * ITEM_HEIGHT, animated: false });
+          minuteScrollRef.current?.scrollTo({ y: selectedMinute * ITEM_HEIGHT, animated: false });
+        }
+      }, 100);
+    }
+  }, [isExpanded, activeTab]);
 
   useEffect(() => {
     if (isExpanded) {
@@ -99,12 +125,48 @@ export default function GlassDateTimePicker({
   const hours = Array.from({ length: 12 }, (_, i) => i + 1);
   const minutes = Array.from({ length: 60 }, (_, i) => i);
 
-  const renderCarousel = (items: any[], selectedValue: any, onSelect: (value: any) => void, format?: (value: any) => string) => {
+  const renderCarousel = (
+    items: any[],
+    selectedValue: any,
+    onSelect: (value: any) => void,
+    scrollViewRef: React.RefObject<ScrollView>,
+    format?: (value: any) => string
+  ) => {
     const selectedIndex = items.indexOf(selectedValue);
+
+    const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const offsetY = event.nativeEvent.contentOffset.y;
+      const index = Math.round(offsetY / ITEM_HEIGHT);
+      if (index >= 0 && index < items.length && items[index] !== selectedValue) {
+        onSelect(items[index]);
+      }
+    };
+
+    const handleScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const offsetY = event.nativeEvent.contentOffset.y;
+      const index = Math.round(offsetY / ITEM_HEIGHT);
+      if (scrollViewRef.current && index >= 0 && index < items.length) {
+        scrollViewRef.current.scrollTo({
+          y: index * ITEM_HEIGHT,
+          animated: true,
+        });
+      }
+    };
 
     return (
       <View style={styles.carouselColumn}>
-        <View style={styles.carouselWrapper}>
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.carouselWrapper}
+          contentContainerStyle={styles.carouselContent}
+          showsVerticalScrollIndicator={false}
+          nestedScrollEnabled={true}
+          snapToInterval={ITEM_HEIGHT}
+          decelerationRate="fast"
+          onScroll={handleScroll}
+          onMomentumScrollEnd={handleScrollEnd}
+          scrollEventThrottle={16}
+        >
           {items.map((item, index) => {
             const distance = Math.abs(index - selectedIndex);
             const opacity = distance === 0 ? 1 : distance === 1 ? 0.6 : 0.3;
@@ -117,7 +179,16 @@ export default function GlassDateTimePicker({
                   styles.carouselItem,
                   distance === 0 && styles.carouselItemSelected,
                 ]}
-                onPress={() => onSelect(item)}
+                onPress={() => {
+                  const itemIndex = items.indexOf(item);
+                  onSelect(item);
+                  if (scrollViewRef.current) {
+                    scrollViewRef.current.scrollTo({
+                      y: itemIndex * ITEM_HEIGHT,
+                      animated: true,
+                    });
+                  }
+                }}
                 activeOpacity={0.7}
               >
                 <Text
@@ -135,7 +206,7 @@ export default function GlassDateTimePicker({
               </TouchableOpacity>
             );
           })}
-        </View>
+        </ScrollView>
         {/* Selection indicator */}
         <View style={styles.selectionIndicator} pointerEvents="none" />
       </View>
@@ -200,14 +271,14 @@ export default function GlassDateTimePicker({
           <View style={styles.carouselContainer}>
             {activeTab === 'date' ? (
               <>
-                {renderCarousel(months, months[selectedMonth], (value) => setSelectedMonth(months.indexOf(value)))}
-                {renderCarousel(days, selectedDay, setSelectedDay)}
-                {renderCarousel(years, selectedYear, setSelectedYear)}
+                {renderCarousel(months, months[selectedMonth], (value) => setSelectedMonth(months.indexOf(value)), monthScrollRef)}
+                {renderCarousel(days, selectedDay, setSelectedDay, dayScrollRef)}
+                {renderCarousel(years, selectedYear, setSelectedYear, yearScrollRef)}
               </>
             ) : (
               <>
-                {renderCarousel(hours, selectedHour === 0 ? 12 : selectedHour > 12 ? selectedHour - 12 : selectedHour, (value) => setSelectedHour(value))}
-                {renderCarousel(minutes, selectedMinute, setSelectedMinute, (val) => val.toString().padStart(2, '0'))}
+                {renderCarousel(hours, selectedHour === 0 ? 12 : selectedHour > 12 ? selectedHour - 12 : selectedHour, (value) => setSelectedHour(value), hourScrollRef)}
+                {renderCarousel(minutes, selectedMinute, setSelectedMinute, minuteScrollRef, (val) => val.toString().padStart(2, '0'))}
                 <View style={styles.carouselColumn}>
                   <TouchableOpacity
                     style={[styles.amPmButton, !isPM && styles.amPmButtonActive]}
@@ -308,7 +379,7 @@ const styles = StyleSheet.create({
   carouselContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    height: 120,
+    height: 180,
     marginBottom: 16,
   },
   carouselColumn: {
@@ -317,14 +388,16 @@ const styles = StyleSheet.create({
   },
   carouselWrapper: {
     flex: 1,
+  },
+  carouselContent: {
     alignItems: 'center',
+    paddingVertical: 60,
   },
   carouselItem: {
-    paddingVertical: 8,
+    height: 44,
     paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 36,
   },
   carouselItemSelected: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
@@ -339,11 +412,11 @@ const styles = StyleSheet.create({
     top: '50%',
     left: 0,
     right: 0,
-    height: 40,
-    marginTop: -20,
+    height: ITEM_HEIGHT,
+    marginTop: -(ITEM_HEIGHT / 2),
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   amPmButton: {
     marginVertical: 4,

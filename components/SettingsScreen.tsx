@@ -24,6 +24,17 @@ interface SettingsScreenProps {
 export default function SettingsScreen({ visible, onClose }: SettingsScreenProps) {
   const { isDark, toggleTheme } = useThemeToggle();
   const theme = useTheme();
+  const [deleteAccountModalVisible, setDeleteAccountModalVisible] = React.useState(false);
+  const [darkModeModalVisible, setDarkModeModalVisible] = React.useState(false);
+
+  const handleDarkModeToggle = async () => {
+    // If not in dark mode, switch to dark mode
+    if (!isDark) {
+      await toggleTheme();
+    }
+    // Show the coming soon modal
+    setDarkModeModalVisible(true);
+  };
 
   const handleSignOut = async () => {
     Alert.alert(
@@ -169,9 +180,9 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
                   </View>
                   <Switch
                     value={isDark}
-                    onValueChange={toggleTheme}
+                    onValueChange={handleDarkModeToggle}
                     trackColor={{ false: 'rgba(255, 255, 255, 0.2)', true: 'rgba(99, 102, 241, 0.5)' }}
-                    thumbColor={isDark ? '#6366f1' : '#f4f3f4'}
+                    thumbColor='#6366f1'
                   />
                 </View>
               </BlurView>
@@ -318,10 +329,71 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
                   </View>
                 </BlurView>
               </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => setDeleteAccountModalVisible(true)}>
+                <BlurView intensity={40} tint="dark" style={[styles.settingItem, styles.deleteAccountItem]}>
+                  <View style={styles.settingContent}>
+                    <Text style={styles.deleteAccountText}>Delete Account</Text>
+                    <IconButton icon="delete-forever" size={24} iconColor="#dc2626" />
+                  </View>
+                </BlurView>
+              </TouchableOpacity>
             </View>
           </ScrollView>
         </SafeAreaView>
       </View>
+
+      {/* Delete Account Modal */}
+      <Modal
+        visible={deleteAccountModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDeleteAccountModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={80} tint="dark" style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <IconButton icon="alert-circle-outline" size={48} iconColor="#dc2626" />
+              <Text style={styles.modalTitle}>Delete Account</Text>
+              <Text style={styles.modalMessage}>
+                Account deletion and request functionality coming soon.
+              </Text>
+              <TouchableOpacity
+                style={styles.modalButton}
+                onPress={() => setDeleteAccountModalVisible(false)}
+              >
+                <Text style={styles.modalButtonText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </BlurView>
+        </View>
+      </Modal>
+
+      {/* Dark Mode Modal */}
+      <Modal
+        visible={darkModeModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDarkModeModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={80} tint="dark" style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <IconButton icon="theme-light-dark" size={48} iconColor="#6366f1" />
+              <Text style={styles.modalTitle}>Coming Soon</Text>
+              <Text style={styles.modalMessage}>
+                Light mode will be available in a future update.
+              </Text>
+              <TouchableOpacity
+                style={styles.modalButton}
+                onPress={() => setDarkModeModalVisible(false)}
+              >
+                <Text style={styles.modalButtonText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </BlurView>
+        </View>
+      </Modal>
     </Modal>
   );
 }
@@ -422,5 +494,61 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#ef4444',
     flex: 1,
+  },
+  deleteAccountItem: {
+    borderColor: 'rgba(220, 38, 38, 0.4)',
+  },
+  deleteAccountText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#dc2626',
+    flex: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContainer: {
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    overflow: 'hidden',
+    maxWidth: 400,
+    width: '100%',
+  },
+  modalContent: {
+    padding: 32,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: 'white',
+    marginTop: 16,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  modalButton: {
+    backgroundColor: '#6366f1',
+    paddingVertical: 14,
+    paddingHorizontal: 48,
+    borderRadius: 12,
+    minWidth: 120,
+  },
+  modalButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
+    textAlign: 'center',
   },
 });

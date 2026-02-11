@@ -13,6 +13,7 @@ import {
 } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useAuth } from '../_layout';
 import { getClub, joinClub, leaveClub, getEvents, getClubStoreItems, getUserRallyCredits, getUserProfile, isUserSubscribedToClub } from '../../lib/firebase';
@@ -322,27 +323,47 @@ export default function ClubDetailScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Full-screen blurred background image */}
+      {club.coverImage ? (
+        <Image
+          source={{ uri: club.coverImage }}
+          style={styles.backgroundImage}
+          blurRadius={50}
+        />
+      ) : (
+        <View style={styles.backgroundImage} />
+      )}
+      {/* Gradient overlay for better readability */}
+      <LinearGradient
+        colors={['rgba(15,15,35,0.3)', 'rgba(15,15,35,0.85)', 'rgba(10,10,25,0.95)']}
+        style={styles.backgroundOverlay}
+      />
+
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Hero Header with Dark Gradient */}
-        <ImageBackground
-          source={club.coverImage ? { uri: club.coverImage } : undefined}
-          style={styles.heroImage}
-          imageStyle={{ opacity: 0.8 }}
-        >
+        <View style={styles.heroSection}>
+          <Image
+            source={club.coverImage ? { uri: club.coverImage } : require('../../assets/Background.png')}
+            style={styles.coverImage}
+            resizeMode="cover"
+          />
+
+          {/* Gradient overlay for text readability */}
           <LinearGradient
-            colors={['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.9)']}
-            style={styles.heroGradient}
+            colors={['transparent', 'transparent', 'rgba(15,15,35,0.6)', 'rgba(15,15,35,0.95)']}
+            locations={[0, 0.5, 0.8, 1]}
+            style={styles.heroUnifiedGradient}
           >
             {/* Top Controls */}
             <View style={styles.topControls}>
-              <Surface style={styles.controlButton} elevation={2}>
+              <BlurView intensity={40} tint="dark" style={styles.controlButtonBlur}>
                 <IconButton
                   icon="arrow-left"
                   iconColor="#fff"
                   size={24}
                   onPress={() => router.back()}
                 />
-              </Surface>
+              </BlurView>
 
               <View style={styles.rightControls}>
                 {/* RallyCredits Display */}
@@ -351,7 +372,7 @@ export default function ClubDetailScreen() {
                     onPress={() => router.push(`/club/${club.id}/redeem-credits`)}
                     activeOpacity={0.7}
                   >
-                    <Surface style={styles.creditsChip} elevation={2}>
+                    <BlurView intensity={40} tint="dark" style={styles.creditsChip}>
                       <View style={styles.creditsContent}>
                         <IconButton
                           icon="star-circle"
@@ -363,47 +384,47 @@ export default function ClubDetailScreen() {
                           {userCredits.clubCredits?.[clubId] || 0}
                         </Text>
                       </View>
-                    </Surface>
+                    </BlurView>
                   </TouchableOpacity>
                 )}
 
                 {/* Admin/Owner: Direct link to dashboard */}
                 {(isAdmin || isOwner) && (
-                  <Surface style={styles.controlButton} elevation={2}>
+                  <BlurView intensity={40} tint="dark" style={styles.controlButtonBlur}>
                     <IconButton
                       icon="menu"
                       iconColor="#fff"
                       size={24}
                       onPress={() => router.push(`/club/${club.id}/manage`)}
                     />
-                  </Surface>
+                  </BlurView>
                 )}
 
                 {/* Regular member: Menu with Leave option */}
                 {isJoined && !isAdmin && !isOwner && (
-                  <Surface style={styles.controlButton} elevation={2}>
-                    <Menu
-                      visible={menuVisible}
-                      onDismiss={() => setMenuVisible(false)}
-                      anchor={
+                  <Menu
+                    visible={menuVisible}
+                    onDismiss={() => setMenuVisible(false)}
+                    anchor={
+                      <BlurView intensity={40} tint="dark" style={styles.controlButtonBlur}>
                         <IconButton
                           icon="menu"
                           iconColor="#fff"
                           size={24}
                           onPress={() => setMenuVisible(true)}
                         />
-                      }
-                    >
-                      <Menu.Item
-                        onPress={() => {
-                          setMenuVisible(false);
-                          handleLeaveClub();
-                        }}
-                        title="Leave Club"
-                        leadingIcon="exit-to-app"
-                      />
-                    </Menu>
-                  </Surface>
+                      </BlurView>
+                    }
+                  >
+                    <Menu.Item
+                      onPress={() => {
+                        setMenuVisible(false);
+                        handleLeaveClub();
+                      }}
+                      title="Leave Club"
+                      leadingIcon="exit-to-app"
+                    />
+                  </Menu>
                 )}
               </View>
             </View>
@@ -502,10 +523,11 @@ export default function ClubDetailScreen() {
               )}
             </View>
           </LinearGradient>
-        </ImageBackground>
+
+        </View>
 
         {/* Content Section */}
-        <View style={[styles.content, { backgroundColor: theme.colors.background }]}>
+        <View style={styles.content}>
           {/* Tab Navigation */}
           <View style={styles.tabContainer}>
             <TouchableOpacity
@@ -587,91 +609,98 @@ export default function ClubDetailScreen() {
                   {club.description}
                 </Text>
               </View>
+              <View style={styles.divider} />
 
               {/* Details */}
               {(club.location || club.university || club.contactEmail) && (
-                <View style={styles.section}>
-                  <Text variant="titleLarge" style={styles.sectionTitle}>
-                    Details
-                  </Text>
-                  {club.location && (
-                    <View style={styles.detailRow}>
-                      <IconButton icon="map-marker" size={20} />
-                      <Text variant="bodyLarge" style={styles.detailText}>{club.location}</Text>
-                    </View>
-                  )}
-                  {club.university && (
-                    <View style={styles.detailRow}>
-                      <IconButton icon="school" size={20} />
-                      <Text variant="bodyLarge" style={styles.detailText}>{club.university}</Text>
-                    </View>
-                  )}
-                  {club.contactEmail && (
-                    <View style={styles.detailRow}>
-                      <IconButton icon="email" size={20} />
-                      <Text variant="bodyLarge" style={styles.detailText}>{club.contactEmail}</Text>
-                    </View>
-                  )}
-                </View>
+                <>
+                  <View style={styles.section}>
+                    <Text variant="titleLarge" style={styles.sectionTitle}>
+                      Details
+                    </Text>
+                    {club.location && (
+                      <View style={styles.detailRow}>
+                        <IconButton icon="map-marker" size={20} iconColor="#fff" />
+                        <Text variant="bodyLarge" style={styles.detailText}>{club.location}</Text>
+                      </View>
+                    )}
+                    {club.university && (
+                      <View style={styles.detailRow}>
+                        <IconButton icon="school" size={20} iconColor="#fff" />
+                        <Text variant="bodyLarge" style={styles.detailText}>{club.university}</Text>
+                      </View>
+                    )}
+                    {club.contactEmail && (
+                      <View style={styles.detailRow}>
+                        <IconButton icon="email" size={20} iconColor="#fff" />
+                        <Text variant="bodyLarge" style={styles.detailText}>{club.contactEmail}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.divider} />
+                </>
               )}
 
               {/* Social Links */}
               {club.socialLinks && (
-                <View style={styles.section}>
-                  <Text variant="titleLarge" style={styles.sectionTitle}>
-                    Connect
-                  </Text>
-                  <View style={styles.socialLinks}>
-                    {club.socialLinks.website && (
-                      <IconButton
-                        icon="web"
-                        mode="contained"
-                        size={28}
-                        onPress={() => openSocialLink(club.socialLinks!.website!)}
-                      />
-                    )}
-                    {club.socialLinks.instagram && (
-                      <IconButton
-                        icon="instagram"
-                        mode="contained"
-                        size={28}
-                        onPress={() => openSocialLink(`https://instagram.com/${club.socialLinks!.instagram!.replace('@', '')}`)}
-                      />
-                    )}
-                    {club.socialLinks.twitter && (
-                      <IconButton
-                        icon="twitter"
-                        mode="contained"
-                        size={28}
-                        onPress={() => openSocialLink(`https://twitter.com/${club.socialLinks!.twitter!.replace('@', '')}`)}
-                      />
-                    )}
-                    {club.socialLinks.facebook && (
-                      <IconButton
-                        icon="facebook"
-                        mode="contained"
-                        size={28}
-                        onPress={() => openSocialLink(club.socialLinks!.facebook!.startsWith('http') ? club.socialLinks!.facebook! : `https://facebook.com/${club.socialLinks!.facebook!}`)}
-                      />
-                    )}
-                    {club.socialLinks.tiktok && (
-                      <IconButton
-                        icon="music-note"
-                        mode="contained"
-                        size={28}
-                        onPress={() => openSocialLink(`https://tiktok.com/@${club.socialLinks!.tiktok!.replace('@', '')}`)}
-                      />
-                    )}
-                    {club.socialLinks.discord && (
-                      <IconButton
-                        icon="discord"
-                        mode="contained"
-                        size={28}
-                        onPress={() => openSocialLink(club.socialLinks!.discord!)}
-                      />
-                    )}
+                <>
+                  <View style={styles.section}>
+                    <Text variant="titleLarge" style={styles.sectionTitle}>
+                      Connect
+                    </Text>
+                    <View style={styles.socialLinks}>
+                      {club.socialLinks.website && (
+                        <IconButton
+                          icon="web"
+                          mode="contained"
+                          size={28}
+                          onPress={() => openSocialLink(club.socialLinks!.website!)}
+                        />
+                      )}
+                      {club.socialLinks.instagram && (
+                        <IconButton
+                          icon="instagram"
+                          mode="contained"
+                          size={28}
+                          onPress={() => openSocialLink(`https://instagram.com/${club.socialLinks!.instagram!.replace('@', '')}`)}
+                        />
+                      )}
+                      {club.socialLinks.twitter && (
+                        <IconButton
+                          icon="twitter"
+                          mode="contained"
+                          size={28}
+                          onPress={() => openSocialLink(`https://twitter.com/${club.socialLinks!.twitter!.replace('@', '')}`)}
+                        />
+                      )}
+                      {club.socialLinks.facebook && (
+                        <IconButton
+                          icon="facebook"
+                          mode="contained"
+                          size={28}
+                          onPress={() => openSocialLink(club.socialLinks!.facebook!.startsWith('http') ? club.socialLinks!.facebook! : `https://facebook.com/${club.socialLinks!.facebook!}`)}
+                        />
+                      )}
+                      {club.socialLinks.tiktok && (
+                        <IconButton
+                          icon="music-note"
+                          mode="contained"
+                          size={28}
+                          onPress={() => openSocialLink(`https://tiktok.com/@${club.socialLinks!.tiktok!.replace('@', '')}`)}
+                        />
+                      )}
+                      {club.socialLinks.discord && (
+                        <IconButton
+                          icon="discord"
+                          mode="contained"
+                          size={28}
+                          onPress={() => openSocialLink(club.socialLinks!.discord!)}
+                        />
+                      )}
+                    </View>
                   </View>
-                </View>
+                  <View style={styles.divider} />
+                </>
               )}
 
               {/* Tags */}
@@ -751,9 +780,8 @@ export default function ClubDetailScreen() {
 
           {/* Events Section */}
           {activeTab === 'events' && (
-            <>
-              <View style={styles.section}>
-                {sortedEvents.length > 0 ? (
+            <View style={styles.section}>
+              {sortedEvents.length > 0 ? (
                   <View style={styles.eventsGrid}>
                     {sortedEvents.map((event) => {
                       const eventDate = event.startDate.toDate ? event.startDate.toDate() : new Date(event.startDate);
@@ -793,38 +821,36 @@ export default function ClubDetailScreen() {
                       );
                     })}
                   </View>
-                ) : (
-                  <View style={styles.emptyEvents}>
-                    <Text variant="bodyLarge" style={styles.emptyText}>
-                      No events
+              ) : (
+                <View style={styles.emptyEvents}>
+                  <Text variant="bodyLarge" style={styles.emptyText}>
+                    No events
+                  </Text>
+                  {isAdmin && (
+                    <Text variant="bodyMedium" style={styles.emptyHint}>
+                      Create your first event to get started!
                     </Text>
-                    {isAdmin && (
-                      <Text variant="bodyMedium" style={styles.emptyHint}>
-                        Create your first event to get started!
-                      </Text>
-                    )}
-                  </View>
-                )}
-              </View>
-            </>
+                  )}
+                </View>
+              )}
+            </View>
           )}
 
           {/* Store Section */}
           {activeTab === 'store' && (
-            <>
-              <View style={styles.section}>
-                {isAdmin && (
-                  <Button
-                    mode="contained"
-                    icon="store"
-                    onPress={() => router.push(`/club/${club.id}/manage-store`)}
-                    style={{ marginBottom: 16 }}
-                  >
-                    Manage Store
-                  </Button>
-                )}
+            <View style={styles.section}>
+              {isAdmin && (
+                <Button
+                  mode="contained"
+                  icon="store"
+                  onPress={() => router.push(`/club/${club.id}/manage-store`)}
+                  style={{ marginBottom: 16 }}
+                >
+                  Manage Store
+                </Button>
+              )}
 
-                {storeItems.length > 0 ? (
+              {storeItems.length > 0 ? (
                   <View style={styles.eventsGrid}>
                     {storeItems.map((item: StoreItem) => {
                       const inStock = item.inventory > item.sold;
@@ -860,20 +886,19 @@ export default function ClubDetailScreen() {
                       );
                     })}
                   </View>
-                ) : (
-                  <View style={styles.emptyEvents}>
-                    <Text variant="bodyLarge" style={styles.emptyText}>
-                      No store items
+              ) : (
+                <View style={styles.emptyEvents}>
+                  <Text variant="bodyLarge" style={styles.emptyText}>
+                    No store items
+                  </Text>
+                  {isAdmin && (
+                    <Text variant="bodyMedium" style={styles.emptyHint}>
+                      Add products to your club store!
                     </Text>
-                    {isAdmin && (
-                      <Text variant="bodyMedium" style={styles.emptyHint}>
-                        Add products to your club store!
-                      </Text>
-                    )}
-                  </View>
-                )}
-              </View>
-            </>
+                  )}
+                </View>
+              )}
+            </View>
           )}
         </View>
       </ScrollView>
@@ -893,55 +918,84 @@ export default function ClubDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#000000',
+  },
+  backgroundImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
+  backgroundOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    flexGrow: 1,
+    paddingBottom: 120,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  heroImage: {
-    width: '100%',
-    height: 400,
-    backgroundColor: '#1a1a1a',
+  heroSection: {
+    height: 450,
+    position: 'relative',
   },
-  heroGradient: {
-    flex: 1,
-    justifyContent: 'space-between',
-    paddingTop: 60,
-    paddingBottom: 32,
+  coverImage: {
+    width: '100%',
+    height: 450,
+  },
+  heroUnifiedGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 450,
+    zIndex: 1,
   },
   topControls: {
+    position: 'absolute',
+    top: 60,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    zIndex: 10,
   },
   rightControls: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
-  controlButton: {
+  controlButtonBlur: {
     borderRadius: 25,
     width: 50,
     height: 50,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    overflow: 'hidden',
+    backgroundColor: 'rgba(0,0,0,0.3)',
   },
   creditsChip: {
     borderRadius: 25,
     paddingHorizontal: 12,
     paddingVertical: 4,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.3)',
     flexDirection: 'row',
     alignItems: 'center',
+    overflow: 'hidden',
   },
   creditsContent: {
     flexDirection: 'row',
@@ -954,7 +1008,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   heroContent: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 24,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
     alignItems: 'center',
   },
   heroLogo: {
@@ -1072,11 +1133,19 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     minHeight: '100%',
     marginTop: 0,
-    paddingTop: 24,
+    paddingTop: 16,
+    backgroundColor: 'transparent',
   },
   section: {
     paddingHorizontal: 20,
-    marginBottom: 32,
+    paddingTop: 16,
+    marginBottom: 8,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginHorizontal: 20,
+    marginVertical: 16,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -1086,31 +1155,34 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 12,
   },
   description: {
     lineHeight: 26,
     opacity: 0.9,
+    color: 'rgba(255, 255, 255, 0.9)',
   },
   statsContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
     gap: 12,
-    marginBottom: 32,
+    paddingHorizontal: 20,
+    marginBottom: 24,
   },
   statCard: {
     flex: 1,
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: 'rgba(100,100,100,0.1)',
+    paddingVertical: 16,
     alignItems: 'center',
   },
   statNumber: {
     fontWeight: 'bold',
     marginBottom: 4,
+    color: '#fff',
   },
   statLabel: {
     opacity: 0.7,
     fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.7)',
   },
   detailRow: {
     flexDirection: 'row',
@@ -1120,6 +1192,7 @@ const styles = StyleSheet.create({
   detailText: {
     flex: 1,
     marginLeft: -8,
+    color: 'rgba(255, 255, 255, 0.9)',
   },
   socialLinks: {
     flexDirection: 'row',
@@ -1140,10 +1213,12 @@ const styles = StyleSheet.create({
   emptyText: {
     opacity: 0.6,
     marginBottom: 8,
+    color: 'rgba(255, 255, 255, 0.6)',
   },
   emptyHint: {
     opacity: 0.4,
     textAlign: 'center',
+    color: 'rgba(255, 255, 255, 0.4)',
   },
   viewAllButton: {
     marginTop: 16,
@@ -1153,12 +1228,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 8,
+    paddingTop: 0,
     paddingBottom: 16,
-    marginBottom: 15,
+    marginBottom: 0,
     gap: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(128,128,128,0.2)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   tab: {
     paddingVertical: 8,
@@ -1166,11 +1241,11 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   activeTab: {
-    backgroundColor: '#60A5FA',
+    backgroundColor: 'rgba(96, 165, 250, 0.4)',
   },
   tabText: {
     fontWeight: '600',
-    opacity: 0.6,
+    color: 'rgba(255, 255, 255, 0.6)',
   },
   activeTabText: {
     color: '#fff',
@@ -1253,7 +1328,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(128,128,128,0.2)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
     gap: 12,
   },
   memberInfo: {
@@ -1266,6 +1341,7 @@ const styles = StyleSheet.create({
   memberId: {
     flex: 1,
     fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
   },
   memberBadges: {
     flexDirection: 'row',

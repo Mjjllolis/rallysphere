@@ -21,6 +21,7 @@ import {
   setDoc,
   getDoc,
   updateDoc,
+  deleteDoc,
   collection,
   addDoc,
   query,
@@ -2767,10 +2768,7 @@ export const updateRallyRedemption = async (
 export const deleteRallyRedemption = async (redemptionId: string) => {
   try {
     const redemptionRef = doc(db, 'rallyCreditRedemptions', redemptionId);
-    await updateDoc(redemptionRef, {
-      isActive: false,
-      updatedAt: serverTimestamp(),
-    });
+    await deleteDoc(redemptionRef);
     return { success: true };
   } catch (error: any) {
     console.error('Error deleting rally redemption:', error);

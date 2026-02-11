@@ -1,7 +1,7 @@
 // app/_layout.tsx
 import React, { useEffect, useState, createContext, useContext } from 'react';
 import { Platform, Linking, Alert } from 'react-native';
-import { Slot, useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { Provider as PaperProvider, MD3LightTheme, MD3DarkTheme } from 'react-native-paper';
 import { onAuthStateChange, type User } from '../lib/firebase';
 import * as SecureStore from 'expo-secure-store';
@@ -201,7 +201,7 @@ const setStoredTheme = async (theme: string): Promise<void> => {
 export default function RootLayout() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(true);
   const [themeLoading, setThemeLoading] = useState(true);
   const [stripeInitialized, setStripeInitialized] = useState(false);
   const router = useRouter();
@@ -229,6 +229,10 @@ export default function RootLayout() {
         const stored = await getStoredTheme();
         if (stored) {
           setIsDark(stored === "dark");
+        } else {
+          // Default to dark mode if no preference is stored
+          setIsDark(true);
+          await setStoredTheme("dark");
         }
       } catch (error) {
         console.log('Error loading theme:', error);
@@ -361,7 +365,7 @@ export default function RootLayout() {
 
   const content = (
     <PaperProvider theme={theme}>
-      <Slot />
+      <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true, gestureDirection: 'horizontal' }} />
     </PaperProvider>
   );
 

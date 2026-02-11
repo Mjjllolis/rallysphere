@@ -11,13 +11,15 @@ import {
   Platform
 } from 'react-native';
 import { Text, Chip, IconButton, useTheme } from 'react-native-paper';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import type { Event } from '../../../../lib/firebase';
 import { useAuth } from '../../../_layout';
 import { joinEvent, getEventById, bookmarkEvent, unbookmarkEvent, getUserBookmarks, likeEvent, unlikeEvent, getUserLikes } from '../../../../lib/firebase';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const ALBUM_WIDTH = SCREEN_WIDTH * 0.85;
 
 interface EventSwipeCardProps {
   event: Event;
@@ -249,193 +251,170 @@ export default function EventSwipeCard({
   const isWaitlisted = user ? event.waitlist.includes(user.uid) : false;
   const isFull = event.maxAttendees && event.attendees.length >= event.maxAttendees;
 
+  // Check if event is in the past
+  const isPastEvent = event.startDate ?
+    (event.startDate.toDate ? event.startDate.toDate() : new Date(event.startDate)) < new Date() :
+    false;
+
   return (
     <Pressable
       style={styles.container}
       onPress={handleCardPress}
     >
-      {/* Background Image/Video */}
+      {/* Blurred Background Image */}
       {event.coverImage ? (
         <Image
           source={{ uri: event.coverImage }}
-          style={styles.media}
+          style={styles.blurredBackground}
           resizeMode="cover"
+          blurRadius={25}
         />
       ) : (
-        <View style={[styles.media, { backgroundColor: theme.colors.surfaceVariant }]}>
-          <Text variant="displaySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-            {event.title.charAt(0)}
-          </Text>
-        </View>
+        <View style={[styles.blurredBackground, { backgroundColor: theme.colors.surfaceVariant }]} />
       )}
 
-      {/* Gradient Overlay */}
+      {/* Gradient Overlay - Light at top, pushing darkness down to bottom */}
       <LinearGradient
-        colors={['rgba(0,0,0,0.3)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.8)']}
-        locations={[0, 0.15, 0.5, 1]}
-        style={styles.gradient}
+        colors={['transparent', 'rgba(0,0,0,0.1)', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.7)', 'rgba(0,0,0,0.95)', 'rgba(0,0,0,1)']}
+        locations={[0, 0.3, 0.5, 0.7, 0.85, 1]}
+        style={styles.gradientOverlay}
       />
 
-      {/* Top Section - Featured Badge */}
-      {isFeatured && (
-        <View style={styles.topSection}>
-          <Chip
-            icon="star"
-            style={styles.featuredBadge}
-            textStyle={styles.featuredText}
-          >
-            Featured
-          </Chip>
-        </View>
-      )}
-
-      {/* Bottom Section - Event Info */}
-      <View style={styles.bottomSection}>
-        <View style={styles.eventInfo}>
-          <Text variant="headlineMedium" style={styles.title} numberOfLines={2}>
-            {event.title}
-          </Text>
-
-          <Text variant="titleMedium" style={styles.clubName} numberOfLines={1}>
-            by {event.clubName}
-          </Text>
-
-          <View style={styles.detailsRow}>
-            <View style={styles.detailItem}>
-              <IconButton icon="calendar" size={18} iconColor="#fff" style={styles.icon} />
-              <Text variant="bodyMedium" style={styles.detailText}>
-                {formatDate(event.startDate)}
-              </Text>
-            </View>
-
-            <View style={styles.detailItem}>
-              <IconButton icon="clock" size={18} iconColor="#fff" style={styles.icon} />
-              <Text variant="bodyMedium" style={styles.detailText}>
-                {formatTime(event.startDate)}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.detailsRow}>
-            <View style={styles.detailItem}>
-              <IconButton
-                icon={event.isVirtual ? "video" : "map-marker"}
-                size={18}
-                iconColor="#fff"
-                style={styles.icon}
-              />
-              <Text variant="bodyMedium" style={styles.detailText} numberOfLines={1}>
-                {event.isVirtual ? 'Virtual Event' : event.location}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.detailsRow}>
-            <View style={styles.detailItem}>
-              <IconButton icon="account-group" size={18} iconColor="#fff" style={styles.icon} />
-              <Text variant="bodyMedium" style={styles.detailText}>
-                {event.attendees.length}{event.maxAttendees ? `/${event.maxAttendees}` : ''} attending
-              </Text>
-            </View>
-          </View>
-
-          {/* Status Chips */}
-          <View style={styles.statusRow}>
-            {isAttending && (
-              <Chip
-                icon="check-circle"
-                style={styles.statusChip}
-                textStyle={styles.statusText}
-              >
-                Attending
-              </Chip>
-            )}
-            {isWaitlisted && (
-              <Chip
-                icon="clock"
-                style={styles.waitlistChip}
-                textStyle={styles.statusText}
-              >
-                Waitlisted
-              </Chip>
-            )}
-          </View>
-        </View>
-
-        {/* Quick Action Button */}
-        {user && !isAttending && !isWaitlisted && (
-          <TouchableOpacity
-            style={[
-              styles.quickJoinButton,
-              { backgroundColor: isFull ? theme.colors.surfaceVariant : theme.colors.primary }
-            ]}
-            onPress={handleQuickJoin}
-            disabled={isJoining || isFull}
-          >
-            <Text
-              variant="labelLarge"
-              style={{
-                color: isFull ? theme.colors.onSurfaceVariant : '#fff',
-                fontWeight: 'bold'
-              }}
-            >
-              {isJoining
-                ? 'Joining...'
-                : isFull
-                  ? 'Full'
-                  : event.ticketPrice
-                    ? `Buy Ticket - $${event.ticketPrice}`
-                    : 'Quick Join'}
+      {/* Main Cover Image - Maintains aspect ratio and centered */}
+      <View style={styles.coverImageContainer}>
+        {event.coverImage ? (
+          <Image
+            source={{ uri: event.coverImage }}
+            style={styles.coverImage}
+            resizeMode="contain"
+          />
+        ) : (
+          <View style={[styles.coverImage, styles.coverPlaceholder, { backgroundColor: theme.colors.surfaceVariant }]}>
+            <Text variant="displayLarge" style={{ color: theme.colors.onSurfaceVariant }}>
+              {event.title.charAt(0)}
             </Text>
-          </TouchableOpacity>
+          </View>
         )}
       </View>
 
-      {/* Right Side Actions */}
-      <View style={styles.rightActions}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={handleLike}
-          disabled={likeLoading}
+      {/* Featured Badge */}
+      {isFeatured && (
+        <Chip
+          icon="star"
+          style={styles.featuredBadge}
+          textStyle={styles.featuredText}
         >
-          <IconButton
-            icon={isLiked ? "heart" : "heart-outline"}
-            iconColor={isLiked ? "#FF4458" : "#fff"}
-            size={28}
-          />
-          <Text style={styles.actionText}>
-            {event.likes && event.likes.length > 0 ? event.likes.length : 'Like'}
+          Featured
+        </Chip>
+      )}
+
+      {/* Event Info at Bottom */}
+      <View style={styles.bottomContent}>
+        <View style={styles.eventInfo}>
+          <Text variant="titleMedium" style={styles.title} numberOfLines={1}>
+            {event.title}
           </Text>
-        </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={handleBookmark}
-          disabled={bookmarkLoading}
-        >
-          <IconButton
-            icon={isBookmarked ? "bookmark" : "bookmark-outline"}
-            iconColor={isBookmarked ? "#FFD700" : "#fff"}
-            size={28}
-          />
-          <Text style={styles.actionText}>Save</Text>
-        </TouchableOpacity>
+          <Text variant="bodyMedium" style={styles.clubName} numberOfLines={1}>
+            {event.clubName}
+          </Text>
 
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={handleShare}
-        >
-          <IconButton icon="share-variant" iconColor="#fff" size={28} />
-          <Text style={styles.actionText}>Share</Text>
-        </TouchableOpacity>
+          <View style={styles.compactDetailsRow}>
+            <View style={styles.detailItem}>
+              <IconButton icon="calendar" size={14} iconColor="rgba(255,255,255,0.8)" style={styles.icon} />
+              <Text style={styles.detailText}>
+                {formatDate(event.startDate)}
+              </Text>
+            </View>
+            <View style={styles.detailItem}>
+              <IconButton icon="clock" size={14} iconColor="rgba(255,255,255,0.8)" style={styles.icon} />
+              <Text style={styles.detailText}>
+                {formatTime(event.startDate)}
+              </Text>
+            </View>
+            <View style={styles.detailItem}>
+              <IconButton icon="account-group" size={14} iconColor="rgba(255,255,255,0.8)" style={styles.icon} />
+              <Text style={styles.detailText}>
+                {event.attendees.length}{event.maxAttendees ? `/${event.maxAttendees}` : ''}
+              </Text>
+            </View>
+          </View>
 
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={handleCardPress}
-        >
-          <IconButton icon="information" iconColor="#fff" size={28} />
-          <Text style={styles.actionText}>Info</Text>
-        </TouchableOpacity>
+          {/* Action Buttons Row */}
+          <View style={styles.actionRow}>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={handleLike}
+              disabled={likeLoading}
+            >
+              <IconButton
+                icon={isLiked ? "heart" : "heart-outline"}
+                iconColor={isLiked ? "#FF4458" : "#fff"}
+                size={20}
+                style={styles.actionIcon}
+              />
+              <Text style={styles.actionText}>
+                {event.likes && event.likes.length > 0 ? event.likes.length : 'Like'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={handleBookmark}
+              disabled={bookmarkLoading}
+            >
+              <IconButton
+                icon={isBookmarked ? "bookmark" : "bookmark-outline"}
+                iconColor={isBookmarked ? "#FFD700" : "#fff"}
+                size={20}
+                style={styles.actionIcon}
+              />
+              <Text style={styles.actionText}>Save</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={handleShare}
+            >
+              <IconButton icon="share-variant" iconColor="#fff" size={20} style={styles.actionIcon} />
+              <Text style={styles.actionText}>Share</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Bottom Join Button */}
+        {user && (
+          <TouchableOpacity
+            style={[
+              styles.bottomJoinButton,
+              isPastEvent && styles.bottomJoinButtonDisabled
+            ]}
+            onPress={handleQuickJoin}
+            disabled={isJoining || isFull || isPastEvent || isAttending || isWaitlisted}
+          >
+            <Text
+              variant="titleMedium"
+              style={[
+                styles.bottomJoinButtonText,
+                isPastEvent && styles.bottomJoinButtonTextDisabled
+              ]}
+            >
+              {isPastEvent
+                ? 'Past Event'
+                : isAttending
+                  ? 'Attending'
+                  : isWaitlisted
+                    ? 'Waitlisted'
+                    : isJoining
+                      ? 'Joining...'
+                      : isFull
+                        ? 'Event Full'
+                        : event.ticketPrice
+                          ? `Join - $${event.ticketPrice}`
+                          : 'Join Event'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     </Pressable>
   );
@@ -449,120 +428,126 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     overflow: 'hidden',
   },
-  media: {
+  blurredBackground: {
     width: '100%',
     height: '100%',
     position: 'absolute',
+  },
+  gradientOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '100%',
+  },
+  coverImageContainer: {
+    width: '88%',
+    height: '58%',
+    position: 'absolute',
+    alignSelf: 'center',
+    top: '8%',
+  },
+  coverImage: {
+    width: '100%',
+    height: '100%',
+  },
+  coverPlaceholder: {
     justifyContent: 'center',
     alignItems: 'center',
   },
-  gradient: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-  },
-  topSection: {
-    position: 'absolute',
-    top: 120,
-    left: 16,
-    right: 16,
-    zIndex: 2,
-  },
   featuredBadge: {
     backgroundColor: '#FFD700',
-    alignSelf: 'flex-start',
+    position: 'absolute',
+    top: 60,
+    alignSelf: 'center',
   },
   featuredText: {
     color: '#000',
     fontWeight: 'bold',
   },
-  bottomSection: {
+  bottomContent: {
     position: 'absolute',
     bottom: 0,
     left: 0,
-    right: 80,
-    padding: 20,
-    paddingBottom: 40,
+    right: 0,
+    paddingHorizontal: 24,
+    paddingBottom: 28,
+    paddingTop: 8,
   },
   eventInfo: {
-    gap: 8,
+    alignItems: 'flex-start',
+    gap: 2,
+    marginBottom: 8,
   },
   title: {
     color: '#fff',
     fontWeight: 'bold',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textAlign: 'left',
   },
   clubName: {
-    color: '#fff',
-    opacity: 0.9,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    color: 'rgba(255,255,255,0.75)',
+    textAlign: 'left',
+    marginBottom: 2,
   },
-  detailsRow: {
+  compactDetailsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    justifyContent: 'flex-start',
+    flexWrap: 'wrap',
+    marginTop: 2,
+    marginBottom: 4,
   },
   detailItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 16,
-    flex: 1,
+    marginRight: 6,
   },
   icon: {
     margin: 0,
     padding: 0,
+    width: 20,
+    height: 20,
   },
   detailText: {
-    color: '#fff',
-    marginLeft: -8,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    color: 'rgba(255,255,255,0.8)',
+    marginLeft: -2,
+    fontSize: 11,
   },
-  statusRow: {
+  actionRow: {
     flexDirection: 'row',
-    marginTop: 12,
-    gap: 8,
-  },
-  statusChip: {
-    backgroundColor: '#4CAF50',
-  },
-  waitlistChip: {
-    backgroundColor: '#FF9800',
-  },
-  statusText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  quickJoinButton: {
-    marginTop: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 25,
     alignItems: 'center',
-    alignSelf: 'flex-start',
-  },
-  rightActions: {
-    position: 'absolute',
-    right: 8,
-    bottom: 40,
-    gap: 16,
+    justifyContent: 'flex-start',
+    marginTop: 4,
+    marginBottom: 6,
+    gap: 8,
   },
   actionButton: {
     alignItems: 'center',
   },
+  actionIcon: {
+    margin: 0,
+    padding: 0,
+  },
   actionText: {
     color: '#fff',
-    fontSize: 12,
-    marginTop: -8,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    fontSize: 10,
+    marginTop: -4,
+  },
+  bottomJoinButton: {
+    backgroundColor: '#fff',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomJoinButtonDisabled: {
+    backgroundColor: '#555',
+  },
+  bottomJoinButtonText: {
+    color: '#000',
+    fontWeight: 'bold',
+  },
+  bottomJoinButtonTextDisabled: {
+    color: '#999',
   },
 });

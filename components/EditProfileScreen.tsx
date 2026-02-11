@@ -46,6 +46,7 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
     lastName: '',
     bio: '',
     instagram: '',
+    location: '',
     avatar: '',
     profileEmoji: '',
     backgroundImage: '',
@@ -67,6 +68,7 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
         lastName: userProfile.lastName || '',
         bio: userProfile.bio || '',
         instagram: userProfile.instagram || '',
+        location: userProfile.location || '',
         avatar: userProfile.avatar || user.photoURL || '',
         profileEmoji: userProfile.profileEmoji || '',
         backgroundImage: userProfile.backgroundImage || '',
@@ -169,6 +171,7 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
         lastName: formData.lastName.trim(),
         bio: formData.bio.trim(),
         instagram: formData.instagram.trim().replace('@', ''), // Remove @ if user added it
+        location: formData.location.trim(),
         avatar: formData.avatar,
         profileEmoji: formData.profileEmoji,
         backgroundImage: formData.backgroundImage,
@@ -371,15 +374,25 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
                     placeholder="Tell us about yourself"
                     multiline
                     numberOfLines={3}
-                    style={{ height: 80 }}
+                    textAlignVertical="top"
+                  />
+
+                  <GlassInput
+                    label="Location"
+                    value={formData.location}
+                    onChangeText={(value) => updateFormData('location', value)}
+                    placeholder="City, State"
+                    icon="map-marker"
                   />
 
                   <GlassInput
                     label="Instagram"
                     value={formData.instagram}
-                    onChangeText={(value) => updateFormData('instagram', value)}
+                    onChangeText={(value) => updateFormData('instagram', value.toLowerCase())}
                     placeholder="@username"
                     icon="instagram"
+                    autoCapitalize="none"
+                    compact
                   />
                 </View>
 
