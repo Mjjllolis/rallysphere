@@ -485,10 +485,10 @@ const styles = StyleSheet.create({
   },
   coverImageContainer: {
     width: '88%',
-    height: '50%',
     position: 'absolute',
     alignSelf: 'center',
-    top: '20%',
+    top: '22%',
+    bottom: '36%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.6,
