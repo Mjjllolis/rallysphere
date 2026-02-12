@@ -69,7 +69,9 @@
       "Bash(export GOOGLE_APPLICATION_CREDENTIALS=\"\")",
       "Bash(GOOGLE_CLOUD_PROJECT=rally-sphere node:*)",
       "Bash(eas secret:create:*)",
-      "Bash(eas env:create:*)"
+      "Bash(eas env:create:*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)"
     ],
     "deny": [],
     "ask": []
