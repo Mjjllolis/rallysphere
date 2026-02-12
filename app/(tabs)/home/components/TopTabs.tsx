@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '500',
     color: 'rgba(255, 255, 255, 0.6)',
   },

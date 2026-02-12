@@ -14,12 +14,35 @@ import { Text, Chip, IconButton, useTheme } from 'react-native-paper';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import Svg, { Defs, Pattern as SvgPattern, Rect as SvgRect } from 'react-native-svg';
 import type { Event } from '../../../../lib/firebase';
 import { useAuth } from '../../../_layout';
 import { joinEvent, getEventById, bookmarkEvent, unbookmarkEvent, getUserBookmarks, likeEvent, unlikeEvent, getUserLikes } from '../../../../lib/firebase';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const ALBUM_WIDTH = SCREEN_WIDTH * 0.85;
+
+// Pre-compute TV static noise tile
+const STATIC_TILE = 40;
+const STATIC_DOTS = (() => {
+  const dots: Array<{ x: number; y: number; opacity: number; color: string }> = [];
+  const hash = (n: number) => ((Math.sin(n) * 43758.5453) % 1 + 1) % 1;
+
+  for (let y = 0; y < STATIC_TILE; y++) {
+    for (let x = 0; x < STATIC_TILE; x++) {
+      const i = y * STATIC_TILE + x;
+      if (hash(i * 17.31 + 5.7) > 0.45) {
+        dots.push({
+          x,
+          y,
+          opacity: 0.02 + hash(i * 3.91 + 11.3) * 0.04,
+          color: hash(i * 7.13) > 0.45 ? '#fff' : '#000',
+        });
+      }
+    }
+  }
+  return dots;
+})();
 
 interface EventSwipeCardProps {
   event: Event;
@@ -280,6 +303,18 @@ export default function EventSwipeCard({
         style={styles.gradientOverlay}
       />
 
+      {/* TV static noise overlay */}
+      <Svg style={styles.grainOverlay} pointerEvents="none">
+        <Defs>
+          <SvgPattern id="static" x="0" y="0" width={STATIC_TILE} height={STATIC_TILE} patternUnits="userSpaceOnUse">
+            {STATIC_DOTS.map((dot, i) => (
+              <SvgRect key={i} x={dot.x} y={dot.y} width="1" height="1" fill={dot.color} opacity={dot.opacity} />
+            ))}
+          </SvgPattern>
+        </Defs>
+        <SvgRect x="0" y="0" width="100%" height="100%" fill="url(#static)" />
+      </Svg>
+
       {/* Main Cover Image - Maintains aspect ratio and centered */}
       <View style={styles.coverImageContainer}>
         {event.coverImage ? (
@@ -311,29 +346,29 @@ export default function EventSwipeCard({
       {/* Event Info at Bottom */}
       <View style={styles.bottomContent}>
         <View style={styles.eventInfo}>
-          <Text variant="titleMedium" style={styles.title} numberOfLines={1}>
+          <Text variant="titleLarge" style={styles.title} numberOfLines={1}>
             {event.title}
           </Text>
 
-          <Text variant="bodyMedium" style={styles.clubName} numberOfLines={1}>
+          <Text variant="bodyLarge" style={styles.clubName} numberOfLines={1}>
             {event.clubName}
           </Text>
 
           <View style={styles.compactDetailsRow}>
             <View style={styles.detailItem}>
-              <IconButton icon="calendar" size={14} iconColor="rgba(255,255,255,0.8)" style={styles.icon} />
+              <IconButton icon="calendar" size={16} iconColor="rgba(255,255,255,0.8)" style={styles.icon} />
               <Text style={styles.detailText}>
                 {formatDate(event.startDate)}
               </Text>
             </View>
             <View style={styles.detailItem}>
-              <IconButton icon="clock" size={14} iconColor="rgba(255,255,255,0.8)" style={styles.icon} />
+              <IconButton icon="clock" size={16} iconColor="rgba(255,255,255,0.8)" style={styles.icon} />
               <Text style={styles.detailText}>
                 {formatTime(event.startDate)}
               </Text>
             </View>
             <View style={styles.detailItem}>
-              <IconButton icon="account-group" size={14} iconColor="rgba(255,255,255,0.8)" style={styles.icon} />
+              <IconButton icon="account-group" size={16} iconColor="rgba(255,255,255,0.8)" style={styles.icon} />
               <Text style={styles.detailText}>
                 {event.attendees.length}{event.maxAttendees ? `/${event.maxAttendees}` : ''}
               </Text>
@@ -350,7 +385,7 @@ export default function EventSwipeCard({
               <IconButton
                 icon={isLiked ? "heart" : "heart-outline"}
                 iconColor={isLiked ? "#FF4458" : "#fff"}
-                size={20}
+                size={24}
                 style={styles.actionIcon}
               />
               <Text style={styles.actionText}>
@@ -366,7 +401,7 @@ export default function EventSwipeCard({
               <IconButton
                 icon={isBookmarked ? "bookmark" : "bookmark-outline"}
                 iconColor={isBookmarked ? "#FFD700" : "#fff"}
-                size={20}
+                size={24}
                 style={styles.actionIcon}
               />
               <Text style={styles.actionText}>Save</Text>
@@ -376,7 +411,7 @@ export default function EventSwipeCard({
               style={styles.actionButton}
               onPress={handleShare}
             >
-              <IconButton icon="share-variant" iconColor="#fff" size={20} style={styles.actionIcon} />
+              <IconButton icon="share-variant" iconColor="#fff" size={24} style={styles.actionIcon} />
               <Text style={styles.actionText}>Share</Text>
             </TouchableOpacity>
           </View>
@@ -425,7 +460,8 @@ const styles = StyleSheet.create({
     flex: 1,
     width: SCREEN_WIDTH,
     backgroundColor: '#000',
-    borderRadius: 25,
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
     overflow: 'hidden',
   },
   blurredBackground: {
@@ -440,12 +476,24 @@ const styles = StyleSheet.create({
     right: 0,
     height: '100%',
   },
+  grainOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   coverImageContainer: {
     width: '88%',
-    height: '58%',
+    height: '50%',
     position: 'absolute',
     alignSelf: 'center',
-    top: '8%',
+    top: '20%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
+    elevation: 12,
   },
   coverImage: {
     width: '100%',
@@ -511,7 +559,7 @@ const styles = StyleSheet.create({
   detailText: {
     color: 'rgba(255,255,255,0.8)',
     marginLeft: -2,
-    fontSize: 11,
+    fontSize: 13,
   },
   actionRow: {
     flexDirection: 'row',
@@ -530,7 +578,7 @@ const styles = StyleSheet.create({
   },
   actionText: {
     color: '#fff',
-    fontSize: 10,
+    fontSize: 12,
     marginTop: -4,
   },
   bottomJoinButton: {
