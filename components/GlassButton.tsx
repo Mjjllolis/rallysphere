@@ -1,8 +1,10 @@
 // components/GlassButton.tsx
 import React from 'react';
 import { TouchableOpacity, StyleSheet, Text, ActivityIndicator, View } from 'react-native';
+import { useTheme } from 'react-native-paper';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useThemeToggle } from '../app/_layout';
 
 interface GlassButtonProps {
   title: string;
@@ -23,6 +25,8 @@ export default function GlassButton({
   icon,
   isReady = false,
 }: GlassButtonProps) {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const isDisabled = disabled || loading;
 
   return (
@@ -32,45 +36,58 @@ export default function GlassButton({
       activeOpacity={0.7}
       style={[styles.container, isDisabled && styles.containerDisabled]}
     >
-      <BlurView
-        intensity={variant === 'primary' ? 60 : 40}
-        tint="light"
-        style={styles.blur}
-      >
-        {isReady && !isDisabled ? (
-          <LinearGradient
-            colors={['#10b981', '#059669', '#047857']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.readyGradient}
-          >
-            <View style={styles.content}>
-              {loading ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <>
-                  {icon && <View style={styles.iconContainer}>{icon}</View>}
-                  <Text style={styles.title}>{title}</Text>
-                </>
-              )}
-            </View>
-          </LinearGradient>
-        ) : (
-          <View style={[
-            styles.content,
-            variant === 'primary' && styles.contentPrimary,
-          ]}>
+      {isReady && !isDisabled ? (
+        <LinearGradient
+          colors={['#10b981', '#059669', '#047857']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.blur, { borderColor: '#059669' }]}
+        >
+          <View style={styles.content}>
             {loading ? (
-              <ActivityIndicator color="white" />
+              <ActivityIndicator color="#fff" />
             ) : (
               <>
                 {icon && <View style={styles.iconContainer}>{icon}</View>}
-                <Text style={[styles.title, !isReady && styles.titleDisabled]}>{title}</Text>
+                <Text style={[styles.title, { color: '#fff' }]}>{title}</Text>
               </>
             )}
           </View>
-        )}
-      </BlurView>
+        </LinearGradient>
+      ) : isDark ? (
+        <BlurView
+          intensity={variant === 'primary' ? 60 : 40}
+          tint="light"
+          style={[styles.blur, { borderColor: theme.colors.outline }]}
+        >
+          <View style={[
+            styles.content,
+            variant === 'primary' && { backgroundColor: 'rgba(255, 255, 255, 0.2)' },
+          ]}>
+            {loading ? (
+              <ActivityIndicator color={theme.colors.onSurface} />
+            ) : (
+              <>
+                {icon && <View style={styles.iconContainer}>{icon}</View>}
+                <Text style={[styles.title, { color: theme.colors.onSurfaceDisabled }]}>{title}</Text>
+              </>
+            )}
+          </View>
+        </BlurView>
+      ) : (
+        <View style={[styles.blur, { borderColor: theme.colors.outline, backgroundColor: variant === 'primary' ? theme.colors.primary : theme.colors.surfaceVariant }]}>
+          <View style={styles.content}>
+            {loading ? (
+              <ActivityIndicator color={variant === 'primary' ? theme.colors.onPrimary : theme.colors.onSurface} />
+            ) : (
+              <>
+                {icon && <View style={styles.iconContainer}>{icon}</View>}
+                <Text style={[styles.title, { color: variant === 'primary' ? theme.colors.onPrimary : theme.colors.onSurfaceDisabled }]}>{title}</Text>
+              </>
+            )}
+          </View>
+        </View>
+      )}
     </TouchableOpacity>
   );
 }
@@ -87,7 +104,6 @@ const styles = StyleSheet.create({
   blur: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   content: {
     flexDirection: 'row',
@@ -96,9 +112,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 24,
     minHeight: 56,
-  },
-  contentPrimary: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   readyGradient: {
     borderRadius: 16,
@@ -109,9 +122,5 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 17,
     fontWeight: '700',
-    color: 'white',
-  },
-  titleDisabled: {
-    color: 'rgba(255, 255, 255, 0.5)',
   },
 });

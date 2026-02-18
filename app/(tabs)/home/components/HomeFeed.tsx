@@ -8,7 +8,8 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { Stack } from 'expo-router';
-import { Text } from 'react-native-paper';
+import { Text, useTheme } from 'react-native-paper';
+import { useThemeToggle } from '../../../_layout';
 import EventSwipeCard from './EventSwipeCard';
 import { getAllEvents, trackFeaturedImpression, getActiveFeaturedEvents } from '../../../../lib/firebase';
 import type { Event, FeaturedEvent } from '../../../../lib/firebase';
@@ -31,6 +32,8 @@ const INITIAL_LOAD = 5;
 const PAGINATION_SIZE = 3;
 
 const HomeFeed = ({ feedType, isActive }: HomeFeedProps) => {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const [allEvents, setAllEvents] = useState<EventWithMeta[]>([]);
   const [displayedEvents, setDisplayedEvents] = useState<EventWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
@@ -180,10 +183,10 @@ const HomeFeed = ({ feedType, isActive }: HomeFeedProps) => {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ActivityIndicator size="large" />
-        <Text variant="bodyLarge" style={{ marginTop: 16 }}>
+        <ActivityIndicator size="large" color={theme.colors.onSurface} />
+        <Text variant="bodyLarge" style={{ marginTop: 16, color: theme.colors.onSurface }}>
           Loading events...
         </Text>
       </View>
@@ -192,12 +195,12 @@ const HomeFeed = ({ feedType, isActive }: HomeFeedProps) => {
 
   if (displayedEvents.length === 0 && !loading) {
     return (
-      <View style={styles.emptyContainer}>
+      <View style={[styles.emptyContainer, { backgroundColor: theme.colors.background }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Text variant="headlineSmall" style={{ marginBottom: 8 }}>
+        <Text variant="headlineSmall" style={{ marginBottom: 8, color: theme.colors.onSurface }}>
           No Events Yet
         </Text>
-        <Text variant="bodyMedium" style={{ opacity: 0.7, textAlign: 'center' }}>
+        <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center' }}>
           Check back later for upcoming events
         </Text>
       </View>
@@ -206,7 +209,7 @@ const HomeFeed = ({ feedType, isActive }: HomeFeedProps) => {
 
   return (
     <View
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
       onLayout={(event) => {
         const { height } = event.nativeEvent.layout;
         setContainerHeight(height);
@@ -230,8 +233,8 @@ const HomeFeed = ({ feedType, isActive }: HomeFeedProps) => {
         initialNumToRender={1}
         ListFooterComponent={
           loadingMore ? (
-            <View style={styles.loadingMoreContainer}>
-              <ActivityIndicator size="small" color="#fff" />
+            <View style={[styles.loadingMoreContainer, { backgroundColor: theme.colors.background }]}>
+              <ActivityIndicator size="small" color={theme.colors.onSurface} />
             </View>
           ) : null
         }
@@ -245,26 +248,22 @@ export default HomeFeed;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
     overflow: 'hidden',
   },
   loadingMoreContainer: {
     height: 100,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000',
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000',
     padding: 20,
   },
 });

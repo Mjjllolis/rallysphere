@@ -15,7 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { router, useLocalSearchParams, useFocusEffect, Stack } from 'expo-router';
-import { useAuth } from '../_layout';
+import { useAuth, useThemeToggle } from '../_layout';
 import { getClub, joinClub, leaveClub, getEvents, getClubStoreItems, getUserRallyCredits, getUserProfile, isUserSubscribedToClub } from '../../lib/firebase';
 import type { Club, Event, StoreItem, UserRallyCredits, UserProfile } from '../../lib/firebase';
 import JoinClubModal from '../../components/JoinClubModal';
@@ -25,6 +25,7 @@ const { width } = Dimensions.get('window');
 
 export default function ClubDetailScreen() {
   const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const { user } = useAuth();
   const { id } = useLocalSearchParams();
   const clubId = id as string;
@@ -324,7 +325,7 @@ export default function ClubDetailScreen() {
   });
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* slide in from right, swipe to go back */}
       <Stack.Screen options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true, gestureDirection: 'horizontal' }} />
       {/* Full-screen blurred background image */}
@@ -339,7 +340,7 @@ export default function ClubDetailScreen() {
       )}
       {/* Gradient overlay for better readability */}
       <LinearGradient
-        colors={['rgba(15,15,35,0.3)', 'rgba(15,15,35,0.85)', 'rgba(10,10,25,0.95)']}
+        colors={isDark ? ['rgba(15,15,35,0.3)', 'rgba(15,15,35,0.85)', 'rgba(10,10,25,0.95)'] : ['rgba(255,255,255,0.3)', 'rgba(255,255,255,0.85)', 'rgba(245,245,245,0.95)']}
         style={styles.backgroundOverlay}
       />
 
@@ -354,16 +355,16 @@ export default function ClubDetailScreen() {
 
           {/* Gradient overlay for text readability */}
           <LinearGradient
-            colors={['transparent', 'transparent', 'rgba(15,15,35,0.6)', 'rgba(15,15,35,0.95)']}
+            colors={isDark ? ['transparent', 'transparent', 'rgba(15,15,35,0.6)', 'rgba(15,15,35,0.95)'] : ['transparent', 'transparent', 'rgba(255,255,255,0.6)', 'rgba(255,255,255,0.95)']}
             locations={[0, 0.5, 0.8, 1]}
             style={styles.heroUnifiedGradient}
           >
             {/* Top Controls */}
             <View style={styles.topControls}>
-              <BlurView intensity={40} tint="dark" style={styles.controlButtonBlur}>
+              <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.controlButtonBlur}>
                 <IconButton
                   icon="arrow-left"
-                  iconColor="#fff"
+                  iconColor={theme.colors.onSurface}
                   size={24}
                   onPress={() => router.back()}
                 />
@@ -376,7 +377,7 @@ export default function ClubDetailScreen() {
                     onPress={() => router.push(`/club/${club.id}/redeem-credits`)}
                     activeOpacity={0.7}
                   >
-                    <BlurView intensity={40} tint="dark" style={styles.creditsChip}>
+                    <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.creditsChip}>
                       <View style={styles.creditsContent}>
                         <IconButton
                           icon="star-circle"
@@ -384,7 +385,7 @@ export default function ClubDetailScreen() {
                           size={20}
                           style={{ margin: 0 }}
                         />
-                        <Text variant="titleMedium" style={styles.creditsText}>
+                        <Text variant="titleMedium" style={[styles.creditsText, { color: theme.colors.onSurface }]}>
                           {userCredits.clubCredits?.[clubId] || 0}
                         </Text>
                       </View>
@@ -394,10 +395,10 @@ export default function ClubDetailScreen() {
 
                 {/* Admin/Owner: Direct link to dashboard */}
                 {(isAdmin || isOwner) && (
-                  <BlurView intensity={40} tint="dark" style={styles.controlButtonBlur}>
+                  <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.controlButtonBlur}>
                     <IconButton
                       icon="menu"
-                      iconColor="#fff"
+                      iconColor={theme.colors.onSurface}
                       size={24}
                       onPress={() => router.push(`/club/${club.id}/manage`)}
                     />
@@ -410,10 +411,10 @@ export default function ClubDetailScreen() {
                     visible={menuVisible}
                     onDismiss={() => setMenuVisible(false)}
                     anchor={
-                      <BlurView intensity={40} tint="dark" style={styles.controlButtonBlur}>
+                      <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.controlButtonBlur}>
                         <IconButton
                           icon="menu"
-                          iconColor="#fff"
+                          iconColor={theme.colors.onSurface}
                           size={24}
                           onPress={() => setMenuVisible(true)}
                         />
@@ -439,11 +440,11 @@ export default function ClubDetailScreen() {
                 <Image source={{ uri: club.logo }} style={styles.heroLogo} />
               ) : (
                 <View style={styles.heroLogoInitials}>
-                  <Text style={styles.heroLogoInitialsText}>{getClubInitials(club.name)}</Text>
+                  <Text style={[styles.heroLogoInitialsText, { color: theme.colors.onSurface }]}>{getClubInitials(club.name)}</Text>
                 </View>
               )}
               <View style={styles.heroTitleContainer}>
-                <Text variant="displaySmall" style={styles.heroTitle}>
+                <Text variant="displaySmall" style={[styles.heroTitle, { color: theme.colors.onSurface }]}>
                   {club.name}
                 </Text>
                 {club.isPro && (
@@ -458,10 +459,10 @@ export default function ClubDetailScreen() {
                 )}
               </View>
               <View style={styles.heroMeta}>
-                <Chip style={styles.heroCategoryChip} textStyle={styles.heroChipText}>
+                <Chip style={[styles.heroCategoryChip, { backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }]} textStyle={[styles.heroChipText, { color: theme.colors.onSurface }]}>
                   {club.category}
                 </Chip>
-                <Text variant="titleSmall" style={styles.heroMembers}>
+                <Text variant="titleSmall" style={[styles.heroMembers, { color: theme.colors.onSurfaceVariant }]}>
                   {club.members.length} Members
                 </Text>
               </View>
@@ -493,12 +494,12 @@ export default function ClubDetailScreen() {
                       <Chip
                         icon="check-circle"
                         style={styles.subscribedChip}
-                        textStyle={styles.subscribedChipText}
+                        textStyle={[styles.subscribedChipText, { color: theme.colors.onSurface }]}
                       >
                         Subscribed
                       </Chip>
                       <TouchableOpacity onPress={handleCancelSubscription} disabled={subscriptionLoading}>
-                        <Text style={styles.cancelSubscriptionText}>
+                        <Text style={[styles.cancelSubscriptionText, { color: theme.colors.onSurfaceVariant }]}>
                           {subscriptionLoading ? 'Processing...' : 'Cancel'}
                         </Text>
                       </TouchableOpacity>
@@ -517,7 +518,7 @@ export default function ClubDetailScreen() {
                         Subscribe - ${club.subscriptionPrice}/mo
                       </Button>
                       {club.subscriptionDescription && (
-                        <Text style={styles.subscriptionDescription}>
+                        <Text style={[styles.subscriptionDescription, { color: theme.colors.onSurfaceVariant }]}>
                           {club.subscriptionDescription}
                         </Text>
                       )}
@@ -533,14 +534,14 @@ export default function ClubDetailScreen() {
         {/* Content Section */}
         <View style={styles.content}>
           {/* Tab Navigation */}
-          <View style={styles.tabContainer}>
+          <View style={[styles.tabContainer, { borderBottomColor: theme.colors.outline }]}>
             <TouchableOpacity
               style={[styles.tab, activeTab === 'details' && styles.activeTab]}
               onPress={() => setActiveTab('details')}
             >
               <Text
                 variant="titleMedium"
-                style={[styles.tabText, activeTab === 'details' && styles.activeTabText]}
+                style={[styles.tabText, { color: theme.colors.onSurfaceVariant }, activeTab === 'details' && [styles.activeTabText, { color: theme.colors.onSurface }]]}
               >
                 Details
               </Text>
@@ -551,7 +552,7 @@ export default function ClubDetailScreen() {
             >
               <Text
                 variant="titleMedium"
-                style={[styles.tabText, activeTab === 'events' && styles.activeTabText]}
+                style={[styles.tabText, { color: theme.colors.onSurfaceVariant }, activeTab === 'events' && [styles.activeTabText, { color: theme.colors.onSurface }]]}
               >
                 Events
               </Text>
@@ -562,7 +563,7 @@ export default function ClubDetailScreen() {
             >
               <Text
                 variant="titleMedium"
-                style={[styles.tabText, activeTab === 'store' && styles.activeTabText]}
+                style={[styles.tabText, { color: theme.colors.onSurfaceVariant }, activeTab === 'store' && [styles.activeTabText, { color: theme.colors.onSurface }]]}
               >
                 Store
               </Text>
@@ -573,7 +574,7 @@ export default function ClubDetailScreen() {
             >
               <Text
                 variant="titleMedium"
-                style={[styles.tabText, activeTab === 'members' && styles.activeTabText]}
+                style={[styles.tabText, { color: theme.colors.onSurfaceVariant }, activeTab === 'members' && [styles.activeTabText, { color: theme.colors.onSurface }]]}
               >
                 Members
               </Text>
@@ -583,18 +584,18 @@ export default function ClubDetailScreen() {
           {activeTab === 'members' && (
             <View style={styles.statsContainer}>
               <View style={styles.statCard}>
-                <Text variant="headlineMedium" style={styles.statNumber}>
+                <Text variant="headlineMedium" style={[styles.statNumber, { color: theme.colors.onSurface }]}>
                   {club.members.length}
                 </Text>
-                <Text variant="bodyMedium" style={styles.statLabel}>
+                <Text variant="bodyMedium" style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>
                   Members
                 </Text>
               </View>
               <View style={styles.statCard}>
-                <Text variant="headlineMedium" style={styles.statNumber}>
+                <Text variant="headlineMedium" style={[styles.statNumber, { color: theme.colors.onSurface }]}>
                   {club.admins.length}
                 </Text>
-                <Text variant="bodyMedium" style={styles.statLabel}>
+                <Text variant="bodyMedium" style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>
                   Admins
                 </Text>
               </View>
@@ -606,42 +607,42 @@ export default function ClubDetailScreen() {
             <>
               {/* Description */}
               <View style={styles.section}>
-                <Text variant="titleLarge" style={styles.sectionTitle}>
+                <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
                   About
                 </Text>
-                <Text variant="bodyLarge" style={styles.description}>
+                <Text variant="bodyLarge" style={[styles.description, { color: theme.colors.onSurfaceVariant }]}>
                   {club.description}
                 </Text>
               </View>
-              <View style={styles.divider} />
+              <View style={[styles.divider, { backgroundColor: theme.colors.outline }]} />
 
               {/* Details */}
               {(club.location || club.university || club.contactEmail) && (
                 <>
                   <View style={styles.section}>
-                    <Text variant="titleLarge" style={styles.sectionTitle}>
+                    <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
                       Details
                     </Text>
                     {club.location && (
                       <View style={styles.detailRow}>
-                        <IconButton icon="map-marker" size={20} iconColor="#fff" />
-                        <Text variant="bodyLarge" style={styles.detailText}>{club.location}</Text>
+                        <IconButton icon="map-marker" size={20} iconColor={theme.colors.onSurface} />
+                        <Text variant="bodyLarge" style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>{club.location}</Text>
                       </View>
                     )}
                     {club.university && (
                       <View style={styles.detailRow}>
-                        <IconButton icon="school" size={20} iconColor="#fff" />
-                        <Text variant="bodyLarge" style={styles.detailText}>{club.university}</Text>
+                        <IconButton icon="school" size={20} iconColor={theme.colors.onSurface} />
+                        <Text variant="bodyLarge" style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>{club.university}</Text>
                       </View>
                     )}
                     {club.contactEmail && (
                       <View style={styles.detailRow}>
-                        <IconButton icon="email" size={20} iconColor="#fff" />
-                        <Text variant="bodyLarge" style={styles.detailText}>{club.contactEmail}</Text>
+                        <IconButton icon="email" size={20} iconColor={theme.colors.onSurface} />
+                        <Text variant="bodyLarge" style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>{club.contactEmail}</Text>
                       </View>
                     )}
                   </View>
-                  <View style={styles.divider} />
+                  <View style={[styles.divider, { backgroundColor: theme.colors.outline }]} />
                 </>
               )}
 
@@ -649,7 +650,7 @@ export default function ClubDetailScreen() {
               {club.socialLinks && (
                 <>
                   <View style={styles.section}>
-                    <Text variant="titleLarge" style={styles.sectionTitle}>
+                    <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
                       Connect
                     </Text>
                     <View style={styles.socialLinks}>
@@ -703,14 +704,14 @@ export default function ClubDetailScreen() {
                       )}
                     </View>
                   </View>
-                  <View style={styles.divider} />
+                  <View style={[styles.divider, { backgroundColor: theme.colors.outline }]} />
                 </>
               )}
 
               {/* Tags */}
               {club.tags && club.tags.length > 0 && (
                 <View style={styles.section}>
-                  <Text variant="titleLarge" style={styles.sectionTitle}>
+                  <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
                     Topics
                   </Text>
                   <View style={styles.tagsGrid}>
@@ -728,7 +729,7 @@ export default function ClubDetailScreen() {
           {/* Members List */}
           {activeTab === 'members' && club.members.length > 0 && (
             <View style={styles.section}>
-              <Text variant="titleLarge" style={styles.sectionTitle}>
+              <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
                 All Members
               </Text>
               <View style={styles.membersList}>
@@ -742,7 +743,7 @@ export default function ClubDetailScreen() {
                     : '?';
 
                   return (
-                    <View key={userId} style={styles.memberRow}>
+                    <View key={userId} style={[styles.memberRow, { borderBottomColor: theme.colors.outline }]}>
                       <View style={styles.memberInfo}>
                         {member?.avatar ? (
                           <Image
@@ -751,12 +752,12 @@ export default function ClubDetailScreen() {
                           />
                         ) : (
                           <View style={styles.avatarCircle}>
-                            <Text variant="labelLarge" style={styles.avatarText}>
+                            <Text variant="labelLarge" style={[styles.avatarText, { color: theme.colors.onSurface }]}>
                               {initials}
                             </Text>
                           </View>
                         )}
-                        <Text variant="bodyLarge" style={styles.memberId} numberOfLines={1}>
+                        <Text variant="bodyLarge" style={[styles.memberId, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
                           {displayName}
                         </Text>
                       </View>
@@ -827,11 +828,11 @@ export default function ClubDetailScreen() {
                   </View>
               ) : (
                 <View style={styles.emptyEvents}>
-                  <Text variant="bodyLarge" style={styles.emptyText}>
+                  <Text variant="bodyLarge" style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
                     No events
                   </Text>
                   {isAdmin && (
-                    <Text variant="bodyMedium" style={styles.emptyHint}>
+                    <Text variant="bodyMedium" style={[styles.emptyHint, { color: theme.colors.onSurfaceDisabled }]}>
                       Create your first event to get started!
                     </Text>
                   )}
@@ -892,11 +893,11 @@ export default function ClubDetailScreen() {
                   </View>
               ) : (
                 <View style={styles.emptyEvents}>
-                  <Text variant="bodyLarge" style={styles.emptyText}>
+                  <Text variant="bodyLarge" style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
                     No store items
                   </Text>
                   {isAdmin && (
-                    <Text variant="bodyMedium" style={styles.emptyHint}>
+                    <Text variant="bodyMedium" style={[styles.emptyHint, { color: theme.colors.onSurfaceDisabled }]}>
                       Add products to your club store!
                     </Text>
                   )}
@@ -922,7 +923,6 @@ export default function ClubDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   backgroundImage: {
     position: 'absolute',
@@ -1007,7 +1007,6 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   creditsText: {
-    color: '#fff',
     fontWeight: 'bold',
     fontSize: 16,
   },
@@ -1042,7 +1041,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   heroLogoInitialsText: {
-    color: '#fff',
     fontSize: 36,
     fontWeight: 'bold',
   },
@@ -1055,7 +1053,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   heroTitle: {
-    color: '#fff',
     fontWeight: 'bold',
     textAlign: 'center',
   },
@@ -1075,13 +1072,10 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   heroCategoryChip: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   heroChipText: {
-    color: '#fff',
   },
   heroMembers: {
-    color: 'rgba(255,255,255,0.9)',
   },
   heroJoinButton: {
     minWidth: 200,
@@ -1109,11 +1103,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#4CAF50',
   },
   subscribedChipText: {
-    color: '#fff',
     fontWeight: 'bold',
   },
   cancelSubscriptionText: {
-    color: 'rgba(255,255,255,0.7)',
     fontSize: 14,
     textDecorationLine: 'underline',
   },
@@ -1127,7 +1119,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFD700',
   },
   subscriptionDescription: {
-    color: 'rgba(255,255,255,0.8)',
     fontSize: 12,
     marginTop: 8,
     textAlign: 'center',
@@ -1147,7 +1138,6 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     marginHorizontal: 20,
     marginVertical: 16,
   },
@@ -1159,13 +1149,10 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontWeight: 'bold',
-    color: '#fff',
     marginBottom: 12,
   },
   description: {
     lineHeight: 26,
-    opacity: 0.9,
-    color: 'rgba(255, 255, 255, 0.9)',
   },
   statsContainer: {
     flexDirection: 'row',
@@ -1181,12 +1168,9 @@ const styles = StyleSheet.create({
   statNumber: {
     fontWeight: 'bold',
     marginBottom: 4,
-    color: '#fff',
   },
   statLabel: {
-    opacity: 0.7,
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
   },
   detailRow: {
     flexDirection: 'row',
@@ -1196,7 +1180,6 @@ const styles = StyleSheet.create({
   detailText: {
     flex: 1,
     marginLeft: -8,
-    color: 'rgba(255, 255, 255, 0.9)',
   },
   socialLinks: {
     flexDirection: 'row',
@@ -1215,14 +1198,10 @@ const styles = StyleSheet.create({
     paddingVertical: 32,
   },
   emptyText: {
-    opacity: 0.6,
     marginBottom: 8,
-    color: 'rgba(255, 255, 255, 0.6)',
   },
   emptyHint: {
-    opacity: 0.4,
     textAlign: 'center',
-    color: 'rgba(255, 255, 255, 0.4)',
   },
   viewAllButton: {
     marginTop: 16,
@@ -1237,7 +1216,6 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     gap: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   tab: {
     paddingVertical: 8,
@@ -1249,10 +1227,8 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.6)',
   },
   activeTabText: {
-    color: '#fff',
     opacity: 1,
   },
   eventsGrid: {
@@ -1323,7 +1299,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   avatarText: {
-    color: '#fff',
     fontWeight: 'bold',
   },
   memberRow: {
@@ -1332,7 +1307,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
     gap: 12,
   },
   memberInfo: {
@@ -1345,7 +1319,6 @@ const styles = StyleSheet.create({
   memberId: {
     flex: 1,
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
   },
   memberBadges: {
     flexDirection: 'row',

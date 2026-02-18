@@ -7,6 +7,8 @@ import {
   Animated,
   LayoutChangeEvent,
 } from 'react-native';
+import { useTheme } from 'react-native-paper';
+import { useThemeToggle } from '../../../_layout';
 
 type TopTabsProps = {
   activeTab: string;
@@ -14,6 +16,8 @@ type TopTabsProps = {
 };
 
 export default function TopTabs({ activeTab, setActiveTab }: TopTabsProps) {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const tabs = ["Editors' Pick", 'For You', 'Following', 'Saved'];
   const underlinePosition = useRef(new Animated.Value(0)).current;
   const [containerWidth, setContainerWidth] = useState(0);
@@ -50,7 +54,8 @@ export default function TopTabs({ activeTab, setActiveTab }: TopTabsProps) {
             <Text
               style={[
                 styles.tabText,
-                activeTab === tab && styles.activeTabText,
+                { color: theme.colors.onSurfaceVariant },
+                activeTab === tab && [styles.activeTabText, { color: theme.colors.onSurface }],
               ]}
             >
               {tab}
@@ -64,6 +69,7 @@ export default function TopTabs({ activeTab, setActiveTab }: TopTabsProps) {
             styles.underline,
             {
               width: underlineWidth,
+              backgroundColor: theme.colors.onSurface,
               transform: [
                 {
                   translateX: underlinePosition,
@@ -95,15 +101,12 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 13,
     fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.6)',
   },
   activeTabText: {
-    color: '#fff',
     fontWeight: '700',
   },
   underline: {
     height: 2,
-    backgroundColor: '#fff',
     marginTop: 8,
   },
 });

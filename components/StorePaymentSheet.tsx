@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, Alert, Platform, TouchableOpacity, Animated, Dimensions, ScrollView, Modal, Image } from 'react-native';
-import { Text, ActivityIndicator, IconButton } from 'react-native-paper';
+import { Text, ActivityIndicator, IconButton, useTheme } from 'react-native-paper';
 import type { StoreItem, RallyCreditRedemption, UserRallyCredits, ShippingAddress } from '../lib/firebase';
 import { getUserRallyCredits, getClubRallyRedemptions, spendRallyCredits } from '../lib/firebase';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { createStorePaymentIntent } from '../lib/stripe';
+import { useThemeToggle } from '../app/_layout';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -34,6 +35,8 @@ export default function StorePaymentSheet({
   onSuccess,
   userId
 }: StorePaymentSheetProps) {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
   // Rally Credits state
@@ -301,12 +304,12 @@ export default function StorePaymentSheet({
             },
           ]}
         >
-          <BlurView intensity={80} tint="dark" style={styles.sheetBlur}>
+          <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={styles.sheetBlur}>
             {/* Header */}
-            <View style={styles.header}>
-              <Text style={styles.headerText}>Confirm Purchase</Text>
+            <View style={[styles.header, { borderBottomColor: theme.colors.outline }]}>
+              <Text style={[styles.headerText, { color: theme.colors.onSurface }]}>Confirm Purchase</Text>
               <TouchableOpacity onPress={onDismiss}>
-                <IconButton icon="close" iconColor="white" size={24} style={{ margin: 0 }} />
+                <IconButton icon="close" iconColor={theme.colors.onSurface} size={24} style={{ margin: 0 }} />
               </TouchableOpacity>
             </View>
 
@@ -315,21 +318,21 @@ export default function StorePaymentSheet({
               <View style={styles.section}>
                 <View style={styles.productRow}>
                   {item.images && item.images.length > 0 && (
-                    <Image source={{ uri: item.images[0] }} style={styles.productImage} />
+                    <Image source={{ uri: item.images[0] }} style={[styles.productImage, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' }]} />
                   )}
                   <View style={styles.productInfo}>
-                    <Text style={styles.productName}>{item.name}</Text>
-                    <Text style={styles.productClub}>{item.clubName}</Text>
-                    <Text style={styles.productQuantity}>Quantity: {quantity}</Text>
+                    <Text style={[styles.productName, { color: theme.colors.onSurface }]}>{item.name}</Text>
+                    <Text style={[styles.productClub, { color: theme.colors.onSurfaceVariant }]}>{item.clubName}</Text>
+                    <Text style={[styles.productQuantity, { color: theme.colors.onSurfaceVariant }]}>Quantity: {quantity}</Text>
                   </View>
                 </View>
               </View>
 
-              <View style={styles.divider} />
+              <View style={[styles.divider, { backgroundColor: theme.colors.outline }]} />
 
               {/* Delivery Method */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Delivery Method</Text>
+                <Text style={[styles.sectionTitle, { color: theme.colors.onSurfaceVariant }]}>Delivery Method</Text>
                 <View style={styles.deliveryBadge}>
                   <Ionicons
                     name={deliveryMethod === 'shipping' ? 'car' : 'location'}
@@ -342,23 +345,23 @@ export default function StorePaymentSheet({
                 </View>
 
                 {deliveryMethod === 'shipping' && selectedAddress && (
-                  <View style={styles.addressCard}>
-                    <Text style={styles.addressName}>{selectedAddress.fullName}</Text>
-                    <Text style={styles.addressText}>{selectedAddress.addressLine1}</Text>
-                    <Text style={styles.addressText}>
+                  <View style={[styles.addressCard, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)', borderColor: theme.colors.outline }]}>
+                    <Text style={[styles.addressName, { color: theme.colors.onSurface }]}>{selectedAddress.fullName}</Text>
+                    <Text style={[styles.addressText, { color: theme.colors.onSurfaceVariant }]}>{selectedAddress.addressLine1}</Text>
+                    <Text style={[styles.addressText, { color: theme.colors.onSurfaceVariant }]}>
                       {selectedAddress.city}, {selectedAddress.state} {selectedAddress.zipCode}
                     </Text>
                   </View>
                 )}
               </View>
 
-              <View style={styles.divider} />
+              <View style={[styles.divider, { backgroundColor: theme.colors.outline }]} />
 
               {/* Rally Credit Rewards Section */}
               {storeRedemptions.length > 0 && (
                 <>
                   <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Rally Credit Rewards</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.colors.onSurfaceVariant }]}>Rally Credit Rewards</Text>
 
                     {selectedReward ? (
                       <View style={styles.appliedReward}>
@@ -370,8 +373,8 @@ export default function StorePaymentSheet({
                             <View style={styles.appliedRewardLeft}>
                               <Ionicons name="star" size={20} color="#FFD700" />
                               <View style={styles.appliedRewardInfo}>
-                                <Text style={styles.appliedRewardName}>{selectedReward.name}</Text>
-                                <Text style={styles.appliedRewardValue}>
+                                <Text style={[styles.appliedRewardName, { color: theme.colors.onSurface }]}>{selectedReward.name}</Text>
+                                <Text style={[styles.appliedRewardValue, { color: theme.colors.onSurfaceVariant }]}>
                                   {getRewardDescription(selectedReward)} • {selectedReward.creditsRequired} credits
                                 </Text>
                               </View>
@@ -384,14 +387,14 @@ export default function StorePaymentSheet({
                       </View>
                     ) : (
                       <TouchableOpacity
-                        style={styles.showRewardsButton}
+                        style={[styles.showRewardsButton, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)' }]}
                         onPress={() => setShowRewards(!showRewards)}
                         activeOpacity={0.7}
                       >
                         <Ionicons name="star" size={20} color="#F59E0B" />
                         <View style={styles.showRewardsInfo}>
-                          <Text style={styles.showRewardsText}>Apply Reward</Text>
-                          <Text style={styles.showRewardsSubtext}>
+                          <Text style={[styles.showRewardsText, { color: theme.colors.onSurface }]}>Apply Reward</Text>
+                          <Text style={[styles.showRewardsSubtext, { color: theme.colors.onSurfaceVariant }]}>
                             You have {getAvailableCreditsForClub()} credits for this club
                           </Text>
                         </View>
@@ -414,7 +417,7 @@ export default function StorePaymentSheet({
                             return (
                               <TouchableOpacity
                                 key={reward.id}
-                                style={[styles.rewardItem, !canAfford && styles.rewardItemDisabled]}
+                                style={[styles.rewardItem, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)', borderColor: canAfford ? 'rgba(255, 215, 0, 0.2)' : theme.colors.outline }, !canAfford && styles.rewardItemDisabled]}
                                 onPress={() => handleApplyReward(reward)}
                                 disabled={!canAfford}
                                 activeOpacity={0.7}
@@ -425,18 +428,18 @@ export default function StorePaymentSheet({
                                       <Ionicons name="pricetag" size={20} color="#FFD700" />
                                     </View>
                                     <View style={styles.rewardItemInfo}>
-                                      <Text style={[styles.rewardItemName, !canAfford && { opacity: 0.5 }]}>
+                                      <Text style={[styles.rewardItemName, { color: theme.colors.onSurface }, !canAfford && { opacity: 0.5 }]}>
                                         {reward.name}
                                       </Text>
-                                      <Text style={[styles.rewardItemValue, !canAfford && { opacity: 0.5 }]}>
+                                      <Text style={[styles.rewardItemValue, { color: theme.colors.onSurfaceVariant }, !canAfford && { opacity: 0.5 }]}>
                                         {getRewardDescription(reward)}
                                       </Text>
                                     </View>
                                   </View>
                                   <View style={styles.rewardItemRight}>
                                     <View style={[styles.creditsBadge, !canAfford && styles.creditsBadgeDisabled]}>
-                                      <Ionicons name="star" size={12} color={canAfford ? '#FFD700' : '#999'} />
-                                      <Text style={[styles.creditsBadgeText, !canAfford && { color: '#999' }]}>
+                                      <Ionicons name="star" size={12} color={canAfford ? '#FFD700' : theme.colors.onSurfaceDisabled} />
+                                      <Text style={[styles.creditsBadgeText, !canAfford && { color: theme.colors.onSurfaceDisabled }]}>
                                         {reward.creditsRequired}
                                       </Text>
                                     </View>
@@ -452,36 +455,36 @@ export default function StorePaymentSheet({
                       </View>
                     )}
                   </View>
-                  <View style={styles.divider} />
+                  <View style={[styles.divider, { backgroundColor: theme.colors.outline }]} />
                 </>
               )}
 
               {/* Price Breakdown */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Price Breakdown</Text>
+                <Text style={[styles.sectionTitle, { color: theme.colors.onSurfaceVariant }]}>Price Breakdown</Text>
 
                 <View style={styles.breakdownRow}>
-                  <Text style={styles.breakdownLabel}>Item Price</Text>
-                  <Text style={[styles.breakdownValue, selectedReward && styles.strikethrough]}>
+                  <Text style={[styles.breakdownLabel, { color: theme.colors.onSurfaceVariant }]}>Item Price</Text>
+                  <Text style={[styles.breakdownValue, { color: theme.colors.onSurface }, selectedReward && styles.strikethrough]}>
                     ${item.price.toFixed(2)}
                   </Text>
                 </View>
 
                 <View style={styles.breakdownRow}>
-                  <Text style={styles.breakdownLabel}>Quantity</Text>
-                  <Text style={styles.breakdownValue}>×{quantity}</Text>
+                  <Text style={[styles.breakdownLabel, { color: theme.colors.onSurfaceVariant }]}>Quantity</Text>
+                  <Text style={[styles.breakdownValue, { color: theme.colors.onSurface }]}>×{quantity}</Text>
                 </View>
 
                 <View style={styles.breakdownRow}>
-                  <Text style={styles.breakdownLabel}>Subtotal</Text>
-                  <Text style={[styles.breakdownValue, selectedReward && styles.strikethrough]}>
+                  <Text style={[styles.breakdownLabel, { color: theme.colors.onSurfaceVariant }]}>Subtotal</Text>
+                  <Text style={[styles.breakdownValue, { color: theme.colors.onSurface }, selectedReward && styles.strikethrough]}>
                     ${calculateTotal().itemPrice.toFixed(2)}
                   </Text>
                 </View>
 
                 {selectedReward && calculateTotal().rewardDiscount > 0 && (
                   <View style={styles.breakdownRow}>
-                    <Text style={styles.breakdownLabel}>Reward Discount</Text>
+                    <Text style={[styles.breakdownLabel, { color: theme.colors.onSurfaceVariant }]}>Reward Discount</Text>
                     <Text style={[styles.breakdownValue, { color: '#10B981' }]}>
                       -${calculateTotal().rewardDiscount.toFixed(2)}
                     </Text>
@@ -490,8 +493,8 @@ export default function StorePaymentSheet({
 
                 {calculateTotal().shipping > 0 && (
                   <View style={styles.breakdownRow}>
-                    <Text style={styles.breakdownLabel}>Shipping</Text>
-                    <Text style={styles.breakdownValue}>
+                    <Text style={[styles.breakdownLabel, { color: theme.colors.onSurfaceVariant }]}>Shipping</Text>
+                    <Text style={[styles.breakdownValue, { color: theme.colors.onSurface }]}>
                       ${calculateTotal().shipping.toFixed(2)}
                     </Text>
                   </View>
@@ -499,24 +502,24 @@ export default function StorePaymentSheet({
 
                 {calculateTotal().tax > 0 && (
                   <View style={styles.breakdownRow}>
-                    <Text style={styles.breakdownLabel}>Tax</Text>
-                    <Text style={styles.breakdownValue}>
+                    <Text style={[styles.breakdownLabel, { color: theme.colors.onSurfaceVariant }]}>Tax</Text>
+                    <Text style={[styles.breakdownValue, { color: theme.colors.onSurface }]}>
                       ${calculateTotal().tax.toFixed(2)}
                     </Text>
                   </View>
                 )}
 
                 <View style={styles.breakdownRow}>
-                  <Text style={styles.breakdownLabel}>Processing Fee</Text>
+                  <Text style={[styles.breakdownLabel, { color: theme.colors.onSurfaceVariant }]}>Processing Fee</Text>
                   <Text style={[styles.breakdownValue, { color: '#EF4444' }]}>
                     ${calculateTotal().processingFee.toFixed(2)}
                   </Text>
                 </View>
 
-                <View style={styles.divider} />
+                <View style={[styles.divider, { backgroundColor: theme.colors.outline }]} />
 
                 <View style={styles.breakdownRow}>
-                  <Text style={styles.totalLabel}>Total</Text>
+                  <Text style={[styles.totalLabel, { color: theme.colors.onSurface }]}>Total</Text>
                   <Text style={styles.totalValue}>
                     ${calculateTotal().total.toFixed(2)}
                   </Text>
@@ -525,7 +528,7 @@ export default function StorePaymentSheet({
             </ScrollView>
 
             {/* Footer */}
-            <View style={styles.footer}>
+            <View style={[styles.footer, { borderTopColor: theme.colors.outline }]}>
               <TouchableOpacity
                 style={styles.purchaseButton}
                 onPress={handlePurchase}
@@ -578,12 +581,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   headerText: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: 'white',
   },
   scrollView: {
     maxHeight: SCREEN_HEIGHT * 0.6,
@@ -594,7 +595,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.7)',
     marginBottom: 12,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -610,26 +610,21 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   productName: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'white',
     marginBottom: 4,
   },
   productClub: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.6)',
     marginBottom: 4,
   },
   productQuantity: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.6)',
   },
   divider: {
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   deliveryBadge: {
     flexDirection: 'row',
@@ -648,21 +643,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   addressCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   addressName: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'white',
     marginBottom: 4,
   },
   addressText: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.6)',
     marginTop: 2,
   },
   appliedReward: {
@@ -689,17 +680,14 @@ const styles = StyleSheet.create({
   appliedRewardName: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'white',
     marginBottom: 4,
   },
   appliedRewardValue: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
   },
   showRewardsButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: 12,
     padding: 16,
     marginTop: 8,
@@ -711,27 +699,22 @@ const styles = StyleSheet.create({
   showRewardsText: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'white',
     marginBottom: 4,
   },
   showRewardsSubtext: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.6)',
   },
   rewardsList: {
     marginTop: 12,
     gap: 8,
   },
   rewardItem: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.2)',
   },
   rewardItemDisabled: {
     opacity: 0.5,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   rewardItemContent: {
     flexDirection: 'row',
@@ -758,12 +741,10 @@ const styles = StyleSheet.create({
   rewardItemName: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'white',
     marginBottom: 4,
   },
   rewardItemValue: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.6)',
   },
   rewardItemRight: {
     alignItems: 'flex-end',
@@ -798,21 +779,18 @@ const styles = StyleSheet.create({
   },
   breakdownLabel: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.7)',
   },
   breakdownValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'white',
   },
   strikethrough: {
     textDecorationLine: 'line-through',
-    color: 'rgba(255, 255, 255, 0.5)',
+    opacity: 0.5,
   },
   totalLabel: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: 'white',
   },
   totalValue: {
     fontSize: 18,
@@ -822,7 +800,6 @@ const styles = StyleSheet.create({
   footer: {
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
   },
   purchaseButton: {
     borderRadius: 12,

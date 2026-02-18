@@ -10,11 +10,11 @@ import {
   TouchableOpacity,
   StatusBar,
 } from 'react-native';
-import { Text, ActivityIndicator, RadioButton, Portal, Modal, IconButton } from 'react-native-paper';
+import { Text, ActivityIndicator, RadioButton, Portal, Modal, IconButton, useTheme } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useAuth } from '../../_layout';
+import { useAuth, useThemeToggle } from '../../_layout';
 import { getStoreItem, getUserAddresses } from '../../../lib/firebase';
 import type { StoreItem, ShippingAddress } from '../../../lib/firebase';
 import { useCart } from '../../../lib/cartContext';
@@ -26,6 +26,8 @@ import StorePaymentSheet from '../../../components/StorePaymentSheet';
 const { width } = Dimensions.get('window');
 
 export default function StoreItemDetailScreen() {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const { user } = useAuth();
   const { id } = useLocalSearchParams();
   const itemId = id as string;
@@ -168,14 +170,14 @@ export default function StoreItemDetailScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        {/* Black Background */}
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        {/* Background */}
         <View style={StyleSheet.absoluteFill}>
-          <View style={styles.blackBackground} />
+          <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
         </View>
 
         <LinearGradient
-          colors={['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', 'rgba(0, 0, 0, 0)']}
+          colors={['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(248, 250, 252, 0)']}
           locations={[0, 0.3, 1]}
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
@@ -198,16 +200,16 @@ export default function StoreItemDetailScreen() {
   const { itemTotal, processingFee, shipping, total } = calculateTotal();
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
-      {/* Black Background */}
+      {/* Background */}
       <View style={StyleSheet.absoluteFill}>
-        <View style={styles.blackBackground} />
+        <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
       </View>
 
       <LinearGradient
-        colors={['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', 'rgba(0, 0, 0, 0)']}
+        colors={['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(248, 250, 252, 0)']}
         locations={[0, 0.3, 1]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
@@ -221,8 +223,8 @@ export default function StoreItemDetailScreen() {
             activeOpacity={0.7}
             style={styles.headerButtonWrapper}
           >
-            <BlurView intensity={40} tint="dark" style={styles.headerButton}>
-              <IconButton icon="arrow-left" iconColor="white" size={24} style={{ margin: 0 }} />
+            <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.headerButton, { borderColor: theme.colors.outline }]}>
+              <IconButton icon="arrow-left" iconColor={theme.colors.onSurface} size={24} style={{ margin: 0 }} />
             </BlurView>
           </TouchableOpacity>
 
@@ -244,10 +246,10 @@ export default function StoreItemDetailScreen() {
               }
             }}
           >
-            <BlurView intensity={40} tint="dark" style={styles.headerButton}>
+            <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.headerButton, { borderColor: theme.colors.outline }]}>
               <IconButton
                 icon={isFavorite(item.id) ? "heart" : "heart-outline"}
-                iconColor={isFavorite(item.id) ? "#FF4444" : "white"}
+                iconColor={isFavorite(item.id) ? "#FF4444" : theme.colors.onSurface}
                 size={24}
                 style={{ margin: 0 }}
               />
@@ -267,7 +269,7 @@ export default function StoreItemDetailScreen() {
               {/* Pickup Badge */}
               {item.pickupOnly && (
                 <View style={styles.pickupBadge}>
-                  <BlurView intensity={30} tint="dark" style={styles.pickupBadgeBlur}>
+                  <BlurView intensity={30} tint={isDark ? "dark" : "light"} style={[styles.pickupBadgeBlur, { borderColor: theme.colors.outline }]}>
                     <Ionicons name="location" size={14} color="#60A5FA" />
                     <Text style={styles.pickupBadgeText}>Pickup Only</Text>
                   </BlurView>
@@ -298,9 +300,10 @@ export default function StoreItemDetailScreen() {
                     >
                       <BlurView
                         intensity={20}
-                        tint="dark"
+                        tint={isDark ? "dark" : "light"}
                         style={[
                           styles.thumbnailBlur,
+                          { borderColor: theme.colors.outline },
                           index === selectedImageIndex && styles.thumbnailBlurActive,
                         ]}
                       >
@@ -319,11 +322,11 @@ export default function StoreItemDetailScreen() {
 
           {/* Product Info Card */}
           <View style={styles.productInfoContainer}>
-            <BlurView intensity={20} tint="dark" style={styles.productInfoBlur}>
-              <Text style={styles.productTitle}>{item.name}</Text>
+            <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.productInfoBlur, { borderColor: theme.colors.outline }]}>
+              <Text style={[styles.productTitle, { color: theme.colors.onSurface }]}>{item.name}</Text>
 
               <TouchableOpacity onPress={() => router.push(`/club/${item.clubId}`)}>
-                <Text style={styles.clubName}>by {item.clubName}</Text>
+                <Text style={[styles.clubName, { color: theme.colors.onSurfaceVariant }]}>by {item.clubName}</Text>
               </TouchableOpacity>
 
               <View style={styles.priceRow}>
@@ -343,17 +346,17 @@ export default function StoreItemDetailScreen() {
 
           {/* Description */}
           <View style={styles.sectionContainer}>
-            <BlurView intensity={20} tint="dark" style={styles.sectionBlur}>
-              <Text style={styles.sectionTitle}>Product Details</Text>
-              <Text style={styles.description}>{item.description}</Text>
+            <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.sectionBlur, { borderColor: theme.colors.outline }]}>
+              <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Product Details</Text>
+              <Text style={[styles.description, { color: theme.colors.onSurfaceVariant }]}>{item.description}</Text>
             </BlurView>
           </View>
 
           {/* Variants */}
           {item.variants && item.variants.map((variant) => (
             <View key={variant.id} style={styles.sectionContainer}>
-              <BlurView intensity={20} tint="dark" style={styles.sectionBlur}>
-                <Text style={styles.sectionTitle}>{variant.name}</Text>
+              <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.sectionBlur, { borderColor: theme.colors.outline }]}>
+                <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>{variant.name}</Text>
                 <View style={styles.variantOptions}>
                   {variant.options.map((option) => {
                     const isSelected = selectedVariants[variant.name] === option;
@@ -365,13 +368,14 @@ export default function StoreItemDetailScreen() {
                       >
                         <BlurView
                           intensity={isSelected ? 30 : 15}
-                          tint="dark"
+                          tint={isDark ? "dark" : "light"}
                           style={[
                             styles.variantOption,
+                            { borderColor: theme.colors.outline },
                             isSelected && styles.variantOptionSelected,
                           ]}
                         >
-                          <Text style={[styles.variantOptionText, isSelected && styles.variantOptionTextSelected]}>
+                          <Text style={[styles.variantOptionText, { color: theme.colors.onSurfaceVariant }, isSelected && styles.variantOptionTextSelected]}>
                             {option}
                           </Text>
                         </BlurView>
@@ -385,28 +389,28 @@ export default function StoreItemDetailScreen() {
 
           {/* Quantity */}
           <View style={styles.sectionContainer}>
-            <BlurView intensity={20} tint="dark" style={styles.sectionBlur}>
-              <Text style={styles.sectionTitle}>Quantity</Text>
+            <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.sectionBlur, { borderColor: theme.colors.outline }]}>
+              <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Quantity</Text>
               <View style={styles.quantityRow}>
                 <TouchableOpacity
                   onPress={() => setQuantity(Math.max(1, quantity - 1))}
                   disabled={quantity <= 1}
                   activeOpacity={0.7}
                 >
-                  <BlurView intensity={30} tint="dark" style={styles.quantityButton}>
-                    <IconButton icon="minus" iconColor="white" size={20} style={{ margin: 0 }} />
+                  <BlurView intensity={30} tint={isDark ? "dark" : "light"} style={[styles.quantityButton, { borderColor: theme.colors.outline }]}>
+                    <IconButton icon="minus" iconColor={theme.colors.onSurface} size={20} style={{ margin: 0 }} />
                   </BlurView>
                 </TouchableOpacity>
 
-                <Text style={styles.quantityValue}>{quantity}</Text>
+                <Text style={[styles.quantityValue, { color: theme.colors.onSurface }]}>{quantity}</Text>
 
                 <TouchableOpacity
                   onPress={() => setQuantity(quantity + 1)}
                   disabled={quantity >= item.inventory - item.sold}
                   activeOpacity={0.7}
                 >
-                  <BlurView intensity={30} tint="dark" style={styles.quantityButton}>
-                    <IconButton icon="plus" iconColor="white" size={20} style={{ margin: 0 }} />
+                  <BlurView intensity={30} tint={isDark ? "dark" : "light"} style={[styles.quantityButton, { borderColor: theme.colors.outline }]}>
+                    <IconButton icon="plus" iconColor={theme.colors.onSurface} size={20} style={{ margin: 0 }} />
                   </BlurView>
                 </TouchableOpacity>
               </View>
@@ -416,8 +420,8 @@ export default function StoreItemDetailScreen() {
           {/* Delivery Method */}
           {!item.pickupOnly && item.allowPickup && (
             <View style={styles.sectionContainer}>
-              <BlurView intensity={20} tint="dark" style={styles.sectionBlur}>
-                <Text style={styles.sectionTitle}>Delivery Method</Text>
+              <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.sectionBlur, { borderColor: theme.colors.outline }]}>
+                <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Delivery Method</Text>
                 <View style={styles.deliveryRow}>
                   <TouchableOpacity
                     onPress={() => setDeliveryMethod('shipping')}
@@ -426,20 +430,22 @@ export default function StoreItemDetailScreen() {
                   >
                     <BlurView
                       intensity={deliveryMethod === 'shipping' ? 30 : 15}
-                      tint="dark"
+                      tint={isDark ? "dark" : "light"}
                       style={[
                         styles.deliveryButton,
+                        { borderColor: theme.colors.outline },
                         deliveryMethod === 'shipping' && styles.deliveryButtonActive,
                       ]}
                     >
                       <Ionicons
                         name="car-outline"
                         size={20}
-                        color={deliveryMethod === 'shipping' ? '#60A5FA' : 'rgba(255,255,255,0.6)'}
+                        color={deliveryMethod === 'shipping' ? '#60A5FA' : theme.colors.onSurfaceVariant}
                       />
                       <Text
                         style={[
                           styles.deliveryButtonText,
+                          { color: theme.colors.onSurfaceVariant },
                           deliveryMethod === 'shipping' && styles.deliveryButtonTextActive,
                         ]}
                       >
@@ -455,20 +461,22 @@ export default function StoreItemDetailScreen() {
                   >
                     <BlurView
                       intensity={deliveryMethod === 'pickup' ? 30 : 15}
-                      tint="dark"
+                      tint={isDark ? "dark" : "light"}
                       style={[
                         styles.deliveryButton,
+                        { borderColor: theme.colors.outline },
                         deliveryMethod === 'pickup' && styles.deliveryButtonActive,
                       ]}
                     >
                       <Ionicons
                         name="location-outline"
                         size={20}
-                        color={deliveryMethod === 'pickup' ? '#60A5FA' : 'rgba(255,255,255,0.6)'}
+                        color={deliveryMethod === 'pickup' ? '#60A5FA' : theme.colors.onSurfaceVariant}
                       />
                       <Text
                         style={[
                           styles.deliveryButtonText,
+                          { color: theme.colors.onSurfaceVariant },
                           deliveryMethod === 'pickup' && styles.deliveryButtonTextActive,
                         ]}
                       >
@@ -484,9 +492,9 @@ export default function StoreItemDetailScreen() {
           {/* Shipping Address */}
           {deliveryMethod === 'shipping' && (
             <View style={styles.sectionContainer}>
-              <BlurView intensity={20} tint="dark" style={styles.sectionBlur}>
+              <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.sectionBlur, { borderColor: theme.colors.outline }]}>
                 <View style={styles.sectionTitleRow}>
-                  <Text style={styles.sectionTitle}>Shipping Address</Text>
+                  <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Shipping Address</Text>
                   <TouchableOpacity onPress={() => setAddressModalVisible(true)}>
                     <Text style={styles.changeButton}>
                       {savedAddresses.length > 0 ? 'Change' : 'Add'}
@@ -495,14 +503,14 @@ export default function StoreItemDetailScreen() {
                 </View>
 
                 {selectedAddressId ? (
-                  <View style={styles.addressCard}>
+                  <View style={[styles.addressCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
                     {(() => {
                       const addr = savedAddresses.find(a => a.id === selectedAddressId);
                       if (!addr) return null;
                       return (
                         <>
-                          <Text style={styles.addressName}>{addr.fullName}</Text>
-                          <Text style={styles.addressText}>
+                          <Text style={[styles.addressName, { color: theme.colors.onSurface }]}>{addr.fullName}</Text>
+                          <Text style={[styles.addressText, { color: theme.colors.onSurfaceVariant }]}>
                             {addr.addressLine1}, {addr.city}, {addr.state} {addr.zipCode}
                           </Text>
                         </>
@@ -516,16 +524,16 @@ export default function StoreItemDetailScreen() {
             </View>
           )}
 
-          <View style={{ height: 120 }} />
+          <View style={{ height: 200 }} />
         </ScrollView>
 
         {/* Fixed Bottom Buy Button */}
         <View style={styles.bottomBar}>
-          <BlurView intensity={40} tint="dark" style={styles.bottomBarBlur}>
+          <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.bottomBarBlur, { borderTopColor: theme.colors.outline }]}>
             <View style={styles.bottomBarContent}>
               <View style={styles.totalPriceContainer}>
-                <Text style={styles.totalLabel}>Total Price</Text>
-                <Text style={styles.totalPrice}>${(item.price * quantity).toFixed(0)}</Text>
+                <Text style={[styles.totalLabel, { color: theme.colors.onSurfaceVariant }]}>Total Price</Text>
+                <Text style={[styles.totalPrice, { color: theme.colors.onSurface }]}>${(item.price * quantity).toFixed(0)}</Text>
               </View>
 
               <TouchableOpacity
@@ -558,60 +566,63 @@ export default function StoreItemDetailScreen() {
           onDismiss={() => setAddressModalVisible(false)}
           contentContainerStyle={styles.addressModalContent}
         >
-          <BlurView intensity={80} tint="dark" style={styles.modalBlur}>
-            <Text style={styles.modalHeaderText}>Select Shipping Address</Text>
-
-            <ScrollView style={styles.addressScrollView}>
-              <RadioButton.Group
-                onValueChange={(value) => setSelectedAddressId(value)}
-                value={selectedAddressId || ''}
-              >
-                {savedAddresses.map((addr) => (
-                  <TouchableOpacity
-                    key={addr.id}
-                    onPress={() => setSelectedAddressId(addr.id)}
-                    style={styles.addressOption}
-                    activeOpacity={0.7}
-                  >
-                    <RadioButton value={addr.id} color="#60A5FA" />
-                    <View style={{ flex: 1, marginLeft: 12 }}>
-                      <Text style={styles.addressOptionName}>{addr.fullName}</Text>
-                      <Text style={styles.addressOptionText}>
-                        {addr.addressLine1}, {addr.city}, {addr.state}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </RadioButton.Group>
-
-              <TouchableOpacity
-                style={styles.addNewAddressButton}
-                onPress={() => {
-                  setAddressModalVisible(false);
-                  Alert.alert('Coming Soon', 'Add new address feature coming soon!');
-                }}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="add-circle" size={20} color="#60A5FA" />
-                <Text style={styles.addNewAddressText}>Add New Address</Text>
-              </TouchableOpacity>
-            </ScrollView>
-
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                onPress={() => setAddressModalVisible(false)}
-                style={styles.modalPayButton}
-                activeOpacity={0.7}
-              >
-                <LinearGradient
-                  colors={['#60A5FA', '#3B82F6']}
-                  style={styles.modalPayButtonGradient}
-                >
-                  <Text style={styles.modalPayText}>Done</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+          {isDark ? (
+            <BlurView intensity={80} tint="dark" style={[styles.modalBlur, { borderColor: theme.colors.outline }]}>
+              <Text style={[styles.modalHeaderText, { color: theme.colors.onSurface, padding: 20, paddingBottom: 0 }]}>Select Shipping Address</Text>
+              <ScrollView style={styles.addressScrollView}>
+                <RadioButton.Group onValueChange={(value) => setSelectedAddressId(value)} value={selectedAddressId || ''}>
+                  {savedAddresses.map((addr) => (
+                    <TouchableOpacity key={addr.id} onPress={() => setSelectedAddressId(addr.id)} style={[styles.addressOption, { backgroundColor: 'rgba(255,255,255,0.03)' }]} activeOpacity={0.7}>
+                      <RadioButton value={addr.id} color="#60A5FA" />
+                      <View style={{ flex: 1, marginLeft: 12 }}>
+                        <Text style={[styles.addressOptionName, { color: theme.colors.onSurface }]}>{addr.fullName}</Text>
+                        <Text style={[styles.addressOptionText, { color: theme.colors.onSurfaceVariant }]}>{addr.addressLine1}, {addr.city}, {addr.state}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </RadioButton.Group>
+                <TouchableOpacity style={styles.addNewAddressButton} onPress={() => { setAddressModalVisible(false); Alert.alert('Coming Soon', 'Add new address feature coming soon!'); }} activeOpacity={0.7}>
+                  <Ionicons name="add-circle" size={20} color="#60A5FA" />
+                  <Text style={styles.addNewAddressText}>Add New Address</Text>
+                </TouchableOpacity>
+              </ScrollView>
+              <View style={styles.modalFooter}>
+                <TouchableOpacity onPress={() => setAddressModalVisible(false)} style={styles.modalPayButton} activeOpacity={0.7}>
+                  <LinearGradient colors={['#60A5FA', '#3B82F6']} style={styles.modalPayButtonGradient}>
+                    <Text style={styles.modalPayText}>Done</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </BlurView>
+          ) : (
+            <View style={[styles.modalBlur, { borderColor: theme.colors.outline, backgroundColor: theme.colors.surface }]}>
+              <Text style={[styles.modalHeaderText, { color: theme.colors.onSurface, padding: 20, paddingBottom: 0 }]}>Select Shipping Address</Text>
+              <ScrollView style={styles.addressScrollView}>
+                <RadioButton.Group onValueChange={(value) => setSelectedAddressId(value)} value={selectedAddressId || ''}>
+                  {savedAddresses.map((addr) => (
+                    <TouchableOpacity key={addr.id} onPress={() => setSelectedAddressId(addr.id)} style={[styles.addressOption, { backgroundColor: 'rgba(0,0,0,0.03)' }]} activeOpacity={0.7}>
+                      <RadioButton value={addr.id} color="#60A5FA" />
+                      <View style={{ flex: 1, marginLeft: 12 }}>
+                        <Text style={[styles.addressOptionName, { color: theme.colors.onSurface }]}>{addr.fullName}</Text>
+                        <Text style={[styles.addressOptionText, { color: theme.colors.onSurfaceVariant }]}>{addr.addressLine1}, {addr.city}, {addr.state}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </RadioButton.Group>
+                <TouchableOpacity style={styles.addNewAddressButton} onPress={() => { setAddressModalVisible(false); Alert.alert('Coming Soon', 'Add new address feature coming soon!'); }} activeOpacity={0.7}>
+                  <Ionicons name="add-circle" size={20} color="#60A5FA" />
+                  <Text style={styles.addNewAddressText}>Add New Address</Text>
+                </TouchableOpacity>
+              </ScrollView>
+              <View style={styles.modalFooter}>
+                <TouchableOpacity onPress={() => setAddressModalVisible(false)} style={styles.modalPayButton} activeOpacity={0.7}>
+                  <LinearGradient colors={['#60A5FA', '#3B82F6']} style={styles.modalPayButtonGradient}>
+                    <Text style={styles.modalPayText}>Done</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
             </View>
-          </BlurView>
+          )}
         </Modal>
       </Portal>
 
@@ -639,7 +650,6 @@ const styles = StyleSheet.create({
   },
   blackBackground: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   safeArea: {
     flex: 1,
@@ -667,7 +677,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     overflow: 'hidden',
   },
   scrollView: {
@@ -703,7 +712,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     gap: 4,
     overflow: 'hidden',
   },
@@ -736,7 +744,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   thumbnailBlurActive: {
     borderColor: '#60A5FA',
@@ -756,17 +763,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   productTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#ffffff',
     marginBottom: 8,
   },
   clubName: {
     fontSize: 15,
-    color: 'rgba(255,255,255,0.7)',
     marginBottom: 12,
   },
   priceRow: {
@@ -809,12 +813,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#ffffff',
     marginBottom: 12,
   },
   sectionTitleRow: {
@@ -831,7 +833,6 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 15,
     lineHeight: 22,
-    color: 'rgba(255,255,255,0.8)',
   },
   variantOptions: {
     flexDirection: 'row',
@@ -843,7 +844,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     overflow: 'hidden',
   },
   variantOptionSelected: {
@@ -852,10 +852,9 @@ const styles = StyleSheet.create({
   variantOptionText: {
     fontSize: 15,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.7)',
   },
   variantOptionTextSelected: {
-    color: '#ffffff',
+    color: '#60A5FA',
   },
   quantityRow: {
     flexDirection: 'row',
@@ -867,7 +866,6 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
@@ -875,7 +873,6 @@ const styles = StyleSheet.create({
   quantityValue: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#ffffff',
     minWidth: 40,
     textAlign: 'center',
   },
@@ -891,7 +888,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     gap: 8,
     overflow: 'hidden',
   },
@@ -901,24 +897,20 @@ const styles = StyleSheet.create({
   deliveryButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.6)',
   },
   deliveryButtonTextActive: {
-    color: '#ffffff',
+    color: '#60A5FA',
   },
   addressCard: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
     padding: 14,
     borderRadius: 12,
   },
   addressName: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#ffffff',
   },
   addressText: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
     marginTop: 4,
   },
   errorText: {
@@ -935,7 +927,6 @@ const styles = StyleSheet.create({
   },
   bottomBarBlur: {
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
     overflow: 'hidden',
   },
   bottomBarContent: {
@@ -950,13 +941,11 @@ const styles = StyleSheet.create({
   },
   totalLabel: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.7)',
     marginBottom: 4,
   },
   totalPrice: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#ffffff',
   },
   buyButtonWrapper: {
     borderRadius: 28,
@@ -998,7 +987,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1011,7 +999,6 @@ const styles = StyleSheet.create({
   modalHeaderText: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#ffffff',
   },
   modalScroll: {
     maxHeight: 400,
@@ -1155,17 +1142,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 12,
     marginBottom: 8,
-    backgroundColor: 'rgba(255,255,255,0.03)',
   },
   addressOptionName: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#ffffff',
   },
   addressOptionText: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
     marginTop: 4,
+  },
+  addNewAddressButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    marginHorizontal: 12,
+  },
+  addNewAddressText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#60A5FA',
   },
   // Rally Credits styles
   creditsContainer: {

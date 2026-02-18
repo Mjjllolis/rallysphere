@@ -8,10 +8,11 @@ import {
   ScrollView,
   Dimensions,
 } from 'react-native';
-import { Text, IconButton } from 'react-native-paper';
+import { Text, IconButton, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useThemeToggle } from '../app/_layout';
 
 interface EmojiPickerModalProps {
   visible: boolean;
@@ -36,11 +37,18 @@ const EMOJI_SIZE = (width - 60) / 8;
 
 export default function EmojiPickerModal({ visible, onClose, onSelectEmoji }: EmojiPickerModalProps) {
   const [selectedCategory, setSelectedCategory] = useState('Smileys');
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
 
   const handleSelectEmoji = (emoji: string) => {
     onSelectEmoji(emoji);
     onClose();
   };
+
+  // Dynamic gradient colors based on theme
+  const gradientColors = isDark
+    ? ['#1a1a1a', '#2a2a2a', '#1f1f1f', '#0a0a0a']
+    : ['#f8fafc', '#f1f5f9', '#e2e8f0', '#f8fafc'];
 
   return (
     <Modal
@@ -49,9 +57,9 @@ export default function EmojiPickerModal({ visible, onClose, onSelectEmoji }: Em
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <LinearGradient
-          colors={['#1a1a1a', '#2a2a2a', '#1f1f1f', '#0a0a0a']}
+          colors={gradientColors}
           locations={[0, 0.3, 0.6, 1]}
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
@@ -61,12 +69,18 @@ export default function EmojiPickerModal({ visible, onClose, onSelectEmoji }: Em
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <BlurView intensity={40} tint="dark" style={styles.closeButtonBlur}>
-                <IconButton icon="close" size={24} iconColor="white" />
-              </BlurView>
+              {isDark ? (
+                <BlurView intensity={40} tint="dark" style={styles.closeButtonBlur}>
+                  <IconButton icon="close" size={24} iconColor={theme.colors.onSurface} />
+                </BlurView>
+              ) : (
+                <View style={[styles.closeButtonBlur, { backgroundColor: theme.colors.surfaceVariant }]}>
+                  <IconButton icon="close" size={24} iconColor={theme.colors.onSurface} />
+                </View>
+              )}
             </TouchableOpacity>
 
-            <Text style={styles.headerTitle}>Choose Emoji</Text>
+            <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Choose Emoji</Text>
 
             <View style={{ width: 40 }} />
           </View>
@@ -83,14 +97,16 @@ export default function EmojiPickerModal({ visible, onClose, onSelectEmoji }: Em
                 key={category}
                 style={[
                   styles.categoryTab,
-                  selectedCategory === category && styles.categoryTabActive,
+                  { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' },
+                  selectedCategory === category && [styles.categoryTabActive, { backgroundColor: theme.colors.primary }],
                 ]}
                 onPress={() => setSelectedCategory(category)}
               >
                 <Text
                   style={[
                     styles.categoryText,
-                    selectedCategory === category && styles.categoryTextActive,
+                    { color: theme.colors.onSurfaceVariant },
+                    selectedCategory === category && [styles.categoryTextActive, { color: theme.colors.onPrimary }],
                   ]}
                 >
                   {category}
@@ -126,7 +142,6 @@ export default function EmojiPickerModal({ visible, onClose, onSelectEmoji }: Em
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   safeArea: {
     flex: 1,
@@ -154,7 +169,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: 'white',
   },
   categoryScrollView: {
     maxHeight: 50,
@@ -167,18 +181,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   categoryTabActive: {
-    backgroundColor: '#60A5FA',
   },
   categoryText: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.7)',
   },
   categoryTextActive: {
-    color: 'white',
   },
   emojiScrollView: {
     flex: 1,

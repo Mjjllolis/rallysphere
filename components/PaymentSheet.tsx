@@ -5,6 +5,7 @@ import type { Event, RallyCreditRedemption, UserRallyCredits } from '../lib/fire
 import { db, auth, getClubRallyRedemptions, getUserRallyCredits, spendRallyCredits } from '../lib/firebase';
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useThemeToggle } from '../app/_layout';
 
 // Conditionally import Stripe based on platform
 let CardField: any = null;
@@ -45,6 +46,7 @@ interface PaymentSheetProps {
 
 export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: PaymentSheetProps) {
   const theme = useTheme();
+  const { isDark } = useThemeToggle();
 
   // State for web payment form
   const [cardNumber, setCardNumber] = useState('');
@@ -793,7 +795,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
         style={[
           styles.sheet,
           {
-            backgroundColor: theme.dark ? '#1c1c1e' : '#ffffff',
+            backgroundColor: theme.colors.surface,
             transform: [{ translateY: slideAnim }],
           }
         ]}
@@ -805,10 +807,10 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
 
         {/* Close Button */}
         <TouchableOpacity
-          style={[styles.closeButton, { backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
+          style={[styles.closeButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
           onPress={onDismiss}
         >
-          <Text style={[styles.closeIcon, { color: theme.dark ? '#fff' : '#666' }]}>✕</Text>
+          <Text style={[styles.closeIcon, { color: theme.colors.onSurfaceVariant }]}>✕</Text>
         </TouchableOpacity>
 
         <ScrollView
@@ -842,12 +844,12 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
                       colors={['rgba(255, 215, 0, 0.15)', 'rgba(255, 165, 0, 0.1)']}
                       style={styles.appliedDiscountGradient}
                     >
-                      <View style={styles.appliedDiscountContent}>
+                      <View style={[styles.appliedDiscountContent, { backgroundColor: isDark ? 'rgba(0, 0, 0, 0.3)' : 'rgba(255, 255, 255, 0.7)' }]}>
                         <View style={styles.appliedDiscountLeft}>
                           <Text style={styles.appliedDiscountIcon}>⭐</Text>
                           <View>
                             <Text style={styles.appliedDiscountName}>{selectedDiscount.name}</Text>
-                            <Text style={styles.appliedDiscountValue}>
+                            <Text style={[styles.appliedDiscountValue, { color: theme.colors.onSurfaceVariant }]}>
                               {getDiscountDescription(selectedDiscount)} • {selectedDiscount.creditsRequired} credits
                             </Text>
                           </View>
@@ -869,7 +871,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
                       <Text style={styles.showDiscountsIcon}>⭐</Text>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.showDiscountsText}>Apply Rally Credits Reward</Text>
-                        <Text style={styles.showDiscountsSubtext}>
+                        <Text style={[styles.showDiscountsSubtext, { color: theme.colors.onSurfaceVariant }]}>
                           You have {userCredits?.availableCredits || 0} credits available
                         </Text>
                       </View>
@@ -885,7 +887,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
 
                 {/* Discounts List */}
                 {showDiscounts && !selectedDiscount && (
-                  <View style={styles.discountsList}>
+                  <View style={[styles.discountsList, { borderColor: theme.colors.outline }]}>
                     {loadingDiscounts ? (
                       <ActivityIndicator size="small" color="#F59E0B" style={{ padding: 20 }} />
                     ) : (
@@ -896,6 +898,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
                             key={redemption.id}
                             style={[
                               styles.discountItem,
+                              { borderBottomColor: theme.colors.outline },
                               !canAfford && styles.discountItemDisabled,
                             ]}
                             onPress={() => handleApplyDiscount(redemption)}
@@ -910,7 +913,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
                                   </Text>
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                  <Text style={[styles.discountItemName, !canAfford && { opacity: 0.5 }]}>
+                                  <Text style={[styles.discountItemName, { color: theme.colors.onSurface }, !canAfford && { opacity: 0.5 }]}>
                                     {redemption.name}
                                   </Text>
                                   <Text style={[styles.discountItemValue, !canAfford && { opacity: 0.5 }]}>
@@ -1406,19 +1409,16 @@ const styles = StyleSheet.create({
   },
   showDiscountsSubtext: {
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.6)',
     marginTop: 2,
   },
   discountsList: {
     marginTop: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
     overflow: 'hidden',
   },
   discountItem: {
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   discountItemDisabled: {
     opacity: 0.6,
@@ -1446,7 +1446,6 @@ const styles = StyleSheet.create({
   discountItemName: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#fff',
   },
   discountItemValue: {
     fontSize: 13,
@@ -1495,7 +1494,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 14,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
     borderRadius: 10,
   },
   appliedDiscountLeft: {
@@ -1514,7 +1512,6 @@ const styles = StyleSheet.create({
   },
   appliedDiscountValue: {
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 2,
   },
   removeDiscountButton: {

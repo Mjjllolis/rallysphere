@@ -1,9 +1,10 @@
 // components/GlassMemoryCard.tsx
 import React from 'react';
 import { View, StyleSheet, Image, TouchableOpacity, Dimensions } from 'react-native';
-import { Text, IconButton } from 'react-native-paper';
+import { Text, IconButton, useTheme } from 'react-native-paper';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useThemeToggle } from '../app/_layout';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CARD_WIDTH = (SCREEN_WIDTH - 60) / 2; // 2 columns with padding
@@ -31,6 +32,9 @@ export default function GlassMemoryCard({
   onLike,
   isLiked = false,
 }: GlassMemoryCardProps) {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
+
   const formatDate = (date?: Date) => {
     if (!date) return '';
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -43,7 +47,7 @@ export default function GlassMemoryCard({
       activeOpacity={0.8}
     >
       {/* Image Container */}
-      <View style={styles.imageContainer}>
+      <View style={[styles.imageContainer, { backgroundColor: theme.colors.background }]}>
         {imageUri ? (
           <>
             <Image source={{ uri: imageUri }} style={styles.image} />
@@ -55,7 +59,7 @@ export default function GlassMemoryCard({
           </>
         ) : (
           <View style={styles.placeholderContainer}>
-            <BlurView intensity={40} tint="dark" style={styles.placeholder}>
+            <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.placeholder, { borderColor: theme.colors.outline }]}>
               <Text style={styles.placeholderText}>📸</Text>
             </BlurView>
           </View>
@@ -64,16 +68,16 @@ export default function GlassMemoryCard({
         {/* Content Overlay */}
         <View style={styles.contentOverlay}>
           <View style={styles.textContainer}>
-            <Text style={styles.title} numberOfLines={2}>
+            <Text style={[styles.title, { color: theme.colors.onSurface }]} numberOfLines={2}>
               {title}
             </Text>
             {eventName && (
-              <Text style={styles.eventName} numberOfLines={1}>
+              <Text style={[styles.eventName, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
                 {eventName}
               </Text>
             )}
             {date && (
-              <Text style={styles.date}>{formatDate(date)}</Text>
+              <Text style={[styles.date, { color: theme.colors.onSurfaceVariant }]}>{formatDate(date)}</Text>
             )}
           </View>
 
@@ -86,14 +90,14 @@ export default function GlassMemoryCard({
             >
               <Text style={styles.statIcon}>{isLiked ? '❤️' : '🤍'}</Text>
               {likes > 0 && (
-                <Text style={styles.statText}>{likes}</Text>
+                <Text style={[styles.statText, { color: theme.colors.onSurface }]}>{likes}</Text>
               )}
             </TouchableOpacity>
 
             {comments > 0 && (
               <View style={styles.statItem}>
                 <Text style={styles.statIcon}>💬</Text>
-                <Text style={styles.statText}>{comments}</Text>
+                <Text style={[styles.statText, { color: theme.colors.onSurface }]}>{comments}</Text>
               </View>
             )}
           </View>
@@ -113,7 +117,6 @@ const styles = StyleSheet.create({
     height: CARD_WIDTH * 1.3, // 1:1.3 aspect ratio
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: '#000000',
   },
   image: {
     width: '100%',
@@ -135,7 +138,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   placeholderText: {
     fontSize: 40,
@@ -153,20 +155,17 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 14,
     fontWeight: '700',
-    color: 'white',
     marginBottom: 4,
     lineHeight: 18,
   },
   eventName: {
     fontSize: 12,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.8)',
     marginBottom: 2,
   },
   date: {
     fontSize: 11,
     fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.6)',
   },
   statsContainer: {
     flexDirection: 'row',
@@ -184,6 +183,5 @@ const styles = StyleSheet.create({
   statText: {
     fontSize: 12,
     fontWeight: '600',
-    color: 'white',
   },
 });

@@ -13,12 +13,13 @@ import {
   Text,
   IconButton,
   ActivityIndicator,
+  useTheme,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAuth } from '../../_layout';
+import { useAuth, useThemeToggle } from '../../_layout';
 import {
   getClub,
   getEvents,
@@ -40,6 +41,8 @@ export default function EventCheckinScreen() {
   const { user } = useAuth();
   const { id, eventId: initialEventId } = useLocalSearchParams();
   const clubId = id as string;
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
 
   const [club, setClub] = useState<Club | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
@@ -183,10 +186,10 @@ export default function EventCheckinScreen() {
     return (
       <View style={styles.container}>
         <View style={StyleSheet.absoluteFill}>
-          <View style={styles.blackBackground} />
+          <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#fff" />
+          <ActivityIndicator size="large" color={theme.colors.onSurface} />
         </View>
       </View>
     );
@@ -195,11 +198,11 @@ export default function EventCheckinScreen() {
   return (
     <View style={styles.container}>
       <View style={StyleSheet.absoluteFill}>
-        <View style={styles.blackBackground} />
+        <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
       </View>
 
       <LinearGradient
-        colors={['rgba(27, 54, 93, 0.3)', 'rgba(96, 165, 250, 0.1)', 'rgba(0, 0, 0, 0)']}
+        colors={isDark ? ['rgba(27, 54, 93, 0.3)', 'rgba(96, 165, 250, 0.1)', 'rgba(0, 0, 0, 0)'] : ['rgba(27, 54, 93, 0.15)', 'rgba(96, 165, 250, 0.05)', 'rgba(255, 255, 255, 0)']}
         locations={[0, 0.3, 1]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
@@ -209,13 +212,13 @@ export default function EventCheckinScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <BlurView intensity={40} tint="dark" style={styles.backButtonBlur}>
-              <IconButton icon="arrow-left" size={24} iconColor="#fff" />
+            <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.backButtonBlur}>
+              <IconButton icon="arrow-left" size={24} iconColor={theme.colors.onSurface} />
             </BlurView>
           </TouchableOpacity>
           <View style={styles.headerInfo}>
-            <Text style={styles.headerTitle}>Event Check-in</Text>
-            <Text style={styles.headerSubtitle}>{club?.name}</Text>
+            <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Event Check-in</Text>
+            <Text style={[styles.headerSubtitle, { color: theme.colors.onSurfaceVariant }]}>{club?.name}</Text>
           </View>
         </View>
 
@@ -232,19 +235,21 @@ export default function EventCheckinScreen() {
                 onPress={() => setSelectedEvent(event)}
                 style={[
                   styles.eventChip,
+                  { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' },
                   selectedEvent?.id === event.id && styles.eventChipSelected,
                 ]}
               >
                 <Text
                   style={[
                     styles.eventChipText,
+                    { color: theme.colors.onSurfaceVariant },
                     selectedEvent?.id === event.id && styles.eventChipTextSelected,
                   ]}
                   numberOfLines={1}
                 >
                   {event.title}
                 </Text>
-                <Text style={styles.eventChipDate}>{formatEventDate(event)}</Text>
+                <Text style={[styles.eventChipDate, { color: theme.colors.onSurfaceDisabled }]}>{formatEventDate(event)}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -253,33 +258,33 @@ export default function EventCheckinScreen() {
         {selectedEvent ? (
           <>
             {/* Stats Bar */}
-            <View style={styles.statsBar}>
-              <BlurView intensity={20} tint="dark" style={styles.statsBarBlur}>
+            <View style={[styles.statsBar, { borderColor: theme.colors.outline }]}>
+              <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={styles.statsBarBlur}>
                 <View style={styles.statsBarContent}>
                   <View style={styles.statItem}>
                     <Text style={styles.statNumber}>{attendees.length}</Text>
-                    <Text style={styles.statLabel}>Attendees</Text>
+                    <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>Attendees</Text>
                   </View>
-                  <View style={styles.statDivider} />
+                  <View style={[styles.statDivider, { backgroundColor: theme.colors.outline }]} />
                   <View style={styles.statItem}>
                     <Text style={styles.statNumberGreen}>{checkedInCount}</Text>
-                    <Text style={styles.statLabel}>Checked In</Text>
+                    <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>Checked In</Text>
                   </View>
-                  <View style={styles.statDivider} />
+                  <View style={[styles.statDivider, { backgroundColor: theme.colors.outline }]} />
                   <View style={styles.statItem}>
                     <Text style={styles.statNumberOrange}>
                       {attendees.length - checkedInCount}
                     </Text>
-                    <Text style={styles.statLabel}>Remaining</Text>
+                    <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>Remaining</Text>
                   </View>
                   {selectedEvent.rallyCreditsAwarded && selectedEvent.rallyCreditsAwarded > 0 && (
                     <>
-                      <View style={styles.statDivider} />
+                      <View style={[styles.statDivider, { backgroundColor: theme.colors.outline }]} />
                       <View style={styles.statItem}>
                         <Text style={styles.statNumberGold}>
                           {selectedEvent.rallyCreditsAwarded}
                         </Text>
-                        <Text style={styles.statLabel}>Credits/Person</Text>
+                        <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>Credits/Person</Text>
                       </View>
                     </>
                   )}
@@ -288,19 +293,19 @@ export default function EventCheckinScreen() {
             </View>
 
             {/* Search Bar */}
-            <View style={styles.searchContainer}>
-              <BlurView intensity={20} tint="dark" style={styles.searchBlur}>
-                <IconButton icon="magnify" size={20} iconColor="rgba(255,255,255,0.5)" />
+            <View style={[styles.searchContainer, { borderColor: theme.colors.outline }]}>
+              <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={styles.searchBlur}>
+                <IconButton icon="magnify" size={20} iconColor={theme.colors.onSurfaceDisabled} />
                 <TextInput
-                  style={styles.searchInput}
+                  style={[styles.searchInput, { color: theme.colors.onSurface }]}
                   placeholder="Search attendees..."
-                  placeholderTextColor="rgba(255,255,255,0.4)"
+                  placeholderTextColor={theme.colors.onSurfaceDisabled}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                 />
                 {searchQuery.length > 0 && (
                   <TouchableOpacity onPress={() => setSearchQuery('')}>
-                    <IconButton icon="close" size={18} iconColor="rgba(255,255,255,0.5)" />
+                    <IconButton icon="close" size={18} iconColor={theme.colors.onSurfaceDisabled} />
                   </TouchableOpacity>
                 )}
               </BlurView>
@@ -310,18 +315,18 @@ export default function EventCheckinScreen() {
             <ScrollView
               contentContainerStyle={styles.scrollContent}
               refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.onSurface} />
               }
             >
               {loadingAttendees ? (
                 <View style={styles.loadingAttendees}>
-                  <ActivityIndicator size="small" color="#fff" />
-                  <Text style={styles.loadingText}>Loading attendees...</Text>
+                  <ActivityIndicator size="small" color={theme.colors.onSurface} />
+                  <Text style={[styles.loadingText, { color: theme.colors.onSurfaceVariant }]}>Loading attendees...</Text>
                 </View>
               ) : filteredAttendees.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <IconButton icon="account-group" size={48} iconColor="rgba(255,255,255,0.3)" />
-                  <Text style={styles.emptyText}>
+                  <IconButton icon="account-group" size={48} iconColor={theme.colors.onSurfaceDisabled} />
+                  <Text style={[styles.emptyText, { color: theme.colors.onSurfaceDisabled }]}>
                     {searchQuery ? 'No attendees match your search' : 'No attendees yet'}
                   </Text>
                 </View>
@@ -333,7 +338,7 @@ export default function EventCheckinScreen() {
                     disabled={attendee.isCheckedIn || checkingIn === attendee.userId}
                     activeOpacity={0.7}
                   >
-                    <BlurView intensity={20} tint="dark" style={styles.attendeeCard}>
+                    <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.attendeeCard, { borderColor: theme.colors.outline }]}>
                       <View style={styles.attendeeCardInner}>
                         {/* Avatar */}
                         <View
@@ -345,7 +350,7 @@ export default function EventCheckinScreen() {
                           {attendee.profileEmoji ? (
                             <Text style={styles.avatarEmoji}>{attendee.profileEmoji}</Text>
                           ) : (
-                            <Text style={styles.avatarText}>
+                            <Text style={[styles.avatarText, { color: theme.colors.onSurface }]}>
                               {attendee.displayName.charAt(0).toUpperCase()}
                             </Text>
                           )}
@@ -353,8 +358,8 @@ export default function EventCheckinScreen() {
 
                         {/* Info */}
                         <View style={styles.attendeeInfo}>
-                          <Text style={styles.attendeeName}>{attendee.displayName}</Text>
-                          <Text style={styles.attendeeEmail}>{attendee.email}</Text>
+                          <Text style={[styles.attendeeName, { color: theme.colors.onSurface }]}>{attendee.displayName}</Text>
+                          <Text style={[styles.attendeeEmail, { color: theme.colors.onSurfaceDisabled }]}>{attendee.email}</Text>
                         </View>
 
                         {/* Status/Action */}
@@ -379,8 +384,8 @@ export default function EventCheckinScreen() {
           </>
         ) : (
           <View style={styles.emptyState}>
-            <IconButton icon="calendar-blank" size={48} iconColor="rgba(255,255,255,0.3)" />
-            <Text style={styles.emptyText}>No events to check in</Text>
+            <IconButton icon="calendar-blank" size={48} iconColor={theme.colors.onSurfaceDisabled} />
+            <Text style={[styles.emptyText, { color: theme.colors.onSurfaceDisabled }]}>No events to check in</Text>
           </View>
         )}
       </SafeAreaView>
@@ -394,7 +399,6 @@ const styles = StyleSheet.create({
   },
   blackBackground: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   loadingContainer: {
     flex: 1,
@@ -427,11 +431,9 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#ffffff',
   },
   headerSubtitle: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
     marginTop: 2,
   },
   eventSelectorContainer: {
@@ -445,14 +447,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.1)',
     marginRight: 8,
   },
   eventChipSelected: {
     backgroundColor: '#60A5FA',
   },
   eventChipText: {
-    color: 'rgba(255,255,255,0.8)',
     fontSize: 14,
     fontWeight: '600',
     maxWidth: 150,
@@ -461,7 +461,6 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   eventChipDate: {
-    color: 'rgba(255,255,255,0.5)',
     fontSize: 11,
     marginTop: 2,
   },
@@ -471,7 +470,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   statsBarBlur: {
     borderRadius: 16,
@@ -508,13 +506,11 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.6)',
     marginTop: 2,
   },
   statDivider: {
     width: 1,
     height: 30,
-    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   searchContainer: {
     marginHorizontal: 16,
@@ -522,7 +518,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   searchBlur: {
     flexDirection: 'row',
@@ -531,7 +526,6 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    color: '#fff',
     fontSize: 16,
     paddingVertical: 12,
   },
@@ -547,7 +541,6 @@ const styles = StyleSheet.create({
     paddingVertical: 32,
   },
   loadingText: {
-    color: 'rgba(255,255,255,0.6)',
     fontSize: 14,
   },
   emptyState: {
@@ -557,7 +550,6 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
   },
   emptyText: {
-    color: 'rgba(255,255,255,0.5)',
     fontSize: 16,
     marginTop: 8,
   },
@@ -566,7 +558,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   attendeeCardInner: {
     flexDirection: 'row',
@@ -591,7 +582,6 @@ const styles = StyleSheet.create({
   avatarText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#fff',
   },
   attendeeInfo: {
     flex: 1,
@@ -599,11 +589,9 @@ const styles = StyleSheet.create({
   attendeeName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
   },
   attendeeEmail: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.5)',
     marginTop: 2,
   },
   checkedInBadge: {

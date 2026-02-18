@@ -15,12 +15,13 @@ import {
   Switch,
   ActivityIndicator,
   Chip,
+  useTheme,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAuth } from '../../_layout';
+import { useAuth, useThemeToggle } from '../../_layout';
 import {
   getClub,
   updateClubSubscriptionSettings,
@@ -32,6 +33,8 @@ import GlassInput from '../../../components/GlassInput';
 import GlassButton from '../../../components/GlassButton';
 
 export default function ManageSubscriptionsScreen() {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const { user } = useAuth();
   const { id } = useLocalSearchParams();
   const clubId = id as string;
@@ -138,12 +141,9 @@ export default function ManageSubscriptionsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <View style={StyleSheet.absoluteFill}>
-          <View style={styles.blackBackground} />
-        </View>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#fff" />
+          <ActivityIndicator size="large" color={theme.colors.onSurface} />
         </View>
       </View>
     );
@@ -156,15 +156,10 @@ export default function ManageSubscriptionsScreen() {
   const activeSubscribers = subscribers.filter(s => s.status === 'active');
 
   return (
-    <View style={styles.container}>
-      {/* Black Background */}
-      <View style={StyleSheet.absoluteFill}>
-        <View style={styles.blackBackground} />
-      </View>
-
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Subtle Gradient Overlay */}
       <LinearGradient
-        colors={['rgba(255, 215, 0, 0.2)', 'rgba(255, 165, 0, 0.1)', 'rgba(0, 0, 0, 0)']}
+        colors={isDark ? ['rgba(255, 215, 0, 0.2)', 'rgba(255, 165, 0, 0.1)', 'rgba(0, 0, 0, 0)'] : ['rgba(255, 215, 0, 0.1)', 'rgba(255, 165, 0, 0.05)', 'rgba(255, 255, 255, 0)']}
         locations={[0, 0.3, 1]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
@@ -174,52 +169,52 @@ export default function ManageSubscriptionsScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <BlurView intensity={40} tint="dark" style={styles.backButtonBlur}>
-              <IconButton icon="arrow-left" size={24} iconColor="#fff" />
+            <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.backButtonBlur}>
+              <IconButton icon="arrow-left" size={24} iconColor={theme.colors.onSurface} />
             </BlurView>
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Subscriptions</Text>
-            <Text style={styles.headerSubtitle}>{club.name}</Text>
+            <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Subscriptions</Text>
+            <Text style={[styles.headerSubtitle, { color: theme.colors.onSurfaceVariant }]}>{club.name}</Text>
           </View>
         </View>
 
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.onSurface} />
           }
         >
           {/* Stats */}
           <View style={styles.statsRow}>
-            <BlurView intensity={20} tint="dark" style={styles.statCard}>
+            <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.statCard, { borderColor: theme.colors.outline }]}>
               <View style={styles.statCardInner}>
                 <Text style={[styles.statValue, { color: '#FFD700' }]}>{activeSubscribers.length}</Text>
-                <Text style={styles.statLabel}>Active Subscribers</Text>
+                <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>Active Subscribers</Text>
               </View>
             </BlurView>
 
-            <BlurView intensity={20} tint="dark" style={styles.statCard}>
+            <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.statCard, { borderColor: theme.colors.outline }]}>
               <View style={styles.statCardInner}>
                 <Text style={[styles.statValue, { color: '#10B981' }]}>
                   ${((club.subscriptionPrice || 0) * activeSubscribers.length * 0.9).toFixed(0)}
                 </Text>
-                <Text style={styles.statLabel}>Monthly Revenue</Text>
+                <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>Monthly Revenue</Text>
               </View>
             </BlurView>
           </View>
 
           {/* Settings Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Subscription Settings</Text>
+            <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Subscription Settings</Text>
 
-            <BlurView intensity={20} tint="dark" style={styles.settingsCard}>
+            <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.settingsCard, { borderColor: theme.colors.outline }]}>
               <View style={styles.settingsCardInner}>
                 {/* Enable Toggle */}
                 <View style={styles.settingRow}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.settingLabel}>Enable Subscriptions</Text>
-                    <Text style={styles.settingDescription}>
+                    <Text style={[styles.settingLabel, { color: theme.colors.onSurface }]}>Enable Subscriptions</Text>
+                    <Text style={[styles.settingDescription, { color: theme.colors.onSurfaceVariant }]}>
                       Allow members to subscribe to your club for exclusive perks
                     </Text>
                   </View>
@@ -234,7 +229,7 @@ export default function ManageSubscriptionsScreen() {
                   <>
                     {/* Price Input */}
                     <View style={styles.inputContainer}>
-                      <Text style={styles.inputLabel}>Monthly Price ($)</Text>
+                      <Text style={[styles.inputLabel, { color: theme.colors.onSurfaceVariant }]}>Monthly Price ($)</Text>
                       <GlassInput
                         value={subscriptionPrice}
                         onChangeText={setSubscriptionPrice}
@@ -242,14 +237,14 @@ export default function ManageSubscriptionsScreen() {
                         keyboardType="decimal-pad"
                         icon="currency-usd"
                       />
-                      <Text style={styles.feeNote}>
+                      <Text style={[styles.feeNote, { color: theme.colors.onSurfaceDisabled }]}>
                         Platform fee: 10% | You receive: ${subscriptionPrice ? (parseFloat(subscriptionPrice) * 0.9).toFixed(2) : '0.00'}/subscriber
                       </Text>
                     </View>
 
                     {/* Description Input */}
                     <View style={styles.inputContainer}>
-                      <Text style={styles.inputLabel}>Subscriber Benefits</Text>
+                      <Text style={[styles.inputLabel, { color: theme.colors.onSurfaceVariant }]}>Subscriber Benefits</Text>
                       <GlassInput
                         value={subscriptionDescription}
                         onChangeText={setSubscriptionDescription}
@@ -277,7 +272,7 @@ export default function ManageSubscriptionsScreen() {
           {/* Subscribers List */}
           {activeSubscribers.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Active Subscribers</Text>
+              <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Active Subscribers</Text>
 
               {activeSubscribers.map((subscription) => {
                 const profile = subscriberProfiles.get(subscription.userId);
@@ -289,7 +284,7 @@ export default function ManageSubscriptionsScreen() {
                   : '?';
 
                 return (
-                  <BlurView key={subscription.id} intensity={20} tint="dark" style={styles.subscriberCard}>
+                  <BlurView key={subscription.id} intensity={20} tint={isDark ? "dark" : "light"} style={[styles.subscriberCard, { borderColor: theme.colors.outline }]}>
                     <View style={styles.subscriberCardInner}>
                       <View style={styles.subscriberInfo}>
                         {profile?.avatar ? (
@@ -300,8 +295,8 @@ export default function ManageSubscriptionsScreen() {
                           </View>
                         )}
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.subscriberName}>{displayName}</Text>
-                          <Text style={styles.subscriberDate}>
+                          <Text style={[styles.subscriberName, { color: theme.colors.onSurface }]}>{displayName}</Text>
+                          <Text style={[styles.subscriberDate, { color: theme.colors.onSurfaceDisabled }]}>
                             Since {subscription.createdAt?.toDate?.()?.toLocaleDateString() || 'Unknown'}
                           </Text>
                         </View>
@@ -312,7 +307,7 @@ export default function ManageSubscriptionsScreen() {
                             styles.statusChip,
                             subscription.status === 'active' && styles.activeChip,
                           ]}
-                          textStyle={styles.statusChipText}
+                          textStyle={[styles.statusChipText, { color: theme.colors.onSurface }]}
                         >
                           {subscription.status}
                         </Chip>
@@ -329,9 +324,9 @@ export default function ManageSubscriptionsScreen() {
 
           {activeSubscribers.length === 0 && subscriptionEnabled && (
             <View style={styles.emptyState}>
-              <IconButton icon="star-circle-outline" size={48} iconColor="rgba(255,255,255,0.3)" />
-              <Text style={styles.emptyText}>No subscribers yet</Text>
-              <Text style={styles.emptyHint}>
+              <IconButton icon="star-circle-outline" size={48} iconColor={theme.colors.onSurfaceDisabled} />
+              <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>No subscribers yet</Text>
+              <Text style={[styles.emptyHint, { color: theme.colors.onSurfaceDisabled }]}>
                 Share your club with members to grow your subscriber base
               </Text>
             </View>
@@ -378,11 +373,9 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#ffffff',
   },
   headerSubtitle: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
     marginTop: 2,
   },
   scrollContent: {
@@ -399,7 +392,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   statCardInner: {
     padding: 20,

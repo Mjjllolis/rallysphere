@@ -235,7 +235,6 @@ const styles = StyleSheet.create({
   },
   totalAmount: {
     fontWeight: 'bold',
-    color: '#60A5FA',
   },
   clubReceives: {
     textAlign: 'right',
@@ -254,6 +253,9 @@ const styles = StyleSheet.create({
   cardField: {
     backgroundColor: '#FFFFFF',
     textColor: '#000000',
+    borderColor: '#E2E8F0',
+    borderWidth: 1,
+    borderRadius: 8,
   },
   actions: {
     flexDirection: 'row',

@@ -10,6 +10,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
+import { useThemeToggle } from '../app/_layout';
 import type { Club } from '../lib/firebase';
 
 interface ClubCardProps {
@@ -30,6 +31,7 @@ export default function ClubCard({
   compact = false
 }: ClubCardProps) {
   const theme = useTheme();
+  const { isDark } = useThemeToggle();
 
   // Generate initials from club name (e.g., "Pickle Ball Club" -> "PBC", "Pickle" -> "P")
   const getClubInitials = (name: string): string => {
@@ -66,26 +68,26 @@ export default function ClubCard({
           end={{ x: 1, y: 1 }}
           style={styles.compactCardGradient}
         >
-          <BlurView intensity={25} tint="dark" style={styles.compactCard}>
+          <BlurView intensity={25} tint={isDark ? "dark" : "light"} style={styles.compactCard}>
             <View style={styles.compactContent}>
             {/* Left: Logo or Initials */}
             {club.logo ? (
-              <Image source={{ uri: club.logo }} style={styles.compactLogo} />
+              <Image source={{ uri: club.logo }} style={[styles.compactLogo, { borderColor: theme.colors.outline }]} />
             ) : club.coverImage ? (
-              <Image source={{ uri: club.coverImage }} style={styles.compactLogo} />
+              <Image source={{ uri: club.coverImage }} style={[styles.compactLogo, { borderColor: theme.colors.outline }]} />
             ) : (
               <LinearGradient
                 colors={['#60A5FA', '#3B82F6']}
-                style={styles.compactLogoPlaceholder}
+                style={[styles.compactLogoPlaceholder, { borderColor: theme.colors.outline }]}
               >
-                <Text style={styles.compactInitials}>{getClubInitials(club.name)}</Text>
+                <Text style={[styles.compactInitials, { color: theme.colors.onSurface }]}>{getClubInitials(club.name)}</Text>
               </LinearGradient>
             )}
 
             {/* Middle: Info */}
             <View style={styles.compactInfo}>
               <View style={styles.compactTitleRow}>
-                <Text style={styles.compactName} numberOfLines={1}>
+                <Text style={[styles.compactName, { color: theme.colors.onSurface }]} numberOfLines={1}>
                   {club.name}
                 </Text>
                 {club.isPro && (
@@ -100,21 +102,21 @@ export default function ClubCard({
                 )}
               </View>
               <View style={styles.compactMetaRow}>
-                <Text style={styles.compactCategory}>{club.category}</Text>
-                <Text style={styles.compactSeparator}>•</Text>
+                <Text style={[styles.compactCategory, { color: theme.colors.onSurfaceVariant }]}>{club.category}</Text>
+                <Text style={[styles.compactSeparator, { color: theme.colors.onSurfaceDisabled }]}>•</Text>
                 <IconButton
                   icon="account-multiple"
-                  iconColor="rgba(255,255,255,0.6)"
+                  iconColor={theme.colors.onSurfaceVariant}
                   size={12}
                   style={{ margin: 0, padding: 0 }}
                 />
-                <Text style={styles.compactMembers}>{club.members.length}</Text>
+                <Text style={[styles.compactMembers, { color: theme.colors.onSurfaceVariant }]}>{club.members.length}</Text>
               </View>
               {club.tags && club.tags.length > 0 && (
                 <View style={styles.compactTags}>
                   {club.tags.slice(0, 2).map((tag) => (
                     <View key={tag} style={styles.compactTag}>
-                      <Text style={styles.compactTagText}>{tag}</Text>
+                      <Text style={[styles.compactTagText, { color: theme.colors.onSurfaceVariant }]}>{tag}</Text>
                     </View>
                   ))}
                 </View>
@@ -131,14 +133,14 @@ export default function ClubCard({
               >
                 <BlurView
                   intensity={20}
-                  tint="dark"
+                  tint={isDark ? "dark" : "light"}
                   style={[
                     styles.compactButton,
                     isJoined ? styles.compactButtonJoined : styles.compactButtonNotJoined
                   ]}
                 >
                   {loading ? (
-                    <ActivityIndicator size="small" color="#fff" />
+                    <ActivityIndicator size="small" color={theme.colors.onSurface} />
                   ) : (
                     <IconButton
                       icon={isJoined ? "check" : "plus"}
@@ -164,7 +166,7 @@ export default function ClubCard({
       onPress={handlePress}
       activeOpacity={0.9}
     >
-      <BlurView intensity={10} tint="dark" style={styles.card}>
+      <BlurView intensity={10} tint={isDark ? "dark" : "light"} style={[styles.card, { borderColor: theme.colors.outline }]}>
         {club.coverImage ? (
           <ImageBackground
             source={{ uri: club.coverImage }}
@@ -201,37 +203,37 @@ export default function ClubCard({
         {/* Header Section */}
         <View style={styles.header}>
                 {club.logo ? (
-                  <Image source={{ uri: club.logo }} style={styles.logo} />
+                  <Image source={{ uri: club.logo }} style={[styles.logo, { borderColor: theme.colors.outline }]} />
                 ) : (
                   <LinearGradient
                     colors={['#60A5FA', '#3B82F6']}
-                    style={styles.logoPlaceholder}
+                    style={[styles.logoPlaceholder, { borderColor: theme.colors.outline }]}
                   >
-                    <Text style={styles.logoInitials}>{getClubInitials(club.name)}</Text>
+                    <Text style={[styles.logoInitials, { color: theme.colors.onSurface }]}>{getClubInitials(club.name)}</Text>
                   </LinearGradient>
                 )}
                 <View style={styles.titleSection}>
-                  <Text style={styles.clubName} numberOfLines={2}>
+                  <Text style={[styles.clubName, { color: theme.colors.onSurface }]} numberOfLines={2}>
                     {club.name}
                   </Text>
                   <View style={styles.metaRow}>
                     <IconButton
                       icon="shape"
-                      iconColor="rgba(255,255,255,0.7)"
+                      iconColor={theme.colors.onSurfaceVariant}
                       size={14}
                       style={{ margin: 0, padding: 0 }}
                     />
-                    <Text style={styles.category}>
+                    <Text style={[styles.category, { color: theme.colors.onSurfaceVariant }]}>
                       {club.category}
                     </Text>
-                    <Text style={styles.separator}>•</Text>
+                    <Text style={[styles.separator, { color: theme.colors.onSurfaceDisabled }]}>•</Text>
                     <IconButton
                       icon="account-multiple"
-                      iconColor="rgba(255,255,255,0.7)"
+                      iconColor={theme.colors.onSurfaceVariant}
                       size={14}
                       style={{ margin: 0, padding: 0 }}
                     />
-                    <Text style={styles.members}>
+                    <Text style={[styles.members, { color: theme.colors.onSurfaceVariant }]}>
                       {club.members.length}
                     </Text>
                   </View>
@@ -255,10 +257,10 @@ export default function ClubCard({
                     <BlurView
                       key={tag}
                       intensity={15}
-                      tint="dark"
-                      style={styles.tag}
+                      tint={isDark ? "dark" : "light"}
+                      style={[styles.tag, { borderColor: theme.colors.outline }]}
                     >
-                      <Text style={styles.tagText}>{tag}</Text>
+                      <Text style={[styles.tagText, { color: theme.colors.onSurface }]}>{tag}</Text>
                     </BlurView>
                   ))}
                 </View>
@@ -274,7 +276,7 @@ export default function ClubCard({
                   >
                     <BlurView
                       intensity={isJoined ? 15 : 30}
-                      tint="dark"
+                      tint={isDark ? "dark" : "light"}
                       style={[
                         styles.joinButton,
                         isJoined ? styles.joinedButton : styles.notJoinedButton
@@ -282,7 +284,7 @@ export default function ClubCard({
                     >
                       <View style={styles.buttonContent}>
                         {loading ? (
-                          <ActivityIndicator size="small" color="#fff" />
+                          <ActivityIndicator size="small" color={theme.colors.onSurface} />
                         ) : (
                           <>
                             <IconButton
@@ -291,7 +293,7 @@ export default function ClubCard({
                               size={20}
                               style={{ margin: 0 }}
                             />
-                            <Text style={styles.buttonText}>
+                            <Text style={[styles.buttonText, { color: theme.colors.onSurface }]}>
                               {isJoined ? "Joined" : "Join Club"}
                             </Text>
                           </>
@@ -315,7 +317,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -347,20 +348,17 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 32,
     borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.3)',
   },
   logoPlaceholder: {
     width: 64,
     height: 64,
     borderRadius: 32,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
   },
   logoInitials: {
-    color: '#fff',
     fontSize: 24,
     fontWeight: 'bold',
   },
@@ -371,7 +369,6 @@ const styles = StyleSheet.create({
   clubName: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#fff',
     lineHeight: 28,
   },
   metaRow: {
@@ -380,17 +377,14 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   category: {
-    color: 'rgba(255,255,255,0.8)',
     fontSize: 13,
     fontWeight: '500',
   },
   separator: {
-    color: 'rgba(255,255,255,0.4)',
     fontSize: 13,
     marginHorizontal: 4,
   },
   members: {
-    color: 'rgba(255,255,255,0.8)',
     fontSize: 13,
     fontWeight: '500',
   },
@@ -411,11 +405,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
     overflow: 'hidden',
   },
   tagText: {
-    color: '#fff',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -444,7 +436,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   buttonText: {
-    color: '#fff',
     fontSize: 15,
     fontWeight: '600',
   },
@@ -473,20 +464,17 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 28,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.2)',
   },
   compactLogoPlaceholder: {
     width: 56,
     height: 56,
     borderRadius: 28,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
   },
   compactInitials: {
-    color: '#fff',
     fontSize: 20,
     fontWeight: 'bold',
   },
@@ -502,7 +490,6 @@ const styles = StyleSheet.create({
   compactName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#fff',
     flex: 1,
   },
   compactProBadge: {
@@ -520,16 +507,13 @@ const styles = StyleSheet.create({
   compactCategory: {
     fontSize: 12,
     fontWeight: '500',
-    color: 'rgba(255,255,255,0.7)',
   },
   compactSeparator: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.4)',
   },
   compactMembers: {
     fontSize: 12,
     fontWeight: '500',
-    color: 'rgba(255,255,255,0.7)',
   },
   compactTags: {
     flexDirection: 'row',
@@ -547,7 +531,6 @@ const styles = StyleSheet.create({
   compactTagText: {
     fontSize: 10,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.8)',
   },
   compactButtonContainer: {
     marginLeft: 8,

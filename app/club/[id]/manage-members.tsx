@@ -16,12 +16,13 @@ import {
   ActivityIndicator,
   Button,
   Menu,
+  useTheme,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAuth } from '../../_layout';
+import { useAuth, useThemeToggle } from '../../_layout';
 import {
   getClub,
   getClubJoinRequests,
@@ -36,6 +37,8 @@ import type { Club, ClubJoinRequest } from '../../../lib/firebase';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export default function ManageMembersScreen() {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const { user } = useAuth();
   const { id } = useLocalSearchParams();
   const clubId = id as string;
@@ -219,12 +222,9 @@ export default function ManageMembersScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <View style={StyleSheet.absoluteFill}>
-          <View style={styles.blackBackground} />
-        </View>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#fff" />
+          <ActivityIndicator size="large" color={theme.colors.onSurface} />
         </View>
       </View>
     );
@@ -235,15 +235,10 @@ export default function ManageMembersScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      {/* Black Background */}
-      <View style={StyleSheet.absoluteFill}>
-        <View style={styles.blackBackground} />
-      </View>
-
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Subtle Gradient Overlay */}
       <LinearGradient
-        colors={['rgba(27, 54, 93, 0.3)', 'rgba(96, 165, 250, 0.1)', 'rgba(0, 0, 0, 0)']}
+        colors={isDark ? ['rgba(27, 54, 93, 0.3)', 'rgba(96, 165, 250, 0.1)', 'rgba(0, 0, 0, 0)'] : ['rgba(27, 54, 93, 0.1)', 'rgba(96, 165, 250, 0.05)', 'rgba(255, 255, 255, 0)']}
         locations={[0, 0.3, 1]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
@@ -253,33 +248,33 @@ export default function ManageMembersScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <BlurView intensity={40} tint="dark" style={styles.backButtonBlur}>
-              <IconButton icon="arrow-left" size={24} iconColor="#fff" />
+            <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.backButtonBlur}>
+              <IconButton icon="arrow-left" size={24} iconColor={theme.colors.onSurface} />
             </BlurView>
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Manage Members</Text>
-            <Text style={styles.headerSubtitle}>{club.name}</Text>
+            <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Manage Members</Text>
+            <Text style={[styles.headerSubtitle, { color: theme.colors.onSurfaceVariant }]}>{club.name}</Text>
           </View>
         </View>
 
         {/* Tab Navigation */}
-        <View style={styles.tabContainer}>
+        <View style={[styles.tabContainer, { borderBottomColor: theme.colors.outline }]}>
           <TouchableOpacity
-            style={[styles.tab, selectedTab === 'members' && styles.tabActive]}
+            style={[styles.tab, { borderBottomColor: theme.colors.outline }, selectedTab === 'members' && styles.tabActive]}
             onPress={() => setSelectedTab('members')}
           >
-            <Text style={[styles.tabText, selectedTab === 'members' && styles.tabTextActive]}>
+            <Text style={[styles.tabText, { color: theme.colors.onSurfaceVariant }, selectedTab === 'members' && styles.tabTextActive]}>
               Members ({club.members.length})
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.tab, selectedTab === 'requests' && styles.tabActive]}
+            style={[styles.tab, { borderBottomColor: theme.colors.outline }, selectedTab === 'requests' && styles.tabActive]}
             onPress={() => setSelectedTab('requests')}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={[styles.tabText, selectedTab === 'requests' && styles.tabTextActive]}>
+              <Text style={[styles.tabText, { color: theme.colors.onSurfaceVariant }, selectedTab === 'requests' && styles.tabTextActive]}>
                 Join Requests
               </Text>
               {joinRequests.length > 0 && (
@@ -294,14 +289,14 @@ export default function ManageMembersScreen() {
         {/* Search Bar */}
         {selectedTab === 'members' && (
           <View style={styles.searchContainer}>
-            <BlurView intensity={20} tint="dark" style={styles.searchBar}>
-              <IconButton icon="magnify" size={20} iconColor="rgba(255,255,255,0.5)" />
+            <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.searchBar, { borderColor: theme.colors.outline }]}>
+              <IconButton icon="magnify" size={20} iconColor={theme.colors.onSurfaceDisabled} />
               <TextInput
                 placeholder="Search members..."
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                style={styles.searchInput}
-                placeholderTextColor="rgba(255,255,255,0.5)"
+                style={[styles.searchInput, { color: theme.colors.onSurface }]}
+                placeholderTextColor={theme.colors.onSurfaceDisabled}
               />
             </BlurView>
           </View>
@@ -309,14 +304,14 @@ export default function ManageMembersScreen() {
 
         <ScrollView
           contentContainerStyle={styles.scrollContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.onSurface} />}
         >
           {/* Members Tab */}
           {selectedTab === 'members' && (
             <>
               {filteredMembers.length === 0 ? (
                 <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>No members found</Text>
+                  <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>No members found</Text>
                 </View>
               ) : (
                 filteredMembers.map((memberId) => {
@@ -324,7 +319,7 @@ export default function ManageMembersScreen() {
                   const isCreator = memberId === club.createdBy;
 
                   return (
-                    <BlurView key={memberId} intensity={20} tint="dark" style={styles.memberCard}>
+                    <BlurView key={memberId} intensity={20} tint={isDark ? "dark" : "light"} style={[styles.memberCard, { borderColor: theme.colors.outline }]}>
                       <View style={styles.memberCardInner}>
                         <View style={styles.avatar}>
                           <Text style={styles.avatarText}>
@@ -334,7 +329,7 @@ export default function ManageMembersScreen() {
 
                         <View style={{ flex: 1 }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                            <Text style={styles.memberName}>{memberId}</Text>
+                            <Text style={[styles.memberName, { color: theme.colors.onSurface }]}>{memberId}</Text>
                             {isAdmin && (
                               <View style={styles.adminBadge}>
                                 <Text style={styles.adminBadgeText}>Admin</Text>
@@ -342,7 +337,7 @@ export default function ManageMembersScreen() {
                             )}
                           </View>
                           {isCreator && (
-                            <Text style={styles.memberRole}>Club Creator</Text>
+                            <Text style={[styles.memberRole, { color: theme.colors.onSurfaceVariant }]}>Club Creator</Text>
                           )}
                         </View>
 
@@ -354,24 +349,24 @@ export default function ManageMembersScreen() {
                               <IconButton
                                 icon="dots-vertical"
                                 onPress={() => toggleMenu(memberId)}
-                                iconColor="#fff"
+                                iconColor={theme.colors.onSurface}
                               />
                             }
-                            contentStyle={{ backgroundColor: '#1F2937' }}
+                            contentStyle={{ backgroundColor: theme.colors.surface }}
                           >
                             {!isAdmin ? (
                               <Menu.Item
                                 onPress={() => handlePromoteToAdmin(memberId)}
                                 title="Promote to Admin"
                                 leadingIcon="crown"
-                                titleStyle={{ color: '#fff' }}
+                                titleStyle={{ color: theme.colors.onSurface }}
                               />
                             ) : (
                               <Menu.Item
                                 onPress={() => handleDemoteAdmin(memberId)}
                                 title="Demote to Member"
                                 leadingIcon="account-minus"
-                                titleStyle={{ color: '#fff' }}
+                                titleStyle={{ color: theme.colors.onSurface }}
                               />
                             )}
                             <Menu.Item
@@ -396,23 +391,23 @@ export default function ManageMembersScreen() {
               {joinRequests.length === 0 ? (
                 <View style={styles.emptyContainer}>
                   <IconButton icon="check-circle" size={64} iconColor="#10B981" />
-                  <Text style={styles.emptyTitle}>All caught up!</Text>
-                  <Text style={styles.emptyText}>No pending join requests</Text>
+                  <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>All caught up!</Text>
+                  <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>No pending join requests</Text>
                 </View>
               ) : (
                 joinRequests.map((request) => (
-                  <BlurView key={request.id} intensity={20} tint="dark" style={styles.requestCard}>
+                  <BlurView key={request.id} intensity={20} tint={isDark ? "dark" : "light"} style={[styles.requestCard, { borderColor: theme.colors.outline }]}>
                     <View style={styles.requestCardInner}>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.requestName}>{request.userName}</Text>
-                        <Text style={styles.requestEmail}>{request.userEmail}</Text>
-                        <Text style={styles.requestDate}>{formatDate(request.createdAt)}</Text>
+                        <Text style={[styles.requestName, { color: theme.colors.onSurface }]}>{request.userName}</Text>
+                        <Text style={[styles.requestEmail, { color: theme.colors.onSurfaceVariant }]}>{request.userEmail}</Text>
+                        <Text style={[styles.requestDate, { color: theme.colors.onSurfaceDisabled }]}>{formatDate(request.createdAt)}</Text>
                       </View>
 
                       {request.message && (
-                        <View style={styles.messageContainer}>
-                          <Text style={styles.messageLabel}>Message:</Text>
-                          <Text style={styles.messageText}>{request.message}</Text>
+                        <View style={[styles.messageContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+                          <Text style={[styles.messageLabel, { color: theme.colors.onSurfaceVariant }]}>Message:</Text>
+                          <Text style={[styles.messageText, { color: theme.colors.onSurface }]}>{request.message}</Text>
                         </View>
                       )}
 
@@ -480,11 +475,9 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#ffffff',
   },
   headerSubtitle: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
     marginTop: 2,
   },
   tabContainer: {
@@ -498,7 +491,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
     borderBottomWidth: 2,
-    borderBottomColor: 'rgba(255,255,255,0.2)',
   },
   tabActive: {
     borderBottomColor: '#60A5FA',
@@ -506,7 +498,6 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.6)',
   },
   tabTextActive: {
     color: '#60A5FA',
@@ -534,11 +525,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   searchInput: {
     flex: 1,
-    color: '#fff',
     fontSize: 15,
     paddingRight: 16,
   },
@@ -555,12 +544,10 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#fff',
     marginTop: 16,
   },
   emptyText: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.6)',
     marginTop: 8,
   },
   memberCard: {
@@ -568,7 +555,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   memberCardInner: {
     flexDirection: 'row',
@@ -592,11 +578,9 @@ const styles = StyleSheet.create({
   memberName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
   },
   memberRole: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.6)',
     marginTop: 2,
   },
   adminBadge: {
@@ -615,7 +599,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   requestCardInner: {
     padding: 16,
@@ -623,32 +606,26 @@ const styles = StyleSheet.create({
   requestName: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#fff',
   },
   requestEmail: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
     marginTop: 2,
   },
   requestDate: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.5)',
     marginTop: 4,
   },
   messageContainer: {
     marginTop: 12,
     padding: 12,
-    backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: 8,
   },
   messageLabel: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.6)',
     marginBottom: 4,
   },
   messageText: {
     fontSize: 14,
-    color: '#fff',
   },
   requestActions: {
     flexDirection: 'row',

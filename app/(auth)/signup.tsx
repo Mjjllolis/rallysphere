@@ -142,7 +142,6 @@ export default function SignupScreen() {
                                     onChangeText={setFirstName}
                                     mode="outlined"
                                     style={[styles.input, styles.halfInput]}
-                                    left={<TextInput.Icon icon="account" />}
                                     textColor="#1a1a1a"
                                     outlineColor="rgba(0,0,0,0.3)"
                                     activeOutlineColor="#2C5282"
@@ -169,7 +168,6 @@ export default function SignupScreen() {
                                 keyboardType="email-address"
                                 autoCapitalize="none"
                                 style={styles.input}
-                                left={<TextInput.Icon icon="email" />}
                                 textColor="#1a1a1a"
                                 outlineColor="rgba(0,0,0,0.3)"
                                 activeOutlineColor="#2C5282"
@@ -183,7 +181,6 @@ export default function SignupScreen() {
                                 mode="outlined"
                                 secureTextEntry
                                 style={styles.input}
-                                left={<TextInput.Icon icon="lock" />}
                                 right={<TextInput.Affix text="6+ chars" />}
                                 textColor="#1a1a1a"
                                 outlineColor="rgba(0,0,0,0.3)"
@@ -315,7 +312,7 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     input: {
-        backgroundColor: 'transparent',
+        backgroundColor: 'white',
     },
     halfInput: {
         flex: 1,

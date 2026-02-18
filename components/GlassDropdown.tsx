@@ -1,8 +1,9 @@
 // components/GlassDropdown.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import { View, TouchableOpacity, StyleSheet, Text, ScrollView, Animated } from 'react-native';
-import { IconButton } from 'react-native-paper';
+import { IconButton, useTheme } from 'react-native-paper';
 import { BlurView } from 'expo-blur';
+import { useThemeToggle } from '../app/_layout';
 
 interface GlassDropdownProps {
   label: string;
@@ -21,6 +22,8 @@ export default function GlassDropdown({
   placeholder = 'Select...',
   icon,
 }: GlassDropdownProps) {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const scaleAnim = useRef(new Animated.Value(0)).current;
 
@@ -44,29 +47,49 @@ export default function GlassDropdown({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, { color: theme.colors.onSurface }]}>{label}</Text>
       <TouchableOpacity
         onPress={() => setDropdownVisible(!dropdownVisible)}
         activeOpacity={0.7}
       >
         <View style={styles.selectWrapper}>
-          <BlurView intensity={40} tint="light" style={styles.blur}>
-            <View style={styles.selectContainer}>
-              {icon && (
-                <View style={styles.iconContainer}>
-                  <IconButton icon={icon} size={20} iconColor="white" />
-                </View>
-              )}
-              <Text style={[styles.selectText, !value && styles.placeholderText]}>
-                {value || placeholder}
-              </Text>
-              <IconButton
-                icon={dropdownVisible ? 'chevron-up' : 'chevron-down'}
-                size={20}
-                iconColor="white"
-              />
+          {isDark ? (
+            <BlurView intensity={40} tint="light" style={[styles.blur, { borderColor: theme.colors.outline }]}>
+              <View style={styles.selectContainer}>
+                {icon && (
+                  <View style={styles.iconContainer}>
+                    <IconButton icon={icon} size={20} iconColor={theme.colors.onSurface} />
+                  </View>
+                )}
+                <Text style={[styles.selectText, { color: theme.colors.onSurface }, !value && { color: theme.colors.onSurfaceDisabled }]}>
+                  {value || placeholder}
+                </Text>
+                <IconButton
+                  icon={dropdownVisible ? 'chevron-up' : 'chevron-down'}
+                  size={20}
+                  iconColor={theme.colors.onSurface}
+                />
+              </View>
+            </BlurView>
+          ) : (
+            <View style={[styles.blur, { borderColor: theme.colors.outline, backgroundColor: theme.colors.surfaceVariant }]}>
+              <View style={styles.selectContainer}>
+                {icon && (
+                  <View style={styles.iconContainer}>
+                    <IconButton icon={icon} size={20} iconColor={theme.colors.onSurface} />
+                  </View>
+                )}
+                <Text style={[styles.selectText, { color: theme.colors.onSurface }, !value && { color: theme.colors.onSurfaceDisabled }]}>
+                  {value || placeholder}
+                </Text>
+                <IconButton
+                  icon={dropdownVisible ? 'chevron-up' : 'chevron-down'}
+                  size={20}
+                  iconColor={theme.colors.onSurface}
+                />
+              </View>
             </View>
-          </BlurView>
+          )}
         </View>
       </TouchableOpacity>
 
@@ -81,7 +104,7 @@ export default function GlassDropdown({
             },
           ]}
         >
-          <BlurView intensity={90} tint="dark" style={styles.dropdownBlur}>
+          <BlurView intensity={90} tint={isDark ? "dark" : "light"} style={[styles.dropdownBlur, { borderColor: theme.colors.outline }]}>
             <ScrollView
               style={styles.dropdownScroll}
               contentContainerStyle={styles.dropdownContent}
@@ -92,7 +115,8 @@ export default function GlassDropdown({
                   key={option}
                   style={[
                     styles.dropdownItem,
-                    value === option && styles.dropdownItemSelected,
+                    { borderBottomColor: theme.colors.outline },
+                    value === option && { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' },
                     index === options.length - 1 && styles.dropdownItemLast,
                   ]}
                   onPress={() => handleSelect(option)}
@@ -101,14 +125,15 @@ export default function GlassDropdown({
                   <Text
                     style={[
                       styles.dropdownItemText,
-                      value === option && styles.dropdownItemTextSelected,
+                      { color: theme.colors.onSurfaceVariant },
+                      value === option && { color: theme.colors.onSurface, fontWeight: '600' },
                     ]}
                   >
                     {option}
                   </Text>
                   {value === option && (
                     <View style={styles.checkmarkContainer}>
-                      <IconButton icon="check" size={18} iconColor="white" style={styles.checkIcon} />
+                      <IconButton icon="check" size={18} iconColor={theme.colors.onSurface} style={styles.checkIcon} />
                     </View>
                   )}
                 </TouchableOpacity>
@@ -128,7 +153,6 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'white',
     marginBottom: 8,
     marginLeft: 4,
   },
@@ -139,7 +163,6 @@ const styles = StyleSheet.create({
   blur: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   selectContainer: {
     flexDirection: 'row',
@@ -158,10 +181,6 @@ const styles = StyleSheet.create({
   selectText: {
     flex: 1,
     fontSize: 16,
-    color: 'white',
-  },
-  placeholderText: {
-    color: 'rgba(255, 255, 255, 0.5)',
   },
   dropdownInline: {
     marginTop: 8,
@@ -171,7 +190,6 @@ const styles = StyleSheet.create({
   dropdownBlur: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
     overflow: 'hidden',
   },
   dropdownScroll: {
@@ -187,23 +205,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   dropdownItemLast: {
     borderBottomWidth: 0,
   },
-  dropdownItemSelected: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
   dropdownItemText: {
     fontSize: 16,
     fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.9)',
     flex: 1,
-  },
-  dropdownItemTextSelected: {
-    color: 'white',
-    fontWeight: '600',
   },
   checkmarkContainer: {
     marginLeft: 8,

@@ -15,10 +15,11 @@ import {
   Portal,
   Modal,
   IconButton,
+  useTheme,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useAuth } from '../../_layout';
+import { useAuth, useThemeToggle } from '../../_layout';
 import {
   getClubRedemptions,
   getUserRallyCredits,
@@ -35,6 +36,8 @@ export default function RedeemCreditsScreen() {
   const { user } = useAuth();
   const { id } = useLocalSearchParams();
   const clubId = id as string;
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
 
   const [club, setClub] = useState<Club | null>(null);
   const [redemptions, setRedemptions] = useState<RallyCreditRedemption[]>([]);
@@ -237,11 +240,11 @@ export default function RedeemCreditsScreen() {
     return (
       <View style={styles.container}>
         <View style={StyleSheet.absoluteFill}>
-          <View style={styles.blackBackground} />
+          <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
         </View>
 
         <LinearGradient
-          colors={['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', 'rgba(0, 0, 0, 0)']}
+          colors={isDark ? ['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', 'rgba(0, 0, 0, 0)'] : ['rgba(96, 165, 250, 0.15)', 'rgba(139, 92, 246, 0.05)', 'rgba(255, 255, 255, 0)']}
           locations={[0, 0.3, 1]}
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
@@ -261,15 +264,15 @@ export default function RedeemCreditsScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
       {/* Black Background */}
       <View style={StyleSheet.absoluteFill}>
-        <View style={styles.blackBackground} />
+        <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
       </View>
 
       <LinearGradient
-        colors={['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', 'rgba(0, 0, 0, 0)']}
+        colors={isDark ? ['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', 'rgba(0, 0, 0, 0)'] : ['rgba(96, 165, 250, 0.15)', 'rgba(139, 92, 246, 0.05)', 'rgba(255, 255, 255, 0)']}
         locations={[0, 0.3, 1]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
@@ -283,14 +286,14 @@ export default function RedeemCreditsScreen() {
             activeOpacity={0.7}
             style={styles.headerButtonWrapper}
           >
-            <BlurView intensity={40} tint="dark" style={styles.headerButton}>
-              <IconButton icon="arrow-left" iconColor="white" size={24} style={{ margin: 0 }} />
+            <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.headerButton, { borderColor: theme.colors.outline }]}>
+              <IconButton icon="arrow-left" iconColor={theme.colors.onSurface} size={24} style={{ margin: 0 }} />
             </BlurView>
           </TouchableOpacity>
 
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Redeem Rewards</Text>
-            <Text style={styles.headerSubtitle}>{club?.name}</Text>
+            <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Redeem Rewards</Text>
+            <Text style={[styles.headerSubtitle, { color: theme.colors.onSurfaceVariant }]}>{club?.name}</Text>
           </View>
 
           <View style={styles.headerSpacer} />
@@ -302,28 +305,28 @@ export default function RedeemCreditsScreen() {
           onPress={() => setHistoryModalVisible(true)}
           activeOpacity={0.8}
         >
-          <BlurView intensity={30} tint="dark" style={styles.balanceCard}>
+          <BlurView intensity={30} tint={isDark ? "dark" : "light"} style={[styles.balanceCard, { borderColor: theme.colors.outline }]}>
             <View style={styles.balanceContent}>
               <Ionicons name="star" size={32} color="#FFD700" />
               <View style={styles.balanceTextContainer}>
-                <Text style={styles.balanceLabel}>Available to Spend</Text>
+                <Text style={[styles.balanceLabel, { color: theme.colors.onSurfaceVariant }]}>Available to Spend</Text>
                 <View style={styles.balanceAmountRow}>
-                  <Text style={styles.balanceAmount}>{availableCredits.toLocaleString()}</Text>
+                  <Text style={[styles.balanceAmount, { color: theme.colors.onSurface }]}>{availableCredits.toLocaleString()}</Text>
                   <Text style={styles.balanceValue}>= ${(availableCredits * 0.01).toFixed(2)}</Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.5)" />
+              <Ionicons name="chevron-forward" size={20} color={theme.colors.onSurfaceDisabled} />
             </View>
             {pendingCredits > 0 && (
-              <View style={styles.pendingRow}>
+              <View style={[styles.pendingRow, { borderTopColor: theme.colors.outline }]}>
                 <Ionicons name="time-outline" size={16} color="#F59E0B" />
                 <Text style={styles.pendingText}>
                   {pendingCredits} pending (check-in required)
                 </Text>
               </View>
             )}
-            <View style={styles.tapHintRow}>
-              <Text style={styles.tapHintText}>Tap to view history</Text>
+            <View style={[styles.tapHintRow, { borderTopColor: theme.colors.outline }]}>
+              <Text style={[styles.tapHintText, { color: theme.colors.onSurfaceDisabled }]}>Tap to view history</Text>
             </View>
           </BlurView>
         </TouchableOpacity>
@@ -332,7 +335,7 @@ export default function RedeemCreditsScreen() {
         {pendingCredits > 0 && (
           <View style={styles.pendingBanner}>
             <Ionicons name="information-circle" size={18} color="#F59E0B" />
-            <Text style={styles.pendingBannerText}>
+            <Text style={[styles.pendingBannerText, { color: theme.colors.onSurfaceVariant }]}>
               Pending credits become available after you check in at events
             </Text>
           </View>
@@ -351,9 +354,9 @@ export default function RedeemCreditsScreen() {
         >
           {redemptions.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Ionicons name="gift-outline" size={64} color="rgba(255,255,255,0.3)" />
-              <Text style={styles.emptyText}>No rewards available yet</Text>
-              <Text style={styles.emptySubtext}>
+              <Ionicons name="gift-outline" size={64} color={theme.colors.onSurfaceDisabled} />
+              <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>No rewards available yet</Text>
+              <Text style={[styles.emptySubtext, { color: theme.colors.onSurfaceDisabled }]}>
                 Check back later for exciting redemption options!
               </Text>
             </View>
@@ -373,9 +376,10 @@ export default function RedeemCreditsScreen() {
                   >
                     <BlurView
                       intensity={affordable ? 30 : 15}
-                      tint="dark"
+                      tint={isDark ? "dark" : "light"}
                       style={[
                         styles.redemptionCard,
+                        { borderColor: theme.colors.outline },
                         !affordable && styles.redemptionCardDisabled,
                       ]}
                     >
@@ -398,7 +402,8 @@ export default function RedeemCreditsScreen() {
                         <Text
                           style={[
                             styles.redemptionName,
-                            !affordable && styles.redemptionNameDisabled,
+                            { color: theme.colors.onSurface },
+                            !affordable && { color: theme.colors.onSurfaceDisabled },
                           ]}
                           numberOfLines={2}
                         >
@@ -407,7 +412,7 @@ export default function RedeemCreditsScreen() {
 
                         {redemption.description && (
                           <Text
-                            style={styles.redemptionDescription}
+                            style={[styles.redemptionDescription, { color: theme.colors.onSurfaceVariant }]}
                             numberOfLines={2}
                           >
                             {redemption.description}
@@ -421,20 +426,20 @@ export default function RedeemCreditsScreen() {
                               styles.priceBadge,
                               affordable
                                 ? styles.priceBadgeAffordable
-                                : styles.priceBadgeExpensive,
+                                : { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' },
                             ]}
                           >
                             <Ionicons
                               name="star"
                               size={14}
-                              color={affordable ? '#FFD700' : 'rgba(255,255,255,0.4)'}
+                              color={affordable ? '#FFD700' : theme.colors.onSurfaceDisabled}
                             />
                             <Text
                               style={[
                                 styles.priceText,
                                 affordable
                                   ? styles.priceTextAffordable
-                                  : styles.priceTextExpensive,
+                                  : { color: theme.colors.onSurfaceDisabled },
                               ]}
                             >
                               {redemption.creditsRequired.toLocaleString()}
@@ -442,7 +447,7 @@ export default function RedeemCreditsScreen() {
                           </View>
 
                           {!affordable && (
-                            <Text style={styles.insufficientText}>
+                            <Text style={[styles.insufficientText, { color: theme.colors.onSurfaceDisabled }]}>
                               Need {(redemption.creditsRequired - availableCredits).toLocaleString()} more
                             </Text>
                           )}
@@ -466,12 +471,12 @@ export default function RedeemCreditsScreen() {
           onDismiss={() => setConfirmModalVisible(false)}
           contentContainerStyle={styles.modalContent}
         >
-          <View style={styles.modalBlur}>
+          <View style={[styles.modalBlur, { backgroundColor: isDark ? 'rgba(20, 20, 20, 0.98)' : 'rgba(255, 255, 255, 0.98)' }]}>
             {/* Header */}
             <View style={styles.modalHeader}>
-              <Text style={styles.modalHeaderText}>Confirm Redemption</Text>
+              <Text style={[styles.modalHeaderText, { color: theme.colors.onSurface }]}>Confirm Redemption</Text>
               <TouchableOpacity onPress={() => setConfirmModalVisible(false)}>
-                <IconButton icon="close" iconColor="white" size={24} style={{ margin: 0 }} />
+                <IconButton icon="close" iconColor={theme.colors.onSurface} size={24} style={{ margin: 0 }} />
               </TouchableOpacity>
             </View>
 
@@ -494,22 +499,22 @@ export default function RedeemCreditsScreen() {
                 </View>
 
                 {/* Details */}
-                <Text style={styles.modalRewardName}>{selectedRedemption.name}</Text>
+                <Text style={[styles.modalRewardName, { color: theme.colors.onSurface }]}>{selectedRedemption.name}</Text>
 
                 {selectedRedemption.description && (
-                  <Text style={styles.modalRewardDescription}>
+                  <Text style={[styles.modalRewardDescription, { color: theme.colors.onSurfaceVariant }]}>
                     {selectedRedemption.description}
                   </Text>
                 )}
 
-                <View style={styles.modalDivider} />
+                <View style={[styles.modalDivider, { backgroundColor: theme.colors.outline }]} />
 
                 {/* Cost */}
                 <View style={styles.modalCostRow}>
-                  <Text style={styles.modalCostLabel}>Cost</Text>
+                  <Text style={[styles.modalCostLabel, { color: theme.colors.onSurfaceVariant }]}>Cost</Text>
                   <View style={styles.modalCostValue}>
                     <Ionicons name="star" size={20} color="#FFD700" />
-                    <Text style={styles.modalCostText}>
+                    <Text style={[styles.modalCostText, { color: theme.colors.onSurface }]}>
                       {selectedRedemption.creditsRequired.toLocaleString()} credits
                     </Text>
                   </View>
@@ -517,21 +522,21 @@ export default function RedeemCreditsScreen() {
 
                 {/* Balance After */}
                 <View style={styles.modalCostRow}>
-                  <Text style={styles.modalCostLabel}>Balance After</Text>
+                  <Text style={[styles.modalCostLabel, { color: theme.colors.onSurfaceVariant }]}>Balance After</Text>
                   <View style={styles.modalCostValue}>
                     <Ionicons name="star" size={20} color="#60A5FA" />
-                    <Text style={styles.modalCostText}>
+                    <Text style={[styles.modalCostText, { color: theme.colors.onSurface }]}>
                       {(availableCredits - selectedRedemption.creditsRequired).toLocaleString()} credits
                     </Text>
                   </View>
                 </View>
 
-                <View style={styles.modalDivider} />
+                <View style={[styles.modalDivider, { backgroundColor: theme.colors.outline }]} />
 
                 {/* Info */}
                 <View style={styles.infoBox}>
                   <Ionicons name="information-circle" size={20} color="#60A5FA" />
-                  <Text style={styles.infoText}>
+                  <Text style={[styles.infoText, { color: theme.colors.onSurfaceVariant }]}>
                     This redemption will be recorded and your credits will be deducted immediately.
                   </Text>
                 </View>
@@ -543,10 +548,10 @@ export default function RedeemCreditsScreen() {
               <TouchableOpacity
                 onPress={() => setConfirmModalVisible(false)}
                 disabled={redeeming}
-                style={styles.modalCancelButton}
+                style={[styles.modalCancelButton, { borderColor: theme.colors.outline }]}
                 activeOpacity={0.7}
               >
-                <Text style={styles.modalCancelText}>Cancel</Text>
+                <Text style={[styles.modalCancelText, { color: theme.colors.onSurfaceVariant }]}>Cancel</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -576,26 +581,26 @@ export default function RedeemCreditsScreen() {
           onDismiss={() => setHistoryModalVisible(false)}
           contentContainerStyle={styles.historyModalContent}
         >
-          <View style={styles.historyModalBlur}>
+          <View style={[styles.historyModalBlur, { backgroundColor: isDark ? 'rgba(20, 20, 20, 0.98)' : 'rgba(255, 255, 255, 0.98)' }]}>
             {/* Header */}
             <View style={styles.historyModalHeader}>
-              <Text style={styles.historyModalTitle}>Credit History</Text>
+              <Text style={[styles.historyModalTitle, { color: theme.colors.onSurface }]}>Credit History</Text>
               <TouchableOpacity onPress={() => setHistoryModalVisible(false)}>
-                <IconButton icon="close" iconColor="white" size={24} style={{ margin: 0 }} />
+                <IconButton icon="close" iconColor={theme.colors.onSurface} size={24} style={{ margin: 0 }} />
               </TouchableOpacity>
             </View>
 
             {/* Balance Summary */}
-            <View style={styles.historyBalanceSummary}>
+            <View style={[styles.historyBalanceSummary, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
               <View style={styles.historyBalanceItem}>
                 <Ionicons name="star" size={20} color="#FFD700" />
-                <Text style={styles.historyBalanceLabel}>Available</Text>
+                <Text style={[styles.historyBalanceLabel, { color: theme.colors.onSurfaceVariant }]}>Available</Text>
                 <Text style={styles.historyBalanceValue}>{availableCredits}</Text>
               </View>
-              <View style={styles.historyBalanceDivider} />
+              <View style={[styles.historyBalanceDivider, { backgroundColor: theme.colors.outline }]} />
               <View style={styles.historyBalanceItem}>
                 <Ionicons name="time-outline" size={20} color="#F59E0B" />
-                <Text style={styles.historyBalanceLabel}>Pending</Text>
+                <Text style={[styles.historyBalanceLabel, { color: theme.colors.onSurfaceVariant }]}>Pending</Text>
                 <Text style={[styles.historyBalanceValue, { color: '#F59E0B' }]}>{pendingCredits}</Text>
               </View>
             </View>
@@ -610,12 +615,12 @@ export default function RedeemCreditsScreen() {
             <ScrollView style={styles.historyScrollView} showsVerticalScrollIndicator={false}>
               {getClubTransactions().length === 0 ? (
                 <View style={styles.historyEmptyState}>
-                  <Ionicons name="receipt-outline" size={48} color="rgba(255,255,255,0.3)" />
-                  <Text style={styles.historyEmptyText}>No transactions yet</Text>
+                  <Ionicons name="receipt-outline" size={48} color={theme.colors.onSurfaceDisabled} />
+                  <Text style={[styles.historyEmptyText, { color: theme.colors.onSurfaceDisabled }]}>No transactions yet</Text>
                 </View>
               ) : (
                 getClubTransactions().map((transaction, index) => (
-                  <View key={transaction.id || index} style={styles.historyTransactionItem}>
+                  <View key={transaction.id || index} style={[styles.historyTransactionItem, { borderBottomColor: theme.colors.outline }]}>
                     <View style={[styles.historyTransactionIcon, { backgroundColor: `${getTransactionColor(transaction.type)}20` }]}>
                       <Ionicons
                         name={getTransactionIcon(transaction.type) as any}
@@ -624,10 +629,10 @@ export default function RedeemCreditsScreen() {
                       />
                     </View>
                     <View style={styles.historyTransactionInfo}>
-                      <Text style={styles.historyTransactionDesc} numberOfLines={1}>
+                      <Text style={[styles.historyTransactionDesc, { color: theme.colors.onSurface }]} numberOfLines={1}>
                         {transaction.description || transaction.eventName || 'Transaction'}
                       </Text>
-                      <Text style={styles.historyTransactionDate}>{formatDate(transaction.createdAt)}</Text>
+                      <Text style={[styles.historyTransactionDate, { color: theme.colors.onSurfaceDisabled }]}>{formatDate(transaction.createdAt)}</Text>
                     </View>
                     <Text style={[
                       styles.historyTransactionAmount,
@@ -652,7 +657,6 @@ const styles = StyleSheet.create({
   },
   blackBackground: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   safeArea: {
     flex: 1,
@@ -680,7 +684,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     overflow: 'hidden',
   },
   headerTitleContainer: {
@@ -690,11 +693,9 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#ffffff',
   },
   headerSubtitle: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.6)',
     marginTop: 2,
   },
   headerSpacer: {
@@ -711,7 +712,6 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     overflow: 'hidden',
   },
   balanceContent: {
@@ -725,7 +725,6 @@ const styles = StyleSheet.create({
   },
   balanceLabel: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
     fontWeight: '500',
   },
   balanceAmountRow: {
@@ -736,7 +735,6 @@ const styles = StyleSheet.create({
   balanceAmount: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#ffffff',
   },
   balanceValue: {
     fontSize: 16,
@@ -747,12 +745,10 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center',
   },
   tapHintText: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.4)',
   },
   pendingRow: {
     flexDirection: 'row',
@@ -761,7 +757,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
   },
   pendingText: {
     fontSize: 14,
@@ -783,7 +778,6 @@ const styles = StyleSheet.create({
   pendingBannerText: {
     flex: 1,
     fontSize: 13,
-    color: 'rgba(255,255,255,0.7)',
   },
   scrollView: {
     flex: 1,
@@ -800,12 +794,10 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.8)',
     marginTop: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.5)',
     textAlign: 'center',
     paddingHorizontal: 40,
   },
@@ -821,7 +813,6 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     overflow: 'hidden',
     gap: 16,
   },
@@ -842,14 +833,9 @@ const styles = StyleSheet.create({
   redemptionName: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#ffffff',
-  },
-  redemptionNameDisabled: {
-    color: 'rgba(255,255,255,0.5)',
   },
   redemptionDescription: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
     lineHeight: 20,
   },
   priceBadgeContainer: {
@@ -869,9 +855,6 @@ const styles = StyleSheet.create({
   priceBadgeAffordable: {
     backgroundColor: 'rgba(255, 215, 0, 0.15)',
   },
-  priceBadgeExpensive: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
   priceText: {
     fontSize: 14,
     fontWeight: '700',
@@ -879,12 +862,8 @@ const styles = StyleSheet.create({
   priceTextAffordable: {
     color: '#FFD700',
   },
-  priceTextExpensive: {
-    color: 'rgba(255,255,255,0.4)',
-  },
   insufficientText: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.5)',
     fontStyle: 'italic',
   },
   modalContent: {
@@ -898,7 +877,6 @@ const styles = StyleSheet.create({
   modalBlur: {
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: 'rgba(20, 20, 20, 0.98)',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -911,7 +889,6 @@ const styles = StyleSheet.create({
   modalHeaderText: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#ffffff',
   },
   modalBody: {
     padding: 24,
@@ -928,19 +905,16 @@ const styles = StyleSheet.create({
   modalRewardName: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#ffffff',
     textAlign: 'center',
     marginBottom: 8,
   },
   modalRewardDescription: {
     fontSize: 15,
-    color: 'rgba(255,255,255,0.7)',
     textAlign: 'center',
     lineHeight: 22,
   },
   modalDivider: {
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
     alignSelf: 'stretch',
     marginVertical: 20,
   },
@@ -953,7 +927,6 @@ const styles = StyleSheet.create({
   },
   modalCostLabel: {
     fontSize: 15,
-    color: 'rgba(255,255,255,0.7)',
     fontWeight: '500',
   },
   modalCostValue: {
@@ -964,7 +937,6 @@ const styles = StyleSheet.create({
   modalCostText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#ffffff',
   },
   infoBox: {
     flexDirection: 'row',
@@ -979,7 +951,6 @@ const styles = StyleSheet.create({
   infoText: {
     flex: 1,
     fontSize: 13,
-    color: 'rgba(255,255,255,0.8)',
     lineHeight: 19,
   },
   modalFooter: {
@@ -992,14 +963,12 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalCancelText: {
     fontSize: 15,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.8)',
   },
   modalRedeemButton: {
     flex: 1,
@@ -1029,7 +998,6 @@ const styles = StyleSheet.create({
   historyModalBlur: {
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: 'rgba(20, 20, 20, 0.98)',
   },
   historyModalHeader: {
     flexDirection: 'row',
@@ -1042,14 +1010,12 @@ const styles = StyleSheet.create({
   historyModalTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#ffffff',
   },
   historyBalanceSummary: {
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: 20,
     padding: 16,
-    backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: 12,
   },
   historyBalanceItem: {
@@ -1059,7 +1025,6 @@ const styles = StyleSheet.create({
   },
   historyBalanceLabel: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.6)',
   },
   historyBalanceValue: {
     fontSize: 24,
@@ -1069,7 +1034,6 @@ const styles = StyleSheet.create({
   historyBalanceDivider: {
     width: 1,
     height: 40,
-    backgroundColor: 'rgba(255,255,255,0.1)',
     marginHorizontal: 16,
   },
   creditValueInfo: {
@@ -1102,14 +1066,12 @@ const styles = StyleSheet.create({
   },
   historyEmptyText: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.5)',
   },
   historyTransactionItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
     gap: 12,
   },
   historyTransactionIcon: {
@@ -1125,11 +1087,9 @@ const styles = StyleSheet.create({
   historyTransactionDesc: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#ffffff',
   },
   historyTransactionDate: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.4)',
     marginTop: 2,
   },
   historyTransactionAmount: {

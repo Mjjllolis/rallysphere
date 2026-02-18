@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Tabs } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useTheme } from "react-native-paper";
 import CreateScreen from "../../components/CreateScreen";
 import { Image, StyleSheet, Animated, View, Dimensions } from "react-native";
 
@@ -71,6 +72,7 @@ const AnimatedImageIcon = ({ source, color, focused }: any) => {
 };
 
 export default function TabLayout() {
+  const theme = useTheme();
   const [isModalVisible, setIsModalVisible] = useState(false);
 
   const openModal = () => setIsModalVisible(true);
@@ -81,10 +83,10 @@ export default function TabLayout() {
       <View style={{ position: 'relative', flex: 1 }}>
         <Tabs
           screenOptions={{
-            tabBarActiveTintColor: '#fff',
-            tabBarInactiveTintColor: 'rgba(255, 255, 255, 0.5)',
+            tabBarActiveTintColor: theme.colors.onSurface,
+            tabBarInactiveTintColor: theme.colors.onSurfaceDisabled,
             tabBarStyle: {
-              backgroundColor: '#000',
+              backgroundColor: theme.colors.background,
               borderTopColor: 'transparent',
               borderTopWidth: 0,
               height: 80,

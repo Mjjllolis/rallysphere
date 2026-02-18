@@ -71,7 +71,8 @@
       "Bash(eas secret:create:*)",
       "Bash(eas env:create:*)",
       "Bash(git checkout:*)",
-      "Bash(git merge:*)"
+      "Bash(git merge:*)",
+      "Bash(comm:*)"
     ],
     "deny": [],
     "ask": []

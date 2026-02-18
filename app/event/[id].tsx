@@ -14,7 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
-import { useAuth } from '../_layout';
+import { useAuth, useThemeToggle } from '../_layout';
 import { getEventById, joinEvent, getUserRallyCredits, getClub, getUserProfile } from '../../lib/firebase';
 import { leaveEventWithRefund } from '../../lib/stripe';
 import type { Event, UserRallyCredits, UserProfile } from '../../lib/firebase';
@@ -26,6 +26,7 @@ const { width } = Dimensions.get('window');
 
 export default function EventDetailScreen() {
   const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const { user } = useAuth();
   const { id } = useLocalSearchParams();
   const eventId = id as string;
@@ -274,12 +275,12 @@ export default function EventDetailScreen() {
 
   if (loading || !event) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         {/* set slide animation here too so it applies even before data loads */}
         <Stack.Screen options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true, gestureDirection: 'horizontal' }} />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#fff" />
-          <Text variant="bodyLarge" style={{ color: '#fff', marginTop: 16 }}>Loading...</Text>
+          <ActivityIndicator size="large" color={theme.colors.onSurface} />
+          <Text variant="bodyLarge" style={{ color: theme.colors.onSurface, marginTop: 16 }}>Loading...</Text>
         </View>
       </View>
     );
@@ -293,7 +294,7 @@ export default function EventDetailScreen() {
   const isFull = event.maxAttendees && event.attendees.length >= event.maxAttendees;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* slide in from right, swipe to go back */}
       <Stack.Screen options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true, gestureDirection: 'horizontal' }} />
       {/* Full-screen blurred background image */}
@@ -306,7 +307,7 @@ export default function EventDetailScreen() {
       )}
       {/* Gradient overlay for better readability */}
       <LinearGradient
-        colors={['rgba(15,15,35,0.3)', 'rgba(15,15,35,0.85)', 'rgba(10,10,25,0.95)']}
+        colors={isDark ? ['rgba(15,15,35,0.3)', 'rgba(15,15,35,0.85)', 'rgba(10,10,25,0.95)'] : ['rgba(255,255,255,0.3)', 'rgba(255,255,255,0.85)', 'rgba(245,245,245,0.95)']}
         style={styles.backgroundOverlay}
       />
 
@@ -322,17 +323,17 @@ export default function EventDetailScreen() {
 
           {/* Gradient overlay for text readability */}
           <LinearGradient
-            colors={['transparent', 'transparent', 'rgba(15,15,35,0.6)', 'rgba(15,15,35,0.95)']}
+            colors={isDark ? ['transparent', 'transparent', 'rgba(15,15,35,0.6)', 'rgba(15,15,35,0.95)'] : ['transparent', 'transparent', 'rgba(255,255,255,0.6)', 'rgba(255,255,255,0.95)']}
             locations={[0, 0.5, 0.8, 1]}
             style={styles.heroUnifiedGradient}
           />
 
           {/* Back Button and Menu - floating at top */}
           <View style={styles.topControl}>
-            <BlurView intensity={40} tint="dark" style={styles.controlButtonBlur}>
+            <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.controlButtonBlur}>
               <IconButton
                 icon="arrow-left"
-                iconColor="#fff"
+                iconColor={theme.colors.onSurface}
                 size={24}
                 onPress={() => router.back()}
               />
@@ -344,10 +345,10 @@ export default function EventDetailScreen() {
                 visible={menuVisible}
                 onDismiss={() => setMenuVisible(false)}
                 anchor={
-                  <BlurView intensity={40} tint="dark" style={styles.controlButtonBlur}>
+                  <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.controlButtonBlur}>
                     <IconButton
                       icon="dots-vertical"
-                      iconColor="#fff"
+                      iconColor={theme.colors.onSurface}
                       size={24}
                       onPress={() => setMenuVisible(true)}
                     />
@@ -387,31 +388,31 @@ export default function EventDetailScreen() {
               )}
             </View>
 
-            <Text variant="headlineMedium" style={styles.heroTitle}>
+            <Text variant="headlineMedium" style={[styles.heroTitle, { color: theme.colors.onSurface }]}>
               {event.title}
             </Text>
 
-            <Text variant="titleMedium" style={styles.heroClubName}>
+            <Text variant="titleMedium" style={[styles.heroClubName, { color: theme.colors.onSurfaceVariant }]}>
               by {event.clubName}
             </Text>
 
             {/* Quick Info Row */}
             <View style={styles.quickInfo}>
               <View style={styles.quickInfoItem}>
-                <IconButton icon="calendar" iconColor="#fff" size={18} style={styles.quickInfoIcon} />
-                <Text variant="bodyMedium" style={styles.quickInfoText}>
+                <IconButton icon="calendar" iconColor={theme.colors.onSurface} size={18} style={styles.quickInfoIcon} />
+                <Text variant="bodyMedium" style={[styles.quickInfoText, { color: theme.colors.onSurfaceVariant }]}>
                   {formatDate(event.startDate).split(',')[0]}
                 </Text>
               </View>
               <View style={styles.quickInfoItem}>
-                <IconButton icon="clock" iconColor="#fff" size={18} style={styles.quickInfoIcon} />
-                <Text variant="bodyMedium" style={styles.quickInfoText}>
+                <IconButton icon="clock" iconColor={theme.colors.onSurface} size={18} style={styles.quickInfoIcon} />
+                <Text variant="bodyMedium" style={[styles.quickInfoText, { color: theme.colors.onSurfaceVariant }]}>
                   {formatTime(event.startDate)}
                 </Text>
               </View>
               <View style={styles.quickInfoItem}>
-                <IconButton icon="account-group" iconColor="#fff" size={18} style={styles.quickInfoIcon} />
-                <Text variant="bodyMedium" style={styles.quickInfoText}>
+                <IconButton icon="account-group" iconColor={theme.colors.onSurface} size={18} style={styles.quickInfoIcon} />
+                <Text variant="bodyMedium" style={[styles.quickInfoText, { color: theme.colors.onSurfaceVariant }]}>
                   {event.attendees.length.toString()}{event.maxAttendees ? `/${event.maxAttendees.toString()}` : ''}
                 </Text>
               </View>
@@ -424,45 +425,45 @@ export default function EventDetailScreen() {
         <View style={styles.content}>
           {/* Description */}
           <View style={styles.section}>
-            <Text variant="titleLarge" style={styles.sectionTitle}>
+            <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
               About This Event
             </Text>
-            <Text variant="bodyLarge" style={styles.description}>
+            <Text variant="bodyLarge" style={[styles.description, { color: theme.colors.onSurfaceVariant }]}>
               {event.description}
             </Text>
           </View>
 
           {/* Event Details */}
           <View style={styles.section}>
-            <Text variant="titleLarge" style={styles.sectionTitle}>
+            <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
               Details
             </Text>
 
-            <View style={styles.detailRow}>
+            <View style={[styles.detailRow, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }]}>
               <IconButton icon="calendar" size={24} />
               <View style={styles.detailContent}>
                 <Text variant="labelLarge">Date</Text>
-                <Text variant="bodyMedium" style={styles.detailText}>
+                <Text variant="bodyMedium" style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>
                   {formatDate(event.startDate)}
                 </Text>
               </View>
             </View>
 
-            <View style={styles.detailRow}>
+            <View style={[styles.detailRow, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }]}>
               <IconButton icon="clock" size={24} />
               <View style={styles.detailContent}>
                 <Text variant="labelLarge">Time</Text>
-                <Text variant="bodyMedium" style={styles.detailText}>
+                <Text variant="bodyMedium" style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>
                   {formatTime(event.startDate)} - {formatTime(event.endDate)}
                 </Text>
               </View>
             </View>
 
-            <View style={styles.detailRow}>
+            <View style={[styles.detailRow, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }]}>
               <IconButton icon={event.isVirtual ? "video" : "map-marker"} size={24} />
               <View style={styles.detailContent}>
                 <Text variant="labelLarge">Location</Text>
-                <Text variant="bodyMedium" style={styles.detailText}>
+                <Text variant="bodyMedium" style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>
                   {event.isVirtual ? 'Virtual Event' : event.location}
                 </Text>
               </View>
@@ -476,11 +477,11 @@ export default function EventDetailScreen() {
             </View>
 
             {event.ticketPrice > 0 && (
-              <View style={styles.detailRow}>
+              <View style={[styles.detailRow, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }]}>
                 <IconButton icon="currency-usd" size={24} />
                 <View style={styles.detailContent}>
                   <Text variant="labelLarge">Price</Text>
-                  <Text variant="bodyMedium" style={styles.detailText}>
+                  <Text variant="bodyMedium" style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>
                     ${event.ticketPrice.toString()} {typeof event.currency === 'string' && event.currency.trim() !== '' ? event.currency : 'USD'}
                   </Text>
                 </View>
@@ -488,11 +489,11 @@ export default function EventDetailScreen() {
             )}
 
             {event.rallyCreditsAwarded > 0 && (
-              <View style={styles.detailRow}>
+              <View style={[styles.detailRow, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }]}>
                 <IconButton icon="star-circle" size={24} iconColor="#FFD700" />
                 <View style={styles.detailContent}>
                   <Text variant="labelLarge">Rally Credits Payout</Text>
-                  <Text variant="bodyMedium" style={styles.detailText}>
+                  <Text variant="bodyMedium" style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>
                     +{event.rallyCreditsAwarded?.toString() || '0'} credits for joining
                   </Text>
                 </View>
@@ -500,11 +501,11 @@ export default function EventDetailScreen() {
             )}
 
             {user && userCredits && event.clubId && (
-              <View style={styles.detailRow}>
+              <View style={[styles.detailRow, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }]}>
                 <IconButton icon="wallet" size={24} iconColor="#FFD700" />
                 <View style={styles.detailContent}>
                   <Text variant="labelLarge">Your {event.clubName} Credits</Text>
-                  <Text variant="bodyMedium" style={styles.detailText}>
+                  <Text variant="bodyMedium" style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>
                     {(userCredits.clubCredits?.[event.clubId] || 0).toString()} total credits
                   </Text>
                 </View>
@@ -514,32 +515,32 @@ export default function EventDetailScreen() {
 
           {/* Attendee Info */}
           <View style={styles.statsContainer}>
-            <View style={styles.statCard}>
-              <Text variant="headlineSmall" style={styles.statNumber}>
+            <View style={[styles.statCard, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)', borderColor: theme.colors.outline }]}>
+              <Text variant="headlineSmall" style={[styles.statNumber, { color: theme.colors.onSurface }]}>
                 {event.attendees.length.toString()}
               </Text>
-              <Text variant="bodyMedium" style={styles.statLabel}>
+              <Text variant="bodyMedium" style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>
                 Attending
               </Text>
             </View>
 
             {(event.maxAttendees ?? 0) > 0 && (
-              <View style={styles.statCard}>
-                <Text variant="headlineSmall" style={styles.statNumber}>
+              <View style={[styles.statCard, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)', borderColor: theme.colors.outline }]}>
+                <Text variant="headlineSmall" style={[styles.statNumber, { color: theme.colors.onSurface }]}>
                   {(event.maxAttendees - event.attendees.length).toString()}
                 </Text>
-                <Text variant="bodyMedium" style={styles.statLabel}>
+                <Text variant="bodyMedium" style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>
                   Spots Left
                 </Text>
               </View>
             )}
 
             {event.waitlist.length > 0 && (
-              <View style={styles.statCard}>
-                <Text variant="headlineSmall" style={styles.statNumber}>
+              <View style={[styles.statCard, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)', borderColor: theme.colors.outline }]}>
+                <Text variant="headlineSmall" style={[styles.statNumber, { color: theme.colors.onSurface }]}>
                   {event.waitlist.length.toString()}
                 </Text>
-                <Text variant="bodyMedium" style={styles.statLabel}>
+                <Text variant="bodyMedium" style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>
                   Waitlisted
                 </Text>
               </View>
@@ -549,10 +550,10 @@ export default function EventDetailScreen() {
           {/* Virtual Event Link Card */}
           {event.isVirtual && event.virtualLink && isAttending && (
             <View style={styles.section}>
-              <Card style={styles.virtualCard}>
+              <Card style={[styles.virtualCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }]}>
                 <Card.Content style={styles.virtualContent}>
                   <IconButton icon="video" size={48} iconColor={theme.colors.primary} />
-                  <Text variant="titleLarge" style={styles.virtualTitle}>
+                  <Text variant="titleLarge" style={[styles.virtualTitle, { color: theme.colors.onSurface }]}>
                     Join Virtual Event
                   </Text>
                   <Button
@@ -571,7 +572,7 @@ export default function EventDetailScreen() {
           {/* Attendees List */}
           {event.attendees.length > 0 && (
             <View style={styles.section}>
-              <Text variant="titleLarge" style={styles.sectionTitle}>
+              <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
                 Attendees ({event.attendees.length})
               </Text>
               <View style={styles.membersList}>
@@ -589,7 +590,7 @@ export default function EventDetailScreen() {
                     // we pass the name + avatar we already have so the screen renders instantly
                     <TouchableOpacity
                       key={userId}
-                      style={styles.memberRow}
+                      style={[styles.memberRow, { borderBottomColor: theme.colors.outline }]}
                       onPress={() => router.push({
                         pathname: `/user/${userId}` as any,
                         params: {
@@ -607,18 +608,18 @@ export default function EventDetailScreen() {
                             style={styles.attendeeAvatar}
                           />
                         ) : (
-                          <View style={styles.avatarCircle}>
-                            <Text variant="labelLarge" style={styles.avatarText}>
+                          <View style={[styles.avatarCircle, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)' }]}>
+                            <Text variant="labelLarge" style={[styles.avatarText, { color: theme.colors.onSurface }]}>
                               {initials}
                             </Text>
                           </View>
                         )}
-                        <Text variant="bodyLarge" style={styles.memberId} numberOfLines={1}>
+                        <Text variant="bodyLarge" style={[styles.memberId, { color: theme.colors.onSurface }]} numberOfLines={1}>
                           {displayName}
                         </Text>
                       </View>
                       {/* little arrow so people know it's tappable */}
-                      <IconButton icon="chevron-right" size={20} iconColor="rgba(255,255,255,0.4)" style={{ margin: 0 }} />
+                      <IconButton icon="chevron-right" size={20} iconColor={theme.colors.onSurfaceDisabled} style={{ margin: 0 }} />
                     </TouchableOpacity>
                   );
                 })}
@@ -629,12 +630,12 @@ export default function EventDetailScreen() {
           {/* Tags */}
           {event.tags && event.tags.length > 0 && (
             <View style={styles.section}>
-              <Text variant="titleLarge" style={styles.sectionTitle}>
+              <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
                 Tags
               </Text>
               <View style={styles.tagsGrid}>
                 {event.tags.map((tag) => (
-                  <Chip key={tag} style={styles.topicChip} mode="flat">
+                  <Chip key={tag} style={[styles.topicChip, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)', borderColor: theme.colors.outline }]} mode="flat">
                     {tag}
                   </Chip>
                 ))}
@@ -675,19 +676,21 @@ export default function EventDetailScreen() {
           style={styles.floatingButtonWrapper}
         >
           <LinearGradient
-            colors={isAttending || isWaitlisted ? ['rgba(255,255,255,0.15)', 'rgba(255,255,255,0.08)'] : ['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.15)']}
+            colors={isAttending || isWaitlisted
+              ? (isDark ? ['rgba(255,255,255,0.15)', 'rgba(255,255,255,0.08)'] : ['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.05)'])
+              : (isDark ? ['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.15)'] : ['rgba(0,0,0,0.15)', 'rgba(0,0,0,0.1)'])}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={[
               styles.floatingButton,
-              (isAttending || isWaitlisted) && styles.floatingButtonOutlined,
+              (isAttending || isWaitlisted) && [styles.floatingButtonOutlined, { borderColor: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)' }],
               (actionLoading || (!isAttending && !isWaitlisted && !!isFull)) && styles.floatingButtonDisabled
             ]}
           >
             {actionLoading ? (
-              <ActivityIndicator color="#fff" size="small" />
+              <ActivityIndicator color={theme.colors.onSurface} size="small" />
             ) : (
-              <Text style={styles.floatingButtonText}>
+              <Text style={[styles.floatingButtonText, { color: theme.colors.onSurface }]}>
                 {isWaitlisted
                   ? 'Leave Waitlist'
                   : isAttending
@@ -709,7 +712,6 @@ export default function EventDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f0f23',
   },
   backgroundImage: {
     position: 'absolute',
@@ -850,20 +852,16 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(148, 163, 184, 0.5)',
   },
   statusChipText: {
-    color: '#fff',
     fontWeight: '600',
   },
   statusChipTextDark: {
-    color: '#1e293b',
     fontWeight: '600',
   },
   heroTitle: {
-    color: '#fff',
     fontWeight: 'bold',
     marginBottom: 4,
   },
   heroClubName: {
-    color: 'rgba(255,255,255,0.7)',
     marginBottom: 16,
   },
   quickInfo: {
@@ -880,7 +878,6 @@ const styles = StyleSheet.create({
     margin: 0,
   },
   quickInfoText: {
-    color: 'rgba(255,255,255,0.8)',
     marginLeft: -8,
   },
   heroActionButtonWrapper: {
@@ -900,13 +897,11 @@ const styles = StyleSheet.create({
   },
   heroActionButtonOutlined: {
     borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.3)',
   },
   heroActionButtonDisabled: {
     opacity: 0.5,
   },
   heroActionButtonText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',
@@ -925,28 +920,23 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontWeight: 'bold',
     marginBottom: 16,
-    color: '#fff',
   },
   description: {
     lineHeight: 26,
-    color: 'rgba(255,255,255,0.8)',
   },
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
-    backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: 16,
     padding: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
   },
   detailContent: {
     flex: 1,
     marginLeft: -8,
   },
   detailText: {
-    color: 'rgba(255,255,255,0.6)',
     marginTop: 4,
   },
   statsContainer: {
@@ -959,27 +949,21 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   statNumber: {
     fontWeight: 'bold',
     marginBottom: 4,
-    color: '#fff',
   },
   statLabel: {
-    color: 'rgba(255,255,255,0.6)',
     fontSize: 12,
     textAlign: 'center',
   },
   virtualCard: {
     borderRadius: 16,
     elevation: 0,
-    backgroundColor: 'rgba(255,255,255,0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   virtualContent: {
     alignItems: 'center',
@@ -989,7 +973,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 16,
     textAlign: 'center',
-    color: '#fff',
   },
   virtualButton: {
     minWidth: 200,
@@ -1001,9 +984,7 @@ const styles = StyleSheet.create({
   },
   topicChip: {
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   membersList: {
     gap: 0,
@@ -1014,7 +995,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
     gap: 12,
   },
   memberInfo: {
@@ -1028,7 +1008,6 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1038,13 +1017,11 @@ const styles = StyleSheet.create({
     borderRadius: 25,
   },
   avatarText: {
-    color: '#fff',
     fontWeight: 'bold',
   },
   memberId: {
     flex: 1,
     fontSize: 14,
-    color: '#fff',
   },
   floatingButtonWrapper: {
     position: 'absolute',
@@ -1066,13 +1043,11 @@ const styles = StyleSheet.create({
   },
   floatingButtonOutlined: {
     borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.3)',
   },
   floatingButtonDisabled: {
     opacity: 0.5,
   },
   floatingButtonText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',

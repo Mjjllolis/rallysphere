@@ -246,7 +246,7 @@ export default function ClubSubscriptionScreen() {
             <Divider style={styles.divider} />
 
             <View style={styles.pricingContainer}>
-              <Text variant="displaySmall" style={styles.priceText}>
+              <Text variant="displaySmall" style={[styles.priceText, { color: theme.colors.primary }]}>
                 $10
               </Text>
               <Text variant="titleMedium" style={styles.pricePeriod}>
@@ -378,7 +378,6 @@ const styles = StyleSheet.create({
   },
   priceText: {
     fontWeight: 'bold',
-    color: '#60A5FA',
   },
   pricePeriod: {
     opacity: 0.7,

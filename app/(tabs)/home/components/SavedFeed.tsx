@@ -8,7 +8,8 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { Stack } from 'expo-router';
-import { Text } from 'react-native-paper';
+import { Text, useTheme } from 'react-native-paper';
+import { useThemeToggle } from '../../../_layout';
 import EventSwipeCard from './EventSwipeCard';
 import { getUserBookmarks, getEventById } from '../../../../lib/firebase';
 import type { Event } from '../../../../lib/firebase';
@@ -26,6 +27,8 @@ const INITIAL_LOAD = 5;
 const PAGINATION_SIZE = 3;
 
 const SavedFeed = ({ isActive }: SavedFeedProps) => {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const { user } = useAuth();
   const [allEvents, setAllEvents] = useState<Event[]>([]);
   const [displayedEvents, setDisplayedEvents] = useState<Event[]>([]);
@@ -160,10 +163,10 @@ const SavedFeed = ({ isActive }: SavedFeedProps) => {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ActivityIndicator size="large" color="#fff" />
-        <Text variant="bodyLarge" style={styles.loadingText}>
+        <ActivityIndicator size="large" color={theme.colors.onSurface} />
+        <Text variant="bodyLarge" style={[styles.loadingText, { color: theme.colors.onSurface }]}>
           Loading saved events...
         </Text>
       </View>
@@ -172,12 +175,12 @@ const SavedFeed = ({ isActive }: SavedFeedProps) => {
 
   if (!user) {
     return (
-      <View style={styles.emptyContainer}>
+      <View style={[styles.emptyContainer, { backgroundColor: theme.colors.background }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Text variant="headlineSmall" style={styles.emptyTitle}>
+        <Text variant="headlineSmall" style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>
           Sign In Required
         </Text>
-        <Text variant="bodyMedium" style={styles.emptySubtitle}>
+        <Text variant="bodyMedium" style={[styles.emptySubtitle, { color: theme.colors.onSurfaceVariant }]}>
           Please sign in to view your saved events
         </Text>
       </View>
@@ -186,12 +189,12 @@ const SavedFeed = ({ isActive }: SavedFeedProps) => {
 
   if (displayedEvents.length === 0 && !loading) {
     return (
-      <View style={styles.emptyContainer}>
+      <View style={[styles.emptyContainer, { backgroundColor: theme.colors.background }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Text variant="headlineSmall" style={styles.emptyTitle}>
+        <Text variant="headlineSmall" style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>
           No Saved Events
         </Text>
-        <Text variant="bodyMedium" style={styles.emptySubtitle}>
+        <Text variant="bodyMedium" style={[styles.emptySubtitle, { color: theme.colors.onSurfaceVariant }]}>
           Bookmark events to see them here
         </Text>
       </View>
@@ -200,7 +203,7 @@ const SavedFeed = ({ isActive }: SavedFeedProps) => {
 
   return (
     <View
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
       onLayout={(event) => {
         const { height } = event.nativeEvent.layout;
         setContainerHeight(height);
@@ -224,8 +227,8 @@ const SavedFeed = ({ isActive }: SavedFeedProps) => {
         initialNumToRender={1}
         ListFooterComponent={
           loadingMore ? (
-            <View style={styles.loadingMoreContainer}>
-              <ActivityIndicator size="small" color="#fff" />
+            <View style={[styles.loadingMoreContainer, { backgroundColor: theme.colors.background }]}>
+              <ActivityIndicator size="small" color={theme.colors.onSurface} />
             </View>
           ) : null
         }
@@ -239,7 +242,6 @@ export default SavedFeed;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
     borderTopLeftRadius: 25,
     borderTopRightRadius: 25,
     borderBottomLeftRadius: 25,
@@ -250,32 +252,25 @@ const styles = StyleSheet.create({
     height: SCREEN_HEIGHT,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000',
   },
   loadingText: {
     marginTop: 16,
-    color: '#fff',
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000',
     padding: 20,
   },
   emptyTitle: {
     marginBottom: 8,
-    color: '#fff',
   },
   emptySubtitle: {
-    opacity: 0.7,
     textAlign: 'center',
-    color: '#fff',
   },
 });

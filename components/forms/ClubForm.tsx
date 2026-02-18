@@ -9,7 +9,7 @@ import GlassSwitch from '../GlassSwitch';
 import GlassDropdown from '../GlassDropdown';
 import GlassImageCard from '../GlassImageCard';
 import GlassButton from '../GlassButton';
-import { Text } from 'react-native-paper';
+import { Text, useTheme } from 'react-native-paper';
 
 const SPORTS = [
   'Basketball', 'Football', 'Soccer', 'Tennis', 'Baseball', 'Volleyball',
@@ -29,6 +29,7 @@ interface ClubFormProps {
 }
 
 export default function ClubForm({ onColorsExtracted, onSuccess }: ClubFormProps) {
+  const theme = useTheme();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [coverImage, setCoverImage] = useState<string | null>(null);
@@ -168,7 +169,7 @@ export default function ClubForm({ onColorsExtracted, onSuccess }: ClubFormProps
       />
 
       {/* Logo Image Card */}
-      <Text style={styles.sectionLabel}>Club Logo</Text>
+      <Text style={[styles.sectionLabel, { color: theme.colors.onSurface }]}>Club Logo</Text>
       <GlassImageCard
         imageUri={logo}
         onImageSelected={setLogo}
@@ -225,7 +226,7 @@ export default function ClubForm({ onColorsExtracted, onSuccess }: ClubFormProps
       />
 
       {/* Social Links */}
-      <Text style={styles.sectionLabel}>Social Links</Text>
+      <Text style={[styles.sectionLabel, { color: theme.colors.onSurface }]}>Social Links</Text>
 
       <GlassInput
         label="Website"
@@ -307,7 +308,6 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 16,
     fontWeight: '700',
-    color: 'white',
     marginBottom: 12,
     marginTop: 8,
     marginLeft: 4,

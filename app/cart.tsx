@@ -147,9 +147,9 @@ export default function CartScreen() {
         </View>
 
         <View style={styles.emptyContainer}>
-          <Ionicons name="cart-outline" size={80} color="#ccc" />
-          <Text style={styles.emptyTitle}>Your cart is empty</Text>
-          <Text style={styles.emptySubtitle}>Add items to get started</Text>
+          <Ionicons name="cart-outline" size={80} color={theme.colors.onSurfaceVariant} />
+          <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>Your cart is empty</Text>
+          <Text style={[styles.emptySubtitle, { color: theme.colors.onSurfaceVariant }]}>Add items to get started</Text>
           <Button
             mode="contained"
             onPress={() => router.push('/(tabs)/store')}
@@ -177,7 +177,7 @@ export default function CartScreen() {
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
         {/* Cart Items */}
-        <View style={styles.itemsContainer}>
+        <View style={[styles.itemsContainer, { backgroundColor: theme.colors.surface }]}>
           {cart.map((item, index) => {
             const variantsText = Object.entries(item.selectedVariants)
               .map(([key, value]) => `${key}: ${value}`)
@@ -195,8 +195,8 @@ export default function CartScreen() {
                         resizeMode="cover"
                       />
                     ) : (
-                      <View style={styles.placeholderImage}>
-                        <Ionicons name="image-outline" size={32} color="#ccc" />
+                      <View style={[styles.placeholderImage, { backgroundColor: theme.colors.surfaceVariant }]}>
+                        <Ionicons name="image-outline" size={32} color={theme.colors.onSurfaceVariant} />
                       </View>
                     )}
                   </View>
@@ -207,7 +207,7 @@ export default function CartScreen() {
                       {item.name}
                     </Text>
                     {variantsText && (
-                      <Text style={styles.itemVariants}>{variantsText}</Text>
+                      <Text style={[styles.itemVariants, { color: theme.colors.onSurfaceVariant }]}>{variantsText}</Text>
                     )}
                     <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
 
@@ -216,9 +216,9 @@ export default function CartScreen() {
                       <TouchableOpacity
                         onPress={() => updateQuantity(item.id, item.selectedVariants, item.quantity - 1)}
                         disabled={item.quantity <= 1}
-                        style={[styles.quantityButton, item.quantity <= 1 && styles.quantityButtonDisabled]}
+                        style={[styles.quantityButton, { backgroundColor: theme.colors.surfaceVariant }, item.quantity <= 1 && styles.quantityButtonDisabled]}
                       >
-                        <Ionicons name="remove" size={16} color={item.quantity <= 1 ? '#ccc' : theme.colors.onSurface} />
+                        <Ionicons name="remove" size={16} color={item.quantity <= 1 ? theme.colors.onSurfaceDisabled : theme.colors.onSurface} />
                       </TouchableOpacity>
                       <Text style={styles.quantityText}>{item.quantity}</Text>
                       <TouchableOpacity
@@ -226,13 +226,14 @@ export default function CartScreen() {
                         disabled={item.quantity >= (item.inventory - item.sold)}
                         style={[
                           styles.quantityButton,
+                          { backgroundColor: theme.colors.surfaceVariant },
                           item.quantity >= (item.inventory - item.sold) && styles.quantityButtonDisabled,
                         ]}
                       >
                         <Ionicons
                           name="add"
                           size={16}
-                          color={item.quantity >= (item.inventory - item.sold) ? '#ccc' : theme.colors.onSurface}
+                          color={item.quantity >= (item.inventory - item.sold) ? theme.colors.onSurfaceDisabled : theme.colors.onSurface}
                         />
                       </TouchableOpacity>
                     </View>
@@ -253,8 +254,8 @@ export default function CartScreen() {
         </View>
 
         {/* Delivery Method */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Delivery Method</Text>
+        <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Delivery Method</Text>
           <SegmentedButtons
             value={deliveryMethod}
             onValueChange={(value) => setDeliveryMethod(value as 'shipping' | 'pickup')}
@@ -272,31 +273,31 @@ export default function CartScreen() {
             ]}
           />
           {deliveryMethod === 'shipping' && (
-            <Text style={styles.deliveryNote}>
+            <Text style={[styles.deliveryNote, { color: theme.colors.onSurfaceVariant }]}>
               Shipping costs calculated per item
             </Text>
           )}
         </View>
 
         {/* Order Summary */}
-        <View style={styles.summarySection}>
-          <Text style={styles.sectionTitle}>Order Summary</Text>
+        <View style={[styles.summarySection, { backgroundColor: theme.colors.surface }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Order Summary</Text>
 
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Items Total</Text>
+            <Text style={[styles.summaryLabel, { color: theme.colors.onSurfaceVariant }]}>Items Total</Text>
             <Text style={styles.summaryValue}>${itemsTotal.toFixed(2)}</Text>
           </View>
 
           {deliveryMethod === 'shipping' && shipping > 0 && (
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Shipping</Text>
-              <Text style={styles.summaryValue}>${shipping.toFixed(2)}</Text>
+              <Text style={[styles.summaryLabel, { color: theme.colors.onSurfaceVariant }]}>Shipping</Text>
+              <Text style={[styles.summaryValue, { color: theme.colors.onSurface }]}>${shipping.toFixed(2)}</Text>
             </View>
           )}
 
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Tax</Text>
-            <Text style={styles.summaryValue}>${tax.toFixed(2)}</Text>
+            <Text style={[styles.summaryLabel, { color: theme.colors.onSurfaceVariant }]}>Tax</Text>
+            <Text style={[styles.summaryValue, { color: theme.colors.onSurface }]}>${tax.toFixed(2)}</Text>
           </View>
 
           <Divider style={{ marginVertical: 12 }} />
@@ -337,8 +338,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
   },
   backButton: {
     width: 40,
@@ -360,11 +359,9 @@ const styles = StyleSheet.create({
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#999',
   },
   itemsContainer: {
     padding: 16,
-    backgroundColor: '#fff',
     margin: 16,
     marginBottom: 0,
     borderRadius: 12,
@@ -377,7 +374,6 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 8,
-    backgroundColor: '#F8F8F8',
     overflow: 'hidden',
   },
   placeholderImage: {
@@ -396,7 +392,6 @@ const styles = StyleSheet.create({
   },
   itemVariants: {
     fontSize: 13,
-    color: '#666',
     marginBottom: 4,
   },
   itemPrice: {
@@ -413,7 +408,6 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -431,7 +425,6 @@ const styles = StyleSheet.create({
   },
   section: {
     padding: 16,
-    backgroundColor: '#fff',
     margin: 16,
     marginBottom: 0,
     borderRadius: 12,
@@ -443,12 +436,10 @@ const styles = StyleSheet.create({
   },
   deliveryNote: {
     fontSize: 13,
-    color: '#666',
     marginTop: 8,
   },
   summarySection: {
     padding: 16,
-    backgroundColor: '#fff',
     margin: 16,
     borderRadius: 12,
   },
@@ -459,7 +450,6 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 15,
-    color: '#666',
   },
   summaryValue: {
     fontSize: 15,

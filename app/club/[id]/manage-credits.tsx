@@ -18,10 +18,11 @@ import {
   Modal,
   IconButton,
   TextInput,
+  useTheme,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useAuth } from '../../_layout';
+import { useAuth, useThemeToggle } from '../../_layout';
 import {
   getClub,
   getUserProfile,
@@ -42,6 +43,8 @@ interface MemberWithCredits {
 }
 
 export default function ManageCreditsScreen() {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const { user } = useAuth();
   const { id } = useLocalSearchParams();
   const clubId = id as string;
@@ -217,13 +220,9 @@ export default function ManageCreditsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <View style={StyleSheet.absoluteFill}>
-          <View style={styles.blackBackground} />
-        </View>
-
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <LinearGradient
-          colors={['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', 'rgba(0, 0, 0, 0)']}
+          colors={isDark ? ['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', 'rgba(0, 0, 0, 0)'] : ['rgba(96, 165, 250, 0.1)', 'rgba(139, 92, 246, 0.05)', 'rgba(255, 255, 255, 0)']}
           locations={[0, 0.3, 1]}
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
@@ -239,16 +238,11 @@ export default function ManageCreditsScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-
-      {/* Black Background */}
-      <View style={StyleSheet.absoluteFill}>
-        <View style={styles.blackBackground} />
-      </View>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
       <LinearGradient
-        colors={['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', 'rgba(0, 0, 0, 0)']}
+        colors={isDark ? ['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', 'rgba(0, 0, 0, 0)'] : ['rgba(96, 165, 250, 0.1)', 'rgba(139, 92, 246, 0.05)', 'rgba(255, 255, 255, 0)']}
         locations={[0, 0.3, 1]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
@@ -262,14 +256,14 @@ export default function ManageCreditsScreen() {
             activeOpacity={0.7}
             style={styles.headerButtonWrapper}
           >
-            <BlurView intensity={40} tint="dark" style={styles.headerButton}>
-              <IconButton icon="arrow-left" iconColor="white" size={24} style={{ margin: 0 }} />
+            <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.headerButton, { borderColor: theme.colors.outline }]}>
+              <IconButton icon="arrow-left" iconColor={theme.colors.onSurface} size={24} style={{ margin: 0 }} />
             </BlurView>
           </TouchableOpacity>
 
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Manage Credits</Text>
-            <Text style={styles.headerSubtitle}>{club?.name}</Text>
+            <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Manage Credits</Text>
+            <Text style={[styles.headerSubtitle, { color: theme.colors.onSurfaceVariant }]}>{club?.name}</Text>
           </View>
 
           <View style={styles.headerSpacer} />
@@ -277,18 +271,18 @@ export default function ManageCreditsScreen() {
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
-          <BlurView intensity={20} tint="dark" style={styles.searchBlur}>
-            <Ionicons name="search" size={20} color="rgba(255,255,255,0.5)" />
+          <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.searchBlur, { borderColor: theme.colors.outline }]}>
+            <Ionicons name="search" size={20} color={theme.colors.onSurfaceDisabled} />
             <RNTextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, { color: theme.colors.onSurface }]}
               placeholder="Search members..."
-              placeholderTextColor="rgba(255,255,255,0.5)"
+              placeholderTextColor={theme.colors.onSurfaceDisabled}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Ionicons name="close-circle" size={20} color="rgba(255,255,255,0.5)" />
+                <Ionicons name="close-circle" size={20} color={theme.colors.onSurfaceDisabled} />
               </TouchableOpacity>
             )}
           </BlurView>
@@ -307,8 +301,8 @@ export default function ManageCreditsScreen() {
         >
           {filteredMembers.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Ionicons name="people-outline" size={64} color="rgba(255,255,255,0.3)" />
-              <Text style={styles.emptyText}>
+              <Ionicons name="people-outline" size={64} color={theme.colors.onSurfaceDisabled} />
+              <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
                 {searchQuery ? 'No members found' : 'No members yet'}
               </Text>
             </View>
@@ -316,7 +310,7 @@ export default function ManageCreditsScreen() {
             <View style={styles.membersList}>
               {filteredMembers.map((member) => (
                 <View key={member.userId} style={styles.memberCardWrapper}>
-                  <BlurView intensity={20} tint="dark" style={styles.memberCard}>
+                  <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.memberCard, { borderColor: theme.colors.outline }]}>
                     {/* Member Info */}
                     <View style={styles.memberInfo}>
                       <View style={styles.memberAvatar}>
@@ -335,8 +329,8 @@ export default function ManageCreditsScreen() {
                       </View>
 
                       <View style={styles.memberDetails}>
-                        <Text style={styles.memberName}>{member.profile.displayName || 'Member'}</Text>
-                        <Text style={styles.memberEmail}>{member.profile.email}</Text>
+                        <Text style={[styles.memberName, { color: theme.colors.onSurface }]}>{member.profile.displayName || 'Member'}</Text>
+                        <Text style={[styles.memberEmail, { color: theme.colors.onSurfaceVariant }]}>{member.profile.email}</Text>
                       </View>
 
                       <View style={styles.creditsDisplay}>
@@ -391,14 +385,14 @@ export default function ManageCreditsScreen() {
           onDismiss={() => setModalVisible(false)}
           contentContainerStyle={styles.modalContent}
         >
-          <View style={styles.modalBlur}>
+          <View style={[styles.modalBlur, { backgroundColor: isDark ? 'rgba(20, 20, 20, 0.98)' : 'rgba(255, 255, 255, 0.98)' }]}>
             {/* Header */}
             <View style={styles.modalHeader}>
-              <Text style={styles.modalHeaderText}>
+              <Text style={[styles.modalHeaderText, { color: theme.colors.onSurface }]}>
                 {action === 'add' ? 'Add Credits' : action === 'remove' ? 'Remove Credits' : 'Set Credits'}
               </Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <IconButton icon="close" iconColor="white" size={24} style={{ margin: 0 }} />
+                <IconButton icon="close" iconColor={theme.colors.onSurface} size={24} style={{ margin: 0 }} />
               </TouchableOpacity>
             </View>
 
@@ -406,17 +400,17 @@ export default function ManageCreditsScreen() {
               <View style={styles.modalBody}>
                 {/* Member Info */}
                 <View style={styles.modalMemberInfo}>
-                  <Text style={styles.modalMemberName}>{selectedMember.profile.displayName}</Text>
-                  <Text style={styles.modalCurrentCredits}>
+                  <Text style={[styles.modalMemberName, { color: theme.colors.onSurface }]}>{selectedMember.profile.displayName}</Text>
+                  <Text style={[styles.modalCurrentCredits, { color: theme.colors.onSurfaceVariant }]}>
                     Current: {selectedMember.credits} credits
                   </Text>
                 </View>
 
-                <View style={styles.modalDivider} />
+                <View style={[styles.modalDivider, { backgroundColor: theme.colors.outline }]} />
 
                 {/* Amount Input */}
                 <View style={styles.inputContainer}>
-                  <Text style={styles.inputLabel}>Amount</Text>
+                  <Text style={[styles.inputLabel, { color: theme.colors.onSurfaceVariant }]}>Amount</Text>
                   <TextInput
                     mode="outlined"
                     value={amount}
@@ -437,7 +431,7 @@ export default function ManageCreditsScreen() {
 
                 {/* Reason Input */}
                 <View style={styles.inputContainer}>
-                  <Text style={styles.inputLabel}>Reason</Text>
+                  <Text style={[styles.inputLabel, { color: theme.colors.onSurfaceVariant }]}>Reason</Text>
                   <TextInput
                     mode="outlined"
                     value={reason}
@@ -460,7 +454,7 @@ export default function ManageCreditsScreen() {
                 {action === 'set' && amount && (
                   <View style={styles.previewBox}>
                     <Ionicons name="information-circle" size={20} color="#60A5FA" />
-                    <Text style={styles.previewText}>
+                    <Text style={[styles.previewText, { color: theme.colors.onSurfaceVariant }]}>
                       Will set credits to {amount} ({parseInt(amount) - selectedMember.credits >= 0 ? '+' : ''}
                       {parseInt(amount) - selectedMember.credits})
                     </Text>
@@ -474,10 +468,10 @@ export default function ManageCreditsScreen() {
               <TouchableOpacity
                 onPress={() => setModalVisible(false)}
                 disabled={processing}
-                style={styles.modalCancelButton}
+                style={[styles.modalCancelButton, { borderColor: theme.colors.outline }]}
                 activeOpacity={0.7}
               >
-                <Text style={styles.modalCancelText}>Cancel</Text>
+                <Text style={[styles.modalCancelText, { color: theme.colors.onSurfaceVariant }]}>Cancel</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -539,7 +533,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     overflow: 'hidden',
   },
   headerTitleContainer: {
@@ -549,11 +542,9 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#ffffff',
   },
   headerSubtitle: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.6)',
     marginTop: 2,
   },
   headerSpacer: {
@@ -573,13 +564,11 @@ const styles = StyleSheet.create({
     gap: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     overflow: 'hidden',
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: '#ffffff',
     padding: 0,
   },
   scrollView: {
@@ -597,7 +586,6 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.8)',
     marginTop: 8,
   },
   membersList: {
@@ -611,7 +599,6 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     overflow: 'hidden',
     gap: 12,
   },
@@ -640,7 +627,7 @@ const styles = StyleSheet.create({
   avatarText: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#ffffff',
+    color: '#ffffff', // Keep white on blue avatar background
   },
   memberDetails: {
     flex: 1,
@@ -648,11 +635,9 @@ const styles = StyleSheet.create({
   memberName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#ffffff',
   },
   memberEmail: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.6)',
     marginTop: 2,
   },
   creditsDisplay: {
@@ -710,7 +695,6 @@ const styles = StyleSheet.create({
   modalBlur: {
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: 'rgba(20, 20, 20, 0.98)',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -723,7 +707,6 @@ const styles = StyleSheet.create({
   modalHeaderText: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#ffffff',
   },
   modalBody: {
     padding: 24,
@@ -735,16 +718,13 @@ const styles = StyleSheet.create({
   modalMemberName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#ffffff',
     marginBottom: 4,
   },
   modalCurrentCredits: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
   },
   modalDivider: {
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
     marginVertical: 20,
   },
   inputContainer: {
@@ -753,7 +733,6 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.8)',
     marginBottom: 8,
   },
   input: {
@@ -773,7 +752,6 @@ const styles = StyleSheet.create({
   previewText: {
     flex: 1,
     fontSize: 13,
-    color: 'rgba(255,255,255,0.8)',
   },
   modalFooter: {
     flexDirection: 'row',
@@ -785,14 +763,12 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalCancelText: {
     fontSize: 15,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.8)',
   },
   modalSubmitButton: {
     flex: 1,

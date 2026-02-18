@@ -1,9 +1,10 @@
 import React from 'react';
 import { View, StyleSheet, Modal, TouchableOpacity } from 'react-native';
-import { Text } from 'react-native-paper';
+import { Text, useTheme } from 'react-native-paper';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { useThemeToggle } from '../app/_layout';
 
 interface RallyCreditsPaidModalProps {
   visible: boolean;
@@ -22,6 +23,9 @@ export default function RallyCreditsPaidModal({
   clubName,
   isAlreadyMember,
 }: RallyCreditsPaidModalProps) {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
+
   const handleViewRewards = () => {
     onClose();
     router.push(`/(tabs)/clubs?clubId=${clubId}`);
@@ -42,7 +46,7 @@ export default function RallyCreditsPaidModal({
         />
 
         <View style={styles.modalContainer}>
-          <BlurView intensity={80} tint="dark" style={styles.blurContainer}>
+          <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={[styles.blurContainer, { borderColor: theme.colors.outline }]}>
             <View style={styles.content}>
               <View style={styles.iconContainer}>
                 <LinearGradient
@@ -55,22 +59,22 @@ export default function RallyCreditsPaidModal({
                 </LinearGradient>
               </View>
 
-              <Text style={styles.title}>Credits Pending!</Text>
+              <Text style={[styles.title, { color: theme.colors.onSurface }]}>Credits Pending!</Text>
 
               <View style={styles.creditsContainer}>
                 <Text style={styles.creditsAmount}>+{amount}</Text>
-                <Text style={styles.creditsLabel}>Rally Credits</Text>
+                <Text style={[styles.creditsLabel, { color: theme.colors.onSurfaceVariant }]}>Rally Credits</Text>
                 <View style={styles.pendingBadge}>
                   <Text style={styles.pendingBadgeText}>PENDING</Text>
                 </View>
               </View>
 
-              <Text style={styles.description}>
+              <Text style={[styles.description, { color: theme.colors.onSurfaceVariant }]}>
                 You've earned {amount} Rally Credits! These credits will be added to your balance when you're checked in at the event.
               </Text>
 
               <View style={styles.infoBox}>
-                <Text style={styles.infoText}>
+                <Text style={[styles.infoText, { color: theme.colors.onSurfaceVariant }]}>
                   Check in with {clubName} staff when you arrive to unlock your credits.
                 </Text>
               </View>
@@ -97,7 +101,7 @@ export default function RallyCreditsPaidModal({
                 onPress={onClose}
                 activeOpacity={0.7}
               >
-                <Text style={styles.closeButtonText}>Maybe Later</Text>
+                <Text style={[styles.closeButtonText, { color: theme.colors.onSurfaceDisabled }]}>Maybe Later</Text>
               </TouchableOpacity>
             </View>
           </BlurView>
@@ -132,7 +136,6 @@ const styles = StyleSheet.create({
   blurContainer: {
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   content: {
     padding: 32,
@@ -154,7 +157,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: 'white',
     marginBottom: 16,
     textAlign: 'center',
   },
@@ -176,7 +178,6 @@ const styles = StyleSheet.create({
   },
   creditsLabel: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.7)',
     fontWeight: '600',
   },
   pendingBadge: {
@@ -202,13 +203,11 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
     lineHeight: 20,
   },
   description: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 32,
@@ -234,7 +233,6 @@ const styles = StyleSheet.create({
   },
   closeButtonText: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.5)',
     fontWeight: '500',
   },
 });
