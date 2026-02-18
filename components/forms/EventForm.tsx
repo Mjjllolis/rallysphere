@@ -1,7 +1,7 @@
 // components/forms/EventForm.tsx
 import React, { useState, useEffect } from 'react';
 import { View, Alert, StyleSheet } from 'react-native';
-import { Text } from 'react-native-paper';
+import { Text, useTheme } from 'react-native-paper';
 import { router } from 'expo-router';
 import { createEvent, uploadImage, getClubs } from '../../lib/firebase';
 import { useAuth } from '../../app/_layout';
@@ -20,6 +20,7 @@ interface EventFormProps {
 }
 
 export default function EventForm({ onColorsExtracted, onSuccess }: EventFormProps) {
+  const theme = useTheme();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [availableClubs, setAvailableClubs] = useState<Club[]>([]);
@@ -268,7 +269,7 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
           <Text style={styles.warningIcon}>⚠️</Text>
           <View style={styles.warningContent}>
             <Text style={styles.warningTitle}>Connect Stripe to accept payments</Text>
-            <Text style={styles.warningText}>
+            <Text style={[styles.warningText, { color: theme.colors.onSurfaceVariant }]}>
               Set up payouts in club settings to create paid events
             </Text>
           </View>
@@ -340,7 +341,6 @@ const styles = StyleSheet.create({
   },
   warningText: {
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.8)',
     lineHeight: 18,
   },
 });

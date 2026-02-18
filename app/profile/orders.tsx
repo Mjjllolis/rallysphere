@@ -13,10 +13,11 @@ import {
   Text,
   ActivityIndicator,
   IconButton,
+  useTheme,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { useAuth } from '../_layout';
+import { useAuth, useThemeToggle } from '../_layout';
 import { getUserStoreOrders } from '../../lib/firebase';
 import type { StoreOrder } from '../../lib/firebase';
 import { Ionicons } from '@expo/vector-icons';
@@ -68,6 +69,8 @@ const STATUS_FILTERS = ['All', 'Active', 'Delivered', 'Cancelled', 'Refunded'];
 
 export default function OrdersScreen() {
   const { user } = useAuth();
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
 
   const [orders, setOrders] = useState<StoreOrder[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<StoreOrder[]>([]);
@@ -162,7 +165,7 @@ export default function OrdersScreen() {
         onPress={() => router.push(`/(tabs)/store/${order.itemId}`)}
         activeOpacity={0.9}
       >
-        <BlurView intensity={20} tint="dark" style={styles.orderCardBlur}>
+        <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.orderCardBlur, { borderColor: theme.colors.outline }]}>
           <View style={styles.orderCardContent}>
             {/* Left: Product Image */}
             {order.itemImage ? (
@@ -172,8 +175,8 @@ export default function OrdersScreen() {
                 resizeMode="cover"
               />
             ) : (
-              <View style={styles.orderImagePlaceholder}>
-                <Ionicons name="image-outline" size={32} color="rgba(255,255,255,0.3)" />
+              <View style={[styles.orderImagePlaceholder, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+                <Ionicons name="image-outline" size={32} color={theme.colors.onSurfaceDisabled} />
               </View>
             )}
 
@@ -181,7 +184,7 @@ export default function OrdersScreen() {
             <View style={styles.orderDetails}>
               <View style={styles.orderHeader}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.orderTitle} numberOfLines={2}>
+                  <Text style={[styles.orderTitle, { color: theme.colors.onSurface }]} numberOfLines={2}>
                     {order.itemName}
                   </Text>
                   <Text style={styles.orderClub} numberOfLines={1}>
@@ -203,16 +206,16 @@ export default function OrdersScreen() {
 
               <View style={styles.orderMeta}>
                 <View style={styles.orderMetaRow}>
-                  <Ionicons name="calendar-outline" size={12} color="rgba(255,255,255,0.6)" />
-                  <Text style={styles.orderMetaText}>{formatDate(order.createdAt)}</Text>
+                  <Ionicons name="calendar-outline" size={12} color={theme.colors.onSurfaceVariant} />
+                  <Text style={[styles.orderMetaText, { color: theme.colors.onSurfaceVariant }]}>{formatDate(order.createdAt)}</Text>
                 </View>
                 <View style={styles.orderMetaRow}>
                   <Ionicons
                     name={order.deliveryMethod === 'shipping' ? 'cube-outline' : 'location-outline'}
                     size={12}
-                    color="rgba(255,255,255,0.6)"
+                    color={theme.colors.onSurfaceVariant}
                   />
-                  <Text style={styles.orderMetaText}>
+                  <Text style={[styles.orderMetaText, { color: theme.colors.onSurfaceVariant }]}>
                     {order.deliveryMethod === 'shipping' ? 'Shipping' : 'Pickup'}
                   </Text>
                 </View>
@@ -235,11 +238,11 @@ export default function OrdersScreen() {
     return (
       <View style={styles.container}>
         <View style={StyleSheet.absoluteFill}>
-          <View style={styles.blackBackground} />
+          <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
         </View>
 
         <LinearGradient
-          colors={['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', 'rgba(0, 0, 0, 0)']}
+          colors={isDark ? ['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', 'rgba(0, 0, 0, 0)'] : ['rgba(96, 165, 250, 0.15)', 'rgba(139, 92, 246, 0.05)', 'rgba(255, 255, 255, 0)']}
           locations={[0, 0.3, 1]}
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
@@ -258,12 +261,12 @@ export default function OrdersScreen() {
     <View style={styles.container}>
       {/* Black Background */}
       <View style={StyleSheet.absoluteFill}>
-        <View style={styles.blackBackground} />
+        <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
       </View>
 
       {/* Subtle Gradient Overlay */}
       <LinearGradient
-        colors={['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', 'rgba(0, 0, 0, 0)']}
+        colors={isDark ? ['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', 'rgba(0, 0, 0, 0)'] : ['rgba(96, 165, 250, 0.15)', 'rgba(139, 92, 246, 0.05)', 'rgba(255, 255, 255, 0)']}
         locations={[0, 0.3, 1]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
@@ -274,28 +277,28 @@ export default function OrdersScreen() {
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-              <BlurView intensity={20} tint="dark" style={styles.backButton}>
-                <Ionicons name="arrow-back" size={24} color="#fff" />
+              <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.backButton, { borderColor: theme.colors.outline }]}>
+                <Ionicons name="arrow-back" size={24} color={theme.colors.onSurface} />
               </BlurView>
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Your Orders</Text>
+            <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Your Orders</Text>
           </View>
 
           {/* Search Bar */}
-          <BlurView intensity={20} tint="dark" style={styles.searchBarContainer}>
+          <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.searchBarContainer, { borderColor: theme.colors.outline }]}>
             <View style={styles.searchInputWrapper}>
               <Ionicons
                 name="search-outline"
                 size={20}
-                color="rgba(255,255,255,0.7)"
+                color={theme.colors.onSurfaceVariant}
                 style={styles.searchIcon}
               />
               <TextInput
                 placeholder="Search orders..."
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                style={styles.searchInput}
-                placeholderTextColor="rgba(255,255,255,0.5)"
+                style={[styles.searchInput, { color: theme.colors.onSurface }]}
+                placeholderTextColor={theme.colors.onSurfaceDisabled}
               />
             </View>
           </BlurView>
@@ -315,16 +318,18 @@ export default function OrdersScreen() {
                 >
                   <BlurView
                     intensity={selectedStatus === status ? 30 : 15}
-                    tint="dark"
+                    tint={isDark ? "dark" : "light"}
                     style={[
                       styles.filterChip,
+                      { borderColor: theme.colors.outline },
                       selectedStatus === status && styles.filterChipSelected,
                     ]}
                   >
                     <Text
                       style={[
                         styles.filterText,
-                        selectedStatus === status && styles.filterTextSelected,
+                        { color: theme.colors.onSurfaceVariant },
+                        selectedStatus === status && { color: theme.colors.onSurface },
                       ]}
                     >
                       {status}
@@ -338,18 +343,18 @@ export default function OrdersScreen() {
 
         {orders.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <BlurView intensity={20} tint="dark" style={styles.emptyCard}>
+            <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.emptyCard, { borderColor: theme.colors.outline }]}>
               <View style={styles.emptyContent}>
-                <IconButton icon="receipt-outline" size={64} iconColor="rgba(255,255,255,0.5)" />
-                <Text style={styles.emptyTitle}>No orders yet</Text>
-                <Text style={styles.emptyText}>
+                <IconButton icon="receipt-outline" size={64} iconColor={theme.colors.onSurfaceDisabled} />
+                <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>No orders yet</Text>
+                <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
                   Your order history will appear here
                 </Text>
                 <TouchableOpacity
                   onPress={() => router.push('/(tabs)/store')}
                   activeOpacity={0.7}
                 >
-                  <BlurView intensity={30} tint="dark" style={styles.shopButton}>
+                  <BlurView intensity={30} tint={isDark ? "dark" : "light"} style={[styles.shopButton, { borderColor: theme.colors.outline }]}>
                     <View style={styles.shopButtonInner}>
                       <IconButton icon="shopping" iconColor="#60A5FA" size={20} style={{ margin: 0 }} />
                       <Text style={styles.shopButtonText}>Start Shopping</Text>
@@ -361,11 +366,11 @@ export default function OrdersScreen() {
           </View>
         ) : filteredOrders.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <BlurView intensity={20} tint="dark" style={styles.emptyCard}>
+            <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.emptyCard, { borderColor: theme.colors.outline }]}>
               <View style={styles.emptyContent}>
-                <IconButton icon="search-outline" size={64} iconColor="rgba(255,255,255,0.5)" />
-                <Text style={styles.emptyTitle}>No orders found</Text>
-                <Text style={styles.emptyText}>
+                <IconButton icon="search-outline" size={64} iconColor={theme.colors.onSurfaceDisabled} />
+                <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>No orders found</Text>
+                <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
                   Try adjusting your search or filters
                 </Text>
               </View>
@@ -376,12 +381,12 @@ export default function OrdersScreen() {
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
             refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.onSurface} />
             }
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.ordersSection}>
-              <Text style={styles.sectionTitle}>
+              <Text style={[styles.sectionTitle, { color: theme.colors.onSurfaceVariant }]}>
                 {filteredOrders.length} {filteredOrders.length === 1 ? 'Order' : 'Orders'}
               </Text>
               {filteredOrders.map((order) => renderOrder(order))}
@@ -399,7 +404,6 @@ const styles = StyleSheet.create({
   },
   blackBackground: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   safeArea: {
     flex: 1,
@@ -425,20 +429,17 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#ffffff',
   },
   searchBarContainer: {
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   searchInputWrapper: {
     flexDirection: 'row',
@@ -454,7 +455,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     padding: 0,
     margin: 0,
-    color: '#fff',
   },
   filterContainer: {
     marginTop: 4,
@@ -468,7 +468,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     overflow: 'hidden',
   },
   filterChipSelected: {
@@ -477,10 +476,6 @@ const styles = StyleSheet.create({
   filterText: {
     fontSize: 13,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.7)',
-  },
-  filterTextSelected: {
-    color: '#ffffff',
   },
   scrollView: {
     flex: 1,
@@ -494,7 +489,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: 'rgba(255,255,255,0.6)',
     marginBottom: 16,
     marginTop: 8,
   },
@@ -507,7 +501,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   orderCardContent: {
     flexDirection: 'row',
@@ -523,7 +516,6 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.05)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -539,7 +531,6 @@ const styles = StyleSheet.create({
   orderTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#ffffff',
     lineHeight: 20,
   },
   orderClub: {
@@ -569,7 +560,6 @@ const styles = StyleSheet.create({
   },
   orderMetaText: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.6)',
   },
   orderFooter: {
     flexDirection: 'row',
@@ -603,7 +593,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   emptyContent: {
     alignItems: 'center',
@@ -612,21 +601,18 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#ffffff',
     marginTop: 16,
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 14,
     textAlign: 'center',
-    color: 'rgba(255,255,255,0.6)',
     marginBottom: 24,
   },
   shopButton: {
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   shopButtonInner: {
     flexDirection: 'row',

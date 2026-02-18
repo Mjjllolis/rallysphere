@@ -8,7 +8,7 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import { Text, IconButton, Switch, List, Divider, useTheme } from 'react-native-paper';
+import { Text, IconButton, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,19 +22,9 @@ interface SettingsScreenProps {
 }
 
 export default function SettingsScreen({ visible, onClose }: SettingsScreenProps) {
-  const { isDark, toggleTheme } = useThemeToggle();
+  const { isDark, themePreference, setThemePreference } = useThemeToggle();
   const theme = useTheme();
   const [deleteAccountModalVisible, setDeleteAccountModalVisible] = React.useState(false);
-  const [darkModeModalVisible, setDarkModeModalVisible] = React.useState(false);
-
-  const handleDarkModeToggle = async () => {
-    // If not in dark mode, switch to dark mode
-    if (!isDark) {
-      await toggleTheme();
-    }
-    // Show the coming soon modal
-    setDarkModeModalVisible(true);
-  };
 
   const handleSignOut = async () => {
     Alert.alert(
@@ -92,9 +82,15 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
           <View style={[styles.header, { borderBottomColor: theme.colors.outline }]}>
             <Text style={[styles.headerTitle, { color: theme.colors.onBackground }]}>Settings</Text>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.closeButtonBlur, { borderColor: theme.colors.outline }]}>
-                <IconButton icon="close" size={24} iconColor={theme.colors.onSurface} />
-              </BlurView>
+              {isDark ? (
+                <BlurView intensity={40} tint="dark" style={[styles.closeButtonBlur, { borderColor: theme.colors.outline }]}>
+                  <IconButton icon="close" size={24} iconColor={theme.colors.onSurface} />
+                </BlurView>
+              ) : (
+                <View style={[styles.closeButtonBlur, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.outline }]}>
+                  <IconButton icon="close" size={24} iconColor={theme.colors.onSurface} />
+                </View>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -106,7 +102,7 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
           >
             {/* Account Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Account</Text>
+              <Text style={[styles.sectionTitle, { color: theme.colors.onSurfaceVariant }]}>Account</Text>
 
               <TouchableOpacity
                 onPress={() => {
@@ -114,15 +110,15 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
                   router.push('/profile/tickets');
                 }}
               >
-                <BlurView intensity={40} tint="dark" style={styles.settingItem}>
+                <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.settingItem, { borderColor: theme.colors.outline }]}>
                   <View style={styles.settingContent}>
                     <View style={styles.settingTextContainer}>
-                      <Text style={styles.settingTitle}>Your Tickets</Text>
-                      <Text style={styles.settingDescription}>
+                      <Text style={[styles.settingTitle, { color: theme.colors.onSurface }]}>Your Tickets</Text>
+                      <Text style={[styles.settingDescription, { color: theme.colors.onSurfaceVariant }]}>
                         View your event tickets and purchase history
                       </Text>
                     </View>
-                    <IconButton icon="chevron-right" size={24} iconColor="white" />
+                    <IconButton icon="chevron-right" size={24} iconColor={theme.colors.onSurface} />
                   </View>
                 </BlurView>
               </TouchableOpacity>
@@ -133,15 +129,15 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
                   router.push('/profile/orders');
                 }}
               >
-                <BlurView intensity={40} tint="dark" style={styles.settingItem}>
+                <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.settingItem, { borderColor: theme.colors.outline }]}>
                   <View style={styles.settingContent}>
                     <View style={styles.settingTextContainer}>
-                      <Text style={styles.settingTitle}>Your Orders</Text>
-                      <Text style={styles.settingDescription}>
+                      <Text style={[styles.settingTitle, { color: theme.colors.onSurface }]}>Your Orders</Text>
+                      <Text style={[styles.settingDescription, { color: theme.colors.onSurfaceVariant }]}>
                         View your store order history and track shipments
                       </Text>
                     </View>
-                    <IconButton icon="chevron-right" size={24} iconColor="white" />
+                    <IconButton icon="chevron-right" size={24} iconColor={theme.colors.onSurface} />
                   </View>
                 </BlurView>
               </TouchableOpacity>
@@ -152,15 +148,15 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
                   router.push('/profile/addresses');
                 }}
               >
-                <BlurView intensity={40} tint="dark" style={styles.settingItem}>
+                <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.settingItem, { borderColor: theme.colors.outline }]}>
                   <View style={styles.settingContent}>
                     <View style={styles.settingTextContainer}>
-                      <Text style={styles.settingTitle}>Saved Addresses</Text>
-                      <Text style={styles.settingDescription}>
+                      <Text style={[styles.settingTitle, { color: theme.colors.onSurface }]}>Saved Addresses</Text>
+                      <Text style={[styles.settingDescription, { color: theme.colors.onSurfaceVariant }]}>
                         Manage your shipping addresses
                       </Text>
                     </View>
-                    <IconButton icon="chevron-right" size={24} iconColor="white" />
+                    <IconButton icon="chevron-right" size={24} iconColor={theme.colors.onSurface} />
                   </View>
                 </BlurView>
               </TouchableOpacity>
@@ -168,37 +164,61 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
 
             {/* General Settings */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>General</Text>
+              <Text style={[styles.sectionTitle, { color: theme.colors.onSurfaceVariant }]}>General</Text>
 
-              <BlurView intensity={40} tint="dark" style={styles.settingItem}>
+              <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.settingItem, { borderColor: theme.colors.outline }]}>
                 <View style={styles.settingContent}>
                   <View style={styles.settingTextContainer}>
-                    <Text style={styles.settingTitle}>Dark Mode</Text>
-                    <Text style={styles.settingDescription}>
-                      Toggle between light and dark theme
+                    <Text style={[styles.settingTitle, { color: theme.colors.onSurface }]}>Appearance</Text>
+                    <Text style={[styles.settingDescription, { color: theme.colors.onSurfaceVariant }]}>
+                      Choose your preferred theme
                     </Text>
                   </View>
-                  <Switch
-                    value={isDark}
-                    onValueChange={handleDarkModeToggle}
-                    trackColor={{ false: 'rgba(255, 255, 255, 0.2)', true: 'rgba(99, 102, 241, 0.5)' }}
-                    thumbColor='#6366f1'
-                  />
+                </View>
+                <View style={styles.themeSelector}>
+                  {([
+                    { key: 'light' as const, label: 'Light', icon: 'white-balance-sunny' },
+                    { key: 'dark' as const, label: 'Dark', icon: 'moon-waning-crescent' },
+                    { key: 'system' as const, label: 'System', icon: 'cellphone' },
+                  ]).map((option) => (
+                    <TouchableOpacity
+                      key={option.key}
+                      style={[
+                        styles.themePill,
+                        { borderColor: theme.colors.outline, backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)' },
+                        themePreference === option.key && [styles.themePillActive, { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary }],
+                      ]}
+                      onPress={() => setThemePreference(option.key)}
+                    >
+                      <IconButton
+                        icon={option.icon}
+                        size={18}
+                        iconColor={themePreference === option.key ? theme.colors.onPrimary : theme.colors.onSurfaceVariant}
+                        style={styles.themePillIcon}
+                      />
+                      <Text style={[
+                        styles.themePillLabel,
+                        { color: themePreference === option.key ? theme.colors.onPrimary : theme.colors.onSurfaceVariant },
+                      ]}>
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
               </BlurView>
 
               <TouchableOpacity
                 onPress={() => Alert.alert('Coming Soon', 'Notification settings will be available soon!')}
               >
-                <BlurView intensity={40} tint="dark" style={styles.settingItem}>
+                <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.settingItem, { borderColor: theme.colors.outline }]}>
                   <View style={styles.settingContent}>
                     <View style={styles.settingTextContainer}>
-                      <Text style={styles.settingTitle}>Notifications</Text>
-                      <Text style={styles.settingDescription}>
+                      <Text style={[styles.settingTitle, { color: theme.colors.onSurface }]}>Notifications</Text>
+                      <Text style={[styles.settingDescription, { color: theme.colors.onSurfaceVariant }]}>
                         Manage your notification preferences
                       </Text>
                     </View>
-                    <IconButton icon="chevron-right" size={24} iconColor="white" />
+                    <IconButton icon="chevron-right" size={24} iconColor={theme.colors.onSurface} />
                   </View>
                 </BlurView>
               </TouchableOpacity>
@@ -206,15 +226,15 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
               <TouchableOpacity
                 onPress={() => Alert.alert('Coming Soon', 'Privacy settings will be available soon!')}
               >
-                <BlurView intensity={40} tint="dark" style={styles.settingItem}>
+                <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.settingItem, { borderColor: theme.colors.outline }]}>
                   <View style={styles.settingContent}>
                     <View style={styles.settingTextContainer}>
-                      <Text style={styles.settingTitle}>Privacy</Text>
-                      <Text style={styles.settingDescription}>
+                      <Text style={[styles.settingTitle, { color: theme.colors.onSurface }]}>Privacy</Text>
+                      <Text style={[styles.settingDescription, { color: theme.colors.onSurfaceVariant }]}>
                         Control your privacy settings
                       </Text>
                     </View>
-                    <IconButton icon="chevron-right" size={24} iconColor="white" />
+                    <IconButton icon="chevron-right" size={24} iconColor={theme.colors.onSurface} />
                   </View>
                 </BlurView>
               </TouchableOpacity>
@@ -222,20 +242,20 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
 
             {/* Support */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Support</Text>
+              <Text style={[styles.sectionTitle, { color: theme.colors.onSurfaceVariant }]}>Support</Text>
 
               <TouchableOpacity
                 onPress={() => Alert.alert('Coming Soon', 'Help & support will be available soon!')}
               >
-                <BlurView intensity={40} tint="dark" style={styles.settingItem}>
+                <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.settingItem, { borderColor: theme.colors.outline }]}>
                   <View style={styles.settingContent}>
                     <View style={styles.settingTextContainer}>
-                      <Text style={styles.settingTitle}>Help & Support</Text>
-                      <Text style={styles.settingDescription}>
+                      <Text style={[styles.settingTitle, { color: theme.colors.onSurface }]}>Help & Support</Text>
+                      <Text style={[styles.settingDescription, { color: theme.colors.onSurfaceVariant }]}>
                         Get help and contact support
                       </Text>
                     </View>
-                    <IconButton icon="chevron-right" size={24} iconColor="white" />
+                    <IconButton icon="chevron-right" size={24} iconColor={theme.colors.onSurface} />
                   </View>
                 </BlurView>
               </TouchableOpacity>
@@ -243,15 +263,15 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
               <TouchableOpacity
                 onPress={() => Alert.alert('RallySphere', 'Version 1.0.0\n\nBuilt with React Native and Firebase')}
               >
-                <BlurView intensity={40} tint="dark" style={styles.settingItem}>
+                <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.settingItem, { borderColor: theme.colors.outline }]}>
                   <View style={styles.settingContent}>
                     <View style={styles.settingTextContainer}>
-                      <Text style={styles.settingTitle}>About</Text>
-                      <Text style={styles.settingDescription}>
+                      <Text style={[styles.settingTitle, { color: theme.colors.onSurface }]}>About</Text>
+                      <Text style={[styles.settingDescription, { color: theme.colors.onSurfaceVariant }]}>
                         App version and information
                       </Text>
                     </View>
-                    <IconButton icon="chevron-right" size={24} iconColor="white" />
+                    <IconButton icon="chevron-right" size={24} iconColor={theme.colors.onSurface} />
                   </View>
                 </BlurView>
               </TouchableOpacity>
@@ -259,7 +279,7 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
 
             {/* Legal */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Legal</Text>
+              <Text style={[styles.sectionTitle, { color: theme.colors.onSurfaceVariant }]}>Legal</Text>
 
               <TouchableOpacity
                 onPress={() => {
@@ -267,15 +287,15 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
                   router.push('/legal/terms');
                 }}
               >
-                <BlurView intensity={40} tint="dark" style={styles.settingItem}>
+                <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.settingItem, { borderColor: theme.colors.outline }]}>
                   <View style={styles.settingContent}>
                     <View style={styles.settingTextContainer}>
-                      <Text style={styles.settingTitle}>Terms and Conditions</Text>
-                      <Text style={styles.settingDescription}>
+                      <Text style={[styles.settingTitle, { color: theme.colors.onSurface }]}>Terms and Conditions</Text>
+                      <Text style={[styles.settingDescription, { color: theme.colors.onSurfaceVariant }]}>
                         Review our terms of service
                       </Text>
                     </View>
-                    <IconButton icon="chevron-right" size={24} iconColor="white" />
+                    <IconButton icon="chevron-right" size={24} iconColor={theme.colors.onSurface} />
                   </View>
                 </BlurView>
               </TouchableOpacity>
@@ -286,15 +306,15 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
                   router.push('/legal/privacy');
                 }}
               >
-                <BlurView intensity={40} tint="dark" style={styles.settingItem}>
+                <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.settingItem, { borderColor: theme.colors.outline }]}>
                   <View style={styles.settingContent}>
                     <View style={styles.settingTextContainer}>
-                      <Text style={styles.settingTitle}>Privacy Policy</Text>
-                      <Text style={styles.settingDescription}>
+                      <Text style={[styles.settingTitle, { color: theme.colors.onSurface }]}>Privacy Policy</Text>
+                      <Text style={[styles.settingDescription, { color: theme.colors.onSurfaceVariant }]}>
                         How we handle your data
                       </Text>
                     </View>
-                    <IconButton icon="chevron-right" size={24} iconColor="white" />
+                    <IconButton icon="chevron-right" size={24} iconColor={theme.colors.onSurface} />
                   </View>
                 </BlurView>
               </TouchableOpacity>
@@ -305,15 +325,15 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
                   router.push('/legal/cookies');
                 }}
               >
-                <BlurView intensity={40} tint="dark" style={styles.settingItem}>
+                <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.settingItem, { borderColor: theme.colors.outline }]}>
                   <View style={styles.settingContent}>
                     <View style={styles.settingTextContainer}>
-                      <Text style={styles.settingTitle}>Cookie Policy</Text>
-                      <Text style={styles.settingDescription}>
+                      <Text style={[styles.settingTitle, { color: theme.colors.onSurface }]}>Cookie Policy</Text>
+                      <Text style={[styles.settingDescription, { color: theme.colors.onSurfaceVariant }]}>
                         Our use of cookies and tracking
                       </Text>
                     </View>
-                    <IconButton icon="chevron-right" size={24} iconColor="white" />
+                    <IconButton icon="chevron-right" size={24} iconColor={theme.colors.onSurface} />
                   </View>
                 </BlurView>
               </TouchableOpacity>
@@ -322,19 +342,19 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
             {/* Sign Out */}
             <View style={styles.section}>
               <TouchableOpacity onPress={handleSignOut}>
-                <BlurView intensity={40} tint="dark" style={[styles.settingItem, styles.signOutItem]}>
+                <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.settingItem, styles.signOutItem]}>
                   <View style={styles.settingContent}>
-                    <Text style={styles.signOutText}>Sign Out</Text>
-                    <IconButton icon="logout" size={24} iconColor="#ef4444" />
+                    <Text style={[styles.signOutText, { color: theme.colors.error }]}>Sign Out</Text>
+                    <IconButton icon="logout" size={24} iconColor={theme.colors.error} />
                   </View>
                 </BlurView>
               </TouchableOpacity>
 
               <TouchableOpacity onPress={() => setDeleteAccountModalVisible(true)}>
-                <BlurView intensity={40} tint="dark" style={[styles.settingItem, styles.deleteAccountItem]}>
+                <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.settingItem, styles.deleteAccountItem]}>
                   <View style={styles.settingContent}>
-                    <Text style={styles.deleteAccountText}>Delete Account</Text>
-                    <IconButton icon="delete-forever" size={24} iconColor="#dc2626" />
+                    <Text style={[styles.deleteAccountText, { color: theme.colors.error }]}>Delete Account</Text>
+                    <IconButton icon="delete-forever" size={24} iconColor={theme.colors.error} />
                   </View>
                 </BlurView>
               </TouchableOpacity>
@@ -351,49 +371,24 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
         onRequestClose={() => setDeleteAccountModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <BlurView intensity={80} tint="dark" style={styles.modalContainer}>
+          <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={[styles.modalContainer, { borderColor: theme.colors.outline }]}>
             <View style={styles.modalContent}>
-              <IconButton icon="alert-circle-outline" size={48} iconColor="#dc2626" />
-              <Text style={styles.modalTitle}>Delete Account</Text>
-              <Text style={styles.modalMessage}>
+              <IconButton icon="alert-circle-outline" size={48} iconColor={theme.colors.error} />
+              <Text style={[styles.modalTitle, { color: theme.colors.onSurface }]}>Delete Account</Text>
+              <Text style={[styles.modalMessage, { color: theme.colors.onSurfaceVariant }]}>
                 Account deletion and request functionality coming soon.
               </Text>
               <TouchableOpacity
-                style={styles.modalButton}
+                style={[styles.modalButton, { backgroundColor: theme.colors.primary }]}
                 onPress={() => setDeleteAccountModalVisible(false)}
               >
-                <Text style={styles.modalButtonText}>OK</Text>
+                <Text style={[styles.modalButtonText, { color: theme.colors.onPrimary }]}>OK</Text>
               </TouchableOpacity>
             </View>
           </BlurView>
         </View>
       </Modal>
 
-      {/* Dark Mode Modal */}
-      <Modal
-        visible={darkModeModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setDarkModeModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <BlurView intensity={80} tint="dark" style={styles.modalContainer}>
-            <View style={styles.modalContent}>
-              <IconButton icon="theme-light-dark" size={48} iconColor="#6366f1" />
-              <Text style={styles.modalTitle}>Coming Soon</Text>
-              <Text style={styles.modalMessage}>
-                Light mode will be available in a future update.
-              </Text>
-              <TouchableOpacity
-                style={styles.modalButton}
-                onPress={() => setDarkModeModalVisible(false)}
-              >
-                <Text style={styles.modalButtonText}>OK</Text>
-              </TouchableOpacity>
-            </View>
-          </BlurView>
-        </View>
-      </Modal>
     </Modal>
   );
 }
@@ -401,11 +396,9 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   blackBackground: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   safeArea: {
     flex: 1,
@@ -417,7 +410,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   closeButton: {
     width: 40,
@@ -432,12 +424,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   headerTitle: {
     fontSize: 28,
     fontWeight: '700',
-    color: 'white',
   },
   content: {
     flex: 1,
@@ -452,7 +442,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: 'rgba(255, 255, 255, 0.6)',
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: 12,
@@ -461,7 +450,6 @@ const styles = StyleSheet.create({
   settingItem: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
     overflow: 'hidden',
     marginBottom: 12,
   },
@@ -478,13 +466,37 @@ const styles = StyleSheet.create({
   settingTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'white',
     marginBottom: 4,
   },
   settingDescription: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.6)',
     lineHeight: 18,
+  },
+  themeSelector: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingBottom: 14,
+    gap: 8,
+  },
+  themePill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  themePillActive: {
+  },
+  themePillIcon: {
+    margin: 0,
+    marginRight: -4,
+  },
+  themePillLabel: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   signOutItem: {
     borderColor: 'rgba(239, 68, 68, 0.3)',
@@ -492,7 +504,6 @@ const styles = StyleSheet.create({
   signOutText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#ef4444',
     flex: 1,
   },
   deleteAccountItem: {
@@ -501,7 +512,6 @@ const styles = StyleSheet.create({
   deleteAccountText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#dc2626',
     flex: 1,
   },
   modalOverlay: {
@@ -514,7 +524,6 @@ const styles = StyleSheet.create({
   modalContainer: {
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
     overflow: 'hidden',
     maxWidth: 400,
     width: '100%',
@@ -526,20 +535,17 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: 'white',
     marginTop: 16,
     marginBottom: 12,
     textAlign: 'center',
   },
   modalMessage: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 24,
   },
   modalButton: {
-    backgroundColor: '#6366f1',
     paddingVertical: 14,
     paddingHorizontal: 48,
     borderRadius: 12,
@@ -548,7 +554,6 @@ const styles = StyleSheet.create({
   modalButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'white',
     textAlign: 'center',
   },
 });

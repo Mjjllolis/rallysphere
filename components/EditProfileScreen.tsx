@@ -14,12 +14,12 @@ import {
   Platform,
   ActionSheetIOS,
 } from 'react-native';
-import { Text, IconButton, Menu } from 'react-native-paper';
+import { Text, IconButton, Menu, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAuth } from '../app/_layout';
+import { useAuth, useThemeToggle } from '../app/_layout';
 import { getUserProfile, updateUserProfile, uploadImage } from '../lib/firebase';
 import type { UserProfile } from '../lib/firebase';
 import GlassInput from './GlassInput';
@@ -34,6 +34,8 @@ interface EditProfileScreenProps {
 
 export default function EditProfileScreen({ visible, onClose, onProfileUpdate }: EditProfileScreenProps) {
   const { user } = useAuth();
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -200,6 +202,33 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
     }
   };
 
+  // Dynamic gradient colors based on theme
+  const gradientColors = isDark
+    ? ['#1a1a1a', '#2a2a2a', '#1f1f1f', '#0a0a0a']
+    : ['#f8fafc', '#f1f5f9', '#e2e8f0', '#f8fafc'];
+
+  const bgOverlayGradientColors = isDark
+    ? [
+        'rgba(26, 26, 26, 0)',
+        'rgba(26, 26, 26, 0)',
+        'rgba(28, 28, 28, 0.15)',
+        'rgba(31, 31, 31, 0.35)',
+        'rgba(36, 36, 36, 0.55)',
+        'rgba(42, 42, 42, 0.75)',
+        'rgba(31, 31, 31, 0.9)',
+        '#1f1f1f',
+      ]
+    : [
+        'rgba(248, 250, 252, 0)',
+        'rgba(248, 250, 252, 0)',
+        'rgba(241, 245, 249, 0.15)',
+        'rgba(241, 245, 249, 0.35)',
+        'rgba(226, 232, 240, 0.55)',
+        'rgba(226, 232, 240, 0.75)',
+        'rgba(241, 245, 249, 0.9)',
+        '#f1f5f9',
+      ];
+
   return (
     <Modal
       visible={visible}
@@ -208,15 +237,10 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
       onRequestClose={onClose}
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
           {/* Gray Gradient Background */}
           <LinearGradient
-            colors={[
-              '#1a1a1a',
-              '#2a2a2a',
-              '#1f1f1f',
-              '#0a0a0a'
-            ]}
+            colors={gradientColors}
             locations={[0, 0.3, 0.6, 1]}
             style={StyleSheet.absoluteFill}
             pointerEvents="none"
@@ -231,16 +255,7 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
             >
               <Image source={{ uri: formData.backgroundImage }} style={styles.profileBackgroundImage} />
               <LinearGradient
-                colors={[
-                  'rgba(26, 26, 26, 0)',
-                  'rgba(26, 26, 26, 0)',
-                  'rgba(28, 28, 28, 0.15)',
-                  'rgba(31, 31, 31, 0.35)',
-                  'rgba(36, 36, 36, 0.55)',
-                  'rgba(42, 42, 42, 0.75)',
-                  'rgba(31, 31, 31, 0.9)',
-                  '#1f1f1f',
-                ]}
+                colors={bgOverlayGradientColors}
                 locations={[0, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9, 1]}
                 style={StyleSheet.absoluteFill}
                 pointerEvents="none"
@@ -253,17 +268,23 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
             <View style={styles.header}>
               <View style={styles.headerContent}>
                 <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                  <BlurView intensity={40} tint="dark" style={styles.closeButtonBlur}>
-                    <IconButton icon="close" size={24} iconColor="white" />
-                  </BlurView>
+                  {isDark ? (
+                    <BlurView intensity={40} tint="dark" style={styles.closeButtonBlur}>
+                      <IconButton icon="close" size={24} iconColor={theme.colors.onSurface} />
+                    </BlurView>
+                  ) : (
+                    <View style={[styles.closeButtonBlur, { backgroundColor: theme.colors.surfaceVariant }]}>
+                      <IconButton icon="close" size={24} iconColor={theme.colors.onSurface} />
+                    </View>
+                  )}
                 </TouchableOpacity>
 
-                <Text style={styles.headerTitle}>Edit Profile</Text>
+                <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Edit Profile</Text>
 
                 <TouchableOpacity style={styles.backgroundButton} onPress={pickBackgroundImage} disabled={loading}>
-                  <BlurView intensity={40} tint="dark" style={styles.backgroundButtonBlur}>
-                    <IconButton icon="image" size={16} iconColor="white" style={{ margin: 0 }} />
-                    <Text style={styles.backgroundButtonText}>Change{'\n'}Background</Text>
+                  <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.backgroundButtonBlur}>
+                    <IconButton icon="image" size={16} iconColor={theme.colors.onSurface} style={{ margin: 0 }} />
+                    <Text style={[styles.backgroundButtonText, { color: theme.colors.onSurface }]}>Change{'\n'}Background</Text>
                   </BlurView>
                 </TouchableOpacity>
               </View>
@@ -289,12 +310,12 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
                     {formData.avatar ? (
                       <Image source={{ uri: formData.avatar }} style={styles.avatarImage} />
                     ) : formData.profileEmoji ? (
-                      <View style={styles.avatarPlaceholder}>
+                      <View style={[styles.avatarPlaceholder, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' }]}>
                         <Text style={styles.emojiText}>{formData.profileEmoji}</Text>
                       </View>
                     ) : (
-                      <View style={styles.avatarPlaceholder}>
-                        <Text style={styles.avatarText}>
+                      <View style={[styles.avatarPlaceholder, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' }]}>
+                        <Text style={[styles.avatarText, { color: theme.colors.onSurface }]}>
                           {formData.firstName && formData.lastName
                             ? `${formData.firstName.charAt(0).toUpperCase()}${formData.lastName.charAt(0).toUpperCase()}`
                             : user?.displayName
@@ -305,7 +326,7 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
                     )}
                     {uploadingImage && (
                       <View style={styles.uploadingOverlay}>
-                        <Text style={styles.uploadingText}>Uploading...</Text>
+                        <Text style={[styles.uploadingText, { color: theme.colors.onSurface }]}>Uploading...</Text>
                       </View>
                     )}
                   </TouchableOpacity>
@@ -320,7 +341,7 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
                         disabled={uploadingImage}
                         style={styles.changePictureLink}
                       >
-                        <Text style={styles.changePictureLinkText}>Change Picture</Text>
+                        <Text style={[styles.changePictureLinkText, { color: theme.colors.primary }]}>Change Picture</Text>
                       </TouchableOpacity>
                     }
                   >
@@ -424,7 +445,6 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   profileBackgroundPreview: {
     position: 'absolute',
@@ -468,7 +488,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: 'white',
   },
   backgroundButton: {
     borderRadius: 12,
@@ -485,7 +504,6 @@ const styles = StyleSheet.create({
   backgroundButtonText: {
     fontSize: 10,
     fontWeight: '600',
-    color: 'white',
     textAlign: 'center',
     lineHeight: 12,
   },
@@ -515,13 +533,11 @@ const styles = StyleSheet.create({
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 60,
   },
   avatarText: {
     fontSize: 48,
     fontWeight: '700',
-    color: 'white',
   },
   uploadingOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -531,7 +547,6 @@ const styles = StyleSheet.create({
     borderRadius: 60,
   },
   uploadingText: {
-    color: 'white',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -548,7 +563,6 @@ const styles = StyleSheet.create({
   changePictureLinkText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#60A5FA',
   },
   formContainer: {
     flex: 1,

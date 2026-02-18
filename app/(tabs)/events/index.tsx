@@ -9,13 +9,13 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
-import { Text, IconButton, Searchbar } from 'react-native-paper';
+import { Text, IconButton, Searchbar, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
-import { useAuth } from '../../_layout';
+import { useAuth, useThemeToggle } from '../../_layout';
 import { getEvents, joinEvent, leaveEvent } from '../../../lib/firebase';
 import type { Event } from '../../../lib/firebase';
 import PaymentSheet from '../../../components/PaymentSheet';
@@ -26,6 +26,8 @@ const FEATURED_CARD_WIDTH = width * 0.75;
 const FEATURED_CARD_HEIGHT = 220;
 
 export default function EventsScreen() {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const { user } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'upcoming' | 'my-events'>('upcoming');
@@ -215,7 +217,7 @@ export default function EventsScreen() {
         onPress={() => router.push(`/event/${event.id}`)}
         activeOpacity={0.9}
       >
-        <BlurView intensity={20} tint="dark" style={styles.featuredCardBlur}>
+        <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.featuredCardBlur, { borderColor: theme.colors.outline }]}>
           {/* Event Image */}
           {event.coverImage && (
             <Image
@@ -265,7 +267,7 @@ export default function EventsScreen() {
                     size={14}
                     color="rgba(255,255,255,0.7)"
                   />
-                  <Text style={styles.featuredLocationText} numberOfLines={1}>
+                  <Text style={[styles.featuredLocationText]} numberOfLines={1}>
                     {event.isVirtual ? 'Virtual' : event.location}
                   </Text>
                 </View>
@@ -299,7 +301,7 @@ export default function EventsScreen() {
         onPress={() => router.push(`/event/${event.id}`)}
         activeOpacity={0.9}
       >
-        <BlurView intensity={20} tint="dark" style={styles.eventCardBlur}>
+        <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.eventCardBlur, { borderColor: theme.colors.outline }]}>
           <View style={styles.eventCardContent}>
             {/* Left: Event image or date badge */}
             {event.coverImage ? (
@@ -313,7 +315,7 @@ export default function EventsScreen() {
                 <Text style={styles.eventDateMonth}>
                   {formatDate(event.startDate).split(' ')[1]}
                 </Text>
-                <Text style={styles.eventDateDay}>
+                <Text style={[styles.eventDateDay, { color: theme.colors.onSurface }]}>
                   {formatDate(event.startDate).split(' ')[2]}
                 </Text>
               </View>
@@ -323,7 +325,7 @@ export default function EventsScreen() {
             <View style={styles.eventDetails}>
               <View style={styles.eventHeader}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.eventTitle} numberOfLines={1}>
+                  <Text style={[styles.eventTitle, { color: theme.colors.onSurface }]} numberOfLines={1}>
                     {event.title}
                   </Text>
                   <Text style={styles.eventClub} numberOfLines={1}>
@@ -340,8 +342,8 @@ export default function EventsScreen() {
 
               <View style={styles.eventMeta}>
                 <View style={styles.eventMetaRow}>
-                  <Ionicons name="time-outline" size={14} color="rgba(255,255,255,0.6)" />
-                  <Text style={styles.eventMetaText}>
+                  <Ionicons name="time-outline" size={14} color={theme.colors.onSurfaceVariant} />
+                  <Text style={[styles.eventMetaText, { color: theme.colors.onSurfaceVariant }]}>
                     {formatDate(event.startDate)} • {formatTime(event.startDate)}
                   </Text>
                 </View>
@@ -349,9 +351,9 @@ export default function EventsScreen() {
                   <Ionicons
                     name={event.isVirtual ? 'globe-outline' : 'location-outline'}
                     size={14}
-                    color="rgba(255,255,255,0.6)"
+                    color={theme.colors.onSurfaceVariant}
                   />
-                  <Text style={styles.eventMetaText} numberOfLines={1}>
+                  <Text style={[styles.eventMetaText, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
                     {event.isVirtual ? 'Virtual' : event.location}
                   </Text>
                 </View>
@@ -378,10 +380,10 @@ export default function EventsScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      {/* Black Background */}
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* Background */}
       <View style={StyleSheet.absoluteFill}>
-        <View style={styles.blackBackground} />
+        <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
       </View>
 
       {/* Subtle Gradient Overlay */}
@@ -389,7 +391,7 @@ export default function EventsScreen() {
         colors={[
           'rgba(139, 92, 246, 0.3)',
           'rgba(96, 165, 250, 0.1)',
-          'rgba(0, 0, 0, 0)',
+          isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(248, 250, 252, 0)',
         ]}
         locations={[0, 0.3, 1]}
         style={StyleSheet.absoluteFill}
@@ -399,24 +401,25 @@ export default function EventsScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Events</Text>
+          <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Events</Text>
 
           {/* Tab Switcher with Create Button */}
           <View style={styles.tabContainer}>
             <View style={styles.tabsWrapper}>
               <TouchableOpacity
-                style={[styles.tab, activeTab === 'upcoming' && styles.tabActive]}
+                style={[styles.tab, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }, activeTab === 'upcoming' && styles.tabActive]}
                 onPress={() => setActiveTab('upcoming')}
               >
                 <IconButton
                   icon={activeTab === 'upcoming' ? 'calendar' : 'calendar-outline'}
-                  iconColor={activeTab === 'upcoming' ? '#fff' : 'rgba(255,255,255,0.6)'}
+                  iconColor={activeTab === 'upcoming' ? '#fff' : theme.colors.onSurfaceVariant}
                   size={18}
                   style={{ margin: 0 }}
                 />
                 <Text
                   style={[
                     styles.tabText,
+                    { color: theme.colors.onSurfaceVariant },
                     activeTab === 'upcoming' && styles.tabTextActive,
                   ]}
                 >
@@ -425,18 +428,19 @@ export default function EventsScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.tab, activeTab === 'my-events' && styles.tabActive]}
+                style={[styles.tab, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }, activeTab === 'my-events' && styles.tabActive]}
                 onPress={() => setActiveTab('my-events')}
               >
                 <IconButton
                   icon={activeTab === 'my-events' ? 'ticket' : 'ticket-outline'}
-                  iconColor={activeTab === 'my-events' ? '#fff' : 'rgba(255,255,255,0.6)'}
+                  iconColor={activeTab === 'my-events' ? '#fff' : theme.colors.onSurfaceVariant}
                   size={18}
                   style={{ margin: 0 }}
                 />
                 <Text
                   style={[
                     styles.tabText,
+                    { color: theme.colors.onSurfaceVariant },
                     activeTab === 'my-events' && styles.tabTextActive,
                   ]}
                 >
@@ -450,7 +454,7 @@ export default function EventsScreen() {
               onPress={() => setCreateModalVisible(true)}
               activeOpacity={0.7}
             >
-              <BlurView intensity={20} tint="dark" style={styles.createButton}>
+              <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.createButton, { borderColor: theme.colors.outline }]}>
                 <IconButton
                   icon="plus"
                   iconColor="#60A5FA"
@@ -464,15 +468,15 @@ export default function EventsScreen() {
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
-          <BlurView intensity={20} tint="dark" style={styles.searchBarContainer}>
+          <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.searchBarContainer, { borderColor: theme.colors.outline }]}>
             <Searchbar
               placeholder="Search events..."
               onChangeText={setSearchQuery}
               value={searchQuery}
               style={styles.searchBar}
-              iconColor="rgba(255,255,255,0.7)"
-              placeholderTextColor="rgba(255,255,255,0.5)"
-              inputStyle={{ color: '#fff' }}
+              iconColor={theme.colors.onSurfaceVariant}
+              placeholderTextColor={theme.colors.onSurfaceDisabled}
+              inputStyle={{ color: theme.colors.onSurface }}
             />
           </BlurView>
         </View>
@@ -484,14 +488,14 @@ export default function EventsScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#fff"
+              tintColor={theme.colors.onSurface}
             />
           }
         >
           {/* Featured Carousel - Only show on Upcoming tab */}
           {activeTab === 'upcoming' && featuredEvents.length > 0 && (
             <View style={styles.featuredSection}>
-              <Text style={styles.sectionTitle}>Featured Events</Text>
+              <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Featured Events</Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -507,22 +511,22 @@ export default function EventsScreen() {
 
           {/* Events List */}
           <View style={styles.eventsSection}>
-            <Text style={styles.sectionTitle}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
               {activeTab === 'upcoming' ? 'All Events' : 'Your Events'}
             </Text>
 
             {displayEvents.length > 0 ? (
               displayEvents.map((event) => renderEventCard(event))
             ) : (
-              <BlurView intensity={20} tint="dark" style={styles.emptyCard}>
+              <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.emptyCard, { borderColor: theme.colors.outline }]}>
                 <View style={styles.emptyContent}>
                   <IconButton
                     icon="calendar-blank-outline"
                     size={64}
-                    iconColor="rgba(255,255,255,0.5)"
+                    iconColor={theme.colors.onSurfaceDisabled}
                   />
-                  <Text style={styles.emptyTitle}>No events found</Text>
-                  <Text style={styles.emptyText}>
+                  <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>No events found</Text>
+                  <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
                     {activeTab === 'my-events'
                       ? 'Join some events to see them here!'
                       : searchQuery
@@ -566,7 +570,6 @@ const styles = StyleSheet.create({
   },
   blackBackground: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   safeArea: {
     flex: 1,
@@ -579,7 +582,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#ffffff',
     marginBottom: 4,
   },
   tabContainer: {
@@ -600,9 +602,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     gap: 6,
   },
   tabActive: {
@@ -612,7 +612,6 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 13,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.6)',
   },
   tabTextActive: {
     color: '#ffffff',
@@ -623,7 +622,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -635,7 +633,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   searchBar: {
     backgroundColor: 'transparent',
@@ -653,7 +650,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#ffffff',
     marginBottom: 16,
     marginLeft: 16,
   },
@@ -673,7 +669,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     position: 'relative',
   },
   featuredImage: {
@@ -735,7 +730,7 @@ const styles = StyleSheet.create({
   featuredTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#ffffff',
+    color: '#ffffff',  // Always white on image overlay
     lineHeight: 28,
   },
   featuredClub: {
@@ -781,7 +776,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   eventCardContent: {
     flexDirection: 'row',
@@ -812,7 +806,6 @@ const styles = StyleSheet.create({
   eventDateDay: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#ffffff',
   },
   eventDetails: {
     flex: 1,
@@ -826,7 +819,6 @@ const styles = StyleSheet.create({
   eventTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#ffffff',
   },
   eventClub: {
     fontSize: 13,
@@ -857,7 +849,6 @@ const styles = StyleSheet.create({
   },
   eventMetaText: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.6)',
     flex: 1,
   },
   eventFooter: {
@@ -890,7 +881,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   emptyContent: {
     alignItems: 'center',
@@ -899,13 +889,11 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#ffffff',
     marginTop: 16,
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 14,
     textAlign: 'center',
-    color: 'rgba(255,255,255,0.6)',
   },
 });

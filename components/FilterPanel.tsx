@@ -122,7 +122,7 @@ export default function FilterPanel({
                 onPress={onClose}
                 activeOpacity={0.8}
               >
-                <Text style={styles.applyButtonSmallText}>Apply</Text>
+                <Text style={[styles.applyButtonSmallText, { color: theme.colors.onPrimary }]}>Apply</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                 <Ionicons name="close" size={28} color={theme.colors.onSurface} />
@@ -225,7 +225,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   applyButtonSmallText: {
-    color: '#fff',
     fontSize: 14,
     fontWeight: '700',
   },

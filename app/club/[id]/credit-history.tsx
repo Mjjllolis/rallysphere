@@ -11,12 +11,13 @@ import {
   Text,
   IconButton,
   ActivityIndicator,
+  useTheme,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAuth } from '../../_layout';
+import { useAuth, useThemeToggle } from '../../_layout';
 import {
   getClub,
   getUserRallyCredits,
@@ -37,6 +38,8 @@ export default function CreditHistoryScreen() {
   const { user } = useAuth();
   const { id } = useLocalSearchParams();
   const clubId = id as string;
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
 
   const [club, setClub] = useState<Club | null>(null);
   const [credits, setCredits] = useState<UserRallyCredits | null>(null);
@@ -119,10 +122,10 @@ export default function CreditHistoryScreen() {
     return (
       <View style={styles.container}>
         <View style={StyleSheet.absoluteFill}>
-          <View style={styles.blackBackground} />
+          <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#fff" />
+          <ActivityIndicator size="large" color={theme.colors.onSurface} />
         </View>
       </View>
     );
@@ -131,11 +134,11 @@ export default function CreditHistoryScreen() {
   return (
     <View style={styles.container}>
       <View style={StyleSheet.absoluteFill}>
-        <View style={styles.blackBackground} />
+        <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
       </View>
 
       <LinearGradient
-        colors={['rgba(255, 215, 0, 0.15)', 'rgba(255, 215, 0, 0.05)', 'rgba(0, 0, 0, 0)']}
+        colors={isDark ? ['rgba(255, 215, 0, 0.15)', 'rgba(255, 215, 0, 0.05)', 'rgba(0, 0, 0, 0)'] : ['rgba(255, 215, 0, 0.1)', 'rgba(255, 215, 0, 0.03)', 'rgba(255, 255, 255, 0)']}
         locations={[0, 0.3, 1]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
@@ -145,55 +148,55 @@ export default function CreditHistoryScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <BlurView intensity={40} tint="dark" style={styles.backButtonBlur}>
-              <IconButton icon="arrow-left" size={24} iconColor="#fff" />
+            <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.backButtonBlur}>
+              <IconButton icon="arrow-left" size={24} iconColor={theme.colors.onSurface} />
             </BlurView>
           </TouchableOpacity>
           <View style={styles.headerInfo}>
-            <Text style={styles.headerTitle}>Rally Credits</Text>
-            <Text style={styles.headerSubtitle}>{club?.name}</Text>
+            <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Rally Credits</Text>
+            <Text style={[styles.headerSubtitle, { color: theme.colors.onSurfaceVariant }]}>{club?.name}</Text>
           </View>
         </View>
 
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.onSurface} />
           }
         >
           {/* Balance Card */}
-          <BlurView intensity={30} tint="dark" style={styles.balanceCard}>
+          <BlurView intensity={30} tint={isDark ? "dark" : "light"} style={styles.balanceCard}>
             <View style={styles.balanceCardInner}>
               <View style={styles.balanceHeader}>
                 <IconButton icon="star" size={28} iconColor="#FFD700" />
-                <Text style={styles.balanceTitle}>Your Credits</Text>
+                <Text style={[styles.balanceTitle, { color: theme.colors.onSurface }]}>Your Credits</Text>
               </View>
 
               <View style={styles.balanceRow}>
                 <View style={styles.balanceItem}>
-                  <Text style={styles.balanceLabel}>Available</Text>
+                  <Text style={[styles.balanceLabel, { color: theme.colors.onSurfaceVariant }]}>Available</Text>
                   <Text style={styles.balanceValue}>{clubCredits.available}</Text>
-                  <Text style={styles.balanceSubtext}>Ready to spend</Text>
+                  <Text style={[styles.balanceSubtext, { color: theme.colors.onSurfaceDisabled }]}>Ready to spend</Text>
                 </View>
 
-                <View style={styles.balanceDivider} />
+                <View style={[styles.balanceDivider, { backgroundColor: theme.colors.outline }]} />
 
                 <View style={styles.balanceItem}>
                   <View style={styles.pendingLabelRow}>
-                    <Text style={styles.balanceLabel}>Pending</Text>
+                    <Text style={[styles.balanceLabel, { color: theme.colors.onSurfaceVariant }]}>Pending</Text>
                     <TouchableOpacity>
-                      <IconButton icon="information-outline" size={16} iconColor="rgba(255,255,255,0.5)" />
+                      <IconButton icon="information-outline" size={16} iconColor={theme.colors.onSurfaceDisabled} />
                     </TouchableOpacity>
                   </View>
                   <Text style={styles.pendingBalance}>{clubCredits.pending}</Text>
-                  <Text style={styles.balanceSubtext}>Awaiting check-in</Text>
+                  <Text style={[styles.balanceSubtext, { color: theme.colors.onSurfaceDisabled }]}>Awaiting check-in</Text>
                 </View>
               </View>
 
               {clubCredits.pending > 0 && (
                 <View style={styles.pendingInfo}>
                   <IconButton icon="information" size={18} iconColor="#F59E0B" />
-                  <Text style={styles.pendingInfoText}>
+                  <Text style={[styles.pendingInfoText, { color: theme.colors.onSurfaceVariant }]}>
                     Pending credits are awarded when you check in at events. Visit the event and get checked in by staff to unlock them!
                   </Text>
                 </View>
@@ -214,13 +217,13 @@ export default function CreditHistoryScreen() {
 
           {/* Transaction History */}
           <View style={styles.historySection}>
-            <Text style={styles.sectionTitle}>Transaction History</Text>
+            <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Transaction History</Text>
 
             {transactions.length === 0 ? (
               <View style={styles.emptyState}>
-                <IconButton icon="history" size={48} iconColor="rgba(255,255,255,0.3)" />
-                <Text style={styles.emptyText}>No transactions yet</Text>
-                <Text style={styles.emptySubtext}>Join events to earn Rally Credits!</Text>
+                <IconButton icon="history" size={48} iconColor={theme.colors.onSurfaceDisabled} />
+                <Text style={[styles.emptyText, { color: theme.colors.onSurfaceDisabled }]}>No transactions yet</Text>
+                <Text style={[styles.emptySubtext, { color: theme.colors.onSurfaceDisabled }]}>Join events to earn Rally Credits!</Text>
               </View>
             ) : (
               transactions.map((transaction, index) => {
@@ -231,8 +234,8 @@ export default function CreditHistoryScreen() {
                   <BlurView
                     key={transaction.id || index}
                     intensity={15}
-                    tint="dark"
-                    style={styles.transactionCard}
+                    tint={isDark ? "dark" : "light"}
+                    style={[styles.transactionCard, { borderColor: theme.colors.outline }]}
                   >
                     <View style={styles.transactionCardInner}>
                       <View style={[styles.transactionIcon, { backgroundColor: config.bgColor }]}>
@@ -240,11 +243,11 @@ export default function CreditHistoryScreen() {
                       </View>
 
                       <View style={styles.transactionInfo}>
-                        <Text style={styles.transactionDescription}>{transaction.description}</Text>
+                        <Text style={[styles.transactionDescription, { color: theme.colors.onSurface }]}>{transaction.description}</Text>
                         {transaction.eventName && (
-                          <Text style={styles.transactionEvent}>{transaction.eventName}</Text>
+                          <Text style={[styles.transactionEvent, { color: theme.colors.onSurfaceDisabled }]}>{transaction.eventName}</Text>
                         )}
-                        <Text style={styles.transactionDate}>{formatDate(transaction.createdAt)}</Text>
+                        <Text style={[styles.transactionDate, { color: theme.colors.onSurfaceDisabled }]}>{formatDate(transaction.createdAt)}</Text>
                       </View>
 
                       <Text
@@ -273,7 +276,6 @@ const styles = StyleSheet.create({
   },
   blackBackground: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   loadingContainer: {
     flex: 1,
@@ -306,11 +308,9 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#ffffff',
   },
   headerSubtitle: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
     marginTop: 2,
   },
   scrollContent: {
@@ -335,7 +335,6 @@ const styles = StyleSheet.create({
   balanceTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#fff',
   },
   balanceRow: {
     flexDirection: 'row',
@@ -347,7 +346,6 @@ const styles = StyleSheet.create({
   },
   balanceLabel: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.6)',
     marginBottom: 4,
   },
   balanceValue: {
@@ -362,13 +360,11 @@ const styles = StyleSheet.create({
   },
   balanceSubtext: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.4)',
     marginTop: 4,
   },
   balanceDivider: {
     width: 1,
     height: 60,
-    backgroundColor: 'rgba(255,255,255,0.1)',
     marginHorizontal: 16,
   },
   pendingLabelRow: {
@@ -387,7 +383,6 @@ const styles = StyleSheet.create({
   pendingInfoText: {
     flex: 1,
     fontSize: 13,
-    color: 'rgba(255,255,255,0.7)',
     lineHeight: 18,
   },
   redeemButton: {
@@ -411,7 +406,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#fff',
     marginBottom: 16,
   },
   emptyState: {
@@ -420,12 +414,10 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: 'rgba(255,255,255,0.5)',
     marginTop: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.3)',
     marginTop: 4,
   },
   transactionCard: {
@@ -433,7 +425,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
   },
   transactionCardInner: {
     flexDirection: 'row',
@@ -457,16 +448,13 @@ const styles = StyleSheet.create({
   transactionDescription: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#fff',
   },
   transactionEvent: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.5)',
     marginTop: 2,
   },
   transactionDate: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.4)',
     marginTop: 4,
   },
   transactionAmount: {

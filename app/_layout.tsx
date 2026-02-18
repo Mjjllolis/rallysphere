@@ -1,6 +1,6 @@
 // app/_layout.tsx
-import React, { useEffect, useState, createContext, useContext } from 'react';
-import { Platform, Linking, Alert } from 'react-native';
+import React, { useEffect, useState, createContext, useContext, useMemo } from 'react';
+import { Platform, Linking, Alert, useColorScheme } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { Provider as PaperProvider, MD3LightTheme, MD3DarkTheme } from 'react-native-paper';
 import { onAuthStateChange, type User } from '../lib/firebase';
@@ -42,15 +42,19 @@ const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext);
 
 // Theme Context
+type ThemePreference = 'light' | 'dark' | 'system';
+
 type ThemeContextType = {
   isDark: boolean;
-  toggleTheme: () => void;
+  themePreference: ThemePreference;
+  setThemePreference: (pref: ThemePreference) => void;
   isLoading: boolean;
 };
 
 const ThemeContext = createContext<ThemeContextType>({
   isDark: false,
-  toggleTheme: () => {},
+  themePreference: 'system',
+  setThemePreference: () => {},
   isLoading: true,
 });
 
@@ -201,10 +205,11 @@ const setStoredTheme = async (theme: string): Promise<void> => {
 export default function RootLayout() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [isDark, setIsDark] = useState(true);
+  const [themePreference, setThemePreferenceState] = useState<ThemePreference>('system');
   const [themeLoading, setThemeLoading] = useState(true);
   const [stripeInitialized, setStripeInitialized] = useState(false);
   const router = useRouter();
+  const systemColorScheme = useColorScheme();
 
   // Initialize Stripe (only if available)
   useEffect(() => {
@@ -227,12 +232,12 @@ export default function RootLayout() {
     const loadTheme = async () => {
       try {
         const stored = await getStoredTheme();
-        if (stored) {
-          setIsDark(stored === "dark");
+        if (stored === 'light' || stored === 'dark' || stored === 'system') {
+          setThemePreferenceState(stored);
         } else {
-          // Default to dark mode if no preference is stored
-          setIsDark(true);
-          await setStoredTheme("dark");
+          // Default to system for new installs
+          setThemePreferenceState('system');
+          await setStoredTheme('system');
         }
       } catch (error) {
         console.log('Error loading theme:', error);
@@ -243,11 +248,17 @@ export default function RootLayout() {
     loadTheme();
   }, []);
 
-  const toggleTheme = async () => {
-    const newTheme = !isDark;
-    setIsDark(newTheme);
-    await setStoredTheme(newTheme ? "dark" : "light");
+  const setThemePreference = async (pref: ThemePreference) => {
+    setThemePreferenceState(pref);
+    await setStoredTheme(pref);
   };
+
+  const isDark = useMemo(() => {
+    if (themePreference === 'system') {
+      return systemColorScheme !== 'light';
+    }
+    return themePreference === 'dark';
+  }, [themePreference, systemColorScheme]);
 
   // Auth state listener
   useEffect(() => {
@@ -371,7 +382,7 @@ export default function RootLayout() {
 
   return (
     <AuthContext.Provider value={{ user, isLoading: authLoading }}>
-      <ThemeContext.Provider value={{ isDark, toggleTheme, isLoading: themeLoading }}>
+      <ThemeContext.Provider value={{ isDark, themePreference, setThemePreference, isLoading: themeLoading }}>
         <FavoritesProvider>
           <CartProvider>
             {StripeProvider ? (

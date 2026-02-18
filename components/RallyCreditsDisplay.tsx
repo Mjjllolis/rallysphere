@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { Text } from 'react-native-paper';
+import { Text, useTheme } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getUserRallyCredits, confirmAllPendingCredits } from '../lib/firebase';
 import type { UserRallyCredits } from '../lib/firebase';
@@ -18,6 +18,7 @@ export default function RallyCreditsDisplay({
   onPress,
   compact = false,
 }: RallyCreditsDisplayProps) {
+  const theme = useTheme();
   const [credits, setCredits] = useState<UserRallyCredits | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -102,7 +103,7 @@ export default function RallyCreditsDisplay({
           </View>
           <View style={styles.textContainer}>
             <Text style={styles.amount}>{clubCredits.toLocaleString()}</Text>
-            <Text style={styles.label}>Rally Credits</Text>
+            <Text style={[styles.label, { color: theme.colors.onSurfaceVariant }]}>Rally Credits</Text>
             {pendingCredits > 0 && (
               <Text style={styles.pendingLabel}>({pendingCredits} pending)</Text>
             )}
@@ -151,7 +152,6 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 10,
-    color: 'rgba(255, 255, 255, 0.7)',
     fontWeight: '500',
   },
   pendingLabel: {

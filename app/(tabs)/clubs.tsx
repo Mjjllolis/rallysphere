@@ -4,14 +4,15 @@ import { View, StyleSheet, ScrollView, Alert, RefreshControl, TouchableOpacity, 
 import {
   Text,
   Searchbar,
-  IconButton
+  IconButton,
+  useTheme,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../_layout';
+import { useAuth, useThemeToggle } from '../_layout';
 import { getClubs, joinClub, leaveClub, subscribeToClubs } from '../../lib/firebase';
 import type { Club } from '../../lib/firebase';
 import JoinClubModal from '../../components/JoinClubModal';
@@ -24,6 +25,8 @@ const CATEGORIES = [
 ];
 
 export default function ClubsPage() {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const { user } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'discover' | 'my-clubs'>('my-clubs');
@@ -203,7 +206,7 @@ export default function ClubsPage() {
         onPress={() => router.push(`/club/${club.id}`)}
         activeOpacity={0.9}
       >
-        <BlurView intensity={20} tint="dark" style={styles.clubCardBlur}>
+        <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.clubCardBlur, { borderColor: theme.colors.outline }]}>
           <View style={styles.clubCardContent}>
             {/* Left: Club Logo/Image */}
             {club.logo || club.coverImage ? (
@@ -228,7 +231,7 @@ export default function ClubsPage() {
               <View style={styles.clubHeader}>
                 <View style={{ flex: 1 }}>
                   <View style={styles.clubTitleRow}>
-                    <Text style={styles.clubTitle} numberOfLines={1}>
+                    <Text style={[styles.clubTitle, { color: theme.colors.onSurface }]} numberOfLines={1}>
                       {club.name}
                     </Text>
                     {club.isPro && (
@@ -261,7 +264,7 @@ export default function ClubsPage() {
                 </View>
               </View>
 
-              <Text style={styles.clubDescription} numberOfLines={2}>
+              <Text style={[styles.clubDescription, { color: theme.colors.onSurfaceVariant }]} numberOfLines={2}>
                 {club.description}
               </Text>
 
@@ -275,8 +278,8 @@ export default function ClubsPage() {
 
                 {!club.isPublic && (
                   <View style={styles.privateIndicator}>
-                    <Ionicons name="lock-closed-outline" size={12} color="rgba(255,255,255,0.6)" />
-                    <Text style={styles.privateText}>Private</Text>
+                    <Ionicons name="lock-closed-outline" size={12} color={theme.colors.onSurfaceVariant} />
+                    <Text style={[styles.privateText, { color: theme.colors.onSurfaceVariant }]}>Private</Text>
                   </View>
                 )}
               </View>
@@ -289,15 +292,15 @@ export default function ClubsPage() {
 
   if (!user) {
     return (
-      <View style={styles.container}>
-        {/* Black Background */}
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        {/* Background */}
         <View style={StyleSheet.absoluteFill}>
-          <View style={styles.blackBackground} />
+          <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
         </View>
 
         {/* Subtle Gradient Overlay */}
         <LinearGradient
-          colors={['rgba(27, 54, 93, 0.3)', 'rgba(96, 165, 250, 0.1)', 'rgba(0, 0, 0, 0)']}
+          colors={['rgba(27, 54, 93, 0.3)', 'rgba(96, 165, 250, 0.1)', isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(248, 250, 252, 0)']}
           locations={[0, 0.3, 1]}
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
@@ -305,7 +308,7 @@ export default function ClubsPage() {
 
         <SafeAreaView style={styles.safeArea} edges={['top']}>
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>Please log in to view clubs</Text>
+            <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>Please log in to view clubs</Text>
           </View>
         </SafeAreaView>
       </View>
@@ -313,15 +316,15 @@ export default function ClubsPage() {
   }
 
   return (
-    <View style={styles.container}>
-      {/* Black Background */}
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* Background */}
       <View style={StyleSheet.absoluteFill}>
-        <View style={styles.blackBackground} />
+        <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
       </View>
 
       {/* Subtle Gradient Overlay */}
       <LinearGradient
-        colors={['rgba(27, 54, 93, 0.3)', 'rgba(96, 165, 250, 0.1)', 'rgba(0, 0, 0, 0)']}
+        colors={['rgba(27, 54, 93, 0.3)', 'rgba(96, 165, 250, 0.1)', isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(248, 250, 252, 0)']}
         locations={[0, 0.3, 1]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
@@ -330,37 +333,37 @@ export default function ClubsPage() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Clubs</Text>
+          <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Clubs</Text>
 
           {/* Tab Switcher with Create Button */}
           <View style={styles.tabContainer}>
             <View style={styles.tabsWrapper}>
               <TouchableOpacity
-                style={[styles.tab, activeTab === 'my-clubs' && styles.tabActive]}
+                style={[styles.tab, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }, activeTab === 'my-clubs' && styles.tabActive]}
                 onPress={() => setActiveTab('my-clubs')}
               >
                 <IconButton
                   icon={activeTab === 'my-clubs' ? 'account-group' : 'account-group-outline'}
-                  iconColor={activeTab === 'my-clubs' ? '#fff' : 'rgba(255,255,255,0.6)'}
+                  iconColor={activeTab === 'my-clubs' ? '#fff' : theme.colors.onSurfaceVariant}
                   size={18}
                   style={{ margin: 0 }}
                 />
-                <Text style={[styles.tabText, activeTab === 'my-clubs' && styles.tabTextActive]}>
+                <Text style={[styles.tabText, { color: theme.colors.onSurfaceVariant }, activeTab === 'my-clubs' && styles.tabTextActive]}>
                   My Clubs
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.tab, activeTab === 'discover' && styles.tabActive]}
+                style={[styles.tab, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }, activeTab === 'discover' && styles.tabActive]}
                 onPress={() => setActiveTab('discover')}
               >
                 <IconButton
                   icon={activeTab === 'discover' ? 'compass' : 'compass-outline'}
-                  iconColor={activeTab === 'discover' ? '#fff' : 'rgba(255,255,255,0.6)'}
+                  iconColor={activeTab === 'discover' ? '#fff' : theme.colors.onSurfaceVariant}
                   size={18}
                   style={{ margin: 0 }}
                 />
-                <Text style={[styles.tabText, activeTab === 'discover' && styles.tabTextActive]}>
+                <Text style={[styles.tabText, { color: theme.colors.onSurfaceVariant }, activeTab === 'discover' && styles.tabTextActive]}>
                   Discover
                 </Text>
               </TouchableOpacity>
@@ -371,7 +374,7 @@ export default function ClubsPage() {
               onPress={() => setCreateModalVisible(true)}
               activeOpacity={0.7}
             >
-              <BlurView intensity={20} tint="dark" style={styles.createButton}>
+              <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.createButton, { borderColor: theme.colors.outline }]}>
                 <IconButton icon="plus" iconColor="#60A5FA" size={18} style={{ margin: 0 }} />
               </BlurView>
             </TouchableOpacity>
@@ -380,15 +383,15 @@ export default function ClubsPage() {
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
-          <BlurView intensity={20} tint="dark" style={styles.searchBarContainer}>
+          <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.searchBarContainer, { borderColor: theme.colors.outline }]}>
             <Searchbar
               placeholder="Search clubs..."
               onChangeText={setSearchQuery}
               value={searchQuery}
               style={styles.searchBar}
-              iconColor="rgba(255,255,255,0.7)"
-              placeholderTextColor="rgba(255,255,255,0.5)"
-              inputStyle={{ color: '#fff' }}
+              iconColor={theme.colors.onSurfaceVariant}
+              placeholderTextColor={theme.colors.onSurfaceDisabled}
+              inputStyle={{ color: theme.colors.onSurface }}
             />
           </BlurView>
         </View>
@@ -409,15 +412,17 @@ export default function ClubsPage() {
                 >
                   <BlurView
                     intensity={selectedCategory === category ? 30 : 15}
-                    tint="dark"
+                    tint={isDark ? "dark" : "light"}
                     style={[
                       styles.categoryChip,
+                      { borderColor: theme.colors.outline },
                       selectedCategory === category && styles.categoryChipSelected
                     ]}
                   >
                     <Text
                       style={[
                         styles.categoryText,
+                        { color: theme.colors.onSurfaceVariant },
                         selectedCategory === category && styles.categoryTextSelected
                       ]}
                     >
@@ -434,7 +439,7 @@ export default function ClubsPage() {
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.onSurface} />
           }
         >
           {/* Clubs List */}
@@ -443,18 +448,18 @@ export default function ClubsPage() {
               myClubs.length > 0 ? (
                 myClubs.map((club) => renderClubCard(club, true))
               ) : (
-                <BlurView intensity={20} tint="dark" style={styles.emptyCard}>
+                <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.emptyCard, { borderColor: theme.colors.outline }]}>
                   <View style={styles.emptyContent}>
-                    <IconButton icon="account-group-outline" size={64} iconColor="rgba(255,255,255,0.5)" />
-                    <Text style={styles.emptyTitle}>No clubs yet</Text>
-                    <Text style={styles.emptyText}>
+                    <IconButton icon="account-group-outline" size={64} iconColor={theme.colors.onSurfaceDisabled} />
+                    <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>No clubs yet</Text>
+                    <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
                       Join some clubs to get started!
                     </Text>
                     <TouchableOpacity
                       onPress={() => setActiveTab('discover')}
                       activeOpacity={0.7}
                     >
-                      <BlurView intensity={30} tint="dark" style={styles.discoverButton}>
+                      <BlurView intensity={30} tint={isDark ? "dark" : "light"} style={[styles.discoverButton, { borderColor: theme.colors.outline }]}>
                         <View style={styles.discoverButtonInner}>
                           <IconButton icon="compass" iconColor="#60A5FA" size={20} style={{ margin: 0 }} />
                           <Text style={styles.discoverButtonText}>Discover Clubs</Text>
@@ -468,11 +473,11 @@ export default function ClubsPage() {
               filteredClubs.length > 0 ? (
                 filteredClubs.map((club) => renderClubCard(club, false))
               ) : (
-                <BlurView intensity={20} tint="dark" style={styles.emptyCard}>
+                <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.emptyCard, { borderColor: theme.colors.outline }]}>
                   <View style={styles.emptyContent}>
-                    <IconButton icon="magnify" size={64} iconColor="rgba(255,255,255,0.5)" />
-                    <Text style={styles.emptyTitle}>No clubs found</Text>
-                    <Text style={styles.emptyText}>
+                    <IconButton icon="magnify" size={64} iconColor={theme.colors.onSurfaceDisabled} />
+                    <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>No clubs found</Text>
+                    <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
                       Try adjusting your search or filters
                     </Text>
                   </View>
@@ -510,7 +515,6 @@ const styles = StyleSheet.create({
   },
   blackBackground: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   safeArea: {
     flex: 1,
@@ -523,7 +527,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#ffffff',
     marginBottom: 4,
   },
   tabContainer: {
@@ -544,9 +547,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     gap: 6,
   },
   tabActive: {
@@ -556,7 +557,6 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 13,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.6)',
   },
   tabTextActive: {
     color: '#ffffff',
@@ -567,7 +567,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -579,7 +578,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   searchBar: {
     backgroundColor: 'transparent',
@@ -598,7 +596,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     overflow: 'hidden',
   },
   categoryChipSelected: {
@@ -607,7 +604,6 @@ const styles = StyleSheet.create({
   categoryText: {
     fontSize: 13,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.7)',
   },
   categoryTextSelected: {
     color: '#ffffff',
@@ -630,7 +626,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   clubCardContent: {
     flexDirection: 'row',
@@ -674,7 +669,6 @@ const styles = StyleSheet.create({
   clubTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#ffffff',
   },
   clubCategory: {
     fontSize: 13,
@@ -711,7 +705,6 @@ const styles = StyleSheet.create({
   },
   clubDescription: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.7)',
     lineHeight: 18,
   },
   clubFooter: {
@@ -737,7 +730,6 @@ const styles = StyleSheet.create({
   privateText: {
     fontSize: 11,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.6)',
   },
   emptyState: {
     flex: 1,
@@ -750,7 +742,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   emptyContent: {
     alignItems: 'center',
@@ -759,21 +750,18 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#ffffff',
     marginTop: 16,
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 14,
     textAlign: 'center',
-    color: 'rgba(255,255,255,0.6)',
     marginBottom: 24,
   },
   discoverButton: {
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   discoverButtonInner: {
     flexDirection: 'row',

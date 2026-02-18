@@ -1,11 +1,11 @@
 // app/(tabs)/profile.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, Dimensions, Image, Animated } from 'react-native';
-import { Text, IconButton } from 'react-native-paper';
+import { Text, IconButton, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { BlurView } from 'expo-blur';
-import { useAuth } from '../_layout';
+import { useAuth, useThemeToggle } from '../_layout';
 import { getUserProfile, getUserRallyCredits, getClubs, getAllEvents } from '../../lib/firebase';
 import type { UserProfile, UserRallyCredits, Club, Event } from '../../lib/firebase';
 import SettingsScreen from '../../components/SettingsScreen';
@@ -23,6 +23,8 @@ const EVENT_GAP = 1;
 const EVENT_ITEM_WIDTH = (SCREEN_WIDTH / EVENT_COLUMNS) - (EVENT_GAP * 2 / 3);
 
 export default function ProfilePage() {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const { user } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -98,15 +100,15 @@ export default function ProfilePage() {
 
   if (!user) {
     return (
-      <View style={styles.container}>
-        {/* Black Background */}
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        {/* Background */}
         <View style={StyleSheet.absoluteFill}>
-          <View style={styles.blackBackground} />
+          <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
         </View>
 
         {/* Subtle Gradient Overlay */}
         <LinearGradient
-          colors={['rgba(99, 102, 241, 0.25)', 'rgba(139, 92, 246, 0.15)', 'rgba(217, 70, 239, 0.08)', 'rgba(0, 0, 0, 0)']}
+          colors={['rgba(99, 102, 241, 0.25)', 'rgba(139, 92, 246, 0.15)', 'rgba(217, 70, 239, 0.08)', isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(248, 250, 252, 0)']}
           locations={[0, 0.3, 0.6, 1]}
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
@@ -114,13 +116,13 @@ export default function ProfilePage() {
 
         <SafeAreaView style={styles.safeArea} edges={['top']}>
           <View style={styles.emptyState}>
-            <Text style={styles.emptyStateTitle}>Please log in to view profile</Text>
+            <Text style={[styles.emptyStateTitle, { color: theme.colors.onSurface }]}>Please log in to view profile</Text>
             <TouchableOpacity
               style={styles.loginButton}
               onPress={() => router.push('/(auth)/login')}
             >
-              <BlurView intensity={60} tint="light" style={styles.loginButtonBlur}>
-                <Text style={styles.loginButtonText}>Sign In</Text>
+              <BlurView intensity={60} tint={isDark ? "light" : "dark"} style={[styles.loginButtonBlur, { borderColor: theme.colors.outline }]}>
+                <Text style={[styles.loginButtonText, { color: theme.colors.onSurface }]}>Sign In</Text>
               </BlurView>
             </TouchableOpacity>
           </View>
@@ -137,10 +139,10 @@ export default function ProfilePage() {
   });
 
   return (
-    <View style={styles.container}>
-      {/* Black Background */}
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* Background */}
       <View style={StyleSheet.absoluteFill}>
-        <View style={styles.blackBackground} />
+        <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
       </View>
 
       {/* Background Image - Upper Third Only with Parallax */}
@@ -157,12 +159,12 @@ export default function ProfilePage() {
             style={styles.backgroundImage}
             resizeMode="cover"
           />
-          {/* Dark Overlay for Readability */}
-          <View style={[styles.backgroundOverlay]} />
-          {/* Fade to Black */}
+          {/* Overlay for Readability - white wash in light mode, dark in dark mode */}
+          <View style={[styles.backgroundOverlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.55)' }]} />
+          {/* Fade to Background - starts earlier in light mode */}
           <LinearGradient
-            colors={['rgba(0,0,0,0)', 'rgba(0,0,0,1)']}
-            locations={[0.7, 1]}
+            colors={isDark ? ['rgba(0,0,0,0)', 'rgba(0,0,0,1)'] : ['rgba(248,250,252,0)', 'rgba(248,250,252,0.6)', 'rgba(248,250,252,1)']}
+            locations={isDark ? [0.7, 1] : [0.3, 0.7, 1]}
             style={styles.backgroundFade}
             pointerEvents="none"
           />
@@ -176,7 +178,7 @@ export default function ProfilePage() {
             `rgba(${parseInt(backgroundColors[0].slice(1, 3), 16)}, ${parseInt(backgroundColors[0].slice(3, 5), 16)}, ${parseInt(backgroundColors[0].slice(5, 7), 16)}, 0.25)`,
             `rgba(${parseInt(backgroundColors[1].slice(1, 3), 16)}, ${parseInt(backgroundColors[1].slice(3, 5), 16)}, ${parseInt(backgroundColors[1].slice(5, 7), 16)}, 0.15)`,
             `rgba(${parseInt(backgroundColors[2].slice(1, 3), 16)}, ${parseInt(backgroundColors[2].slice(3, 5), 16)}, ${parseInt(backgroundColors[2].slice(5, 7), 16)}, 0.08)`,
-            'rgba(0, 0, 0, 0)'
+            isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(248, 250, 252, 0)'
           ]}
           locations={[0, 0.3, 0.6, 1]}
           style={StyleSheet.absoluteFill}
@@ -187,12 +189,12 @@ export default function ProfilePage() {
       {/* Floating Header - Outside SafeAreaView */}
       <SafeAreaView style={styles.floatingHeaderContainer} edges={['top']}>
         <View style={styles.floatingHeader}>
-          <Text style={styles.floatingHeaderTitle}>Profile</Text>
+          <Text style={[styles.floatingHeaderTitle, { color: theme.colors.onSurface }]}>Profile</Text>
           <TouchableOpacity
             style={styles.floatingSettingsButton}
             onPress={() => setSettingsVisible(true)}
           >
-            <IconButton icon="menu" size={24} iconColor="white" />
+            <IconButton icon="menu" size={24} iconColor={theme.colors.onSurface} />
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -224,8 +226,8 @@ export default function ProfilePage() {
                   <Text style={styles.emojiText}>{profile.profileEmoji}</Text>
                 </View>
               ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Text style={styles.avatarText}>
+                <View style={[styles.avatarPlaceholder, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' }]}>
+                  <Text style={[styles.avatarText, { color: theme.colors.onSurface }]}>
                     {profile?.firstName && profile?.lastName
                       ? `${profile.firstName.charAt(0).toUpperCase()}${profile.lastName.charAt(0).toUpperCase()}`
                       : user.displayName
@@ -244,18 +246,18 @@ export default function ProfilePage() {
                   : user.displayName || 'User'}
               </Text>
               {profile?.bio && (
-                <Text style={styles.userBio}>{profile.bio}</Text>
+                <Text style={[styles.userBio, { color: theme.colors.onSurfaceVariant }]}>{profile.bio}</Text>
               )}
 
               {/* User Details */}
               <View style={styles.detailsRow}>
                 {profile?.university && (
-                  <Text style={styles.detailText}>
+                  <Text style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>
                     🏫 {profile.university}
                   </Text>
                 )}
                 {profile?.location && (
-                  <Text style={styles.detailText}>
+                  <Text style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>
                     📍 {profile.location}
                   </Text>
                 )}
@@ -270,10 +272,10 @@ export default function ProfilePage() {
                     <IconButton
                       icon="instagram"
                       size={16}
-                      iconColor="white"
+                      iconColor={theme.colors.onSurface}
                       style={styles.instagramIcon}
                     />
-                    <Text style={styles.detailText}>@{profile.instagram}</Text>
+                    <Text style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>@{profile.instagram}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -284,9 +286,9 @@ export default function ProfilePage() {
               style={styles.editProfileButton}
               onPress={() => setEditProfileVisible(true)}
             >
-              <BlurView intensity={40} tint="dark" style={styles.editProfileBlur}>
-                <IconButton icon="pencil" size={18} iconColor="white" style={{ margin: 0 }} />
-                <Text style={styles.editProfileText}>Edit Profile</Text>
+              <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.editProfileBlur, { borderColor: theme.colors.outline, backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)' }]}>
+                <IconButton icon="pencil" size={18} iconColor={theme.colors.onSurface} style={{ margin: 0 }} />
+                <Text style={[styles.editProfileText, { color: theme.colors.onSurface }]}>Edit Profile</Text>
               </BlurView>
             </TouchableOpacity>
           </View>
@@ -294,13 +296,13 @@ export default function ProfilePage() {
           {/* My Clubs Section */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>My Clubs</Text>
-              <Text style={styles.sectionCount}>{userClubs.length} clubs</Text>
+              <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>My Clubs</Text>
+              <Text style={[styles.sectionCount, { color: theme.colors.onSurfaceVariant }]}>{userClubs.length} clubs</Text>
             </View>
 
             {userClubs.length === 0 ? (
               <View style={styles.emptySection}>
-                <Text style={styles.emptySectionText}>You haven't joined any clubs yet</Text>
+                <Text style={[styles.emptySectionText, { color: theme.colors.onSurfaceDisabled }]}>You haven't joined any clubs yet</Text>
               </View>
             ) : (
               <View style={styles.clubCirclesContainer}>
@@ -311,25 +313,26 @@ export default function ProfilePage() {
                     onPress={() => router.push(`/club/${club.id}`)}
                   >
                     {club.logo ? (
-                      <Image source={{ uri: club.logo }} style={styles.clubCircleImage} />
+                      <Image source={{ uri: club.logo }} style={[styles.clubCircleImage, { borderColor: theme.colors.outline }]} />
                     ) : (
                       <LinearGradient
                         colors={['#60A5FA', '#3B82F6']}
-                        style={styles.clubCirclePlaceholder}
+                        style={[styles.clubCirclePlaceholder, { borderColor: theme.colors.outline }]}
                       >
-                        <Text style={styles.clubCircleInitial}>
+                        <Text style={[styles.clubCircleInitial, { color: theme.colors.onSurface }]}>
                           {club.name.charAt(0).toUpperCase()}
                         </Text>
                       </LinearGradient>
                     )}
-                    <Text style={styles.clubCircleName} numberOfLines={1}>{club.name}</Text>
+                    <Text style={[styles.clubCircleName, { color: theme.colors.onSurface }]} numberOfLines={1}>{club.name}</Text>
                     <View style={[
                       styles.clubRoleBadge,
+                      { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' },
                       getUserClubRole(club) === 'Owner' && styles.clubOwnerBadge,
                       getUserClubRole(club) === 'Admin' && styles.clubAdminBadge,
                       getUserClubRole(club) === 'Subscriber' && styles.clubSubscriberBadge,
                     ]}>
-                      <Text style={styles.clubRoleText}>{getUserClubRole(club)}</Text>
+                      <Text style={[styles.clubRoleText, { color: theme.colors.onSurface }]}>{getUserClubRole(club)}</Text>
                     </View>
                   </TouchableOpacity>
                 ))}
@@ -340,13 +343,13 @@ export default function ProfilePage() {
           {/* Past Events Section */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Past Events</Text>
-              <Text style={styles.sectionCount}>{pastEvents.length} events</Text>
+              <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Past Events</Text>
+              <Text style={[styles.sectionCount, { color: theme.colors.onSurfaceVariant }]}>{pastEvents.length} events</Text>
             </View>
 
             {pastEvents.length === 0 ? (
               <View style={styles.emptySection}>
-                <Text style={styles.emptySectionText}>No past events yet</Text>
+                <Text style={[styles.emptySectionText, { color: theme.colors.onSurfaceDisabled }]}>No past events yet</Text>
               </View>
             ) : (
               <View style={styles.eventsGrid}>
@@ -360,15 +363,15 @@ export default function ProfilePage() {
                       <Image source={{ uri: event.coverImage }} style={styles.eventGridImage} />
                     ) : (
                       <LinearGradient
-                        colors={['#1e1e1e', '#2a2a2a']}
+                        colors={isDark ? ['#1e1e1e', '#2a2a2a'] : ['#e2e8f0', '#cbd5e1']}
                         style={styles.eventGridPlaceholder}
                       >
-                        <IconButton icon="calendar" size={28} iconColor="rgba(255,255,255,0.4)" style={{ margin: 0 }} />
+                        <IconButton icon="calendar" size={28} iconColor={theme.colors.onSurfaceDisabled} style={{ margin: 0 }} />
                       </LinearGradient>
                     )}
                     <View style={styles.eventGridOverlay}>
-                      <Text style={styles.eventGridTitle} numberOfLines={2}>{event.title}</Text>
-                      <Text style={styles.eventGridDate}>
+                      <Text style={[styles.eventGridTitle, { color: '#fff' }]} numberOfLines={2}>{event.title}</Text>
+                      <Text style={[styles.eventGridDate, { color: 'rgba(255,255,255,0.7)' }]}>
                         {event.endDate.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </Text>
                     </View>
@@ -399,11 +402,9 @@ export default function ProfilePage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   blackBackground: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   backgroundImageContainer: {
     position: 'absolute',
@@ -424,7 +425,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.3)',
   },
   backgroundFade: {
     position: 'absolute',
@@ -456,7 +456,6 @@ const styles = StyleSheet.create({
   floatingHeaderTitle: {
     fontSize: 28,
     fontWeight: '700',
-    color: 'white',
   },
   floatingSettingsButton: {
     width: 40,
@@ -482,7 +481,6 @@ const styles = StyleSheet.create({
   emptyStateTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: 'white',
     marginBottom: 24,
     textAlign: 'center',
   },
@@ -496,13 +494,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
     alignItems: 'center',
   },
   loginButtonText: {
     fontSize: 17,
     fontWeight: '700',
-    color: 'white',
   },
   profileHeader: {
     alignItems: 'center',
@@ -533,12 +529,10 @@ const styles = StyleSheet.create({
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   avatarText: {
     fontSize: 48,
     fontWeight: '700',
-    color: 'white',
   },
   emojiText: {
     fontSize: 56,
@@ -571,13 +565,11 @@ const styles = StyleSheet.create({
   userEmail: {
     fontSize: 24,
     fontWeight: '700',
-    color: 'white',
     marginBottom: 8,
     textAlign: 'center',
   },
   userBio: {
     fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
     marginBottom: 12,
     lineHeight: 20,
@@ -590,7 +582,6 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
   },
   editProfileButton: {
     borderRadius: 16,
@@ -611,14 +602,11 @@ const styles = StyleSheet.create({
     paddingLeft: 14,
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.25)',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     overflow: 'hidden',
   },
   editProfileText: {
     fontSize: 15,
     fontWeight: '600',
-    color: 'white',
     marginLeft: 4,
   },
   instagramLink: {
@@ -644,12 +632,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: 'white',
   },
   sectionCount: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.6)',
   },
   emptySection: {
     paddingVertical: 24,
@@ -657,7 +643,6 @@ const styles = StyleSheet.create({
   },
   emptySectionText: {
     fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.5)',
   },
   // Club circles styles
   clubCirclesContainer: {
@@ -674,7 +659,6 @@ const styles = StyleSheet.create({
     height: CLUB_ITEM_WIDTH - 10,
     borderRadius: (CLUB_ITEM_WIDTH - 10) / 2,
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   clubCirclePlaceholder: {
     width: CLUB_ITEM_WIDTH - 10,
@@ -683,17 +667,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   clubCircleInitial: {
     fontSize: 24,
     fontWeight: '700',
-    color: 'white',
   },
   clubCircleName: {
     fontSize: 11,
     fontWeight: '600',
-    color: 'white',
     marginTop: 6,
     textAlign: 'center',
   },
@@ -701,7 +682,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     marginTop: 4,
   },
   clubOwnerBadge: {
@@ -716,7 +696,6 @@ const styles = StyleSheet.create({
   clubRoleText: {
     fontSize: 9,
     fontWeight: '600',
-    color: 'white',
   },
   // Events grid styles (Instagram-like)
   eventsGrid: {
@@ -751,12 +730,10 @@ const styles = StyleSheet.create({
   eventGridTitle: {
     fontSize: 11,
     fontWeight: '600',
-    color: 'white',
     lineHeight: 14,
   },
   eventGridDate: {
     fontSize: 9,
-    color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 2,
   },
 });

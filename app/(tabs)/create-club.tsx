@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { createClub, uploadImage } from '../../lib/firebase';
-import { useAuth } from '../_layout';
+import { useAuth, useThemeToggle } from '../_layout';
 import { LinearGradient } from 'expo-linear-gradient';
 import BackButton from '../../components/BackButton';
 
@@ -33,6 +33,7 @@ const TAGS = [
 
 export default function CreateClubScreen() {
   const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [showSportsMenu, setShowSportsMenu] = useState(false);
@@ -184,7 +185,7 @@ export default function CreateClubScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -193,7 +194,7 @@ export default function CreateClubScreen() {
         {/* Header with Gradient */}
         <View>
           <LinearGradient
-            colors={['#1B365D', '#2B4A73', '#3A5F8F']}
+            colors={(theme as any).gradients?.primary || ['#1B365D', '#2B4A73', '#3A5F8F']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.header}
@@ -210,25 +211,25 @@ export default function CreateClubScreen() {
 
         <View style={styles.content}>
           {/* Cover Image Section */}
-          <Card style={styles.formCard} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: theme.colors.surface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
-                <View style={styles.iconBadge}>
-                  <IconButton icon="image" size={20} iconColor="#1B365D" />
+                <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
+                  <IconButton icon="image" size={20} iconColor={theme.colors.primary} />
                 </View>
-                <Text variant="titleLarge" style={styles.sectionTitle}>Cover Image</Text>
+                <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.primary }]}>Cover Image</Text>
               </View>
 
               <TouchableOpacity onPress={() => pickImage('cover')} activeOpacity={0.7}>
                 <LinearGradient
-                  colors={['#E1E7F1', '#D4DCE8']}
+                  colors={isDark ? ['rgba(30,40,60,0.8)', 'rgba(20,30,48,0.8)'] : ['#E1E7F1', '#D4DCE8']}
                   style={styles.coverImageContainer}
                 >
                   {coverImage ? (
                     <Image source={{ uri: coverImage }} style={styles.coverImage} />
                   ) : (
                     <View style={styles.imagePlaceholder}>
-                      <IconButton icon="camera-plus" size={40} iconColor="#1B365D" />
+                      <IconButton icon="camera-plus" size={40} iconColor={theme.colors.primary} />
                       <Text style={styles.imagePlaceholderText}>Tap to add cover image</Text>
                       <Text style={styles.imageHint}>16:9 recommended</Text>
                     </View>
@@ -239,26 +240,26 @@ export default function CreateClubScreen() {
           </Card>
 
           {/* Logo Section */}
-          <Card style={styles.formCard} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: theme.colors.surface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
-                <View style={styles.iconBadge}>
-                  <IconButton icon="shield-account" size={20} iconColor="#1B365D" />
+                <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
+                  <IconButton icon="shield-account" size={20} iconColor={theme.colors.primary} />
                 </View>
-                <Text variant="titleLarge" style={styles.sectionTitle}>Club Logo</Text>
+                <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.primary }]}>Club Logo</Text>
               </View>
 
               <TouchableOpacity onPress={() => pickImage('logo')} activeOpacity={0.7}>
                 <View style={styles.logoWrapper}>
                   <LinearGradient
-                    colors={['#E1E7F1', '#D4DCE8']}
+                    colors={isDark ? ['rgba(30,40,60,0.8)', 'rgba(20,30,48,0.8)'] : ['#E1E7F1', '#D4DCE8']}
                     style={styles.logoContainer}
                   >
                     {logo ? (
                       <Image source={{ uri: logo }} style={styles.logoImage} />
                     ) : (
                       <View style={styles.logoPlaceholder}>
-                        <IconButton icon="account-circle" size={40} iconColor="#1B365D" />
+                        <IconButton icon="account-circle" size={40} iconColor={theme.colors.primary} />
                         <Text style={styles.logoHint}>Club Logo</Text>
                       </View>
                     )}
@@ -269,13 +270,13 @@ export default function CreateClubScreen() {
           </Card>
 
           {/* Basic Information */}
-          <Card style={styles.formCard} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: theme.colors.surface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
-                <View style={styles.iconBadge}>
-                  <IconButton icon="information" size={20} iconColor="#1B365D" />
+                <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
+                  <IconButton icon="information" size={20} iconColor={theme.colors.primary} />
                 </View>
-                <Text variant="titleLarge" style={styles.sectionTitle}>Club Details</Text>
+                <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.primary }]}>Club Details</Text>
               </View>
 
               <TextInput
@@ -303,7 +304,7 @@ export default function CreateClubScreen() {
                 onDismiss={() => setShowSportsMenu(false)}
                 anchor={
                   <TouchableOpacity
-                    style={styles.categorySelector}
+                    style={[styles.categorySelector, { borderColor: theme.colors.outlineVariant }]}
                     onPress={() => setShowSportsMenu(true)}
                   >
                     <Text style={styles.categorySelectorText}>
@@ -339,13 +340,13 @@ export default function CreateClubScreen() {
           </Card>
 
           {/* Social Links */}
-          <Card style={styles.formCard} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: theme.colors.surface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
-                <View style={styles.iconBadge}>
-                  <IconButton icon="link-variant" size={20} iconColor="#1B365D" />
+                <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
+                  <IconButton icon="link-variant" size={20} iconColor={theme.colors.primary} />
                 </View>
-                <Text variant="titleLarge" style={styles.sectionTitle}>Social Links</Text>
+                <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.primary }]}>Social Links</Text>
               </View>
 
               <TextInput
@@ -393,13 +394,13 @@ export default function CreateClubScreen() {
           </Card>
 
           {/* Settings */}
-          <Card style={styles.formCard} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: theme.colors.surface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
-                <View style={styles.iconBadge}>
-                  <IconButton icon="cog" size={20} iconColor="#1B365D" />
+                <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
+                  <IconButton icon="cog" size={20} iconColor={theme.colors.primary} />
                 </View>
-                <Text variant="titleLarge" style={styles.sectionTitle}>Club Settings</Text>
+                <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.primary }]}>Club Settings</Text>
               </View>
 
               <Text variant="bodyLarge" style={styles.fieldLabel}>Club Type</Text>
@@ -408,7 +409,7 @@ export default function CreateClubScreen() {
                 onDismiss={() => setShowTagsMenu(false)}
                 anchor={
                   <TouchableOpacity
-                    style={styles.categorySelector}
+                    style={[styles.categorySelector, { borderColor: theme.colors.outlineVariant }]}
                     onPress={() => setShowTagsMenu(true)}
                   >
                     <Text style={styles.categorySelectorText}>
@@ -428,7 +429,7 @@ export default function CreateClubScreen() {
                 ))}
               </Menu>
 
-              <View style={styles.switchRow}>
+              <View style={[styles.switchRow, { borderTopColor: theme.colors.outlineVariant }]}>
                 <View style={styles.switchContent}>
                   <Text variant="bodyLarge" style={styles.switchLabel}>Public Club</Text>
                   <Text variant="bodySmall" style={styles.switchDescription}>
@@ -459,7 +460,6 @@ export default function CreateClubScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
   header: {
     paddingBottom: 16,
@@ -490,7 +490,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 16,
     elevation: 2,
-    backgroundColor: 'white',
   },
   cardContent: {
     padding: 20,
@@ -504,14 +503,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#E1E7F1',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
   sectionTitle: {
     fontWeight: 'bold',
-    color: '#1B365D',
   },
   coverImageContainer: {
     height: 160,
@@ -532,13 +529,11 @@ const styles = StyleSheet.create({
   },
   imagePlaceholderText: {
     fontSize: 16,
-    color: '#1B365D',
     fontWeight: '600',
     marginTop: 8,
   },
   imageHint: {
     fontSize: 12,
-    color: '#1B365D',
     opacity: 0.7,
     marginTop: 4,
   },
@@ -564,7 +559,6 @@ const styles = StyleSheet.create({
   },
   logoHint: {
     fontSize: 12,
-    color: '#1B365D',
     opacity: 0.7,
     marginTop: 4,
   },
@@ -575,14 +569,12 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontWeight: '600',
     marginBottom: 8,
-    color: '#1B365D',
   },
   categorySelector: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: '#ccc',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -599,7 +591,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: '#E1E7F1',
     marginTop: 8,
   },
   switchContent: {
@@ -608,17 +599,14 @@ const styles = StyleSheet.create({
   },
   switchLabel: {
     fontWeight: '600',
-    color: '#1B365D',
   },
   switchDescription: {
-    color: '#666',
     marginTop: 2,
   },
   createButton: {
     marginTop: 8,
     marginBottom: 20,
     borderRadius: 12,
-    backgroundColor: '#1B365D',
   },
   buttonContent: {
     paddingVertical: 12,

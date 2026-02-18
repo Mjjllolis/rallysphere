@@ -27,12 +27,12 @@ export default function FavoritesScreen() {
   const renderFavoriteItem = ({ item }: { item: any }) => {
     return (
       <TouchableOpacity
-        style={styles.card}
+        style={[styles.card, { backgroundColor: theme.colors.surface }]}
         onPress={() => router.push(`/(tabs)/store/${item.id}`)}
         activeOpacity={0.9}
       >
         {/* Image Container */}
-        <View style={styles.imageContainer}>
+        <View style={[styles.imageContainer, { backgroundColor: theme.colors.surfaceVariant }]}>
           {item.images && item.images.length > 0 ? (
             <Image
               source={{ uri: item.images[0] }}
@@ -41,7 +41,7 @@ export default function FavoritesScreen() {
             />
           ) : (
             <View style={styles.placeholderImage}>
-              <Ionicons name="image-outline" size={40} color="#ccc" />
+              <Ionicons name="image-outline" size={40} color={theme.colors.onSurfaceVariant} />
             </View>
           )}
 
@@ -59,13 +59,13 @@ export default function FavoritesScreen() {
 
         {/* Product Info */}
         <View style={styles.cardContent}>
-          <Text style={styles.itemName} numberOfLines={1}>
+          <Text style={[styles.itemName, { color: theme.colors.onSurface }]} numberOfLines={1}>
             {item.name}
           </Text>
-          <Text style={styles.clubName} numberOfLines={1}>
+          <Text style={[styles.clubName, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
             {item.clubName}
           </Text>
-          <Text style={styles.price}>${item.price.toFixed(0)}</Text>
+          <Text style={[styles.price, { color: theme.colors.onSurface }]}>${item.price.toFixed(0)}</Text>
         </View>
       </TouchableOpacity>
     );
@@ -160,7 +160,6 @@ const styles = StyleSheet.create({
   },
   card: {
     width: CARD_WIDTH,
-    backgroundColor: '#fff',
     borderRadius: 16,
     overflow: 'visible',
     position: 'relative',
@@ -168,7 +167,6 @@ const styles = StyleSheet.create({
   imageContainer: {
     width: '100%',
     aspectRatio: 1,
-    backgroundColor: '#F8F8F8',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     position: 'relative',
@@ -207,17 +205,14 @@ const styles = StyleSheet.create({
   itemName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 2,
   },
   clubName: {
     fontSize: 12,
-    color: '#666',
     marginBottom: 4,
   },
   price: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#000',
   },
 });

@@ -1,8 +1,9 @@
 // components/GlassDateTimePicker.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, Animated, Dimensions, ScrollView, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
-import { Text, IconButton } from 'react-native-paper';
+import { Text, IconButton, useTheme } from 'react-native-paper';
 import { BlurView } from 'expo-blur';
+import { useThemeToggle } from '../app/_layout';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CAROUSEL_HEIGHT = 340;
@@ -21,6 +22,8 @@ export default function GlassDateTimePicker({
   onDateChange,
   minimumDate,
 }: GlassDateTimePickerProps) {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<'date' | 'time'>('date');
   const heightAnim = useRef(new Animated.Value(0)).current;
@@ -177,7 +180,7 @@ export default function GlassDateTimePicker({
                 key={item}
                 style={[
                   styles.carouselItem,
-                  distance === 0 && styles.carouselItemSelected,
+                  distance === 0 && { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)', borderRadius: 8 },
                 ]}
                 onPress={() => {
                   const itemIndex = items.indexOf(item);
@@ -194,6 +197,7 @@ export default function GlassDateTimePicker({
                 <Text
                   style={[
                     styles.carouselItemText,
+                    { color: theme.colors.onSurface },
                     {
                       opacity,
                       fontSize: 18 * scale,
@@ -208,7 +212,7 @@ export default function GlassDateTimePicker({
           })}
         </ScrollView>
         {/* Selection indicator */}
-        <View style={styles.selectionIndicator} pointerEvents="none" />
+        <View style={[styles.selectionIndicator, { borderColor: theme.colors.outline }]} pointerEvents="none" />
       </View>
     );
   };
@@ -217,21 +221,31 @@ export default function GlassDateTimePicker({
     <View style={styles.container}>
       {/* Collapsed Button */}
       <TouchableOpacity onPress={toggleExpanded} activeOpacity={0.8}>
-        <BlurView intensity={40} tint="light" style={styles.buttonBlur}>
-          <View style={styles.buttonContent}>
-            <View>
-              <Text style={styles.labelText}>{label}</Text>
-              <Text style={styles.dateText}>
-                {date.toLocaleDateString([], { month: 'short', day: 'numeric' })} • {date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-              </Text>
+        {isDark ? (
+          <BlurView intensity={40} tint="light" style={[styles.buttonBlur, { borderColor: theme.colors.outline }]}>
+            <View style={styles.buttonContent}>
+              <View>
+                <Text style={[styles.labelText, { color: theme.colors.onSurfaceVariant }]}>{label}</Text>
+                <Text style={[styles.dateText, { color: theme.colors.onSurface }]}>
+                  {date.toLocaleDateString([], { month: 'short', day: 'numeric' })} • {date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                </Text>
+              </View>
+              <IconButton icon={isExpanded ? 'chevron-up' : 'chevron-down'} size={24} iconColor={theme.colors.onSurface} />
             </View>
-            <IconButton
-              icon={isExpanded ? 'chevron-up' : 'chevron-down'}
-              size={24}
-              iconColor="white"
-            />
+          </BlurView>
+        ) : (
+          <View style={[styles.buttonBlur, { borderColor: theme.colors.outline, backgroundColor: theme.colors.surfaceVariant }]}>
+            <View style={styles.buttonContent}>
+              <View>
+                <Text style={[styles.labelText, { color: theme.colors.onSurfaceVariant }]}>{label}</Text>
+                <Text style={[styles.dateText, { color: theme.colors.onSurface }]}>
+                  {date.toLocaleDateString([], { month: 'short', day: 'numeric' })} • {date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                </Text>
+              </View>
+              <IconButton icon={isExpanded ? 'chevron-up' : 'chevron-down'} size={24} iconColor={theme.colors.onSurface} />
+            </View>
           </View>
-        </BlurView>
+        )}
       </TouchableOpacity>
 
       {/* Expanded Carousel - Smooth Height Animation */}
@@ -246,64 +260,85 @@ export default function GlassDateTimePicker({
         pointerEvents={isExpanded ? 'auto' : 'none'}
       >
         {isExpanded && (
-          <BlurView intensity={60} tint="dark" style={styles.expandedBlur}>
-          {/* Tab Switcher */}
-          <View style={styles.tabContainer}>
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'date' && styles.tabActive]}
-              onPress={() => setActiveTab('date')}
-            >
-              <Text style={[styles.tabText, activeTab === 'date' && styles.tabTextActive]}>
-                Date
-              </Text>
+          isDark ? (
+          <BlurView intensity={60} tint="dark" style={[styles.expandedBlur, { borderColor: theme.colors.outline }]}>
+            {/* Tab Switcher */}
+            <View style={[styles.tabContainer, { backgroundColor: 'rgba(255, 255, 255, 0.05)' }]}>
+              <TouchableOpacity style={[styles.tab, activeTab === 'date' && { backgroundColor: 'rgba(255, 255, 255, 0.15)' }]} onPress={() => setActiveTab('date')}>
+                <Text style={[styles.tabText, { color: theme.colors.onSurfaceVariant }, activeTab === 'date' && { color: theme.colors.onSurface }]}>Date</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.tab, activeTab === 'time' && { backgroundColor: 'rgba(255, 255, 255, 0.15)' }]} onPress={() => setActiveTab('time')}>
+                <Text style={[styles.tabText, { color: theme.colors.onSurfaceVariant }, activeTab === 'time' && { color: theme.colors.onSurface }]}>Time</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.carouselContainer}>
+              {activeTab === 'date' ? (
+                <>
+                  {renderCarousel(months, months[selectedMonth], (value) => setSelectedMonth(months.indexOf(value)), monthScrollRef)}
+                  {renderCarousel(days, selectedDay, setSelectedDay, dayScrollRef)}
+                  {renderCarousel(years, selectedYear, setSelectedYear, yearScrollRef)}
+                </>
+              ) : (
+                <>
+                  {renderCarousel(hours, selectedHour === 0 ? 12 : selectedHour > 12 ? selectedHour - 12 : selectedHour, (value) => setSelectedHour(value), hourScrollRef)}
+                  {renderCarousel(minutes, selectedMinute, setSelectedMinute, minuteScrollRef, (val) => val.toString().padStart(2, '0'))}
+                  <View style={styles.carouselColumn}>
+                    <TouchableOpacity style={[styles.amPmButton, { backgroundColor: 'rgba(255, 255, 255, 0.05)' }, !isPM && { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]} onPress={() => setIsPM(false)}>
+                      <Text style={[styles.amPmText, { color: theme.colors.onSurfaceVariant }, !isPM && { color: theme.colors.onSurface }]}>AM</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.amPmButton, { backgroundColor: 'rgba(255, 255, 255, 0.05)' }, isPM && { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]} onPress={() => setIsPM(true)}>
+                      <Text style={[styles.amPmText, { color: theme.colors.onSurfaceVariant }, isPM && { color: theme.colors.onSurface }]}>PM</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
+            <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>
+              <BlurView intensity={80} tint="light" style={[styles.confirmBlur, { borderColor: theme.colors.outline }]}>
+                <Text style={[styles.confirmText, { color: theme.colors.onSurface }]}>Confirm</Text>
+              </BlurView>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'time' && styles.tabActive]}
-              onPress={() => setActiveTab('time')}
-            >
-              <Text style={[styles.tabText, activeTab === 'time' && styles.tabTextActive]}>
-                Time
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Carousel Content */}
-          <View style={styles.carouselContainer}>
-            {activeTab === 'date' ? (
-              <>
-                {renderCarousel(months, months[selectedMonth], (value) => setSelectedMonth(months.indexOf(value)), monthScrollRef)}
-                {renderCarousel(days, selectedDay, setSelectedDay, dayScrollRef)}
-                {renderCarousel(years, selectedYear, setSelectedYear, yearScrollRef)}
-              </>
-            ) : (
-              <>
-                {renderCarousel(hours, selectedHour === 0 ? 12 : selectedHour > 12 ? selectedHour - 12 : selectedHour, (value) => setSelectedHour(value), hourScrollRef)}
-                {renderCarousel(minutes, selectedMinute, setSelectedMinute, minuteScrollRef, (val) => val.toString().padStart(2, '0'))}
-                <View style={styles.carouselColumn}>
-                  <TouchableOpacity
-                    style={[styles.amPmButton, !isPM && styles.amPmButtonActive]}
-                    onPress={() => setIsPM(false)}
-                  >
-                    <Text style={[styles.amPmText, !isPM && styles.amPmTextActive]}>AM</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.amPmButton, isPM && styles.amPmButtonActive]}
-                    onPress={() => setIsPM(true)}
-                  >
-                    <Text style={[styles.amPmText, isPM && styles.amPmTextActive]}>PM</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-          </View>
-
-          {/* Confirm Button */}
-          <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>
-            <BlurView intensity={80} tint="light" style={styles.confirmBlur}>
-              <Text style={styles.confirmText}>Confirm</Text>
-            </BlurView>
-          </TouchableOpacity>
           </BlurView>
+          ) : (
+          <View style={[styles.expandedBlur, { borderColor: theme.colors.outline, backgroundColor: theme.colors.surfaceVariant }]}>
+            {/* Tab Switcher */}
+            <View style={[styles.tabContainer, { backgroundColor: 'rgba(0, 0, 0, 0.05)' }]}>
+              <TouchableOpacity style={[styles.tab, activeTab === 'date' && { backgroundColor: theme.colors.primary }]} onPress={() => setActiveTab('date')}>
+                <Text style={[styles.tabText, { color: theme.colors.onSurfaceVariant }, activeTab === 'date' && { color: theme.colors.onPrimary }]}>Date</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.tab, activeTab === 'time' && { backgroundColor: theme.colors.primary }]} onPress={() => setActiveTab('time')}>
+                <Text style={[styles.tabText, { color: theme.colors.onSurfaceVariant }, activeTab === 'time' && { color: theme.colors.onPrimary }]}>Time</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.carouselContainer}>
+              {activeTab === 'date' ? (
+                <>
+                  {renderCarousel(months, months[selectedMonth], (value) => setSelectedMonth(months.indexOf(value)), monthScrollRef)}
+                  {renderCarousel(days, selectedDay, setSelectedDay, dayScrollRef)}
+                  {renderCarousel(years, selectedYear, setSelectedYear, yearScrollRef)}
+                </>
+              ) : (
+                <>
+                  {renderCarousel(hours, selectedHour === 0 ? 12 : selectedHour > 12 ? selectedHour - 12 : selectedHour, (value) => setSelectedHour(value), hourScrollRef)}
+                  {renderCarousel(minutes, selectedMinute, setSelectedMinute, minuteScrollRef, (val) => val.toString().padStart(2, '0'))}
+                  <View style={styles.carouselColumn}>
+                    <TouchableOpacity style={[styles.amPmButton, { backgroundColor: 'rgba(0, 0, 0, 0.05)' }, !isPM && { backgroundColor: 'rgba(0, 0, 0, 0.1)' }]} onPress={() => setIsPM(false)}>
+                      <Text style={[styles.amPmText, { color: theme.colors.onSurfaceVariant }, !isPM && { color: theme.colors.onSurface }]}>AM</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.amPmButton, { backgroundColor: 'rgba(0, 0, 0, 0.05)' }, isPM && { backgroundColor: 'rgba(0, 0, 0, 0.1)' }]} onPress={() => setIsPM(true)}>
+                      <Text style={[styles.amPmText, { color: theme.colors.onSurfaceVariant }, isPM && { color: theme.colors.onSurface }]}>PM</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
+            <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>
+              <View style={[styles.confirmBlur, { borderColor: theme.colors.outline, backgroundColor: theme.colors.primary }]}>
+                <Text style={[styles.confirmText, { color: theme.colors.onPrimary }]}>Confirm</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+          )
         )}
       </Animated.View>
     </View>
@@ -317,7 +352,6 @@ const styles = StyleSheet.create({
   buttonBlur: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
     overflow: 'hidden',
   },
   buttonContent: {
@@ -331,13 +365,11 @@ const styles = StyleSheet.create({
   labelText: {
     fontSize: 12,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.7)',
     marginBottom: 4,
   },
   dateText: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'white',
   },
   expandedContainer: {
     marginTop: 12,
@@ -347,14 +379,12 @@ const styles = StyleSheet.create({
   expandedBlur: {
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
     overflow: 'hidden',
     padding: 16,
     flex: 1,
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: 12,
     padding: 4,
     marginBottom: 16,
@@ -365,16 +395,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 8,
   },
-  tabActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-  },
   tabText: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.6)',
-  },
-  tabTextActive: {
-    color: 'white',
   },
   carouselContainer: {
     flexDirection: 'row',
@@ -399,12 +422,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  carouselItemSelected: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 8,
-  },
   carouselItemText: {
-    color: 'white',
     textAlign: 'center',
   },
   selectionIndicator: {
@@ -416,26 +434,17 @@ const styles = StyleSheet.create({
     marginTop: -(ITEM_HEIGHT / 2),
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   amPmButton: {
     marginVertical: 4,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     alignItems: 'center',
-  },
-  amPmButtonActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   amPmText: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.6)',
-  },
-  amPmTextActive: {
-    color: 'white',
   },
   confirmButton: {
     borderRadius: 12,
@@ -446,11 +455,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   confirmText: {
     fontSize: 16,
     fontWeight: '700',
-    color: 'white',
   },
 });

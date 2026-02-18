@@ -1,8 +1,9 @@
 // components/GlassTagInput.tsx
 import React, { useState } from 'react';
 import { View, TextInput, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { Text, IconButton } from 'react-native-paper';
+import { Text, IconButton, useTheme } from 'react-native-paper';
 import { BlurView } from 'expo-blur';
+import { useThemeToggle } from '../app/_layout';
 
 interface GlassTagInputProps {
   label: string;
@@ -17,6 +18,8 @@ export default function GlassTagInput({
   onTagsChange,
   placeholder = 'Type and press return to add tags...',
 }: GlassTagInputProps) {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const [inputValue, setInputValue] = useState('');
 
   const handleSubmitEditing = () => {
@@ -33,7 +36,7 @@ export default function GlassTagInput({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, { color: theme.colors.onSurface }]}>{label}</Text>
 
       {/* Tag Display Area */}
       {tags.length > 0 && (
@@ -44,42 +47,63 @@ export default function GlassTagInput({
           contentContainerStyle={styles.tagsContainer}
         >
           {tags.map((tag, index) => (
-            <BlurView key={index} intensity={40} tint="light" style={styles.tagBlur}>
-              <View style={styles.tag}>
-                <Text style={styles.tagText}>{tag}</Text>
-                <TouchableOpacity
-                  onPress={() => removeTag(index)}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <IconButton
-                    icon="close-circle"
-                    size={16}
-                    iconColor="rgba(255, 255, 255, 0.8)"
-                    style={styles.removeIcon}
-                  />
-                </TouchableOpacity>
+            isDark ? (
+              <BlurView key={index} intensity={40} tint="light" style={[styles.tagBlur, { borderColor: theme.colors.outline }]}>
+                <View style={styles.tag}>
+                  <Text style={[styles.tagText, { color: theme.colors.onSurface }]}>{tag}</Text>
+                  <TouchableOpacity onPress={() => removeTag(index)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                    <IconButton icon="close-circle" size={16} iconColor={theme.colors.onSurfaceVariant} style={styles.removeIcon} />
+                  </TouchableOpacity>
+                </View>
+              </BlurView>
+            ) : (
+              <View key={index} style={[styles.tagBlur, { borderColor: theme.colors.outline, backgroundColor: theme.colors.surfaceVariant }]}>
+                <View style={styles.tag}>
+                  <Text style={[styles.tagText, { color: theme.colors.onSurface }]}>{tag}</Text>
+                  <TouchableOpacity onPress={() => removeTag(index)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                    <IconButton icon="close-circle" size={16} iconColor={theme.colors.onSurfaceVariant} style={styles.removeIcon} />
+                  </TouchableOpacity>
+                </View>
               </View>
-            </BlurView>
+            )
           ))}
         </ScrollView>
       )}
 
       {/* Input Field */}
-      <BlurView intensity={40} tint="light" style={styles.inputBlur}>
-        <View style={styles.inputContainer}>
-          <TextInput
-            value={inputValue}
-            onChangeText={setInputValue}
-            onSubmitEditing={handleSubmitEditing}
-            placeholder={placeholder}
-            placeholderTextColor="rgba(255, 255, 255, 0.5)"
-            style={styles.input}
-            autoCapitalize="words"
-            returnKeyType="done"
-            blurOnSubmit={false}
-          />
+      {isDark ? (
+        <BlurView intensity={40} tint="light" style={[styles.inputBlur, { borderColor: theme.colors.outline }]}>
+          <View style={styles.inputContainer}>
+            <TextInput
+              value={inputValue}
+              onChangeText={setInputValue}
+              onSubmitEditing={handleSubmitEditing}
+              placeholder={placeholder}
+              placeholderTextColor={theme.colors.onSurfaceDisabled}
+              style={[styles.input, { color: theme.colors.onSurface }]}
+              autoCapitalize="words"
+              returnKeyType="done"
+              blurOnSubmit={false}
+            />
+          </View>
+        </BlurView>
+      ) : (
+        <View style={[styles.inputBlur, { borderColor: theme.colors.outline, backgroundColor: theme.colors.surfaceVariant }]}>
+          <View style={styles.inputContainer}>
+            <TextInput
+              value={inputValue}
+              onChangeText={setInputValue}
+              onSubmitEditing={handleSubmitEditing}
+              placeholder={placeholder}
+              placeholderTextColor={theme.colors.onSurfaceDisabled}
+              style={[styles.input, { color: theme.colors.onSurface }]}
+              autoCapitalize="words"
+              returnKeyType="done"
+              blurOnSubmit={false}
+            />
+          </View>
         </View>
-      </BlurView>
+      )}
     </View>
   );
 }
@@ -91,7 +115,6 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'white',
     marginBottom: 8,
     marginLeft: 4,
   },
@@ -106,7 +129,6 @@ const styles = StyleSheet.create({
   tagBlur: {
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
     overflow: 'hidden',
   },
   tag: {
@@ -120,7 +142,6 @@ const styles = StyleSheet.create({
   tagText: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'white',
   },
   removeIcon: {
     margin: 0,
@@ -129,7 +150,6 @@ const styles = StyleSheet.create({
   inputBlur: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
     overflow: 'hidden',
   },
   inputContainer: {
@@ -141,7 +161,6 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    color: 'white',
     paddingVertical: 12,
   },
 });

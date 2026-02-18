@@ -9,13 +9,14 @@ import {
   Animated,
   Linking,
 } from 'react-native';
-import { Text, IconButton } from 'react-native-paper';
+import { Text, IconButton, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getUserProfile, getClubs, getAllEvents } from '../../lib/firebase';
 import type { UserProfile, Club, Event } from '../../lib/firebase';
+import { useThemeToggle } from '../_layout';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SECTION_PADDING = 20;
@@ -31,6 +32,9 @@ export default function UserProfileScreen() {
   // params for instant header render before profile loads
   const { id, firstName: paramFirst, lastName: paramLast, avatar: paramAvatar } =
     useLocalSearchParams<{ id: string; firstName?: string; lastName?: string; avatar?: string }>();
+
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [clubs, setClubs] = useState<Club[]>([]);
@@ -84,12 +88,12 @@ export default function UserProfileScreen() {
   });
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* slide in from right, swipe to go back */}
       <Stack.Screen options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true, gestureDirection: 'horizontal' }} />
 
       <View style={StyleSheet.absoluteFill}>
-        <View style={styles.blackBackground} />
+        <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
       </View>
 
       {/* parallax banner */}
@@ -100,11 +104,11 @@ export default function UserProfileScreen() {
         >
           <Image source={{ uri: profile.backgroundImage }} style={styles.backgroundImage} resizeMode="cover" />
           <View style={styles.backgroundOverlay} />
-          <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,1)']} locations={[0.7, 1]} style={styles.backgroundFade} pointerEvents="none" />
+          <LinearGradient colors={isDark ? ['rgba(0,0,0,0)', 'rgba(0,0,0,1)'] : ['rgba(255,255,255,0)', 'rgba(255,255,255,1)']} locations={[0.7, 1]} style={styles.backgroundFade} pointerEvents="none" />
         </Animated.View>
       ) : (
         <LinearGradient
-          colors={['rgba(99,102,241,0.25)', 'rgba(139,92,246,0.15)', 'rgba(0,0,0,0)']}
+          colors={isDark ? ['rgba(99,102,241,0.25)', 'rgba(139,92,246,0.15)', 'rgba(0,0,0,0)'] : ['rgba(99,102,241,0.12)', 'rgba(139,92,246,0.08)', 'rgba(255,255,255,0)']}
           locations={[0, 0.4, 1]}
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
@@ -114,8 +118,8 @@ export default function UserProfileScreen() {
       {/* back button */}
       <SafeAreaView style={styles.headerContainer} edges={['top']}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <BlurView intensity={40} tint="dark" style={styles.backButtonBlur}>
-            <IconButton icon="arrow-left" size={22} iconColor="white" style={{ margin: 0 }} />
+          <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.backButtonBlur}>
+            <IconButton icon="arrow-left" size={22} iconColor={theme.colors.onSurface} style={{ margin: 0 }} />
           </BlurView>
         </TouchableOpacity>
       </SafeAreaView>
@@ -134,29 +138,29 @@ export default function UserProfileScreen() {
               {avatarUri ? (
                 <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
               ) : profile?.profileEmoji ? (
-                <View style={styles.avatarPlaceholder}>
+                <View style={[styles.avatarPlaceholder, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
                   <Text style={styles.emojiText}>{profile.profileEmoji}</Text>
                 </View>
               ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Text style={styles.avatarInitialsText}>{initials}</Text>
+                <View style={[styles.avatarPlaceholder, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+                  <Text style={[styles.avatarInitialsText, { color: theme.colors.onSurface }]}>{initials}</Text>
                 </View>
               )}
             </View>
 
             <View style={styles.userInfo}>
-              <Text style={styles.userName}>{displayName}</Text>
-              {profile?.bio && <Text style={styles.userBio}>{profile.bio}</Text>}
+              <Text style={[styles.userName, { color: theme.colors.onSurface }]}>{displayName}</Text>
+              {profile?.bio && <Text style={[styles.userBio, { color: theme.colors.onSurfaceVariant }]}>{profile.bio}</Text>}
               <View style={styles.detailsRow}>
-                {profile?.university && <Text style={styles.detailText}>🏫 {profile.university}</Text>}
-                {profile?.location && <Text style={styles.detailText}>📍 {profile.location}</Text>}
+                {profile?.university && <Text style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>🏫 {profile.university}</Text>}
+                {profile?.location && <Text style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>📍 {profile.location}</Text>}
                 {profile?.instagram && (
                   <TouchableOpacity
                     style={styles.instagramLink}
                     onPress={() => Linking.openURL(`https://instagram.com/${profile.instagram}`)}
                   >
-                    <IconButton icon="instagram" size={16} iconColor="white" style={styles.instagramIcon} />
-                    <Text style={styles.detailText}>@{profile.instagram}</Text>
+                    <IconButton icon="instagram" size={16} iconColor={theme.colors.onSurface} style={styles.instagramIcon} />
+                    <Text style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>@{profile.instagram}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -166,35 +170,35 @@ export default function UserProfileScreen() {
           {/* clubs */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Clubs</Text>
-              {clubsReady && <Text style={styles.sectionCount}>{clubs.length} clubs</Text>}
+              <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Clubs</Text>
+              {clubsReady && <Text style={[styles.sectionCount, { color: theme.colors.onSurfaceVariant }]}>{clubs.length} clubs</Text>}
             </View>
             {!clubsReady ? (
               // ghost circles - same size as real ones so layout doesn't jump
               <View style={styles.clubCirclesContainer}>
                 {[0, 1, 2, 3].map((i) => (
                   <View key={i} style={styles.clubCircleItem}>
-                    <View style={styles.skeletonCircle} />
-                    <View style={styles.skeletonLabel} />
+                    <View style={[styles.skeletonCircle, { backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)' }]} />
+                    <View style={[styles.skeletonLabel, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]} />
                   </View>
                 ))}
               </View>
             ) : clubs.length === 0 ? (
               <View style={styles.emptySection}>
-                <Text style={styles.emptySectionText}>Not in any clubs yet</Text>
+                <Text style={[styles.emptySectionText, { color: theme.colors.onSurfaceDisabled }]}>Not in any clubs yet</Text>
               </View>
             ) : (
               <View style={styles.clubCirclesContainer}>
                 {clubs.map((club) => (
                   <TouchableOpacity key={club.id} style={styles.clubCircleItem} onPress={() => router.push(`/club/${club.id}`)}>
                     {club.logo ? (
-                      <Image source={{ uri: club.logo }} style={styles.clubCircleImage} />
+                      <Image source={{ uri: club.logo }} style={[styles.clubCircleImage, { borderColor: theme.colors.outline }]} />
                     ) : (
-                      <LinearGradient colors={['#60A5FA', '#3B82F6']} style={styles.clubCirclePlaceholder}>
+                      <LinearGradient colors={['#60A5FA', '#3B82F6']} style={[styles.clubCirclePlaceholder, { borderColor: theme.colors.outline }]}>
                         <Text style={styles.clubCircleInitial}>{club.name.charAt(0).toUpperCase()}</Text>
                       </LinearGradient>
                     )}
-                    <Text style={styles.clubCircleName} numberOfLines={1}>{club.name}</Text>
+                    <Text style={[styles.clubCircleName, { color: theme.colors.onSurface }]} numberOfLines={1}>{club.name}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -204,19 +208,19 @@ export default function UserProfileScreen() {
           {/* past events */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Past Events</Text>
-              {eventsReady && <Text style={styles.sectionCount}>{pastEvents.length} events</Text>}
+              <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Past Events</Text>
+              {eventsReady && <Text style={[styles.sectionCount, { color: theme.colors.onSurfaceVariant }]}>{pastEvents.length} events</Text>}
             </View>
             {!eventsReady ? (
               // ghost grid squares - same size as real ones so layout doesn't jump
               <View style={styles.eventsGrid}>
                 {[0, 1, 2, 3, 4, 5].map((i) => (
-                  <View key={i} style={[styles.eventGridItem, styles.skeletonGridItem]} />
+                  <View key={i} style={[styles.eventGridItem, { backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)' }]} />
                 ))}
               </View>
             ) : pastEvents.length === 0 ? (
               <View style={styles.emptySection}>
-                <Text style={styles.emptySectionText}>No past events yet</Text>
+                <Text style={[styles.emptySectionText, { color: theme.colors.onSurfaceDisabled }]}>No past events yet</Text>
               </View>
             ) : (
               <View style={styles.eventsGrid}>
@@ -225,8 +229,8 @@ export default function UserProfileScreen() {
                     {event.coverImage ? (
                       <Image source={{ uri: event.coverImage }} style={styles.eventGridImage} />
                     ) : (
-                      <LinearGradient colors={['#1e1e1e', '#2a2a2a']} style={styles.eventGridPlaceholder}>
-                        <IconButton icon="calendar" size={28} iconColor="rgba(255,255,255,0.4)" style={{ margin: 0 }} />
+                      <LinearGradient colors={isDark ? ['#1e1e1e', '#2a2a2a'] : ['#e0e0e0', '#d0d0d0']} style={styles.eventGridPlaceholder}>
+                        <IconButton icon="calendar" size={28} iconColor={theme.colors.onSurfaceDisabled} style={{ margin: 0 }} />
                       </LinearGradient>
                     )}
                     <View style={styles.eventGridOverlay}>
@@ -247,8 +251,8 @@ export default function UserProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  blackBackground: { flex: 1, backgroundColor: '#000' },
+  container: { flex: 1 },
+  blackBackground: { flex: 1 },
   backgroundImageContainer: {
     position: 'absolute', top: 0, left: 0, right: 0, height: '40%', overflow: 'hidden', zIndex: 0,
   },
@@ -267,45 +271,44 @@ const styles = StyleSheet.create({
   profileHeader: { alignItems: 'center', paddingTop: 20, paddingBottom: 32, paddingHorizontal: 20 },
   avatarContainer: { width: 120, height: 120, borderRadius: 60, overflow: 'hidden', marginBottom: 20 },
   avatarImage: { width: '100%', height: '100%' },
-  avatarPlaceholder: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)' },
-  avatarInitialsText: { fontSize: 48, fontWeight: '700', color: 'white' },
+  avatarPlaceholder: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },
+  avatarInitialsText: { fontSize: 48, fontWeight: '700' },
   emojiText: { fontSize: 56 },
   userInfo: { alignItems: 'center', marginBottom: 4 },
-  userName: { fontSize: 24, fontWeight: '700', color: 'white', marginBottom: 8, textAlign: 'center' },
-  userBio: { fontSize: 15, color: 'rgba(255,255,255,0.8)', textAlign: 'center', marginBottom: 12, lineHeight: 20, paddingHorizontal: 16 },
+  userName: { fontSize: 24, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
+  userBio: { fontSize: 15, textAlign: 'center', marginBottom: 12, lineHeight: 20, paddingHorizontal: 16 },
   detailsRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 12 },
-  detailText: { fontSize: 14, color: 'rgba(255,255,255,0.7)' },
+  detailText: { fontSize: 14 },
   instagramLink: { flexDirection: 'row', alignItems: 'center', marginLeft: -8 },
   instagramIcon: { margin: 0, padding: 0, marginRight: -4 },
   section: { paddingHorizontal: SECTION_PADDING, marginBottom: 24 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  sectionTitle: { fontSize: 22, fontWeight: '700', color: 'white' },
-  sectionCount: { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.6)' },
+  sectionTitle: { fontSize: 22, fontWeight: '700' },
+  sectionCount: { fontSize: 14, fontWeight: '600' },
   emptySection: { paddingVertical: 24, alignItems: 'center' },
-  emptySectionText: { fontSize: 15, color: 'rgba(255,255,255,0.5)' },
+  emptySectionText: { fontSize: 15 },
   // trying to match skeletons to match real item dimensions so nothing jumps
   skeletonCircle: {
     width: CLUB_ITEM_WIDTH - 10, height: CLUB_ITEM_WIDTH - 10,
-    borderRadius: (CLUB_ITEM_WIDTH - 10) / 2, backgroundColor: 'rgba(255,255,255,0.07)',
+    borderRadius: (CLUB_ITEM_WIDTH - 10) / 2,
   },
   skeletonLabel: {
     width: CLUB_ITEM_WIDTH - 20, height: 8, borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.05)', marginTop: 10,
+    marginTop: 10,
   },
-  skeletonGridItem: { backgroundColor: 'rgba(255,255,255,0.07)' },
   clubCirclesContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: CLUB_GAP },
   clubCircleItem: { alignItems: 'center', width: CLUB_ITEM_WIDTH },
   clubCircleImage: {
     width: CLUB_ITEM_WIDTH - 10, height: CLUB_ITEM_WIDTH - 10,
-    borderRadius: (CLUB_ITEM_WIDTH - 10) / 2, borderWidth: 2, borderColor: 'rgba(255,255,255,0.2)',
+    borderRadius: (CLUB_ITEM_WIDTH - 10) / 2, borderWidth: 2,
   },
   clubCirclePlaceholder: {
     width: CLUB_ITEM_WIDTH - 10, height: CLUB_ITEM_WIDTH - 10,
     borderRadius: (CLUB_ITEM_WIDTH - 10) / 2, justifyContent: 'center',
-    alignItems: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center', borderWidth: 2,
   },
   clubCircleInitial: { fontSize: 24, fontWeight: '700', color: 'white' },
-  clubCircleName: { fontSize: 11, fontWeight: '600', color: 'white', marginTop: 6, textAlign: 'center' },
+  clubCircleName: { fontSize: 11, fontWeight: '600', marginTop: 6, textAlign: 'center' },
   eventsGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -SECTION_PADDING, gap: EVENT_GAP },
   eventGridItem: { width: EVENT_ITEM_WIDTH, height: EVENT_ITEM_WIDTH, position: 'relative' },
   eventGridImage: { width: '100%', height: '100%' },

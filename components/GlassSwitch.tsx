@@ -1,7 +1,9 @@
 // components/GlassSwitch.tsx
 import React from 'react';
 import { View, Switch, StyleSheet, Text, SwitchProps } from 'react-native';
+import { useTheme } from 'react-native-paper';
 import { BlurView } from 'expo-blur';
+import { useThemeToggle } from '../app/_layout';
 
 interface GlassSwitchProps extends SwitchProps {
   label: string;
@@ -9,24 +11,46 @@ interface GlassSwitchProps extends SwitchProps {
 }
 
 export default function GlassSwitch({ label, description, value, onValueChange, ...props }: GlassSwitchProps) {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
+
   return (
     <View style={styles.container}>
-      <BlurView intensity={40} tint="light" style={styles.blur}>
-        <View style={styles.content}>
-          <View style={styles.textContainer}>
-            <Text style={styles.label}>{label}</Text>
-            {description && <Text style={styles.description}>{description}</Text>}
+      {isDark ? (
+        <BlurView intensity={40} tint="light" style={[styles.blur, { borderColor: theme.colors.outline }]}>
+          <View style={styles.content}>
+            <View style={styles.textContainer}>
+              <Text style={[styles.label, { color: theme.colors.onSurface }]}>{label}</Text>
+              {description && <Text style={[styles.description, { color: theme.colors.onSurfaceVariant }]}>{description}</Text>}
+            </View>
+            <Switch
+              value={value}
+              onValueChange={onValueChange}
+              trackColor={{ false: 'rgba(255, 255, 255, 0.2)', true: 'rgba(255, 255, 255, 0.4)' }}
+              thumbColor={value ? 'white' : 'rgba(255, 255, 255, 0.8)'}
+              ios_backgroundColor="rgba(255, 255, 255, 0.2)"
+              {...props}
+            />
           </View>
-          <Switch
-            value={value}
-            onValueChange={onValueChange}
-            trackColor={{ false: 'rgba(255, 255, 255, 0.2)', true: 'rgba(255, 255, 255, 0.4)' }}
-            thumbColor={value ? 'white' : 'rgba(255, 255, 255, 0.8)'}
-            ios_backgroundColor="rgba(255, 255, 255, 0.2)"
-            {...props}
-          />
+        </BlurView>
+      ) : (
+        <View style={[styles.blur, { borderColor: theme.colors.outline, backgroundColor: theme.colors.surfaceVariant }]}>
+          <View style={styles.content}>
+            <View style={styles.textContainer}>
+              <Text style={[styles.label, { color: theme.colors.onSurface }]}>{label}</Text>
+              {description && <Text style={[styles.description, { color: theme.colors.onSurfaceVariant }]}>{description}</Text>}
+            </View>
+            <Switch
+              value={value}
+              onValueChange={onValueChange}
+              trackColor={{ false: 'rgba(0, 0, 0, 0.1)', true: theme.colors.primary }}
+              thumbColor={value ? '#fff' : '#f4f4f5'}
+              ios_backgroundColor="rgba(0, 0, 0, 0.1)"
+              {...props}
+            />
+          </View>
         </View>
-      </BlurView>
+      )}
     </View>
   );
 }
@@ -40,7 +64,6 @@ const styles = StyleSheet.create({
   blur: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   content: {
     flexDirection: 'row',
@@ -56,11 +79,9 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'white',
   },
   description: {
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 4,
   },
 });

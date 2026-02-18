@@ -1,6 +1,8 @@
 import React from 'react';
 import { TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTheme } from 'react-native-paper';
+import { useThemeToggle } from '../app/_layout';
 import { router } from 'expo-router';
 
 interface BackButtonProps {
@@ -11,9 +13,15 @@ interface BackButtonProps {
 
 export default function BackButton({
   onPress,
-  color = 'white',
-  backgroundColor = 'rgba(255,255,255,0.2)'
+  color,
+  backgroundColor
 }: BackButtonProps) {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
+
+  const resolvedColor = color ?? theme.colors.onSurface;
+  const resolvedBackgroundColor = backgroundColor ?? (isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)');
+
   const handlePress = () => {
     if (onPress) {
       onPress();
@@ -24,11 +32,11 @@ export default function BackButton({
 
   return (
     <TouchableOpacity
-      style={[styles.backButton, { backgroundColor }]}
+      style={[styles.backButton, { backgroundColor: resolvedBackgroundColor }]}
       onPress={handlePress}
       activeOpacity={0.7}
     >
-      <MaterialCommunityIcons name="arrow-left" size={24} color={color} />
+      <MaterialCommunityIcons name="arrow-left" size={24} color={resolvedColor} />
     </TouchableOpacity>
   );
 }

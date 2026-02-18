@@ -14,6 +14,7 @@ import {
   Text,
   ActivityIndicator,
   IconButton,
+  useTheme,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -25,6 +26,7 @@ import { useCart } from '../../../lib/cartContext';
 import { useFavorites } from '../../../lib/favoritesContext';
 import FilterPanel from '../../../components/FilterPanel';
 import { BlurView } from 'expo-blur';
+import { useThemeToggle } from '../../_layout';
 
 const { width } = Dimensions.get('window');
 const FEATURED_CARD_WIDTH = width * 0.75;
@@ -183,6 +185,8 @@ const MOCK_ITEMS: StoreItem[] = [
 ];
 
 export default function StoreScreen() {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const { getCartCount } = useCart();
   const { getFavoritesCount } = useFavorites();
 
@@ -324,7 +328,7 @@ export default function StoreScreen() {
         onPress={() => router.push(`/(tabs)/store/${item.id}`)}
         activeOpacity={0.9}
       >
-        <BlurView intensity={20} tint="dark" style={styles.featuredCardBlur}>
+        <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.featuredCardBlur, { borderColor: theme.colors.outline }]}>
           {/* Product Image */}
           {item.images && item.images.length > 0 ? (
             <Image
@@ -333,8 +337,8 @@ export default function StoreScreen() {
               resizeMode="cover"
             />
           ) : (
-            <View style={styles.featuredImagePlaceholder}>
-              <Ionicons name="image-outline" size={64} color="rgba(255,255,255,0.3)" />
+            <View style={[styles.featuredImagePlaceholder, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+              <Ionicons name="image-outline" size={64} color={theme.colors.onSurfaceDisabled} />
             </View>
           )}
 
@@ -400,7 +404,7 @@ export default function StoreScreen() {
         onPress={() => router.push(`/(tabs)/store/${item.id}`)}
         activeOpacity={0.9}
       >
-        <BlurView intensity={20} tint="dark" style={styles.productCardBlur}>
+        <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.productCardBlur, { borderColor: theme.colors.outline }]}>
           <View style={styles.productCardContent}>
             {/* Left: Product Image */}
             {item.images && item.images.length > 0 ? (
@@ -410,8 +414,8 @@ export default function StoreScreen() {
                 resizeMode="cover"
               />
             ) : (
-              <View style={styles.productImagePlaceholder}>
-                <Ionicons name="image-outline" size={32} color="rgba(255,255,255,0.3)" />
+              <View style={[styles.productImagePlaceholder, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+                <Ionicons name="image-outline" size={32} color={theme.colors.onSurfaceDisabled} />
               </View>
             )}
 
@@ -425,11 +429,11 @@ export default function StoreScreen() {
                       {item.clubName}
                     </Text>
                   </View>
-                  <Text style={styles.productTitle} numberOfLines={2}>
+                  <Text style={[styles.productTitle, { color: theme.colors.onSurface }]} numberOfLines={2}>
                     {item.name}
                   </Text>
                   {item.category && (
-                    <Text style={styles.productCategory}>{item.category}</Text>
+                    <Text style={[styles.productCategory, { color: theme.colors.onSurfaceVariant }]}>{item.category}</Text>
                   )}
                 </View>
               </View>
@@ -439,8 +443,8 @@ export default function StoreScreen() {
 
                 <View style={styles.productBadges}>
                   {!inStock ? (
-                    <View style={styles.outOfStockBadge}>
-                      <Text style={styles.outOfStockText}>Out of Stock</Text>
+                    <View style={[styles.outOfStockBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }]}>
+                      <Text style={[styles.outOfStockText, { color: theme.colors.onSurfaceVariant }]}>Out of Stock</Text>
                     </View>
                   ) : lowStock ? (
                     <View style={styles.productLowStockBadge}>
@@ -460,13 +464,13 @@ export default function StoreScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <View style={StyleSheet.absoluteFill}>
-          <View style={styles.blackBackground} />
+          <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
         </View>
 
         <LinearGradient
-          colors={['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', 'rgba(0, 0, 0, 0)']}
+          colors={['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(248, 250, 252, 0)']}
           locations={[0, 0.3, 1]}
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
@@ -482,15 +486,15 @@ export default function StoreScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      {/* Black Background */}
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* Background */}
       <View style={StyleSheet.absoluteFill}>
-        <View style={styles.blackBackground} />
+        <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
       </View>
 
       {/* Subtle Gradient Overlay */}
       <LinearGradient
-        colors={['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', 'rgba(0, 0, 0, 0)']}
+        colors={['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(248, 250, 252, 0)']}
         locations={[0, 0.3, 1]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
@@ -499,25 +503,25 @@ export default function StoreScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Store</Text>
+          <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Store</Text>
 
           {/* Search and Action Buttons */}
           <View style={styles.filtersContainer}>
             {/* Search Bar */}
-            <BlurView intensity={20} tint="dark" style={styles.searchBarContainer}>
+            <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.searchBarContainer, { borderColor: theme.colors.outline }]}>
               <View style={styles.searchInputWrapper}>
                 <Ionicons
                   name="search-outline"
                   size={20}
-                  color="rgba(255,255,255,0.7)"
+                  color={theme.colors.onSurfaceVariant}
                   style={styles.searchIcon}
                 />
                 <TextInput
                   placeholder="Search products..."
                   value={searchQuery}
                   onChangeText={setSearchQuery}
-                  style={styles.searchInput}
-                  placeholderTextColor="rgba(255,255,255,0.5)"
+                  style={[styles.searchInput, { color: theme.colors.onSurface }]}
+                  placeholderTextColor={theme.colors.onSurfaceDisabled}
                 />
               </View>
             </BlurView>
@@ -529,10 +533,10 @@ export default function StoreScreen() {
                 onPress={() => setFilterPanelVisible(true)}
                 activeOpacity={0.7}
               >
-                <BlurView intensity={20} tint="dark" style={styles.actionButton}>
+                <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.actionButton, { borderColor: theme.colors.outline }]}>
                   <IconButton
                     icon="tune"
-                    iconColor="rgba(255,255,255,0.9)"
+                    iconColor={theme.colors.onSurface}
                     size={20}
                     style={{ margin: 0 }}
                   />
@@ -544,10 +548,10 @@ export default function StoreScreen() {
                 onPress={() => router.push('/profile/orders')}
                 activeOpacity={0.7}
               >
-                <BlurView intensity={20} tint="dark" style={styles.actionButton}>
+                <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.actionButton, { borderColor: theme.colors.outline }]}>
                   <IconButton
                     icon="receipt"
-                    iconColor="rgba(255,255,255,0.9)"
+                    iconColor={theme.colors.onSurface}
                     size={20}
                     style={{ margin: 0 }}
                   />
@@ -559,10 +563,10 @@ export default function StoreScreen() {
                 onPress={() => router.push('/(tabs)/store/favorites')}
                 activeOpacity={0.7}
               >
-                <BlurView intensity={20} tint="dark" style={styles.actionButton}>
+                <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.actionButton, { borderColor: theme.colors.outline }]}>
                   <IconButton
                     icon="heart"
-                    iconColor="rgba(255,255,255,0.9)"
+                    iconColor={theme.colors.onSurface}
                     size={20}
                     style={{ margin: 0 }}
                   />
@@ -584,7 +588,7 @@ export default function StoreScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#fff"
+              tintColor={theme.colors.onSurface}
             />
           }
           showsVerticalScrollIndicator={false}
@@ -592,7 +596,7 @@ export default function StoreScreen() {
           {/* Featured Carousel */}
           {featuredItems.length > 0 && !searchQuery && (
             <View style={styles.featuredSection}>
-              <Text style={styles.sectionTitle}>Featured Products</Text>
+              <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Featured Products</Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -608,20 +612,20 @@ export default function StoreScreen() {
 
           {/* All Products List */}
           <View style={styles.productsSection}>
-            <Text style={styles.sectionTitle}>All Products</Text>
+            <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>All Products</Text>
 
             {filteredItems.length > 0 ? (
               filteredItems.map((item) => renderProductCard(item))
             ) : (
-              <BlurView intensity={20} tint="dark" style={styles.emptyCard}>
+              <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.emptyCard, { borderColor: theme.colors.outline }]}>
                 <View style={styles.emptyContent}>
                   <IconButton
                     icon="shopping-outline"
                     size={64}
-                    iconColor="rgba(255,255,255,0.5)"
+                    iconColor={theme.colors.onSurfaceDisabled}
                   />
-                  <Text style={styles.emptyTitle}>No products found</Text>
-                  <Text style={styles.emptyText}>
+                  <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>No products found</Text>
+                  <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
                     {searchQuery ? 'Try a different search' : 'Check back soon'}
                   </Text>
                 </View>
@@ -655,7 +659,6 @@ const styles = StyleSheet.create({
   },
   blackBackground: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   safeArea: {
     flex: 1,
@@ -673,7 +676,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#ffffff',
     marginBottom: 4,
   },
   filtersContainer: {
@@ -683,7 +685,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   searchInputWrapper: {
     flexDirection: 'row',
@@ -699,7 +700,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     padding: 0,
     margin: 0,
-    color: '#fff',
   },
   actionButtonsRow: {
     flexDirection: 'row',
@@ -714,7 +714,6 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
@@ -749,7 +748,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#ffffff',
     marginBottom: 16,
     marginLeft: 16,
   },
@@ -769,7 +767,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     position: 'relative',
   },
   featuredImage: {
@@ -783,7 +780,6 @@ const styles = StyleSheet.create({
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
   },
   featuredGradient: {
     position: 'absolute',
@@ -842,7 +838,7 @@ const styles = StyleSheet.create({
   featuredTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#ffffff',
+    color: '#ffffff',  // Always white on image overlay
     lineHeight: 28,
   },
   featuredPrice: {
@@ -888,7 +884,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   productCardContent: {
     flexDirection: 'row',
@@ -904,7 +899,6 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.05)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -936,13 +930,11 @@ const styles = StyleSheet.create({
   productTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#ffffff',
     lineHeight: 20,
   },
   productCategory: {
     fontSize: 12,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.6)',
     marginTop: 2,
   },
   productFooter: {
@@ -974,16 +966,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   outOfStockBadge: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
   },
   outOfStockText: {
     fontSize: 10,
-    color: 'rgba(255,255,255,0.6)',
     fontWeight: '700',
   },
   emptyCard: {
@@ -991,7 +980,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   emptyContent: {
     alignItems: 'center',
@@ -1000,13 +988,11 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#ffffff',
     marginTop: 16,
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 14,
     textAlign: 'center',
-    color: 'rgba(255,255,255,0.6)',
   },
 });

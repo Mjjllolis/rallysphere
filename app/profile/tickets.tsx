@@ -13,10 +13,11 @@ import {
   Text,
   ActivityIndicator,
   IconButton,
+  useTheme,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { useAuth } from '../_layout';
+import { useAuth, useThemeToggle } from '../_layout';
 import { getUserTicketOrders } from '../../lib/firebase';
 import type { TicketOrder } from '../../lib/firebase';
 import { Ionicons } from '@expo/vector-icons';
@@ -57,6 +58,8 @@ const STATUS_FILTERS = ['All', 'Upcoming', 'Attended', 'Cancelled'];
 
 export default function TicketsScreen() {
   const { user } = useAuth();
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
 
   const [tickets, setTickets] = useState<TicketOrder[]>([]);
   const [filteredTickets, setFilteredTickets] = useState<TicketOrder[]>([]);
@@ -170,7 +173,7 @@ export default function TicketsScreen() {
         onPress={() => router.push(`/event/${ticket.eventId}`)}
         activeOpacity={0.9}
       >
-        <BlurView intensity={20} tint="dark" style={styles.ticketCardBlur}>
+        <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.ticketCardBlur, { borderColor: theme.colors.outline }]}>
           <View style={styles.ticketCardContent}>
             {/* Left: Event Image */}
             {ticket.eventImage ? (
@@ -180,8 +183,8 @@ export default function TicketsScreen() {
                 resizeMode="cover"
               />
             ) : (
-              <View style={styles.ticketImagePlaceholder}>
-                <Ionicons name="ticket-outline" size={32} color="rgba(255,255,255,0.3)" />
+              <View style={[styles.ticketImagePlaceholder, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+                <Ionicons name="ticket-outline" size={32} color={theme.colors.onSurfaceDisabled} />
               </View>
             )}
 
@@ -189,7 +192,7 @@ export default function TicketsScreen() {
             <View style={styles.ticketDetails}>
               <View style={styles.ticketHeader}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.ticketTitle} numberOfLines={2}>
+                  <Text style={[styles.ticketTitle, { color: theme.colors.onSurface }]} numberOfLines={2}>
                     {ticket.eventName}
                   </Text>
                   <Text style={styles.ticketClub} numberOfLines={1}>
@@ -212,14 +215,14 @@ export default function TicketsScreen() {
               <View style={styles.ticketMeta}>
                 {ticket.eventDate && (
                   <View style={styles.ticketMetaRow}>
-                    <Ionicons name="calendar-outline" size={12} color="rgba(255,255,255,0.6)" />
-                    <Text style={styles.ticketMetaText}>{formatDate(ticket.eventDate)}</Text>
+                    <Ionicons name="calendar-outline" size={12} color={theme.colors.onSurfaceVariant} />
+                    <Text style={[styles.ticketMetaText, { color: theme.colors.onSurfaceVariant }]}>{formatDate(ticket.eventDate)}</Text>
                   </View>
                 )}
                 {ticket.eventDate && (
                   <View style={styles.ticketMetaRow}>
-                    <Ionicons name="time-outline" size={12} color="rgba(255,255,255,0.6)" />
-                    <Text style={styles.ticketMetaText}>{formatTime(ticket.eventDate)}</Text>
+                    <Ionicons name="time-outline" size={12} color={theme.colors.onSurfaceVariant} />
+                    <Text style={[styles.ticketMetaText, { color: theme.colors.onSurfaceVariant }]}>{formatTime(ticket.eventDate)}</Text>
                   </View>
                 )}
               </View>
@@ -243,11 +246,11 @@ export default function TicketsScreen() {
     return (
       <View style={styles.container}>
         <View style={StyleSheet.absoluteFill}>
-          <View style={styles.blackBackground} />
+          <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
         </View>
 
         <LinearGradient
-          colors={['rgba(139, 92, 246, 0.3)', 'rgba(96, 165, 250, 0.1)', 'rgba(0, 0, 0, 0)']}
+          colors={isDark ? ['rgba(139, 92, 246, 0.3)', 'rgba(96, 165, 250, 0.1)', 'rgba(0, 0, 0, 0)'] : ['rgba(139, 92, 246, 0.15)', 'rgba(96, 165, 250, 0.05)', 'rgba(255, 255, 255, 0)']}
           locations={[0, 0.3, 1]}
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
@@ -266,12 +269,12 @@ export default function TicketsScreen() {
     <View style={styles.container}>
       {/* Black Background */}
       <View style={StyleSheet.absoluteFill}>
-        <View style={styles.blackBackground} />
+        <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
       </View>
 
       {/* Subtle Gradient Overlay */}
       <LinearGradient
-        colors={['rgba(139, 92, 246, 0.3)', 'rgba(96, 165, 250, 0.1)', 'rgba(0, 0, 0, 0)']}
+        colors={isDark ? ['rgba(139, 92, 246, 0.3)', 'rgba(96, 165, 250, 0.1)', 'rgba(0, 0, 0, 0)'] : ['rgba(139, 92, 246, 0.15)', 'rgba(96, 165, 250, 0.05)', 'rgba(255, 255, 255, 0)']}
         locations={[0, 0.3, 1]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
@@ -282,28 +285,28 @@ export default function TicketsScreen() {
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-              <BlurView intensity={20} tint="dark" style={styles.backButton}>
-                <Ionicons name="arrow-back" size={24} color="#fff" />
+              <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.backButton, { borderColor: theme.colors.outline }]}>
+                <Ionicons name="arrow-back" size={24} color={theme.colors.onSurface} />
               </BlurView>
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Your Tickets</Text>
+            <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Your Tickets</Text>
           </View>
 
           {/* Search Bar */}
-          <BlurView intensity={20} tint="dark" style={styles.searchBarContainer}>
+          <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.searchBarContainer, { borderColor: theme.colors.outline }]}>
             <View style={styles.searchInputWrapper}>
               <Ionicons
                 name="search-outline"
                 size={20}
-                color="rgba(255,255,255,0.7)"
+                color={theme.colors.onSurfaceVariant}
                 style={styles.searchIcon}
               />
               <TextInput
                 placeholder="Search tickets..."
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                style={styles.searchInput}
-                placeholderTextColor="rgba(255,255,255,0.5)"
+                style={[styles.searchInput, { color: theme.colors.onSurface }]}
+                placeholderTextColor={theme.colors.onSurfaceDisabled}
               />
             </View>
           </BlurView>
@@ -323,16 +326,18 @@ export default function TicketsScreen() {
                 >
                   <BlurView
                     intensity={selectedStatus === status ? 30 : 15}
-                    tint="dark"
+                    tint={isDark ? "dark" : "light"}
                     style={[
                       styles.filterChip,
+                      { borderColor: theme.colors.outline },
                       selectedStatus === status && styles.filterChipSelected,
                     ]}
                   >
                     <Text
                       style={[
                         styles.filterText,
-                        selectedStatus === status && styles.filterTextSelected,
+                        { color: theme.colors.onSurfaceVariant },
+                        selectedStatus === status && { color: theme.colors.onSurface },
                       ]}
                     >
                       {status}
@@ -346,18 +351,18 @@ export default function TicketsScreen() {
 
         {tickets.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <BlurView intensity={20} tint="dark" style={styles.emptyCard}>
+            <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.emptyCard, { borderColor: theme.colors.outline }]}>
               <View style={styles.emptyContent}>
-                <IconButton icon="ticket-outline" size={64} iconColor="rgba(255,255,255,0.5)" />
-                <Text style={styles.emptyTitle}>No tickets yet</Text>
-                <Text style={styles.emptyText}>
+                <IconButton icon="ticket-outline" size={64} iconColor={theme.colors.onSurfaceDisabled} />
+                <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>No tickets yet</Text>
+                <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
                   Your purchased tickets will appear here
                 </Text>
                 <TouchableOpacity
                   onPress={() => router.push('/(tabs)/events')}
                   activeOpacity={0.7}
                 >
-                  <BlurView intensity={30} tint="dark" style={styles.browseButton}>
+                  <BlurView intensity={30} tint={isDark ? "dark" : "light"} style={[styles.browseButton, { borderColor: theme.colors.outline }]}>
                     <View style={styles.browseButtonInner}>
                       <IconButton icon="calendar-search" iconColor="#8B5CF6" size={20} style={{ margin: 0 }} />
                       <Text style={styles.browseButtonText}>Browse Events</Text>
@@ -369,11 +374,11 @@ export default function TicketsScreen() {
           </View>
         ) : filteredTickets.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <BlurView intensity={20} tint="dark" style={styles.emptyCard}>
+            <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.emptyCard, { borderColor: theme.colors.outline }]}>
               <View style={styles.emptyContent}>
-                <IconButton icon="search-outline" size={64} iconColor="rgba(255,255,255,0.5)" />
-                <Text style={styles.emptyTitle}>No tickets found</Text>
-                <Text style={styles.emptyText}>
+                <IconButton icon="search-outline" size={64} iconColor={theme.colors.onSurfaceDisabled} />
+                <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>No tickets found</Text>
+                <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
                   Try adjusting your search or filters
                 </Text>
               </View>
@@ -384,12 +389,12 @@ export default function TicketsScreen() {
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
             refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.onSurface} />
             }
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.ticketsSection}>
-              <Text style={styles.sectionTitle}>
+              <Text style={[styles.sectionTitle, { color: theme.colors.onSurfaceVariant }]}>
                 {filteredTickets.length} {filteredTickets.length === 1 ? 'Ticket' : 'Tickets'}
               </Text>
               {filteredTickets.map((ticket) => renderTicket(ticket))}
@@ -407,7 +412,6 @@ const styles = StyleSheet.create({
   },
   blackBackground: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   safeArea: {
     flex: 1,
@@ -433,20 +437,17 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#ffffff',
   },
   searchBarContainer: {
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   searchInputWrapper: {
     flexDirection: 'row',
@@ -462,7 +463,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     padding: 0,
     margin: 0,
-    color: '#fff',
   },
   filterContainer: {
     marginTop: 4,
@@ -476,7 +476,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     overflow: 'hidden',
   },
   filterChipSelected: {
@@ -485,10 +484,6 @@ const styles = StyleSheet.create({
   filterText: {
     fontSize: 13,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.7)',
-  },
-  filterTextSelected: {
-    color: '#ffffff',
   },
   scrollView: {
     flex: 1,
@@ -502,7 +497,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: 'rgba(255,255,255,0.6)',
     marginBottom: 16,
     marginTop: 8,
   },
@@ -515,7 +509,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   ticketCardContent: {
     flexDirection: 'row',
@@ -531,7 +524,6 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.05)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -547,7 +539,6 @@ const styles = StyleSheet.create({
   ticketTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#ffffff',
     lineHeight: 20,
   },
   ticketClub: {
@@ -577,7 +568,6 @@ const styles = StyleSheet.create({
   },
   ticketMetaText: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.6)',
   },
   ticketFooter: {
     flexDirection: 'row',
@@ -611,7 +601,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   emptyContent: {
     alignItems: 'center',
@@ -620,21 +609,18 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#ffffff',
     marginTop: 16,
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 14,
     textAlign: 'center',
-    color: 'rgba(255,255,255,0.6)',
     marginBottom: 24,
   },
   browseButton: {
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   browseButtonInner: {
     flexDirection: 'row',

@@ -9,10 +9,11 @@ import {
   Animated,
   Image,
 } from 'react-native';
-import { Text, IconButton } from 'react-native-paper';
+import { Text, IconButton, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useThemeToggle } from '../app/_layout';
 import EventForm from './forms/EventForm';
 import PostForm from './forms/PostForm';
 import ClubForm from './forms/ClubForm';
@@ -26,6 +27,8 @@ interface CreateScreenProps {
 }
 
 export default function CreateScreen({ visible, onClose, initialType = 'Event' }: CreateScreenProps) {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const [selectedType, setSelectedType] = useState<CreateType>(initialType);
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const [backgroundColors, setBackgroundColors] = useState<string[]>(['#6366f1', '#8b5cf6', '#d946ef']);
@@ -65,21 +68,21 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
-          {/* Background Image or Black Background */}
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+          {/* Background Image or Themed Background */}
           {backgroundImage ? (
             <>
               <View style={StyleSheet.absoluteFill}>
                 <Image source={{ uri: backgroundImage }} style={styles.backgroundImage} blurRadius={0} />
               </View>
               {/* Frosted Glass Overlay */}
-              <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+              <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
             </>
           ) : (
             <>
-              {/* Black Background */}
+              {/* Themed Background */}
               <View style={StyleSheet.absoluteFill}>
-                <View style={styles.blackBackground} />
+                <View style={[styles.themedBackground, { backgroundColor: theme.colors.background }]} />
               </View>
 
               {/* Subtle Gradient Overlay */}
@@ -100,27 +103,27 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
           <SafeAreaView style={styles.safeArea} edges={['top']}>
 
           {/* Header */}
-          <View style={styles.headerContainer}>
+          <View style={[styles.headerContainer, { borderBottomColor: theme.colors.outline }]}>
             <View style={styles.headerContent}>
               {/* Close Button */}
               <TouchableOpacity
                 style={styles.closeButton}
                 onPress={onClose}
               >
-                <IconButton icon="close" size={24} iconColor="rgba(255, 255, 255, 0.8)" style={{ margin: 0 }} />
+                <IconButton icon="close" size={24} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0 }} />
               </TouchableOpacity>
 
               {/* Type Selector Dropdown */}
               <View style={styles.typeSelectorWrapper}>
                 <TouchableOpacity
-                  style={styles.typeSelector}
+                  style={[styles.typeSelector, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
                   onPress={() => setDropdownVisible(!dropdownVisible)}
                 >
-                  <Text style={styles.typeSelectorText}>{selectedType}</Text>
+                  <Text style={[styles.typeSelectorText, { color: theme.colors.onSurface }]}>{selectedType}</Text>
                   <IconButton
                     icon={dropdownVisible ? 'chevron-up' : 'chevron-down'}
                     size={20}
-                    iconColor="white"
+                    iconColor={theme.colors.onSurface}
                     style={{ margin: 0 }}
                   />
                 </TouchableOpacity>
@@ -133,6 +136,8 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
                       {
                         transform: [{ scale: scaleAnim }],
                         opacity: scaleAnim,
+                        backgroundColor: isDark ? 'rgba(20, 20, 20, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                        borderColor: theme.colors.outline,
                       },
                     ]}
                   >
@@ -142,7 +147,8 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
                           key={type}
                           style={[
                             styles.dropdownAbsoluteItem,
-                            selectedType === type && styles.dropdownAbsoluteItemSelected,
+                            { borderBottomColor: theme.colors.outline },
+                            selectedType === type && { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' },
                             index === 2 && styles.dropdownAbsoluteItemLast,
                           ]}
                           onPress={() => handleTypeSelect(type)}
@@ -151,14 +157,15 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
                           <Text
                             style={[
                               styles.dropdownAbsoluteItemText,
-                              selectedType === type && styles.dropdownAbsoluteItemTextSelected,
+                              { color: theme.colors.onSurfaceVariant },
+                              selectedType === type && { color: theme.colors.onSurface, fontWeight: '600' },
                             ]}
                           >
                             {type}
                           </Text>
                           {selectedType === type && (
                             <View style={styles.checkmarkContainer}>
-                              <IconButton icon="check" size={18} iconColor="white" style={styles.checkIcon} />
+                              <IconButton icon="check" size={18} iconColor={theme.colors.onSurface} style={styles.checkIcon} />
                             </View>
                           )}
                         </TouchableOpacity>
@@ -184,7 +191,7 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
             style={styles.content}
             contentContainerStyle={styles.contentContainer}
             showsVerticalScrollIndicator={true}
-            indicatorStyle="white"
+            indicatorStyle={isDark ? "white" : "black"}
             bounces={true}
           >
             {selectedType === 'Event' && (
@@ -206,16 +213,14 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   backgroundImage: {
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
   },
-  blackBackground: {
+  themedBackground: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   safeArea: {
     flex: 1,
@@ -225,7 +230,6 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
   },
   headerContent: {
     flexDirection: 'row',
@@ -251,12 +255,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   typeSelectorText: {
     fontSize: 17,
     fontWeight: '600',
-    color: 'white',
     marginRight: 4,
   },
   content: {
@@ -275,9 +277,7 @@ const styles = StyleSheet.create({
     width: 140,
     borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: 'rgba(20, 20, 20, 0.95)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
@@ -295,22 +295,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
   },
   dropdownAbsoluteItemLast: {
     borderBottomWidth: 0,
   },
-  dropdownAbsoluteItemSelected: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
   dropdownAbsoluteItemText: {
     fontSize: 16,
     fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  dropdownAbsoluteItemTextSelected: {
-    color: 'white',
-    fontWeight: '600',
   },
   checkmarkContainer: {
     width: 20,

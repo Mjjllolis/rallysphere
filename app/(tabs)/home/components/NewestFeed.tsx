@@ -8,7 +8,8 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { Stack } from 'expo-router';
-import { Text } from 'react-native-paper';
+import { Text, useTheme } from 'react-native-paper';
+import { useThemeToggle } from '../../../_layout';
 import EventSwipeCard from './EventSwipeCard';
 import { getAllEvents } from '../../../../lib/firebase';
 import type { Event } from '../../../../lib/firebase';
@@ -25,6 +26,8 @@ const INITIAL_LOAD = 5;
 const PAGINATION_SIZE = 3;
 
 const NewestFeed = ({ isActive }: NewestFeedProps) => {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const [allEvents, setAllEvents] = useState<Event[]>([]);
   const [displayedEvents, setDisplayedEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,10 +118,10 @@ const NewestFeed = ({ isActive }: NewestFeedProps) => {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ActivityIndicator size="large" />
-        <Text variant="bodyLarge" style={{ marginTop: 16 }}>
+        <ActivityIndicator size="large" color={theme.colors.onSurface} />
+        <Text variant="bodyLarge" style={{ marginTop: 16, color: theme.colors.onSurface }}>
           Loading events...
         </Text>
       </View>
@@ -127,12 +130,12 @@ const NewestFeed = ({ isActive }: NewestFeedProps) => {
 
   if (displayedEvents.length === 0 && !loading) {
     return (
-      <View style={styles.emptyContainer}>
+      <View style={[styles.emptyContainer, { backgroundColor: theme.colors.background }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Text variant="headlineSmall" style={{ marginBottom: 8 }}>
+        <Text variant="headlineSmall" style={{ marginBottom: 8, color: theme.colors.onSurface }}>
           No Events Yet
         </Text>
-        <Text variant="bodyMedium" style={{ opacity: 0.7, textAlign: 'center' }}>
+        <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center' }}>
           Check back later for upcoming events
         </Text>
       </View>
@@ -140,7 +143,7 @@ const NewestFeed = ({ isActive }: NewestFeedProps) => {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <FlatList
         data={displayedEvents}
@@ -159,8 +162,8 @@ const NewestFeed = ({ isActive }: NewestFeedProps) => {
         initialNumToRender={1}
         ListFooterComponent={
           loadingMore ? (
-            <View style={styles.loadingMoreContainer}>
-              <ActivityIndicator size="small" color="#fff" />
+            <View style={[styles.loadingMoreContainer, { backgroundColor: theme.colors.background }]}>
+              <ActivityIndicator size="small" color={theme.colors.onSurface} />
             </View>
           ) : null
         }
@@ -174,25 +177,21 @@ export default NewestFeed;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
   },
   loadingMoreContainer: {
     height: 100,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000',
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000',
     padding: 20,
   },
 });

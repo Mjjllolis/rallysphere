@@ -16,32 +16,31 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import Svg, { Defs, Pattern as SvgPattern, Rect as SvgRect } from 'react-native-svg';
 import type { Event } from '../../../../lib/firebase';
-import { useAuth } from '../../../_layout';
+import { useAuth, useThemeToggle } from '../../../_layout';
 import { joinEvent, getEventById, bookmarkEvent, unbookmarkEvent, getUserBookmarks, likeEvent, unlikeEvent, getUserLikes } from '../../../../lib/firebase';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const ALBUM_WIDTH = SCREEN_WIDTH * 0.85;
 
-// Pre-compute TV static noise tile
-const STATIC_TILE = 40;
-const STATIC_DOTS = (() => {
-  const dots: Array<{ x: number; y: number; opacity: number; color: string }> = [];
+// Pre-compute subtle dust specks tile
+const DUST_TILE = 80;
+const DUST_SPECKS = (() => {
+  const specks: Array<{ x: number; y: number; size: number; opacity: number; color: string }> = [];
   const hash = (n: number) => ((Math.sin(n) * 43758.5453) % 1 + 1) % 1;
 
-  for (let y = 0; y < STATIC_TILE; y++) {
-    for (let x = 0; x < STATIC_TILE; x++) {
-      const i = y * STATIC_TILE + x;
-      if (hash(i * 17.31 + 5.7) > 0.45) {
-        dots.push({
-          x,
-          y,
-          opacity: 0.02 + hash(i * 3.91 + 11.3) * 0.04,
-          color: hash(i * 7.13) > 0.45 ? '#fff' : '#000',
-        });
-      }
-    }
+  for (let i = 0; i < 120; i++) {
+    const x = Math.floor(hash(i * 13.37 + 7.1) * DUST_TILE);
+    const y = Math.floor(hash(i * 7.91 + 3.3) * DUST_TILE);
+    const size = 0.5 + hash(i * 5.17 + 11.9) * 1;
+    specks.push({
+      x,
+      y,
+      size,
+      opacity: 0.015 + hash(i * 3.71 + 9.2) * 0.025,
+      color: hash(i * 11.3) > 0.5 ? '#fff' : '#000',
+    });
   }
-  return dots;
+  return specks;
 })();
 
 interface EventSwipeCardProps {
@@ -58,6 +57,7 @@ export default function EventSwipeCard({
   onFeaturedClick
 }: EventSwipeCardProps) {
   const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const { user } = useAuth();
   const [event, setEvent] = useState(initialEvent);
   const [isJoining, setIsJoining] = useState(false);
@@ -281,38 +281,51 @@ export default function EventSwipeCard({
 
   return (
     <Pressable
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
       onPress={handleCardPress}
     >
-      {/* Blurred Background Image */}
-      {event.coverImage ? (
+      {/* Blurred Background Image - only in dark mode */}
+      {isDark && event.coverImage ? (
         <Image
           source={{ uri: event.coverImage }}
           style={styles.blurredBackground}
           resizeMode="cover"
           blurRadius={25}
         />
-      ) : (
+      ) : isDark ? (
         <View style={[styles.blurredBackground, { backgroundColor: theme.colors.surfaceVariant }]} />
+      ) : null}
+
+      {/* Gradient Overlay */}
+      {isDark ? (
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.1)', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.7)', 'rgba(0,0,0,0.95)', 'rgba(0,0,0,1)']}
+          locations={[0, 0.3, 0.5, 0.7, 0.85, 1]}
+          style={styles.gradientOverlay}
+        />
+      ) : (
+        <LinearGradient
+          colors={[
+            'rgba(139, 92, 246, 0.3)',
+            'rgba(96, 165, 250, 0.1)',
+            'rgba(248, 250, 252, 0)',
+          ]}
+          locations={[0, 0.3, 1]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
       )}
 
-      {/* Gradient Overlay - Light at top, pushing darkness down to bottom */}
-      <LinearGradient
-        colors={['transparent', 'rgba(0,0,0,0.1)', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.7)', 'rgba(0,0,0,0.95)', 'rgba(0,0,0,1)']}
-        locations={[0, 0.3, 0.5, 0.7, 0.85, 1]}
-        style={styles.gradientOverlay}
-      />
-
-      {/* TV static noise overlay */}
+      {/* Subtle dust texture overlay */}
       <Svg style={styles.grainOverlay} pointerEvents="none">
         <Defs>
-          <SvgPattern id="static" x="0" y="0" width={STATIC_TILE} height={STATIC_TILE} patternUnits="userSpaceOnUse">
-            {STATIC_DOTS.map((dot, i) => (
-              <SvgRect key={i} x={dot.x} y={dot.y} width="1" height="1" fill={dot.color} opacity={dot.opacity} />
+          <SvgPattern id="dust" x="0" y="0" width={DUST_TILE} height={DUST_TILE} patternUnits="userSpaceOnUse">
+            {DUST_SPECKS.map((speck, i) => (
+              <SvgRect key={i} x={speck.x} y={speck.y} width={speck.size} height={speck.size} fill={speck.color} opacity={speck.opacity} rx={speck.size / 2} />
             ))}
           </SvgPattern>
         </Defs>
-        <SvgRect x="0" y="0" width="100%" height="100%" fill="url(#static)" />
+        <SvgRect x="0" y="0" width="100%" height="100%" fill="url(#dust)" />
       </Svg>
 
       {/* Main Cover Image - Maintains aspect ratio and centered */}
@@ -346,30 +359,30 @@ export default function EventSwipeCard({
       {/* Event Info at Bottom */}
       <View style={styles.bottomContent}>
         <View style={styles.eventInfo}>
-          <Text variant="titleLarge" style={styles.title} numberOfLines={1}>
+          <Text variant="titleLarge" style={[styles.title, { color: theme.colors.onSurface }]} numberOfLines={1}>
             {event.title}
           </Text>
 
-          <Text variant="bodyLarge" style={styles.clubName} numberOfLines={1}>
+          <Text variant="bodyLarge" style={[styles.clubName, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
             {event.clubName}
           </Text>
 
           <View style={styles.compactDetailsRow}>
             <View style={styles.detailItem}>
-              <IconButton icon="calendar" size={16} iconColor="rgba(255,255,255,0.8)" style={styles.icon} />
-              <Text style={styles.detailText}>
+              <IconButton icon="calendar" size={16} iconColor={theme.colors.onSurfaceVariant} style={styles.icon} />
+              <Text style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>
                 {formatDate(event.startDate)}
               </Text>
             </View>
             <View style={styles.detailItem}>
-              <IconButton icon="clock" size={16} iconColor="rgba(255,255,255,0.8)" style={styles.icon} />
-              <Text style={styles.detailText}>
+              <IconButton icon="clock" size={16} iconColor={theme.colors.onSurfaceVariant} style={styles.icon} />
+              <Text style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>
                 {formatTime(event.startDate)}
               </Text>
             </View>
             <View style={styles.detailItem}>
-              <IconButton icon="account-group" size={16} iconColor="rgba(255,255,255,0.8)" style={styles.icon} />
-              <Text style={styles.detailText}>
+              <IconButton icon="account-group" size={16} iconColor={theme.colors.onSurfaceVariant} style={styles.icon} />
+              <Text style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>
                 {event.attendees.length}{event.maxAttendees ? `/${event.maxAttendees}` : ''}
               </Text>
             </View>
@@ -384,11 +397,11 @@ export default function EventSwipeCard({
             >
               <IconButton
                 icon={isLiked ? "heart" : "heart-outline"}
-                iconColor={isLiked ? "#FF4458" : "#fff"}
+                iconColor={isLiked ? "#FF4458" : theme.colors.onSurface}
                 size={24}
                 style={styles.actionIcon}
               />
-              <Text style={styles.actionText}>
+              <Text style={[styles.actionText, { color: theme.colors.onSurface }]}>
                 {event.likes && event.likes.length > 0 ? event.likes.length : 'Like'}
               </Text>
             </TouchableOpacity>
@@ -400,19 +413,19 @@ export default function EventSwipeCard({
             >
               <IconButton
                 icon={isBookmarked ? "bookmark" : "bookmark-outline"}
-                iconColor={isBookmarked ? "#FFD700" : "#fff"}
+                iconColor={isBookmarked ? "#FFD700" : theme.colors.onSurface}
                 size={24}
                 style={styles.actionIcon}
               />
-              <Text style={styles.actionText}>Save</Text>
+              <Text style={[styles.actionText, { color: theme.colors.onSurface }]}>Save</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.actionButton}
               onPress={handleShare}
             >
-              <IconButton icon="share-variant" iconColor="#fff" size={24} style={styles.actionIcon} />
-              <Text style={styles.actionText}>Share</Text>
+              <IconButton icon="share-variant" iconColor={theme.colors.onSurface} size={24} style={styles.actionIcon} />
+              <Text style={[styles.actionText, { color: theme.colors.onSurface }]}>Share</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -422,6 +435,7 @@ export default function EventSwipeCard({
           <TouchableOpacity
             style={[
               styles.bottomJoinButton,
+              { backgroundColor: isPastEvent ? theme.colors.surfaceDisabled : theme.colors.primary },
               isPastEvent && styles.bottomJoinButtonDisabled
             ]}
             onPress={handleQuickJoin}
@@ -431,6 +445,7 @@ export default function EventSwipeCard({
               variant="titleMedium"
               style={[
                 styles.bottomJoinButtonText,
+                { color: isPastEvent ? theme.colors.onSurfaceDisabled : theme.colors.onPrimary },
                 isPastEvent && styles.bottomJoinButtonTextDisabled
               ]}
             >
@@ -459,7 +474,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     width: SCREEN_WIDTH,
-    backgroundColor: '#000',
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,
     overflow: 'hidden',
@@ -528,12 +542,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   title: {
-    color: '#fff',
     fontWeight: 'bold',
     textAlign: 'left',
   },
   clubName: {
-    color: 'rgba(255,255,255,0.75)',
     textAlign: 'left',
     marginBottom: 2,
   },
@@ -557,7 +569,6 @@ const styles = StyleSheet.create({
     height: 20,
   },
   detailText: {
-    color: 'rgba(255,255,255,0.8)',
     marginLeft: -2,
     fontSize: 13,
   },
@@ -577,25 +588,20 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   actionText: {
-    color: '#fff',
     fontSize: 12,
     marginTop: -4,
   },
   bottomJoinButton: {
-    backgroundColor: '#fff',
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   bottomJoinButtonDisabled: {
-    backgroundColor: '#555',
   },
   bottomJoinButtonText: {
-    color: '#000',
     fontWeight: 'bold',
   },
   bottomJoinButtonTextDisabled: {
-    color: '#999',
   },
 });

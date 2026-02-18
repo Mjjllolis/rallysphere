@@ -115,7 +115,7 @@ export default function StripeConnectSetup({ club, isAdmin, onStatusChange }: St
     }
 
     if (club.stripeOnboardingComplete) {
-      return <Chip icon="check-circle" mode="outlined" textStyle={{ color: '#4CAF50' }}>Active</Chip>;
+      return <Chip icon="check-circle" mode="outlined" textStyle={{ color: theme.colors.success }}>Active</Chip>;
     }
 
     return <Chip icon="clock" mode="outlined" textStyle={{ color: theme.colors.primary }}>Pending Setup</Chip>;
@@ -129,19 +129,19 @@ export default function StripeConnectSetup({ club, isAdmin, onStatusChange }: St
         <Text variant="bodySmall" style={{ marginBottom: 8 }}>Account Details:</Text>
         <View style={styles.statusRow}>
           <Text variant="bodySmall">Charges Enabled:</Text>
-          <Text variant="bodySmall" style={{ color: accountStatus.chargesEnabled ? '#4CAF50' : theme.colors.error }}>
+          <Text variant="bodySmall" style={{ color: accountStatus.chargesEnabled ? theme.colors.success : theme.colors.error }}>
             {accountStatus.chargesEnabled ? 'Yes' : 'No'}
           </Text>
         </View>
         <View style={styles.statusRow}>
           <Text variant="bodySmall">Payouts Enabled:</Text>
-          <Text variant="bodySmall" style={{ color: accountStatus.payoutsEnabled ? '#4CAF50' : theme.colors.error }}>
+          <Text variant="bodySmall" style={{ color: accountStatus.payoutsEnabled ? theme.colors.success : theme.colors.error }}>
             {accountStatus.payoutsEnabled ? 'Yes' : 'No'}
           </Text>
         </View>
         <View style={styles.statusRow}>
           <Text variant="bodySmall">Details Submitted:</Text>
-          <Text variant="bodySmall" style={{ color: accountStatus.detailsSubmitted ? '#4CAF50' : theme.colors.error }}>
+          <Text variant="bodySmall" style={{ color: accountStatus.detailsSubmitted ? theme.colors.success : theme.colors.error }}>
             {accountStatus.detailsSubmitted ? 'Yes' : 'No'}
           </Text>
         </View>
@@ -236,14 +236,14 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 16,
     padding: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.03)',
+    backgroundColor: 'rgba(0, 0, 0, 0.04)',
     borderRadius: 8,
   },
   statusDetails: {
     marginTop: 12,
     marginBottom: 12,
     padding: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.03)',
+    backgroundColor: 'rgba(0, 0, 0, 0.04)',
     borderRadius: 8,
   },
   statusRow: {

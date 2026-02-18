@@ -140,7 +140,6 @@ export default function LoginScreen() {
                                 keyboardType="email-address"
                                 autoCapitalize="none"
                                 style={styles.input}
-                                left={<TextInput.Icon icon="email" />}
                                 textColor="#1a1a1a"
                                 outlineColor="rgba(0,0,0,0.3)"
                                 activeOutlineColor="#2C5282"
@@ -154,7 +153,6 @@ export default function LoginScreen() {
                                 mode="outlined"
                                 secureTextEntry
                                 style={styles.input}
-                                left={<TextInput.Icon icon="lock" />}
                                 textColor="#1a1a1a"
                                 outlineColor="rgba(0,0,0,0.3)"
                                 activeOutlineColor="#2C5282"
@@ -277,7 +275,7 @@ const styles = StyleSheet.create({
         gap: 20,
     },
     input: {
-        backgroundColor: 'transparent',
+        backgroundColor: 'white',
     },
     submitButton: {
         marginTop: 8,

@@ -12,12 +12,13 @@ import {
   Text,
   IconButton,
   ActivityIndicator,
+  useTheme,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAuth } from '../../_layout';
+import { useAuth, useThemeToggle } from '../../_layout';
 import {
   getClub,
   getClubAnalytics,
@@ -28,6 +29,8 @@ import type { Club } from '../../../lib/firebase';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export default function ClubManageDashboard() {
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const { user } = useAuth();
   const { id } = useLocalSearchParams();
   const clubId = id as string;
@@ -83,12 +86,9 @@ export default function ClubManageDashboard() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <View style={StyleSheet.absoluteFill}>
-          <View style={styles.blackBackground} />
-        </View>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#fff" />
+          <ActivityIndicator size="large" color={theme.colors.onSurface} />
         </View>
       </View>
     );
@@ -115,15 +115,10 @@ export default function ClubManageDashboard() {
   ];
 
   return (
-    <View style={styles.container}>
-      {/* Black Background */}
-      <View style={StyleSheet.absoluteFill}>
-        <View style={styles.blackBackground} />
-      </View>
-
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Subtle Gradient Overlay */}
       <LinearGradient
-        colors={['rgba(27, 54, 93, 0.3)', 'rgba(96, 165, 250, 0.1)', 'rgba(0, 0, 0, 0)']}
+        colors={isDark ? ['rgba(27, 54, 93, 0.3)', 'rgba(96, 165, 250, 0.1)', 'rgba(0, 0, 0, 0)'] : ['rgba(27, 54, 93, 0.1)', 'rgba(96, 165, 250, 0.05)', 'rgba(255, 255, 255, 0)']}
         locations={[0, 0.3, 1]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
@@ -133,53 +128,53 @@ export default function ClubManageDashboard() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <BlurView intensity={40} tint="dark" style={styles.backButtonBlur}>
-              <IconButton icon="arrow-left" size={24} iconColor="#fff" />
+            <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.backButtonBlur}>
+              <IconButton icon="arrow-left" size={24} iconColor={theme.colors.onSurface} />
             </BlurView>
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Admin Dashboard</Text>
-            <Text style={styles.headerSubtitle}>{club.name}</Text>
+            <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Admin Dashboard</Text>
+            <Text style={[styles.headerSubtitle, { color: theme.colors.onSurfaceVariant }]}>{club.name}</Text>
           </View>
         </View>
 
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.onSurface} />
           }
         >
           {/* Quick Stats */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Quick Stats</Text>
+            <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Quick Stats</Text>
             <View style={styles.statsGrid}>
-              <BlurView intensity={20} tint="dark" style={styles.statCard}>
+              <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.statCard, { borderColor: theme.colors.outline }]}>
                 <View style={styles.statCardInner}>
                   <Text style={styles.statValue}>{analytics?.memberCount || club.members.length}</Text>
-                  <Text style={styles.statLabel}>Members</Text>
+                  <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>Members</Text>
                 </View>
               </BlurView>
 
-              <BlurView intensity={20} tint="dark" style={styles.statCard}>
+              <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.statCard, { borderColor: theme.colors.outline }]}>
                 <View style={styles.statCardInner}>
                   <Text style={styles.statValue}>{analytics?.totalEvents || 0}</Text>
-                  <Text style={styles.statLabel}>Events</Text>
+                  <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>Events</Text>
                 </View>
               </BlurView>
 
-              <BlurView intensity={20} tint="dark" style={styles.statCard}>
+              <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.statCard, { borderColor: theme.colors.outline }]}>
                 <View style={styles.statCardInner}>
                   <Text style={[styles.statValue, { color: '#10B981' }]}>
                     ${(analytics?.totalRevenue || 0).toFixed(0)}
                   </Text>
-                  <Text style={styles.statLabel}>Revenue</Text>
+                  <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>Revenue</Text>
                 </View>
               </BlurView>
 
-              <BlurView intensity={20} tint="dark" style={styles.statCard}>
+              <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.statCard, { borderColor: theme.colors.outline }]}>
                 <View style={styles.statCardInner}>
                   <Text style={[styles.statValue, { color: '#F59E0B' }]}>{pendingRequests}</Text>
-                  <Text style={styles.statLabel}>Pending</Text>
+                  <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>Pending</Text>
                 </View>
               </BlurView>
             </View>
@@ -187,28 +182,28 @@ export default function ClubManageDashboard() {
 
           {/* Admin Actions */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Admin Tools</Text>
+            <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Admin Tools</Text>
             {adminActions.map((action, index) => (
               <TouchableOpacity
                 key={index}
                 onPress={() => router.push(action.route as any)}
                 activeOpacity={0.7}
               >
-                <BlurView intensity={20} tint="dark" style={styles.actionCard}>
+                <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.actionCard, { borderColor: theme.colors.outline }]}>
                   <View style={styles.actionCardInner}>
                     <View style={styles.actionIconContainer}>
                       <IconButton icon={action.icon} size={28} iconColor="#60A5FA" />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.actionTitle}>{action.title}</Text>
-                      <Text style={styles.actionDescription}>{action.description}</Text>
+                      <Text style={[styles.actionTitle, { color: theme.colors.onSurface }]}>{action.title}</Text>
+                      <Text style={[styles.actionDescription, { color: theme.colors.onSurfaceVariant }]}>{action.description}</Text>
                     </View>
                     {action.badge !== undefined && action.badge > 0 && (
                       <View style={styles.badge}>
                         <Text style={styles.badgeText}>{action.badge}</Text>
                       </View>
                     )}
-                    <IconButton icon="chevron-right" size={20} iconColor="rgba(255,255,255,0.5)" />
+                    <IconButton icon="chevron-right" size={20} iconColor={theme.colors.onSurfaceDisabled} />
                   </View>
                 </BlurView>
               </TouchableOpacity>
@@ -256,11 +251,9 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#ffffff',
   },
   headerSubtitle: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
     marginTop: 2,
   },
   scrollContent: {
@@ -273,7 +266,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#ffffff',
     marginBottom: 16,
   },
   statsGrid: {
@@ -287,7 +279,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   statCardInner: {
     padding: 20,
@@ -300,7 +291,6 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.7)',
     marginTop: 4,
   },
   actionCard: {
@@ -308,7 +298,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   actionCardInner: {
     flexDirection: 'row',
@@ -327,11 +316,9 @@ const styles = StyleSheet.create({
   actionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#ffffff',
   },
   actionDescription: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.6)',
     marginTop: 2,
   },
   badge: {

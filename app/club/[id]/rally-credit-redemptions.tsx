@@ -18,12 +18,13 @@ import {
   Chip,
   Portal,
   Modal,
+  useTheme,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAuth } from '../../_layout';
+import { useAuth, useThemeToggle } from '../../_layout';
 import {
   getClub,
   getAllClubRallyRedemptions,
@@ -44,6 +45,8 @@ export default function RallyCreditRedemptionsScreen() {
   const { user } = useAuth();
   const { id } = useLocalSearchParams();
   const clubId = id as string;
+  const theme = useTheme();
+  const { isDark } = useThemeToggle();
 
   const [club, setClub] = useState<Club | null>(null);
   const [redemptions, setRedemptions] = useState<RallyCreditRedemption[]>([]);
@@ -271,7 +274,7 @@ export default function RallyCreditRedemptionsScreen() {
     return (
       <View style={styles.container}>
         <View style={StyleSheet.absoluteFill}>
-          <View style={styles.blackBackground} />
+          <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#FFD700" />
@@ -290,12 +293,12 @@ export default function RallyCreditRedemptionsScreen() {
     <View style={styles.container}>
       {/* Black Background */}
       <View style={StyleSheet.absoluteFill}>
-        <View style={styles.blackBackground} />
+        <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
       </View>
 
       {/* Gradient Overlay */}
       <LinearGradient
-        colors={['rgba(255, 215, 0, 0.15)', 'rgba(255, 165, 0, 0.08)', 'rgba(0, 0, 0, 0)']}
+        colors={isDark ? ['rgba(255, 215, 0, 0.15)', 'rgba(255, 165, 0, 0.08)', 'rgba(0, 0, 0, 0)'] : ['rgba(255, 215, 0, 0.1)', 'rgba(255, 165, 0, 0.04)', 'rgba(255, 255, 255, 0)']}
         locations={[0, 0.3, 1]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
@@ -305,16 +308,16 @@ export default function RallyCreditRedemptionsScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <BlurView intensity={40} tint="dark" style={styles.backButtonBlur}>
-              <IconButton icon="arrow-left" size={24} iconColor="#fff" />
+            <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.backButtonBlur}>
+              <IconButton icon="arrow-left" size={24} iconColor={theme.colors.onSurface} />
             </BlurView>
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Rally Credit Rewards</Text>
-            <Text style={styles.headerSubtitle}>{club.name}</Text>
+            <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Rally Credit Rewards</Text>
+            <Text style={[styles.headerSubtitle, { color: theme.colors.onSurfaceVariant }]}>{club.name}</Text>
           </View>
           <TouchableOpacity onPress={openCreateModal}>
-            <BlurView intensity={40} tint="dark" style={styles.addButtonBlur}>
+            <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.addButtonBlur}>
               <IconButton icon="plus" size={24} iconColor="#FFD700" />
             </BlurView>
           </TouchableOpacity>
@@ -327,14 +330,14 @@ export default function RallyCreditRedemptionsScreen() {
           }
         >
           {/* Info Card */}
-          <BlurView intensity={20} tint="dark" style={styles.infoCard}>
+          <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={styles.infoCard}>
             <View style={styles.infoCardInner}>
               <View style={styles.infoIconContainer}>
                 <Text style={styles.infoIcon}>⭐</Text>
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.infoTitle}>Rally Credits Redemption</Text>
-                <Text style={styles.infoDescription}>
+                <Text style={[styles.infoDescription, { color: theme.colors.onSurfaceVariant }]}>
                   Set up rewards that members can redeem using their Rally Credits. Members earn credits by attending events and can spend them on the rewards you create.
                 </Text>
               </View>
@@ -343,41 +346,41 @@ export default function RallyCreditRedemptionsScreen() {
 
           {/* Quick Stats */}
           <View style={styles.statsGrid}>
-            <BlurView intensity={20} tint="dark" style={styles.statCard}>
+            <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.statCard, { borderColor: theme.colors.outline }]}>
               <View style={styles.statCardInner}>
                 <Text style={styles.statValue}>{redemptions.length}</Text>
-                <Text style={styles.statLabel}>Total Rewards</Text>
+                <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>Total Rewards</Text>
               </View>
             </BlurView>
 
-            <BlurView intensity={20} tint="dark" style={styles.statCard}>
+            <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.statCard, { borderColor: theme.colors.outline }]}>
               <View style={styles.statCardInner}>
                 <Text style={[styles.statValue, { color: '#10B981' }]}>
                   {redemptions.filter(r => r.isActive).length}
                 </Text>
-                <Text style={styles.statLabel}>Active</Text>
+                <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>Active</Text>
               </View>
             </BlurView>
 
-            <BlurView intensity={20} tint="dark" style={styles.statCard}>
+            <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.statCard, { borderColor: theme.colors.outline }]}>
               <View style={styles.statCardInner}>
                 <Text style={[styles.statValue, { color: '#F59E0B' }]}>
                   {redemptions.reduce((sum, r) => sum + r.totalRedeemed, 0)}
                 </Text>
-                <Text style={styles.statLabel}>Total Redeemed</Text>
+                <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>Total Redeemed</Text>
               </View>
             </BlurView>
           </View>
 
           {/* Redemption Options */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Redemption Options</Text>
+            <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Redemption Options</Text>
             {redemptions.length === 0 ? (
-              <BlurView intensity={20} tint="dark" style={styles.emptyCard}>
+              <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.emptyCard, { borderColor: theme.colors.outline }]}>
                 <View style={styles.emptyCardInner}>
                   <Text style={styles.emptyIcon}>🎁</Text>
-                  <Text style={styles.emptyTitle}>No Redemption Options Yet</Text>
-                  <Text style={styles.emptyDescription}>
+                  <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>No Redemption Options Yet</Text>
+                  <Text style={[styles.emptyDescription, { color: theme.colors.onSurfaceVariant }]}>
                     Create your first redemption option to let members spend their Rally Credits
                   </Text>
                   <Button
@@ -400,7 +403,7 @@ export default function RallyCreditRedemptionsScreen() {
                     onPress={() => openEditModal(redemption)}
                     activeOpacity={0.7}
                   >
-                    <BlurView intensity={20} tint="dark" style={styles.redemptionCard}>
+                    <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.redemptionCard, { borderColor: theme.colors.outline }]}>
                       <View style={styles.redemptionCardInner}>
                         <View style={styles.redemptionHeader}>
                           <View style={styles.redemptionIconContainer}>
@@ -408,7 +411,7 @@ export default function RallyCreditRedemptionsScreen() {
                           </View>
                           <View style={{ flex: 1 }}>
                             <View style={styles.redemptionTitleRow}>
-                              <Text style={styles.redemptionTitle}>{redemption.name}</Text>
+                              <Text style={[styles.redemptionTitle, { color: theme.colors.onSurface }]}>{redemption.name}</Text>
                               {!redemption.isActive && (
                                 <Chip
                                   mode="flat"
@@ -419,7 +422,7 @@ export default function RallyCreditRedemptionsScreen() {
                                 </Chip>
                               )}
                             </View>
-                            <Text style={styles.redemptionDescription}>
+                            <Text style={[styles.redemptionDescription, { color: theme.colors.onSurfaceVariant }]}>
                               {redemption.description || typeInfo.description}
                             </Text>
                           </View>
@@ -433,7 +436,7 @@ export default function RallyCreditRedemptionsScreen() {
 
                         <View style={styles.redemptionDetails}>
                           <View style={styles.detailItem}>
-                            <Text style={styles.detailLabel}>Credits Required</Text>
+                            <Text style={[styles.detailLabel, { color: theme.colors.onSurfaceDisabled }]}>Credits Required</Text>
                             <View style={styles.creditsTag}>
                               <Text style={styles.creditsIcon}>⭐</Text>
                               <Text style={styles.creditsValue}>
@@ -443,26 +446,26 @@ export default function RallyCreditRedemptionsScreen() {
                           </View>
 
                           <View style={styles.detailItem}>
-                            <Text style={styles.detailLabel}>Value</Text>
-                            <Text style={styles.detailValue}>
+                            <Text style={[styles.detailLabel, { color: theme.colors.onSurfaceDisabled }]}>Value</Text>
+                            <Text style={[styles.detailValue, { color: theme.colors.onSurface }]}>
                               {renderRedemptionValue(redemption)}
                             </Text>
                           </View>
 
                           <View style={styles.detailItem}>
-                            <Text style={styles.detailLabel}>Times Redeemed</Text>
-                            <Text style={styles.detailValue}>{redemption.totalRedeemed}</Text>
+                            <Text style={[styles.detailLabel, { color: theme.colors.onSurfaceDisabled }]}>Times Redeemed</Text>
+                            <Text style={[styles.detailValue, { color: theme.colors.onSurface }]}>{redemption.totalRedeemed}</Text>
                           </View>
 
                           {redemption.maxRedemptions && (
                             <View style={styles.detailItem}>
-                              <Text style={styles.detailLabel}>Max Per User</Text>
-                              <Text style={styles.detailValue}>{redemption.maxRedemptions}</Text>
+                              <Text style={[styles.detailLabel, { color: theme.colors.onSurfaceDisabled }]}>Max Per User</Text>
+                              <Text style={[styles.detailValue, { color: theme.colors.onSurface }]}>{redemption.maxRedemptions}</Text>
                             </View>
                           )}
                         </View>
 
-                        <View style={styles.cardActions}>
+                        <View style={[styles.cardActions, { borderTopColor: theme.colors.outline }]}>
                           <TouchableOpacity
                             onPress={() => openEditModal(redemption)}
                             style={styles.actionButton}
@@ -497,13 +500,13 @@ export default function RallyCreditRedemptionsScreen() {
           onDismiss={() => setModalVisible(false)}
           contentContainerStyle={styles.modal}
         >
-          <View style={styles.modalBlur}>
-            <View style={styles.modalHeader}>
+          <View style={[styles.modalBlur, { backgroundColor: isDark ? 'rgba(20, 20, 20, 0.98)' : 'rgba(255, 255, 255, 0.98)', borderColor: theme.colors.outline }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: theme.colors.outline }]}>
               <Text style={styles.modalTitle}>
                 {editingRedemption ? 'Edit Reward' : 'Create New Reward'}
               </Text>
               <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeButton}>
-                <IconButton icon="close" size={24} iconColor="rgba(255, 255, 255, 0.8)" style={{ margin: 0 }} />
+                <IconButton icon="close" size={24} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0 }} />
               </TouchableOpacity>
             </View>
 
@@ -511,7 +514,7 @@ export default function RallyCreditRedemptionsScreen() {
               style={styles.modalScroll}
               contentContainerStyle={styles.modalScrollContent}
               showsVerticalScrollIndicator={true}
-              indicatorStyle="white"
+              indicatorStyle={isDark ? "white" : "black"}
             >
               <GlassInput
                 label="Reward Name *"
@@ -532,19 +535,19 @@ export default function RallyCreditRedemptionsScreen() {
 
               {/* Reward Type Picker */}
               <View style={[styles.pickerContainer, typeMenuVisible && { marginBottom: 280 }]}>
-                <Text style={styles.pickerLabel}>Reward Type *</Text>
+                <Text style={[styles.pickerLabel, { color: theme.colors.onSurface }]}>Reward Type *</Text>
                 <TouchableOpacity
-                  style={styles.typeSelector}
+                  style={[styles.typeSelector, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)', borderColor: theme.colors.outline }]}
                   onPress={() => setTypeMenuVisible(!typeMenuVisible)}
                 >
                   <View style={styles.typeSelectorContent}>
                     <IconButton icon={selectedType.icon} size={20} iconColor="#FFD700" style={{ margin: 0 }} />
-                    <Text style={styles.typeSelectorText}>{selectedType.label}</Text>
+                    <Text style={[styles.typeSelectorText, { color: theme.colors.onSurface }]}>{selectedType.label}</Text>
                   </View>
                   <IconButton
                     icon={typeMenuVisible ? 'chevron-up' : 'chevron-down'}
                     size={20}
-                    iconColor="white"
+                    iconColor={theme.colors.onSurface}
                     style={{ margin: 0 }}
                   />
                 </TouchableOpacity>
@@ -564,6 +567,8 @@ export default function RallyCreditRedemptionsScreen() {
                     style={[
                       styles.dropdownStatic,
                       {
+                        backgroundColor: isDark ? 'rgba(20, 20, 20, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                        borderColor: theme.colors.outline,
                         transform: [{ scale: scaleAnim }],
                         opacity: scaleAnim,
                       },
@@ -575,6 +580,7 @@ export default function RallyCreditRedemptionsScreen() {
                           key={type.value}
                           style={[
                             styles.dropdownItem,
+                            { borderBottomColor: theme.colors.outline },
                             formData.type === type.value && styles.dropdownItemSelected,
                             index === REDEMPTION_TYPES.length - 1 && styles.dropdownItemLast,
                           ]}
@@ -585,17 +591,18 @@ export default function RallyCreditRedemptionsScreen() {
                           activeOpacity={0.7}
                         >
                           <View style={styles.dropdownItemContent}>
-                            <IconButton icon={type.icon} size={18} iconColor={formData.type === type.value ? '#FFD700' : 'rgba(255,255,255,0.6)'} style={{ margin: 0 }} />
+                            <IconButton icon={type.icon} size={18} iconColor={formData.type === type.value ? '#FFD700' : theme.colors.onSurfaceVariant} style={{ margin: 0 }} />
                             <View style={{ flex: 1 }}>
                               <Text
                                 style={[
                                   styles.dropdownItemText,
-                                  formData.type === type.value && styles.dropdownItemTextSelected,
+                                  { color: theme.colors.onSurfaceVariant },
+                                  formData.type === type.value && { color: theme.colors.onSurface, fontWeight: '600' },
                                 ]}
                               >
                                 {type.label}
                               </Text>
-                              <Text style={styles.dropdownItemDescription}>{type.description}</Text>
+                              <Text style={[styles.dropdownItemDescription, { color: theme.colors.onSurfaceDisabled }]}>{type.description}</Text>
                             </View>
                           </View>
                           {formData.type === type.value && (
@@ -632,7 +639,7 @@ export default function RallyCreditRedemptionsScreen() {
                     icon="currency-usd"
                   />
 
-                  <Text style={styles.orText}>OR</Text>
+                  <Text style={[styles.orText, { color: theme.colors.onSurfaceDisabled }]}>OR</Text>
 
                   <GlassInput
                     label="Discount Percentage (%)"
@@ -658,9 +665,9 @@ export default function RallyCreditRedemptionsScreen() {
               <View style={styles.modalActions}>
                 <TouchableOpacity
                   onPress={() => setModalVisible(false)}
-                  style={styles.cancelButton}
+                  style={[styles.cancelButton, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)', borderColor: theme.colors.outline }]}
                 >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                  <Text style={[styles.cancelButtonText, { color: theme.colors.onSurface }]}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={handleSave}
@@ -686,7 +693,6 @@ const styles = StyleSheet.create({
   },
   blackBackground: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   loadingContainer: {
     flex: 1,
@@ -723,11 +729,9 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#ffffff',
   },
   headerSubtitle: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
     marginTop: 2,
   },
   scrollContent: {
@@ -765,7 +769,6 @@ const styles = StyleSheet.create({
   },
   infoDescription: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.7)',
     lineHeight: 18,
   },
   statsGrid: {
@@ -778,7 +781,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   statCardInner: {
     padding: 16,
@@ -791,7 +793,6 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.7)',
     marginTop: 4,
   },
   section: {
@@ -800,14 +801,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#ffffff',
     marginBottom: 16,
   },
   emptyCard: {
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   emptyCardInner: {
     padding: 32,
@@ -820,12 +819,10 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#ffffff',
     marginBottom: 8,
   },
   emptyDescription: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.6)',
     textAlign: 'center',
     marginBottom: 24,
   },
@@ -837,7 +834,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   redemptionCardInner: {
     padding: 16,
@@ -865,11 +861,9 @@ const styles = StyleSheet.create({
   redemptionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#ffffff',
   },
   redemptionDescription: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.6)',
   },
   inactiveChip: {
     backgroundColor: 'rgba(239, 68, 68, 0.2)',
@@ -891,7 +885,6 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.5)',
     marginBottom: 4,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -899,7 +892,6 @@ const styles = StyleSheet.create({
   detailValue: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#ffffff',
   },
   creditsTag: {
     flexDirection: 'row',
@@ -925,7 +917,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
   },
   actionButton: {
     flexDirection: 'row',
@@ -946,8 +937,6 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 25,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    backgroundColor: 'rgba(20, 20, 20, 0.98)',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -957,7 +946,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
   },
   modalTitle: {
     fontSize: 24,
@@ -984,7 +972,6 @@ const styles = StyleSheet.create({
   pickerLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'white',
     marginBottom: 8,
     marginLeft: 4,
   },
@@ -995,9 +982,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
     minHeight: 52,
   },
   typeSelectorContent: {
@@ -1008,17 +993,14 @@ const styles = StyleSheet.create({
   typeSelectorText: {
     fontSize: 16,
     fontWeight: '500',
-    color: 'white',
     marginLeft: 8,
   },
   dropdownStatic: {
-    marginTop: -280, // Offset to position dropdown above keyboard on mobile
+    marginTop: -280,
     marginBottom: 16,
     borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: 'rgba(20, 20, 20, 0.95)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
@@ -1036,7 +1018,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
   },
   dropdownItemLast: {
     borderBottomWidth: 0,
@@ -1053,15 +1034,9 @@ const styles = StyleSheet.create({
   dropdownItemText: {
     fontSize: 15,
     fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  dropdownItemTextSelected: {
-    color: 'white',
-    fontWeight: '600',
   },
   dropdownItemDescription: {
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.5)',
     marginTop: 2,
   },
   checkmarkContainer: {
@@ -1080,7 +1055,6 @@ const styles = StyleSheet.create({
   },
   orText: {
     textAlign: 'center',
-    color: 'rgba(255,255,255,0.5)',
     fontSize: 13,
     fontWeight: '600',
     marginVertical: 12,
@@ -1096,16 +1070,13 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 16,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'white',
   },
   saveButton: {
     flex: 1,

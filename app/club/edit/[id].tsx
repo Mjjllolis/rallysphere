@@ -16,7 +16,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { getClub, updateClub, uploadImage, testStorageConnection } from '../../../lib/firebase';
-import { useAuth } from '../../_layout';
+import { useAuth, useThemeToggle } from '../../_layout';
 import type { Club } from '../../../lib/firebase';
 import BackButton from '../../../components/BackButton';
 
@@ -33,19 +33,10 @@ const TAGS = [
 ];
 
 // Light theme for inputs to ensure consistent styling in both light/dark mode
-const lightInputTheme = {
-  colors: {
-    background: 'white',
-    surface: 'white',
-    onSurface: '#1B365D',
-    onSurfaceVariant: '#666',
-    outline: '#ccc',
-    primary: '#1B365D',
-  },
-};
 
 export default function EditClubScreen() {
   const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const { user } = useAuth();
   const { id } = useLocalSearchParams();
   const clubId = id as string;
@@ -268,7 +259,7 @@ export default function EditClubScreen() {
 
   if (initialLoading) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -276,7 +267,7 @@ export default function EditClubScreen() {
         >
           <View>
             <LinearGradient
-              colors={['#1B365D', '#2B4A73', '#3A5F8F']}
+              colors={(theme as any).gradients?.primary || ['#1B365D', '#2B4A73', '#3A5F8F']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.header}
@@ -299,7 +290,7 @@ export default function EditClubScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -308,7 +299,7 @@ export default function EditClubScreen() {
         {/* Header with Gradient */}
         <View>
           <LinearGradient
-            colors={['#1B365D', '#2B4A73', '#3A5F8F']}
+            colors={(theme as any).gradients?.primary || ['#1B365D', '#2B4A73', '#3A5F8F']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.header}
@@ -325,25 +316,25 @@ export default function EditClubScreen() {
 
         <View style={styles.content}>
           {/* Cover Image Section */}
-          <Card style={styles.formCard} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: theme.colors.surface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
-                <View style={styles.iconBadge}>
-                  <IconButton icon="image" size={20} iconColor="#1B365D" />
+                <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
+                  <IconButton icon="image" size={20} iconColor={theme.colors.primary} />
                 </View>
-                <Text variant="titleLarge" style={styles.sectionTitle}>Cover Image</Text>
+                <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.primary }]}>Cover Image</Text>
               </View>
 
               <TouchableOpacity onPress={() => pickImage('cover')} activeOpacity={0.7}>
                 <LinearGradient
-                  colors={['#E1E7F1', '#D4DCE8']}
+                  colors={isDark ? ['rgba(30,40,60,0.8)', 'rgba(20,30,48,0.8)'] : ['#E1E7F1', '#D4DCE8']}
                   style={styles.coverImageContainer}
                 >
                   {coverImage ? (
                     <Image source={{ uri: coverImage }} style={styles.coverImage} />
                   ) : (
                     <View style={styles.imagePlaceholder}>
-                      <IconButton icon="camera-plus" size={40} iconColor="#1B365D" />
+                      <IconButton icon="camera-plus" size={40} iconColor={theme.colors.primary} />
                       <Text style={styles.imagePlaceholderText}>Tap to add cover image</Text>
                       <Text style={styles.imageHint}>16:9 recommended</Text>
                     </View>
@@ -354,26 +345,26 @@ export default function EditClubScreen() {
           </Card>
 
           {/* Logo Section */}
-          <Card style={styles.formCard} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: theme.colors.surface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
-                <View style={styles.iconBadge}>
-                  <IconButton icon="shield-account" size={20} iconColor="#1B365D" />
+                <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
+                  <IconButton icon="shield-account" size={20} iconColor={theme.colors.primary} />
                 </View>
-                <Text variant="titleLarge" style={styles.sectionTitle}>Club Logo</Text>
+                <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.primary }]}>Club Logo</Text>
               </View>
 
               <TouchableOpacity onPress={() => pickImage('logo')} activeOpacity={0.7}>
                 <View style={styles.logoWrapper}>
                   <LinearGradient
-                    colors={['#E1E7F1', '#D4DCE8']}
+                    colors={isDark ? ['rgba(30,40,60,0.8)', 'rgba(20,30,48,0.8)'] : ['#E1E7F1', '#D4DCE8']}
                     style={styles.logoContainer}
                   >
                     {logo ? (
                       <Image source={{ uri: logo }} style={styles.logoImage} />
                     ) : (
                       <View style={styles.logoPlaceholder}>
-                        <IconButton icon="account-circle" size={40} iconColor="#1B365D" />
+                        <IconButton icon="account-circle" size={40} iconColor={theme.colors.primary} />
                         <Text style={styles.logoHint}>Club Logo</Text>
                       </View>
                     )}
@@ -384,13 +375,13 @@ export default function EditClubScreen() {
           </Card>
 
           {/* Basic Information */}
-          <Card style={styles.formCard} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: theme.colors.surface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
-                <View style={styles.iconBadge}>
-                  <IconButton icon="information" size={20} iconColor="#1B365D" />
+                <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
+                  <IconButton icon="information" size={20} iconColor={theme.colors.primary} />
                 </View>
-                <Text variant="titleLarge" style={styles.sectionTitle}>Club Details</Text>
+                <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.primary }]}>Club Details</Text>
               </View>
 
               <TextInput
@@ -399,7 +390,7 @@ export default function EditClubScreen() {
                 onChangeText={(value) => updateFormData('name', value)}
                 mode="outlined"
                 style={styles.input}
-                theme={lightInputTheme}
+
               />
 
               <TextInput
@@ -410,7 +401,7 @@ export default function EditClubScreen() {
                 multiline
                 numberOfLines={4}
                 style={styles.input}
-                theme={lightInputTheme}
+
                 placeholder="What is your club about? What activities do you do?"
               />
 
@@ -420,7 +411,7 @@ export default function EditClubScreen() {
                 onDismiss={() => setShowSportsMenu(false)}
                 anchor={
                   <TouchableOpacity
-                    style={styles.categorySelector}
+                    style={[styles.categorySelector, { borderColor: theme.colors.outlineVariant, backgroundColor: theme.colors.surface }]}
                     onPress={() => setShowSportsMenu(true)}
                   >
                     <Text style={styles.categorySelectorText}>
@@ -450,20 +441,20 @@ export default function EditClubScreen() {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 style={styles.input}
-                theme={lightInputTheme}
+
                 left={<TextInput.Icon icon="email" />}
               />
             </Card.Content>
           </Card>
 
           {/* Social Links */}
-          <Card style={styles.formCard} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: theme.colors.surface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
-                <View style={styles.iconBadge}>
-                  <IconButton icon="link-variant" size={20} iconColor="#1B365D" />
+                <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
+                  <IconButton icon="link-variant" size={20} iconColor={theme.colors.primary} />
                 </View>
-                <Text variant="titleLarge" style={styles.sectionTitle}>Social Links</Text>
+                <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.primary }]}>Social Links</Text>
               </View>
 
               <TextInput
@@ -473,7 +464,7 @@ export default function EditClubScreen() {
                 mode="outlined"
                 autoCapitalize="none"
                 style={styles.input}
-                theme={lightInputTheme}
+
                 left={<TextInput.Icon icon="web" />}
               />
 
@@ -484,7 +475,7 @@ export default function EditClubScreen() {
                 mode="outlined"
                 autoCapitalize="none"
                 style={styles.input}
-                theme={lightInputTheme}
+
                 left={<TextInput.Icon icon="instagram" />}
                 placeholder="@username"
               />
@@ -496,7 +487,7 @@ export default function EditClubScreen() {
                 mode="outlined"
                 autoCapitalize="none"
                 style={styles.input}
-                theme={lightInputTheme}
+
                 left={<TextInput.Icon icon="twitter" />}
                 placeholder="@username"
               />
@@ -508,7 +499,7 @@ export default function EditClubScreen() {
                 mode="outlined"
                 autoCapitalize="none"
                 style={styles.input}
-                theme={lightInputTheme}
+
                 left={<TextInput.Icon icon="facebook" />}
                 placeholder="Page URL or username"
               />
@@ -520,7 +511,7 @@ export default function EditClubScreen() {
                 mode="outlined"
                 autoCapitalize="none"
                 style={styles.input}
-                theme={lightInputTheme}
+
                 left={<TextInput.Icon icon="music-note" />}
                 placeholder="@username"
               />
@@ -532,7 +523,7 @@ export default function EditClubScreen() {
                 mode="outlined"
                 autoCapitalize="none"
                 style={styles.input}
-                theme={lightInputTheme}
+
                 left={<TextInput.Icon icon="discord" />}
                 placeholder="Invite link"
               />
@@ -540,13 +531,13 @@ export default function EditClubScreen() {
           </Card>
 
           {/* Settings */}
-          <Card style={styles.formCard} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: theme.colors.surface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
-                <View style={styles.iconBadge}>
-                  <IconButton icon="cog" size={20} iconColor="#1B365D" />
+                <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
+                  <IconButton icon="cog" size={20} iconColor={theme.colors.primary} />
                 </View>
-                <Text variant="titleLarge" style={styles.sectionTitle}>Club Settings</Text>
+                <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.primary }]}>Club Settings</Text>
               </View>
 
               <Text variant="bodyLarge" style={styles.fieldLabel}>Club Type</Text>
@@ -555,7 +546,7 @@ export default function EditClubScreen() {
                 onDismiss={() => setShowTagsMenu(false)}
                 anchor={
                   <TouchableOpacity
-                    style={styles.categorySelector}
+                    style={[styles.categorySelector, { borderColor: theme.colors.outlineVariant, backgroundColor: theme.colors.surface }]}
                     onPress={() => setShowTagsMenu(true)}
                   >
                     <Text style={styles.categorySelectorText}>
@@ -575,7 +566,7 @@ export default function EditClubScreen() {
                 ))}
               </Menu>
 
-              <View style={styles.switchRow}>
+              <View style={[styles.switchRow, { borderTopColor: theme.colors.outlineVariant }]}>
                 <View style={styles.switchContent}>
                   <Text variant="bodyLarge" style={styles.switchLabel}>Public Club</Text>
                   <Text variant="bodySmall" style={styles.switchDescription}>
@@ -606,7 +597,6 @@ export default function EditClubScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
   header: {
     paddingBottom: 16,
@@ -643,7 +633,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 16,
     elevation: 2,
-    backgroundColor: 'white',
   },
   cardContent: {
     padding: 20,
@@ -657,14 +646,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#E1E7F1',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
   sectionTitle: {
     fontWeight: 'bold',
-    color: '#1B365D',
   },
   coverImageContainer: {
     height: 160,
@@ -685,13 +672,11 @@ const styles = StyleSheet.create({
   },
   imagePlaceholderText: {
     fontSize: 16,
-    color: '#1B365D',
     fontWeight: '600',
     marginTop: 8,
   },
   imageHint: {
     fontSize: 12,
-    color: '#1B365D',
     opacity: 0.7,
     marginTop: 4,
   },
@@ -717,32 +702,27 @@ const styles = StyleSheet.create({
   },
   logoHint: {
     fontSize: 12,
-    color: '#1B365D',
     opacity: 0.7,
     marginTop: 4,
   },
   input: {
     marginBottom: 12,
     borderRadius: 12,
-    backgroundColor: 'white',
   },
   fieldLabel: {
     fontWeight: '600',
     marginBottom: 8,
-    color: '#1B365D',
   },
   categorySelector: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: '#ccc',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 8,
     minHeight: 56,
     marginBottom: 12,
-    backgroundColor: 'white',
   },
   categorySelectorText: {
     fontSize: 16,
@@ -754,7 +734,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: '#E1E7F1',
     marginTop: 8,
   },
   switchContent: {
@@ -763,17 +742,14 @@ const styles = StyleSheet.create({
   },
   switchLabel: {
     fontWeight: '600',
-    color: '#1B365D',
   },
   switchDescription: {
-    color: '#666',
     marginTop: 2,
   },
   updateButton: {
     marginTop: 8,
     marginBottom: 20,
     borderRadius: 12,
-    backgroundColor: '#1B365D',
   },
   buttonContent: {
     paddingVertical: 12,
