@@ -211,12 +211,12 @@ export default function OrdersScreen() {
                 </View>
                 <View style={styles.orderMetaRow}>
                   <Ionicons
-                    name={order.deliveryMethod === 'shipping' ? 'cube-outline' : 'location-outline'}
+                    name="location-outline"
                     size={12}
                     color={theme.colors.onSurfaceVariant}
                   />
                   <Text style={[styles.orderMetaText, { color: theme.colors.onSurfaceVariant }]}>
-                    {order.deliveryMethod === 'shipping' ? 'Shipping' : 'Pickup'}
+                    Pickup
                   </Text>
                 </View>
               </View>

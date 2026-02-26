@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, Alert, Platform, TouchableOpacity, Animated, Dimensions, ScrollView, Modal, Image } from 'react-native';
+import { View, StyleSheet, Alert, Platform, TouchableOpacity, Animated, Dimensions, ScrollView, Modal, Image, Linking } from 'react-native';
 import { Text, ActivityIndicator, IconButton, useTheme } from 'react-native-paper';
 import type { StoreItem, RallyCreditRedemption, UserRallyCredits, ShippingAddress } from '../lib/firebase';
 import { getUserRallyCredits, getClubRallyRedemptions, spendRallyCredits } from '../lib/firebase';
@@ -332,27 +332,32 @@ export default function StorePaymentSheet({
 
               {/* Delivery Method */}
               <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.onSurfaceVariant }]}>Delivery Method</Text>
-                <View style={styles.deliveryBadge}>
-                  <Ionicons
-                    name={deliveryMethod === 'shipping' ? 'car' : 'location'}
-                    size={16}
-                    color="#60A5FA"
-                  />
-                  <Text style={styles.deliveryText}>
-                    {deliveryMethod === 'shipping' ? 'Shipping' : 'Pickup'}
-                  </Text>
-                </View>
-
-                {deliveryMethod === 'shipping' && selectedAddress && (
-                  <View style={[styles.addressCard, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)', borderColor: theme.colors.outline }]}>
-                    <Text style={[styles.addressName, { color: theme.colors.onSurface }]}>{selectedAddress.fullName}</Text>
-                    <Text style={[styles.addressText, { color: theme.colors.onSurfaceVariant }]}>{selectedAddress.addressLine1}</Text>
-                    <Text style={[styles.addressText, { color: theme.colors.onSurfaceVariant }]}>
-                      {selectedAddress.city}, {selectedAddress.state} {selectedAddress.zipCode}
+                <Text style={[styles.sectionTitle, { color: theme.colors.onSurfaceVariant }]}>Pickup Location</Text>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    const address = item.pickupAddress;
+                    if (!address) return;
+                    const encoded = encodeURIComponent(address);
+                    const url = Platform.select({
+                      ios: `maps:0,0?q=${encoded}`,
+                      android: `geo:0,0?q=${encoded}`,
+                      default: `https://maps.google.com/?q=${encoded}`,
+                    });
+                    Linking.openURL(url);
+                  }}
+                >
+                  <View style={styles.deliveryBadge}>
+                    <Ionicons
+                      name="location"
+                      size={16}
+                      color="#60A5FA"
+                    />
+                    <Text style={[styles.deliveryText, { textDecorationLine: 'underline' }]}>
+                      {item.pickupAddress || 'Location TBD'}
                     </Text>
                   </View>
-                )}
+                </TouchableOpacity>
               </View>
 
               <View style={[styles.divider, { backgroundColor: theme.colors.outline }]} />
@@ -487,15 +492,6 @@ export default function StorePaymentSheet({
                     <Text style={[styles.breakdownLabel, { color: theme.colors.onSurfaceVariant }]}>Reward Discount</Text>
                     <Text style={[styles.breakdownValue, { color: '#10B981' }]}>
                       -${calculateTotal().rewardDiscount.toFixed(2)}
-                    </Text>
-                  </View>
-                )}
-
-                {calculateTotal().shipping > 0 && (
-                  <View style={styles.breakdownRow}>
-                    <Text style={[styles.breakdownLabel, { color: theme.colors.onSurfaceVariant }]}>Shipping</Text>
-                    <Text style={[styles.breakdownValue, { color: theme.colors.onSurface }]}>
-                      ${calculateTotal().shipping.toFixed(2)}
                     </Text>
                   </View>
                 )}

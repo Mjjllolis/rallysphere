@@ -9,6 +9,8 @@ import {
   Alert,
   TouchableOpacity,
   StatusBar,
+  Linking,
+  Platform,
 } from 'react-native';
 import { Text, ActivityIndicator, RadioButton, Portal, Modal, IconButton, useTheme } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,7 +40,7 @@ export default function StoreItemDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [selectedVariants, setSelectedVariants] = useState<{ [key: string]: string }>({});
-  const [deliveryMethod, setDeliveryMethod] = useState<'shipping' | 'pickup'>('shipping');
+  const [deliveryMethod, setDeliveryMethod] = useState<'shipping' | 'pickup'>('pickup');
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   // Payment sheet
@@ -80,10 +82,8 @@ export default function StoreItemDetailScreen() {
       if (result.success && result.item) {
         setItem(result.item);
 
-        // Set default delivery method
-        if (result.item.pickupOnly) {
-          setDeliveryMethod('pickup');
-        }
+        // Always pickup
+        setDeliveryMethod('pickup');
       } else {
         Alert.alert('Error', 'Item not found');
         router.back();
@@ -149,13 +149,6 @@ export default function StoreItemDetailScreen() {
     const inStock = item.inventory - item.sold >= quantity;
     if (!inStock) {
       Alert.alert('Out of Stock', 'Not enough items in stock');
-      return;
-    }
-
-    // Validate shipping address if shipping is selected
-    if (deliveryMethod === 'shipping' && !selectedAddressId) {
-      Alert.alert('Missing Address', 'Please select a shipping address');
-      setAddressModalVisible(true);
       return;
     }
 
@@ -417,112 +410,53 @@ export default function StoreItemDetailScreen() {
             </BlurView>
           </View>
 
-          {/* Delivery Method */}
-          {!item.pickupOnly && item.allowPickup && (
-            <View style={styles.sectionContainer}>
-              <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.sectionBlur, { borderColor: theme.colors.outline }]}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Delivery Method</Text>
+          {/* Pickup Location */}
+          <View style={styles.sectionContainer}>
+            <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.sectionBlur, { borderColor: theme.colors.outline }]}>
+              <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Pickup</Text>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => {
+                  const address = item.pickupAddress;
+                  if (!address) return;
+                  const encoded = encodeURIComponent(address);
+                  const url = Platform.select({
+                    ios: `maps:0,0?q=${encoded}`,
+                    android: `geo:0,0?q=${encoded}`,
+                    default: `https://maps.google.com/?q=${encoded}`,
+                  });
+                  Linking.openURL(url);
+                }}
+              >
                 <View style={styles.deliveryRow}>
-                  <TouchableOpacity
-                    onPress={() => setDeliveryMethod('shipping')}
-                    activeOpacity={0.7}
-                    style={{ flex: 1 }}
+                  <BlurView
+                    intensity={30}
+                    tint={isDark ? "dark" : "light"}
+                    style={[
+                      styles.deliveryButton,
+                      { borderColor: theme.colors.outline },
+                      styles.deliveryButtonActive,
+                      { flex: 1 },
+                    ]}
                   >
-                    <BlurView
-                      intensity={deliveryMethod === 'shipping' ? 30 : 15}
-                      tint={isDark ? "dark" : "light"}
+                    <Ionicons
+                      name="location-outline"
+                      size={20}
+                      color="#60A5FA"
+                    />
+                    <Text
                       style={[
-                        styles.deliveryButton,
-                        { borderColor: theme.colors.outline },
-                        deliveryMethod === 'shipping' && styles.deliveryButtonActive,
+                        styles.deliveryButtonText,
+                        styles.deliveryButtonTextActive,
                       ]}
                     >
-                      <Ionicons
-                        name="car-outline"
-                        size={20}
-                        color={deliveryMethod === 'shipping' ? '#60A5FA' : theme.colors.onSurfaceVariant}
-                      />
-                      <Text
-                        style={[
-                          styles.deliveryButtonText,
-                          { color: theme.colors.onSurfaceVariant },
-                          deliveryMethod === 'shipping' && styles.deliveryButtonTextActive,
-                        ]}
-                      >
-                        Shipping
-                      </Text>
-                    </BlurView>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => setDeliveryMethod('pickup')}
-                    activeOpacity={0.7}
-                    style={{ flex: 1 }}
-                  >
-                    <BlurView
-                      intensity={deliveryMethod === 'pickup' ? 30 : 15}
-                      tint={isDark ? "dark" : "light"}
-                      style={[
-                        styles.deliveryButton,
-                        { borderColor: theme.colors.outline },
-                        deliveryMethod === 'pickup' && styles.deliveryButtonActive,
-                      ]}
-                    >
-                      <Ionicons
-                        name="location-outline"
-                        size={20}
-                        color={deliveryMethod === 'pickup' ? '#60A5FA' : theme.colors.onSurfaceVariant}
-                      />
-                      <Text
-                        style={[
-                          styles.deliveryButtonText,
-                          { color: theme.colors.onSurfaceVariant },
-                          deliveryMethod === 'pickup' && styles.deliveryButtonTextActive,
-                        ]}
-                      >
-                        Pickup
-                      </Text>
-                    </BlurView>
-                  </TouchableOpacity>
-                </View>
-              </BlurView>
-            </View>
-          )}
-
-          {/* Shipping Address */}
-          {deliveryMethod === 'shipping' && (
-            <View style={styles.sectionContainer}>
-              <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.sectionBlur, { borderColor: theme.colors.outline }]}>
-                <View style={styles.sectionTitleRow}>
-                  <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Shipping Address</Text>
-                  <TouchableOpacity onPress={() => setAddressModalVisible(true)}>
-                    <Text style={styles.changeButton}>
-                      {savedAddresses.length > 0 ? 'Change' : 'Add'}
+                      {item.pickupAddress || 'Location TBD'}
                     </Text>
-                  </TouchableOpacity>
+                  </BlurView>
                 </View>
-
-                {selectedAddressId ? (
-                  <View style={[styles.addressCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
-                    {(() => {
-                      const addr = savedAddresses.find(a => a.id === selectedAddressId);
-                      if (!addr) return null;
-                      return (
-                        <>
-                          <Text style={[styles.addressName, { color: theme.colors.onSurface }]}>{addr.fullName}</Text>
-                          <Text style={[styles.addressText, { color: theme.colors.onSurfaceVariant }]}>
-                            {addr.addressLine1}, {addr.city}, {addr.state} {addr.zipCode}
-                          </Text>
-                        </>
-                      );
-                    })()}
-                  </View>
-                ) : (
-                  <Text style={styles.errorText}>Please select a shipping address</Text>
-                )}
-              </BlurView>
-            </View>
-          )}
+              </TouchableOpacity>
+            </BlurView>
+          </View>
 
           <View style={{ height: 200 }} />
         </ScrollView>
@@ -558,73 +492,6 @@ export default function StoreItemDetailScreen() {
           </BlurView>
         </View>
       </SafeAreaView>
-
-      {/* Address Selection Modal */}
-      <Portal>
-        <Modal
-          visible={addressModalVisible}
-          onDismiss={() => setAddressModalVisible(false)}
-          contentContainerStyle={styles.addressModalContent}
-        >
-          {isDark ? (
-            <BlurView intensity={80} tint="dark" style={[styles.modalBlur, { borderColor: theme.colors.outline }]}>
-              <Text style={[styles.modalHeaderText, { color: theme.colors.onSurface, padding: 20, paddingBottom: 0 }]}>Select Shipping Address</Text>
-              <ScrollView style={styles.addressScrollView}>
-                <RadioButton.Group onValueChange={(value) => setSelectedAddressId(value)} value={selectedAddressId || ''}>
-                  {savedAddresses.map((addr) => (
-                    <TouchableOpacity key={addr.id} onPress={() => setSelectedAddressId(addr.id)} style={[styles.addressOption, { backgroundColor: 'rgba(255,255,255,0.03)' }]} activeOpacity={0.7}>
-                      <RadioButton value={addr.id} color="#60A5FA" />
-                      <View style={{ flex: 1, marginLeft: 12 }}>
-                        <Text style={[styles.addressOptionName, { color: theme.colors.onSurface }]}>{addr.fullName}</Text>
-                        <Text style={[styles.addressOptionText, { color: theme.colors.onSurfaceVariant }]}>{addr.addressLine1}, {addr.city}, {addr.state}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </RadioButton.Group>
-                <TouchableOpacity style={styles.addNewAddressButton} onPress={() => { setAddressModalVisible(false); Alert.alert('Coming Soon', 'Add new address feature coming soon!'); }} activeOpacity={0.7}>
-                  <Ionicons name="add-circle" size={20} color="#60A5FA" />
-                  <Text style={styles.addNewAddressText}>Add New Address</Text>
-                </TouchableOpacity>
-              </ScrollView>
-              <View style={styles.modalFooter}>
-                <TouchableOpacity onPress={() => setAddressModalVisible(false)} style={styles.modalPayButton} activeOpacity={0.7}>
-                  <LinearGradient colors={['#60A5FA', '#3B82F6']} style={styles.modalPayButtonGradient}>
-                    <Text style={styles.modalPayText}>Done</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            </BlurView>
-          ) : (
-            <View style={[styles.modalBlur, { borderColor: theme.colors.outline, backgroundColor: theme.colors.surface }]}>
-              <Text style={[styles.modalHeaderText, { color: theme.colors.onSurface, padding: 20, paddingBottom: 0 }]}>Select Shipping Address</Text>
-              <ScrollView style={styles.addressScrollView}>
-                <RadioButton.Group onValueChange={(value) => setSelectedAddressId(value)} value={selectedAddressId || ''}>
-                  {savedAddresses.map((addr) => (
-                    <TouchableOpacity key={addr.id} onPress={() => setSelectedAddressId(addr.id)} style={[styles.addressOption, { backgroundColor: 'rgba(0,0,0,0.03)' }]} activeOpacity={0.7}>
-                      <RadioButton value={addr.id} color="#60A5FA" />
-                      <View style={{ flex: 1, marginLeft: 12 }}>
-                        <Text style={[styles.addressOptionName, { color: theme.colors.onSurface }]}>{addr.fullName}</Text>
-                        <Text style={[styles.addressOptionText, { color: theme.colors.onSurfaceVariant }]}>{addr.addressLine1}, {addr.city}, {addr.state}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </RadioButton.Group>
-                <TouchableOpacity style={styles.addNewAddressButton} onPress={() => { setAddressModalVisible(false); Alert.alert('Coming Soon', 'Add new address feature coming soon!'); }} activeOpacity={0.7}>
-                  <Ionicons name="add-circle" size={20} color="#60A5FA" />
-                  <Text style={styles.addNewAddressText}>Add New Address</Text>
-                </TouchableOpacity>
-              </ScrollView>
-              <View style={styles.modalFooter}>
-                <TouchableOpacity onPress={() => setAddressModalVisible(false)} style={styles.modalPayButton} activeOpacity={0.7}>
-                  <LinearGradient colors={['#60A5FA', '#3B82F6']} style={styles.modalPayButtonGradient}>
-                    <Text style={styles.modalPayText}>Done</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-        </Modal>
-      </Portal>
 
       {/* Store Payment Sheet */}
       {item && user && (

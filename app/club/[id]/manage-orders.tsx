@@ -381,12 +381,12 @@ export default function ManageOrdersScreen() {
                       {/* Delivery Method */}
                       <View style={[styles.detailRow, { marginTop: 8 }]}>
                         <Chip
-                          icon={order.deliveryMethod === 'shipping' ? 'truck-delivery' : 'map-marker'}
+                          icon="map-marker"
                           compact
                           textStyle={{ fontSize: 11 }}
                           style={{ alignSelf: 'flex-start' }}
                         >
-                          {order.deliveryMethod === 'shipping' ? 'Shipping' : 'Pickup'}
+                          Pickup
                         </Chip>
                       </View>
 
@@ -403,24 +403,6 @@ export default function ManageOrdersScreen() {
                         </Text>
                       </View>
 
-                      {/* Shipping Address */}
-                      {order.shippingAddress && (
-                        <View style={[styles.infoSection, { backgroundColor: theme.colors.surfaceVariant + '40' }]}>
-                          <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                            SHIPPING ADDRESS
-                          </Text>
-                          <Text variant="bodySmall">{order.shippingAddress.fullName}</Text>
-                          <Text variant="bodySmall">{order.shippingAddress.addressLine1}</Text>
-                          {order.shippingAddress.addressLine2 && (
-                            <Text variant="bodySmall">{order.shippingAddress.addressLine2}</Text>
-                          )}
-                          <Text variant="bodySmall">
-                            {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zipCode}
-                          </Text>
-                          <Text variant="bodySmall">{order.shippingAddress.phone}</Text>
-                        </View>
-                      )}
-
                       {/* Price Breakdown */}
                       <View style={[styles.infoSection, { backgroundColor: theme.colors.surfaceVariant + '40' }]}>
                         <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 4 }}>
@@ -430,16 +412,10 @@ export default function ManageOrdersScreen() {
                           <Text variant="bodySmall">Subtotal</Text>
                           <Text variant="bodySmall">${order.price.toFixed(2)}</Text>
                         </View>
-                        {order.shipping > 0 && (
-                          <View style={styles.priceRow}>
-                            <Text variant="bodySmall">Shipping</Text>
-                            <Text variant="bodySmall">${order.shipping.toFixed(2)}</Text>
-                          </View>
-                        )}
                         <View style={styles.priceRow}>
                           <Text variant="bodySmall">Processing Fee (6% + $0.29)</Text>
                           <Text variant="bodySmall">
-                            ${(order.totalAmount - order.price - (order.shipping || 0)).toFixed(2)}
+                            ${(order.totalAmount - order.price).toFixed(2)}
                           </Text>
                         </View>
                         <Divider style={{ marginVertical: 4 }} />
@@ -460,17 +436,11 @@ export default function ManageOrdersScreen() {
                           <Text variant="bodySmall">Subtotal</Text>
                           <Text variant="bodySmall">${order.price.toFixed(2)}</Text>
                         </View>
-                        {order.shipping > 0 && (
-                          <View style={styles.priceRow}>
-                            <Text variant="bodySmall">+ Shipping</Text>
-                            <Text variant="bodySmall">${order.shipping.toFixed(2)}</Text>
-                          </View>
-                        )}
                         <Divider style={{ marginVertical: 4 }} />
                         <View style={styles.priceRow}>
                           <Text variant="bodyMedium" style={{ fontWeight: 'bold' }}>You Receive</Text>
                           <Text variant="bodyMedium" style={{ fontWeight: 'bold', color: theme.colors.primary }}>
-                            ${(order.price + (order.shipping || 0)).toFixed(2)}
+                            ${order.price.toFixed(2)}
                           </Text>
                         </View>
                         <View style={[styles.priceRow, { marginTop: 8 }]}>
@@ -539,7 +509,6 @@ export default function ManageOrdersScreen() {
                 buttons={[
                   { value: 'pending', label: 'Pending' },
                   { value: 'processing', label: 'Processing' },
-                  { value: 'shipped', label: 'Shipped' },
                 ]}
                 style={{ marginBottom: 12 }}
               />
@@ -548,10 +517,7 @@ export default function ManageOrdersScreen() {
                 value={newStatus}
                 onValueChange={(value) => setNewStatus(value as StoreOrder['status'])}
                 buttons={[
-                  {
-                    value: selectedOrder.deliveryMethod === 'shipping' ? 'delivered' : 'picked_up',
-                    label: selectedOrder.deliveryMethod === 'shipping' ? 'Delivered' : 'Picked Up',
-                  },
+                  { value: 'picked_up', label: 'Picked Up' },
                   { value: 'cancelled', label: 'Cancelled' },
                   { value: 'refunded', label: 'Refunded' },
                 ]}
