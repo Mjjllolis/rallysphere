@@ -7,8 +7,8 @@ import {
   Alert,
   TouchableOpacity,
   RefreshControl,
-  Dimensions,
   TextInput,
+  Image,
 } from 'react-native';
 import {
   Text,
@@ -31,10 +31,9 @@ import {
   removeMember,
   promoteToAdmin,
   demoteAdmin,
+  getUserProfile,
 } from '../../../lib/firebase';
-import type { Club, ClubJoinRequest } from '../../../lib/firebase';
-
-const SCREEN_WIDTH = Dimensions.get('window').width;
+import type { Club, ClubJoinRequest, UserProfile } from '../../../lib/firebase';
 
 export default function ManageMembersScreen() {
   const theme = useTheme();
@@ -45,6 +44,7 @@ export default function ManageMembersScreen() {
 
   const [club, setClub] = useState<Club | null>(null);
   const [joinRequests, setJoinRequests] = useState<ClubJoinRequest[]>([]);
+  const [memberProfiles, setMemberProfiles] = useState<{ [key: string]: UserProfile | null }>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTab, setSelectedTab] = useState<'members' | 'requests'>('members');
   const [loading, setLoading] = useState(true);
@@ -69,6 +69,16 @@ export default function ManageMembersScreen() {
           router.back();
           return;
         }
+
+        // Fetch profiles for all members
+        const profiles: { [key: string]: UserProfile | null } = {};
+        await Promise.all(
+          clubResult.club.members.map(async (memberId) => {
+            const profile = await getUserProfile(memberId);
+            profiles[memberId] = profile;
+          })
+        );
+        setMemberProfiles(profiles);
       } else {
         router.back();
         return;
@@ -101,7 +111,8 @@ export default function ManageMembersScreen() {
 
   const handlePromoteToAdmin = async (userId: string) => {
     closeMenu(userId);
-    Alert.alert('Promote to Admin', `Grant admin privileges to ${userId}?`, [
+    const displayName = getMemberDisplayName(userId);
+    Alert.alert('Promote to Admin', `Grant admin privileges to ${displayName}?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Promote',
@@ -123,7 +134,8 @@ export default function ManageMembersScreen() {
 
   const handleDemoteAdmin = async (userId: string) => {
     closeMenu(userId);
-    Alert.alert('Demote Admin', `Remove admin privileges from ${userId}?`, [
+    const displayName = getMemberDisplayName(userId);
+    Alert.alert('Demote Admin', `Remove admin privileges from ${displayName}?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Demote',
@@ -146,7 +158,8 @@ export default function ManageMembersScreen() {
 
   const handleRemoveMember = async (userId: string) => {
     closeMenu(userId);
-    Alert.alert('Remove Member', `Remove ${userId} from the club? This cannot be undone.`, [
+    const displayName = getMemberDisplayName(userId);
+    Alert.alert('Remove Member', `Remove ${displayName} from the club? This cannot be undone.`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
@@ -216,8 +229,34 @@ export default function ManageMembersScreen() {
     });
   };
 
+  const getMemberDisplayName = (memberId: string) => {
+    const profile = memberProfiles[memberId];
+    if (profile) {
+      if (profile.displayName) return profile.displayName;
+      if (profile.firstName || profile.lastName) {
+        return `${profile.firstName || ''} ${profile.lastName || ''}`.trim();
+      }
+    }
+    return memberId;
+  };
+
+  const getMemberInitials = (memberId: string) => {
+    const profile = memberProfiles[memberId];
+    if (profile) {
+      const first = profile.firstName?.[0] || '';
+      const last = profile.lastName?.[0] || '';
+      if (first || last) return `${first}${last}`.toUpperCase();
+    }
+    return memberId.substring(0, 2).toUpperCase();
+  };
+
+  const getMemberPhoto = (memberId: string) => {
+    const profile = memberProfiles[memberId];
+    return profile?.photoURL || profile?.avatar || null;
+  };
+
   const filteredMembers = club?.members.filter((memberId) =>
-    memberId.toLowerCase().includes(searchQuery.toLowerCase())
+    getMemberDisplayName(memberId).toLowerCase().includes(searchQuery.toLowerCase())
   ) || [];
 
   if (loading) {
@@ -321,25 +360,38 @@ export default function ManageMembersScreen() {
                   return (
                     <BlurView key={memberId} intensity={20} tint={isDark ? "dark" : "light"} style={[styles.memberCard, { borderColor: theme.colors.outline }]}>
                       <View style={styles.memberCardInner}>
-                        <View style={styles.avatar}>
-                          <Text style={styles.avatarText}>
-                            {memberId.substring(0, 2).toUpperCase()}
-                          </Text>
-                        </View>
-
-                        <View style={{ flex: 1 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                            <Text style={[styles.memberName, { color: theme.colors.onSurface }]}>{memberId}</Text>
-                            {isAdmin && (
-                              <View style={styles.adminBadge}>
-                                <Text style={styles.adminBadgeText}>Admin</Text>
-                              </View>
+                        <TouchableOpacity
+                          style={styles.memberTouchable}
+                          onPress={() => router.push(`/user/${memberId}`)}
+                          activeOpacity={0.7}
+                        >
+                          <View style={styles.avatar}>
+                            {getMemberPhoto(memberId) ? (
+                              <Image
+                                source={{ uri: getMemberPhoto(memberId)! }}
+                                style={styles.avatarImage}
+                              />
+                            ) : (
+                              <Text style={styles.avatarText}>
+                                {getMemberInitials(memberId)}
+                              </Text>
                             )}
                           </View>
-                          {isCreator && (
-                            <Text style={[styles.memberRole, { color: theme.colors.onSurfaceVariant }]}>Club Creator</Text>
-                          )}
-                        </View>
+
+                          <View style={{ flex: 1 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                              <Text style={[styles.memberName, { color: theme.colors.onSurface }]}>{getMemberDisplayName(memberId)}</Text>
+                              {isAdmin && (
+                                <View style={styles.adminBadge}>
+                                  <Text style={styles.adminBadgeText}>Admin</Text>
+                                </View>
+                              )}
+                            </View>
+                            {isCreator && (
+                              <Text style={[styles.memberRole, { color: theme.colors.onSurfaceVariant }]}>Club Creator</Text>
+                            )}
+                          </View>
+                        </TouchableOpacity>
 
                         {!isCreator && memberId !== user?.uid && (
                           <Menu
@@ -562,6 +614,12 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
   },
+  memberTouchable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
   avatar: {
     width: 48,
     height: 48,
@@ -574,6 +632,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#60A5FA',
+  },
+  avatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
   memberName: {
     fontSize: 16,

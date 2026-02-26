@@ -743,7 +743,12 @@ export default function ClubDetailScreen() {
                     : '?';
 
                   return (
-                    <View key={userId} style={[styles.memberRow, { borderBottomColor: theme.colors.outline }]}>
+                    <TouchableOpacity
+                      key={userId}
+                      style={[styles.memberRow, { borderBottomColor: theme.colors.outline }]}
+                      onPress={() => router.push(`/user/${userId}`)}
+                      activeOpacity={0.7}
+                    >
                       <View style={styles.memberInfo}>
                         {member?.avatar ? (
                           <Image
@@ -776,7 +781,7 @@ export default function ClubDetailScreen() {
                           </Chip>
                         ) : null}
                       </View>
-                    </View>
+                    </TouchableOpacity>
                   );
                 })}
               </View>

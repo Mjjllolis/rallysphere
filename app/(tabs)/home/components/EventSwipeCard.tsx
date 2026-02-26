@@ -17,7 +17,7 @@ import { router } from 'expo-router';
 import Svg, { Defs, Pattern as SvgPattern, Rect as SvgRect } from 'react-native-svg';
 import type { Event } from '../../../../lib/firebase';
 import { useAuth, useThemeToggle } from '../../../_layout';
-import { joinEvent, getEventById, bookmarkEvent, unbookmarkEvent, getUserBookmarks, likeEvent, unlikeEvent, getUserLikes } from '../../../../lib/firebase';
+import { joinEvent, getEventById, bookmarkEvent, unbookmarkEvent, getUserBookmarks, likeEvent, unlikeEvent, getUserLikes, getClub } from '../../../../lib/firebase';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const ALBUM_WIDTH = SCREEN_WIDTH * 0.85;
@@ -66,9 +66,11 @@ export default function EventSwipeCard({
   const [isLiked, setIsLiked] = useState(false);
   const [likeLoading, setLikeLoading] = useState(false);
   const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
+  const [clubLogo, setClubLogo] = useState<string | undefined>(initialEvent.clubLogo);
 
   useEffect(() => {
     setEvent(initialEvent);
+    setClubLogo(initialEvent.clubLogo);
   }, [initialEvent]);
 
   useEffect(() => {
@@ -77,6 +79,19 @@ export default function EventSwipeCard({
       loadLikeStatus();
     }
   }, [user, event.id]);
+
+  // Fetch club logo if not present on event
+  useEffect(() => {
+    const fetchClubLogo = async () => {
+      if (!clubLogo && event.clubId) {
+        const result = await getClub(event.clubId);
+        if (result.success && result.club?.logo) {
+          setClubLogo(result.club.logo);
+        }
+      }
+    };
+    fetchClubLogo();
+  }, [event.clubId, clubLogo]);
 
   const loadBookmarkStatus = async () => {
     if (!user) return;
@@ -363,9 +378,26 @@ export default function EventSwipeCard({
             {event.title}
           </Text>
 
-          <Text variant="bodyLarge" style={[styles.clubName, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
-            {event.clubName}
-          </Text>
+          <View style={styles.clubRow}>
+            {clubLogo ? (
+              <Image
+                source={{ uri: clubLogo }}
+                style={styles.clubLogo}
+                resizeMode="cover"
+                accessible={true}
+                accessibilityLabel={`${event.clubName} logo`}
+              />
+            ) : (
+              <View style={[styles.clubLogo, styles.clubLogoPlaceholder, { backgroundColor: theme.colors.surfaceVariant }]}>
+                <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12, fontWeight: '600' }}>
+                  {event.clubName.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <Text variant="bodyLarge" style={[styles.clubName, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
+              {event.clubName}
+            </Text>
+          </View>
 
           <View style={styles.compactDetailsRow}>
             <View style={styles.detailItem}>
@@ -545,9 +577,26 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'left',
   },
+  clubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 2,
+  },
+  clubLogo: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  clubLogoPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   clubName: {
     textAlign: 'left',
-    marginBottom: 2,
+    flex: 1,
   },
   compactDetailsRow: {
     flexDirection: 'row',

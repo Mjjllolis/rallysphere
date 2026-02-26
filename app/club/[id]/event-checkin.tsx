@@ -1,5 +1,5 @@
 // app/club/[id]/event-checkin.tsx - Event Check-in Admin Screen
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,6 +8,7 @@ import {
   RefreshControl,
   TextInput,
   Alert,
+  Modal,
 } from 'react-native';
 import {
   Text,
@@ -25,8 +26,10 @@ import {
   getEvents,
   getEventAttendees,
   checkInAttendee,
+  getEventWaiverSignatures,
 } from '../../../lib/firebase';
 import type { Club, Event } from '../../../lib/firebase';
+import { generateAndShareWaiverPDF } from '../../../lib/waiverPdf';
 
 interface Attendee {
   userId: string;
@@ -54,6 +57,22 @@ export default function EventCheckinScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [checkingIn, setCheckingIn] = useState<string | null>(null);
   const [checkedInCount, setCheckedInCount] = useState(0);
+  const [waiverSignatures, setWaiverSignatures] = useState<{ [userId: string]: { initials: string; signedAt: Date } }>({});
+  const [showWaiverModal, setShowWaiverModal] = useState(false);
+  const [selectedWaiver, setSelectedWaiver] = useState<{ attendee: Attendee; signature: { initials: string; signedAt: Date } } | null>(null);
+  const [exportingPDF, setExportingPDF] = useState(false);
+  const cachedPdfUri = useRef<string | null>(null);
+
+  // Clear cached PDF when modal closes or waiver changes
+  useEffect(() => {
+    if (!showWaiverModal) {
+      cachedPdfUri.current = null;
+    }
+  }, [showWaiverModal]);
+
+  useEffect(() => {
+    cachedPdfUri.current = null;
+  }, [selectedWaiver]);
 
   useEffect(() => {
     loadInitialData();
@@ -112,10 +131,16 @@ export default function EventCheckinScreen() {
   const loadAttendees = async (eventId: string) => {
     try {
       setLoadingAttendees(true);
-      const result = await getEventAttendees(eventId);
-      if (result.success) {
-        setAttendees(result.attendees);
-        setCheckedInCount(result.checkedInCount || 0);
+      const [attendeesResult, waiverResult] = await Promise.all([
+        getEventAttendees(eventId),
+        getEventWaiverSignatures(eventId),
+      ]);
+      if (attendeesResult.success) {
+        setAttendees(attendeesResult.attendees);
+        setCheckedInCount(attendeesResult.checkedInCount || 0);
+      }
+      if (waiverResult.success) {
+        setWaiverSignatures(waiverResult.signatures);
       }
     } catch (error) {
       console.error('Error loading attendees:', error);
@@ -288,6 +313,17 @@ export default function EventCheckinScreen() {
                       </View>
                     </>
                   )}
+                  {selectedEvent.hasWaiver && (
+                    <>
+                      <View style={[styles.statDivider, { backgroundColor: theme.colors.outline }]} />
+                      <View style={styles.statItem}>
+                        <Text style={styles.statNumberPurple}>
+                          {Object.keys(waiverSignatures).length}
+                        </Text>
+                        <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>Waivers Signed</Text>
+                      </View>
+                    </>
+                  )}
                 </View>
               </BlurView>
             </View>
@@ -358,17 +394,34 @@ export default function EventCheckinScreen() {
 
                         {/* Info */}
                         <View style={styles.attendeeInfo}>
-                          <Text style={[styles.attendeeName, { color: theme.colors.onSurface }]}>{attendee.displayName}</Text>
+                          <View style={styles.attendeeNameRow}>
+                            <Text style={[styles.attendeeName, { color: theme.colors.onSurface }]}>{attendee.displayName}</Text>
+                            {selectedEvent.hasWaiver && waiverSignatures[attendee.userId] && (
+                              <TouchableOpacity
+                                onPress={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedWaiver({ attendee, signature: waiverSignatures[attendee.userId] });
+                                  setShowWaiverModal(true);
+                                }}
+                                style={styles.waiverBadge}
+                                activeOpacity={0.7}
+                              >
+                                <IconButton icon="file-document-check" size={12} iconColor="#8B5CF6" style={{ margin: 0, padding: 0 }} />
+                              </TouchableOpacity>
+                            )}
+                          </View>
                           <Text style={[styles.attendeeEmail, { color: theme.colors.onSurfaceDisabled }]}>{attendee.email}</Text>
+                          {selectedEvent.hasWaiver && !waiverSignatures[attendee.userId] && (
+                            <Text style={styles.noWaiverText}>No waiver signed</Text>
+                          )}
                         </View>
 
                         {/* Status/Action */}
                         {checkingIn === attendee.userId ? (
                           <ActivityIndicator size="small" color="#60A5FA" />
                         ) : attendee.isCheckedIn ? (
-                          <View style={styles.checkedInBadge}>
-                            <IconButton icon="check" size={16} iconColor="#10B981" />
-                            <Text style={styles.checkedInText}>Checked In</Text>
+                          <View style={styles.checkedInButton}>
+                            <IconButton icon="check" size={20} iconColor="#FFFFFF" style={{ margin: 0 }} />
                           </View>
                         ) : (
                           <View style={styles.checkInButton}>
@@ -388,6 +441,209 @@ export default function EventCheckinScreen() {
             <Text style={[styles.emptyText, { color: theme.colors.onSurfaceDisabled }]}>No events to check in</Text>
           </View>
         )}
+
+        {/* Waiver View Modal */}
+        <Modal
+          visible={showWaiverModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowWaiverModal(false)}
+        >
+          <View style={styles.waiverModalOverlay}>
+            <View style={[
+              styles.waiverModalContent,
+              { backgroundColor: theme.dark ? '#1C1C1E' : '#FFFFFF' }
+            ]}>
+              {/* Header */}
+              <View style={styles.waiverModalHeader}>
+                <View style={styles.waiverModalTitleRow}>
+                  <IconButton icon="file-document-check" size={28} iconColor="#8B5CF6" style={{ margin: 0 }} />
+                  <Text style={[styles.waiverModalTitle, { color: theme.colors.onSurface }]}>
+                    Signed Waiver
+                  </Text>
+                </View>
+                <IconButton
+                  icon="close"
+                  size={24}
+                  iconColor={theme.colors.onSurfaceVariant}
+                  onPress={() => setShowWaiverModal(false)}
+                  style={{ margin: 0 }}
+                />
+              </View>
+
+              {/* Formatted Waiver Document */}
+              <ScrollView style={styles.waiverModalScroll} showsVerticalScrollIndicator>
+                {/* Event Title */}
+                <View style={[
+                  styles.waiverEventHeader,
+                  {
+                    backgroundColor: theme.dark ? 'rgba(139, 92, 246, 0.1)' : '#F0F4F8',
+                    borderColor: theme.dark ? 'rgba(139, 92, 246, 0.3)' : '#D1D9E6'
+                  }
+                ]}>
+                  <Text style={[styles.waiverEventTitle, { color: theme.colors.onSurface }]}>
+                    {selectedEvent?.title}
+                  </Text>
+                </View>
+
+                {/* Terms & Conditions Section */}
+                <View style={styles.waiverSection}>
+                  <Text style={[styles.waiverSectionHeader, { color: theme.dark ? '#8B5CF6' : '#7C3AED' }]}>
+                    TERMS & CONDITIONS
+                  </Text>
+                  <View style={[
+                    styles.waiverContentBox,
+                    {
+                      backgroundColor: theme.dark ? 'rgba(255,255,255,0.03)' : '#F9FAFB',
+                      borderLeftColor: theme.dark ? '#8B5CF6' : '#7C3AED'
+                    }
+                  ]}>
+                    <Text style={[styles.waiverBodyText, { color: theme.colors.onSurface }]}>
+                      {selectedEvent?.waiverText}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Electronic Signature Section */}
+                <View style={styles.waiverSection}>
+                  <Text style={[styles.waiverSectionHeader, { color: theme.dark ? '#8B5CF6' : '#7C3AED' }]}>
+                    ELECTRONIC SIGNATURE
+                  </Text>
+                  <View style={[
+                    styles.waiverSignatureBox,
+                    {
+                      backgroundColor: theme.dark ? 'rgba(139, 92, 246, 0.08)' : '#F0F4F8',
+                      borderColor: theme.dark ? 'rgba(139, 92, 246, 0.2)' : '#D1D9E6'
+                    }
+                  ]}>
+                    <View style={styles.waiverSigRow}>
+                      <Text style={[styles.waiverSigLabel, { color: theme.colors.onSurfaceVariant }]}>
+                        Full Name
+                      </Text>
+                      <Text style={[styles.waiverSigValue, { color: theme.colors.onSurface }]}>
+                        {selectedWaiver?.attendee.displayName}
+                      </Text>
+                    </View>
+                    <View style={[styles.waiverSigDivider, { backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : '#E5E7EB' }]} />
+
+                    <View style={styles.waiverSigRow}>
+                      <Text style={[styles.waiverSigLabel, { color: theme.colors.onSurfaceVariant }]}>
+                        Email Address
+                      </Text>
+                      <Text style={[styles.waiverSigValue, { color: theme.colors.onSurface }]}>
+                        {selectedWaiver?.attendee.email}
+                      </Text>
+                    </View>
+                    <View style={[styles.waiverSigDivider, { backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : '#E5E7EB' }]} />
+
+                    <View style={styles.waiverSigRow}>
+                      <Text style={[styles.waiverSigLabel, { color: theme.colors.onSurfaceVariant }]}>
+                        Initials
+                      </Text>
+                      <Text style={[styles.waiverInitials, { color: theme.dark ? '#8B5CF6' : '#7C3AED' }]}>
+                        {selectedWaiver?.signature.initials}
+                      </Text>
+                    </View>
+                    <View style={[styles.waiverSigDivider, { backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : '#E5E7EB' }]} />
+
+                    <View style={styles.waiverSigRow}>
+                      <Text style={[styles.waiverSigLabel, { color: theme.colors.onSurfaceVariant }]}>
+                        Date & Time
+                      </Text>
+                      <Text style={[styles.waiverSigValue, { color: theme.colors.onSurface }]}>
+                        {selectedWaiver?.signature.signedAt.toLocaleDateString([], {
+                          month: 'long',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}{'\n'}
+                        {selectedWaiver?.signature.signedAt.toLocaleTimeString([], {
+                          hour: 'numeric',
+                          minute: '2-digit'
+                        })}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </ScrollView>
+
+              {/* Action Buttons */}
+              <View style={styles.waiverModalActions}>
+                <TouchableOpacity
+                  style={[
+                    styles.waiverShareButton,
+                    { backgroundColor: theme.dark ? '#8B5CF6' : '#7C3AED' }
+                  ]}
+                  onPress={async () => {
+                    // Prevent multiple taps while generating
+                    if (exportingPDF || !selectedEvent || !selectedWaiver) return;
+
+                    setExportingPDF(true);
+
+                    try {
+                      // Check if we have a cached PDF
+                      if (cachedPdfUri.current) {
+                        try {
+                          const result = await generateAndShareWaiverPDF({
+                            eventTitle: selectedEvent.title,
+                            waiverText: selectedEvent.waiverText || '',
+                            signerName: selectedWaiver.attendee.displayName,
+                            signerEmail: selectedWaiver.attendee.email,
+                            initials: selectedWaiver.signature.initials,
+                            signedAt: selectedWaiver.signature.signedAt,
+                            cachedUri: cachedPdfUri.current,
+                          });
+
+                          if (result.success) {
+                            setExportingPDF(false);
+                            return;
+                          }
+                        } catch (e) {
+                          cachedPdfUri.current = null;
+                        }
+                      }
+
+                      // Generate new PDF and cache it
+                      const result = await generateAndShareWaiverPDF({
+                        eventTitle: selectedEvent.title,
+                        waiverText: selectedEvent.waiverText || '',
+                        signerName: selectedWaiver.attendee.displayName,
+                        signerEmail: selectedWaiver.attendee.email,
+                        initials: selectedWaiver.signature.initials,
+                        signedAt: selectedWaiver.signature.signedAt,
+                      });
+
+                      if (result.success && result.uri) {
+                        cachedPdfUri.current = result.uri;
+                      } else if (!result.success) {
+                        Alert.alert('Error', `Failed to generate PDF: ${result.error}`);
+                      }
+                    } finally {
+                      setExportingPDF(false);
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <IconButton icon="file-pdf-box" size={20} iconColor="#FFFFFF" style={{ margin: 0 }} />
+                  <Text style={styles.waiverShareText}>Export PDF</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.waiverCloseButton,
+                    { backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }
+                  ]}
+                  onPress={() => setShowWaiverModal(false)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[
+                    styles.waiverCloseText,
+                    { color: theme.dark ? 'rgba(255,255,255,0.8)' : '#6B7280' }
+                  ]}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </View>
   );
@@ -504,6 +760,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFD700',
   },
+  statNumberPurple: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#8B5CF6',
+  },
   statLabel: {
     fontSize: 11,
     marginTop: 2,
@@ -586,36 +847,173 @@ const styles = StyleSheet.create({
   attendeeInfo: {
     flex: 1,
   },
+  attendeeNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   attendeeName: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  waiverBadge: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  noWaiverText: {
+    fontSize: 11,
+    color: '#F59E0B',
+    marginTop: 2,
   },
   attendeeEmail: {
     fontSize: 13,
     marginTop: 2,
   },
-  checkedInBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  checkedInButton: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 16,
+    height: 38,
     borderRadius: 8,
-  },
-  checkedInText: {
-    color: '#10B981',
-    fontSize: 12,
-    fontWeight: '600',
+    minWidth: 90,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   checkInButton: {
     backgroundColor: '#60A5FA',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
+    minWidth: 90,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 38,
   },
   checkInButtonText: {
     color: '#fff',
     fontSize: 14,
+    fontWeight: '600',
+  },
+  // Waiver Modal Styles
+  waiverModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  waiverModalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 40,
+    maxHeight: '85%',
+  },
+  waiverModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  waiverModalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  waiverModalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  waiverModalScroll: {
+    flexGrow: 0,
+    marginBottom: 20,
+  },
+  waiverEventHeader: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+  },
+  waiverEventTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  waiverSection: {
+    marginBottom: 24,
+  },
+  waiverSectionHeader: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 12,
+  },
+  waiverContentBox: {
+    borderRadius: 8,
+    padding: 16,
+    borderLeftWidth: 3,
+  },
+  waiverBodyText: {
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  waiverSignatureBox: {
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+  },
+  waiverSigRow: {
+    paddingVertical: 12,
+  },
+  waiverSigLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  waiverSigValue: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  waiverInitials: {
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: 3,
+  },
+  waiverSigDivider: {
+    height: 1,
+    marginVertical: 0,
+  },
+  waiverModalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  waiverShareButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 4,
+  },
+  waiverShareText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  waiverCloseButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  waiverCloseText: {
+    fontSize: 16,
     fontWeight: '600',
   },
 });

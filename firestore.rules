@@ -66,6 +66,14 @@ service cloud.firestore {
       // Only event creator and club admins can delete events
       allow delete: if request.auth != null &&
         (request.auth.uid == resource.data.createdBy);
+
+      // Waiver signatures subcollection - users can sign their own waiver
+      match /waiverSignatures/{signerId} {
+        // Anyone authenticated can read signatures (for check-in screen)
+        allow read: if request.auth != null;
+        // Users can only write their own signature document
+        allow write: if request.auth != null && request.auth.uid == signerId;
+      }
     }
     
     // Featured events - read-only for all authenticated users
@@ -183,11 +191,7 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/clubs/$(request.resource.data.clubId)) &&
         (request.auth.uid in get(/databases/$(database)/documents/clubs/$(request.resource.data.clubId)).data.get('clubAdmins', []) ||
          request.auth.uid in get(/databases/$(database)/documents/clubs/$(request.resource.data.clubId)).data.get('admins', []));
-      // Users can update usedCount when redeeming rewards
-      allow update: if request.auth != null &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedCount', 'updatedAt']) &&
-        request.resource.data.usedCount == resource.data.usedCount + 1;
-      // Only club admins can update their club's redemptions (other fields)
+      // Only club admins can update their club's redemptions
       allow update: if request.auth != null &&
         exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
         (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
