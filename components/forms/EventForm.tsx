@@ -39,6 +39,8 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
 
   const [tags, setTags] = useState<string[]>([]);
   const [isPublic, setIsPublic] = useState(true);
+  const [hasWaiver, setHasWaiver] = useState(false);
+  const [waiverText, setWaiverText] = useState('');
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date(Date.now() + 2 * 60 * 60 * 1000));
 
@@ -156,6 +158,8 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
         ticketPrice: ticketPriceValue,
         currency: formData.currency,
         rallyCreditsAwarded: rallyCreditsPayoutValue,
+        hasWaiver: hasWaiver,
+        waiverText: hasWaiver ? waiverText.trim() : undefined,
       };
 
       const result = await createEvent(eventData);
@@ -294,6 +298,25 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
         value={isPublic}
         onValueChange={setIsPublic}
       />
+
+      <GlassSwitch
+        label="Require Waiver"
+        description="Users must agree to terms before joining"
+        value={hasWaiver}
+        onValueChange={setHasWaiver}
+      />
+
+      {hasWaiver && (
+        <GlassInput
+          label="Waiver / Terms Text"
+          value={waiverText}
+          onChangeText={setWaiverText}
+          placeholder="Enter the waiver or terms that attendees must agree to..."
+          multiline
+          numberOfLines={6}
+          icon="file-document-outline"
+        />
+      )}
 
       {/* Submit Button */}
       <GlassButton

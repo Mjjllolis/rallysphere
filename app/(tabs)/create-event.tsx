@@ -9,8 +9,6 @@ import {
   useTheme,
   Switch,
   IconButton,
-  Divider,
-  Surface,
   Menu
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -54,6 +52,8 @@ export default function CreateEventScreen() {
   });
   
   const [isPublic, setIsPublic] = useState(true);
+  const [hasWaiver, setHasWaiver] = useState(false);
+  const [waiverText, setWaiverText] = useState('');
   const [coverImage, setCoverImage] = useState<string | null>(null);
   
   const [startDate, setStartDate] = useState(new Date());
@@ -188,6 +188,8 @@ export default function CreateEventScreen() {
         ticketPrice: formData.ticketPrice ? parseFloat(formData.ticketPrice) : undefined,
         currency: formData.ticketPrice ? formData.currency : undefined,
         rallyCreditsAwarded: formData.rallyCreditsAwarded ? parseInt(formData.rallyCreditsAwarded) : undefined,
+        hasWaiver: hasWaiver,
+        waiverText: hasWaiver ? waiverText.trim() : undefined,
       };
 
       const result = await createEvent(eventData);
@@ -644,6 +646,39 @@ export default function CreateEventScreen() {
                 </View>
                 <Switch value={isPublic} onValueChange={setIsPublic} />
               </View>
+
+              <View style={styles.switchRow}>
+                <View style={styles.switchContent}>
+                  <Text variant="bodyLarge" style={styles.switchLabel}>Require Waiver</Text>
+                  <Text variant="bodySmall" style={styles.switchDescription}>
+                    Users must agree to terms before joining
+                  </Text>
+                </View>
+                <Switch value={hasWaiver} onValueChange={setHasWaiver} />
+              </View>
+
+              {hasWaiver && (
+                <View style={styles.waiverSection}>
+                  <View style={styles.waiverHeader}>
+                    <IconButton icon="file-document-outline" size={20} iconColor="#1B365D" />
+                    <Text variant="bodyMedium" style={styles.waiverHeaderText}>
+                      Waiver / Terms Text
+                    </Text>
+                  </View>
+                  <TextInput
+                    value={waiverText}
+                    onChangeText={setWaiverText}
+                    mode="outlined"
+                    multiline
+                    numberOfLines={6}
+                    style={styles.waiverInput}
+                    placeholder="Enter the waiver or terms that attendees must agree to before joining this event..."
+                  />
+                  <Text variant="bodySmall" style={styles.waiverHint}>
+                    This will be shown to users when they try to join the event
+                  </Text>
+                </View>
+              )}
             </Card.Content>
           </Card>
 
@@ -837,5 +872,28 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: '#FCD34D',
+  },
+  waiverSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E1E7F1',
+  },
+  waiverHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  waiverHeaderText: {
+    fontWeight: '600',
+    color: '#1B365D',
+  },
+  waiverInput: {
+    backgroundColor: '#F9FAFB',
+  },
+  waiverHint: {
+    color: '#6B7280',
+    marginTop: 8,
+    marginLeft: 4,
   },
 });

@@ -1,6 +1,6 @@
 // app/event/[id].tsx
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Image, Linking, Dimensions, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, StyleSheet, ScrollView, Alert, Image, Linking, Dimensions, TouchableOpacity, ActivityIndicator, Modal, Animated, TextInput, PanResponder, Pressable } from 'react-native';
 import {
   Text,
   Button,
@@ -15,12 +15,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
 import { useAuth, useThemeToggle } from '../_layout';
-import { getEventById, joinEvent, getUserRallyCredits, getClub, getUserProfile } from '../../lib/firebase';
+import { getEventById, joinEvent, getUserRallyCredits, getClub, getUserProfile, storeWaiverSignature, getWaiverSignature } from '../../lib/firebase';
 import { leaveEventWithRefund } from '../../lib/stripe';
 import type { Event, UserRallyCredits, UserProfile } from '../../lib/firebase';
 import BackButton from '../../components/BackButton';
 import PaymentSheet from '../../components/PaymentSheet';
 import RallyCreditsPaidModal from '../../components/RallyCreditsPaidModal';
+import { generateAndShareWaiverPDF } from '../../lib/waiverPdf';
 
 const { width } = Dimensions.get('window');
 
@@ -45,6 +46,104 @@ export default function EventDetailScreen() {
     isAlreadyMember: boolean;
   } | null>(null);
   const [attendeesData, setAttendeesData] = useState<Map<string, UserProfile>>(new Map());
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [waiverModalVisible, setWaiverModalVisible] = useState(false);
+  const [waiverAgreed, setWaiverAgreed] = useState(false);
+  const [waiverInitials, setWaiverInitials] = useState('');
+  const [waiverScrolledToBottom, setWaiverScrolledToBottom] = useState(false);
+  const [signedWaiver, setSignedWaiver] = useState<{ initials: string; signedAt: Date } | null>(null);
+  const [showSignedWaiverModal, setShowSignedWaiverModal] = useState(false);
+  const [exportingPDF, setExportingPDF] = useState(false);
+  const [clubLogo, setClubLogo] = useState<string | undefined>(undefined);
+  const waiverSheetAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
+  const waiverHintOpacity = useRef(new Animated.Value(1)).current;
+  const waiverAgreementOpacity = useRef(new Animated.Value(0.4)).current;
+  const signedWaiverSheetAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
+  const cachedPdfUri = useRef<string | null>(null);
+
+  // Dismiss waiver modal with slide-down animation
+  const dismissWaiverModal = () => {
+    Animated.timing(waiverSheetAnim, {
+      toValue: Dimensions.get('window').height,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      setWaiverModalVisible(false);
+      setWaiverScrolledToBottom(false);
+    });
+  };
+
+  // Check if user has scrolled to bottom of waiver text
+  // This ensures users actually read the waiver before they can agree to it
+  const handleWaiverScroll = (event: any) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    // layoutMeasurement.height = visible height of the ScrollView
+    // contentOffset.y = how far down the user has scrolled
+    // contentSize.height = total height of the content
+    const paddingToBottom = 20; // Allow 20px of wiggle room
+    const isAtBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+    if (isAtBottom && !waiverScrolledToBottom) {
+      setWaiverScrolledToBottom(true); // Unlock the agreement checkbox
+    }
+  };
+
+  // Animate hint and agreement section when scrolled to bottom
+  useEffect(() => {
+    if (waiverScrolledToBottom) {
+      Animated.parallel([
+        Animated.timing(waiverHintOpacity, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(waiverAgreementOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      // Reset when modal reopens
+      waiverHintOpacity.setValue(1);
+      waiverAgreementOpacity.setValue(0.4);
+    }
+  }, [waiverScrolledToBottom]);
+
+  // PanResponder for drag-to-dismiss on waiver modal
+  // PanResponder handles touch gestures (like dragging) on the modal handle
+  const waiverPanResponder = useRef(
+    PanResponder.create({
+      // Always capture the touch event when user starts touching
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only respond to downward drags (dy = delta y, positive = down)
+        return gestureState.dy > 5;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        // Update animation value as user drags
+        // Only allow dragging down (positive dy), not up
+        if (gestureState.dy > 0) {
+          waiverSheetAnim.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        // When user releases their finger, decide whether to dismiss or snap back
+        // gestureState.dy = total distance dragged (px)
+        // gestureState.vy = velocity (speed) of the drag
+        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
+          dismissWaiverModal(); // User dragged far enough, dismiss the modal
+        } else {
+          // User didn't drag far enough, snap the modal back to its original position
+          Animated.spring(waiverSheetAnim, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: 65, // How stiff the spring is (higher = faster)
+            friction: 11, // Resistance (higher = less bouncy)
+          }).start();
+        }
+      },
+    })
+  ).current;
 
   useEffect(() => {
     if (eventId) {
@@ -85,6 +184,68 @@ export default function EventDetailScreen() {
     }
   }, [user, event]);
 
+  // Load user profile for display name in PDF
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (user) {
+        const profile = await getUserProfile(user.uid);
+        setUserProfile(profile);
+      }
+    };
+    loadProfile();
+  }, [user]);
+
+  // Load signed waiver for attending users
+  // This runs when the user or event changes and checks if they've already signed
+  useEffect(() => {
+    const loadSignedWaiver = async () => {
+      // Only fetch if:
+      // 1. User is logged in
+      // 2. Event requires a waiver
+      // 3. User is already an attendee (means they signed at some point)
+      if (user && event?.hasWaiver && event.attendees.includes(user.uid)) {
+        const result = await getWaiverSignature(event.id, user.uid);
+        if (result.success && result.signature) {
+          setSignedWaiver(result.signature); // Show "View Signed Waiver" button
+        }
+      }
+    };
+    loadSignedWaiver();
+  }, [user, event]);
+
+  // Animate waiver sheet slide up/down
+  useEffect(() => {
+    if (waiverModalVisible) {
+      // Slide up
+      Animated.spring(waiverSheetAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+    } else {
+      // Reset to off-screen for next open
+      waiverSheetAnim.setValue(Dimensions.get('window').height);
+    }
+  }, [waiverModalVisible]);
+
+  // Animate signed waiver sheet slide up/down
+  useEffect(() => {
+    if (showSignedWaiverModal) {
+      // Slide up
+      Animated.spring(signedWaiverSheetAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+    } else {
+      // Reset to off-screen for next open and clear PDF cache
+      signedWaiverSheetAnim.setValue(Dimensions.get('window').height);
+      cachedPdfUri.current = null;
+    }
+  }, [showSignedWaiverModal]);
+
   const loadUserCredits = async () => {
     if (!user || !event) return;
 
@@ -106,6 +267,16 @@ export default function EventDetailScreen() {
       const result = await getEventById(eventId);
       if (result.success && result.event) {
         setEvent(result.event);
+
+        // Fetch club logo if not present on event
+        if (result.event.clubLogo) {
+          setClubLogo(result.event.clubLogo);
+        } else if (result.event.clubId) {
+          const clubResult = await getClub(result.event.clubId);
+          if (clubResult.success && clubResult.club?.logo) {
+            setClubLogo(clubResult.club.logo);
+          }
+        }
       } else {
         Alert.alert('Error', 'Event not found');
         router.back();
@@ -119,6 +290,20 @@ export default function EventDetailScreen() {
   };
 
   const handleJoinEvent = async () => {
+    if (!user || !event) return;
+
+    // If event has a waiver, show waiver modal first
+    if (event.hasWaiver && event.waiverText) {
+      setWaiverAgreed(false);
+      setWaiverModalVisible(true);
+      return;
+    }
+
+    // Continue with normal join flow
+    await proceedWithJoin();
+  };
+
+  const proceedWithJoin = async () => {
     if (!user || !event) return;
 
     // If event has a ticket price, show native payment sheet
@@ -392,9 +577,31 @@ export default function EventDetailScreen() {
               {event.title}
             </Text>
 
-            <Text variant="titleMedium" style={[styles.heroClubName, { color: theme.colors.onSurfaceVariant }]}>
-              by {event.clubName}
-            </Text>
+            <TouchableOpacity
+              onPress={() => router.push(`/club/${event.clubId}`)}
+              style={styles.clubHeader}
+              accessibilityRole="button"
+              accessibilityLabel={`View ${event.clubName} club page`}
+            >
+              {clubLogo ? (
+                <Image
+                  source={{ uri: clubLogo }}
+                  style={styles.clubHeaderLogo}
+                  resizeMode="cover"
+                  accessible={true}
+                  accessibilityLabel={`${event.clubName} logo`}
+                />
+              ) : (
+                <View style={[styles.clubHeaderLogo, styles.clubHeaderLogoPlaceholder, { backgroundColor: theme.colors.surfaceVariant }]}>
+                  <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 14, fontWeight: '600' }}>
+                    {event.clubName.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
+              <Text variant="titleMedium" style={[styles.heroClubName, { color: theme.colors.onSurfaceVariant }]}>
+                by {event.clubName}
+              </Text>
+            </TouchableOpacity>
 
             {/* Quick Info Row */}
             <View style={styles.quickInfo}>
@@ -510,6 +717,24 @@ export default function EventDetailScreen() {
                   </Text>
                 </View>
               </View>
+            )}
+
+            {/* Show "View Signed Waiver" for attending users who signed */}
+            {isAttending && event.hasWaiver && signedWaiver && (
+              <TouchableOpacity
+                style={[styles.detailRow, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }]}
+                onPress={() => setShowSignedWaiverModal(true)}
+                activeOpacity={0.7}
+              >
+                <IconButton icon="file-document-check" size={24} iconColor="#10B981" />
+                <View style={styles.detailContent}>
+                  <Text variant="labelLarge">Event Waiver</Text>
+                  <Text variant="bodyMedium" style={[styles.detailText, { color: '#10B981' }]}>
+                    Signed {signedWaiver.signedAt.toLocaleDateString()} - Tap to view
+                  </Text>
+                </View>
+                <IconButton icon="chevron-right" size={20} iconColor={theme.colors.onSurfaceDisabled} style={{ margin: 0 }} />
+              </TouchableOpacity>
             )}
           </View>
 
@@ -666,6 +891,459 @@ export default function EventDetailScreen() {
           isAlreadyMember={payoutInfo.isAlreadyMember}
         />
       )}
+
+      {/* Signed Waiver View Modal */}
+      <Modal
+        visible={showSignedWaiverModal}
+        transparent
+        animationType="none"
+        onRequestClose={() => setShowSignedWaiverModal(false)}
+      >
+        <Animated.View style={[
+          styles.waiverModalOverlay,
+          {
+            opacity: signedWaiverSheetAnim.interpolate({
+              inputRange: [0, Dimensions.get('window').height],
+              outputRange: [1, 0],
+              extrapolate: 'clamp',
+            }),
+          }
+        ]}>
+          {/* Tap outside to dismiss */}
+          <Pressable style={styles.waiverModalBackdrop} onPress={() => setShowSignedWaiverModal(false)} />
+
+          <Animated.View style={[
+            styles.signedWaiverModalContent,
+            { backgroundColor: theme.dark ? '#1C1C1E' : '#FFFFFF' },
+            { transform: [{ translateY: signedWaiverSheetAnim }] }
+          ]}>
+            {/* Header */}
+            <View style={styles.signedWaiverHeader}>
+              <View style={styles.signedWaiverTitleRow}>
+                <IconButton icon="file-document-check" size={28} iconColor="#10B981" style={{ margin: 0 }} />
+                <Text style={[styles.signedWaiverTitle, { color: theme.colors.onSurface }]}>
+                  Signed Waiver
+                </Text>
+              </View>
+              <IconButton
+                icon="close"
+                size={24}
+                iconColor={theme.colors.onSurfaceVariant}
+                onPress={() => setShowSignedWaiverModal(false)}
+                style={{ margin: 0 }}
+              />
+            </View>
+
+            {/* Formatted Waiver Document */}
+            <ScrollView style={styles.signedWaiverScroll} showsVerticalScrollIndicator>
+              {/* Event Title */}
+              <View style={[
+                styles.signedWaiverEventHeader,
+                {
+                  backgroundColor: theme.dark ? 'rgba(139, 92, 246, 0.1)' : '#F0F4F8',
+                  borderColor: theme.dark ? 'rgba(139, 92, 246, 0.3)' : '#D1D9E6'
+                }
+              ]}>
+                <Text style={[styles.signedWaiverEventTitle, { color: theme.colors.onSurface }]}>
+                  {event?.title}
+                </Text>
+              </View>
+
+              {/* Terms & Conditions Section */}
+              <View style={styles.signedWaiverSection}>
+                <Text style={[styles.signedWaiverSectionHeader, { color: theme.dark ? '#8B5CF6' : '#1B365D' }]}>
+                  TERMS & CONDITIONS
+                </Text>
+                <View style={[
+                  styles.signedWaiverContentBox,
+                  {
+                    backgroundColor: theme.dark ? 'rgba(255,255,255,0.03)' : '#F9FAFB',
+                    borderLeftColor: theme.dark ? '#8B5CF6' : '#1B365D'
+                  }
+                ]}>
+                  <Text style={[styles.signedWaiverBodyText, { color: theme.colors.onSurface }]}>
+                    {event?.waiverText}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Electronic Signature Section */}
+              <View style={styles.signedWaiverSection}>
+                <Text style={[styles.signedWaiverSectionHeader, { color: theme.dark ? '#8B5CF6' : '#1B365D' }]}>
+                  ELECTRONIC SIGNATURE
+                </Text>
+                <View style={[
+                  styles.signedWaiverSignatureBox,
+                  {
+                    backgroundColor: theme.dark ? 'rgba(139, 92, 246, 0.08)' : '#F0F4F8',
+                    borderColor: theme.dark ? 'rgba(139, 92, 246, 0.2)' : '#D1D9E6'
+                  }
+                ]}>
+                  <View style={styles.signedWaiverSigRow}>
+                    <Text style={[styles.signedWaiverSigLabel, { color: theme.colors.onSurfaceVariant }]}>
+                      Full Name
+                    </Text>
+                    <Text style={[styles.signedWaiverSigValue, { color: theme.colors.onSurface }]}>
+                      {userProfile?.displayName ||
+                       (userProfile?.firstName || userProfile?.lastName
+                         ? `${userProfile?.firstName || ''} ${userProfile?.lastName || ''}`.trim()
+                         : user?.email)}
+                    </Text>
+                  </View>
+                  <View style={[styles.signedWaiverSigDivider, { backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : '#E5E7EB' }]} />
+
+                  <View style={styles.signedWaiverSigRow}>
+                    <Text style={[styles.signedWaiverSigLabel, { color: theme.colors.onSurfaceVariant }]}>
+                      Email Address
+                    </Text>
+                    <Text style={[styles.signedWaiverSigValue, { color: theme.colors.onSurface }]}>
+                      {user?.email}
+                    </Text>
+                  </View>
+                  <View style={[styles.signedWaiverSigDivider, { backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : '#E5E7EB' }]} />
+
+                  <View style={styles.signedWaiverSigRow}>
+                    <Text style={[styles.signedWaiverSigLabel, { color: theme.colors.onSurfaceVariant }]}>
+                      Initials
+                    </Text>
+                    <Text style={[styles.signedWaiverInitials, { color: theme.dark ? '#8B5CF6' : '#1B365D' }]}>
+                      {signedWaiver?.initials}
+                    </Text>
+                  </View>
+                  <View style={[styles.signedWaiverSigDivider, { backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : '#E5E7EB' }]} />
+
+                  <View style={styles.signedWaiverSigRow}>
+                    <Text style={[styles.signedWaiverSigLabel, { color: theme.colors.onSurfaceVariant }]}>
+                      Date & Time
+                    </Text>
+                    <Text style={[styles.signedWaiverSigValue, { color: theme.colors.onSurface }]}>
+                      {signedWaiver?.signedAt.toLocaleDateString([], {
+                        month: 'long',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}{'\n'}
+                      {signedWaiver?.signedAt.toLocaleTimeString([], {
+                        hour: 'numeric',
+                        minute: '2-digit'
+                      })}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </ScrollView>
+
+            {/* Action Buttons */}
+            <View style={styles.signedWaiverActions}>
+              <TouchableOpacity
+                style={[
+                  styles.signedWaiverShareButton,
+                  { backgroundColor: theme.dark ? '#60A5FA' : '#1B365D' }
+                ]}
+                onPress={async () => {
+                  // Prevent multiple taps while generating
+                  if (exportingPDF || !event || !user || !signedWaiver) return;
+
+                  setExportingPDF(true);
+
+                  try {
+                    // Get display name from user profile
+                    let displayName = user.email || 'User';
+                    if (userProfile) {
+                      if (userProfile.displayName) {
+                        displayName = userProfile.displayName;
+                      } else if (userProfile.firstName || userProfile.lastName) {
+                        displayName = `${userProfile.firstName || ''} ${userProfile.lastName || ''}`.trim();
+                      }
+                    }
+
+                    // Check if we have a cached PDF and it still exists
+                    if (cachedPdfUri.current) {
+                      // Try to share the cached PDF first
+                      try {
+                        const result = await generateAndShareWaiverPDF({
+                          eventTitle: event.title,
+                          waiverText: event.waiverText || '',
+                          signerName: displayName,
+                          signerEmail: user.email || '',
+                          initials: signedWaiver.initials,
+                          signedAt: signedWaiver.signedAt,
+                          cachedUri: cachedPdfUri.current,
+                        });
+
+                        if (result.success) {
+                          setExportingPDF(false);
+                          return;
+                        }
+                        // If cached failed, regenerate below
+                      } catch (e) {
+                        // Cache failed, regenerate
+                        cachedPdfUri.current = null;
+                      }
+                    }
+
+                    // Generate new PDF and cache it
+                    const result = await generateAndShareWaiverPDF({
+                      eventTitle: event.title,
+                      waiverText: event.waiverText || '',
+                      signerName: displayName,
+                      signerEmail: user.email || '',
+                      initials: signedWaiver.initials,
+                      signedAt: signedWaiver.signedAt,
+                    });
+
+                    if (result.success && result.uri) {
+                      cachedPdfUri.current = result.uri;
+                    } else if (!result.success) {
+                      Alert.alert('Error', `Failed to generate PDF: ${result.error}`);
+                    }
+                  } finally {
+                    setExportingPDF(false);
+                  }
+                }}
+                activeOpacity={0.8}
+              >
+                <IconButton icon="file-pdf-box" size={20} iconColor="#FFFFFF" style={{ margin: 0 }} />
+                <Text style={styles.signedWaiverShareText}>Export PDF</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.signedWaiverCloseButton,
+                  { backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }
+                ]}
+                onPress={() => setShowSignedWaiverModal(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={[
+                  styles.signedWaiverCloseText,
+                  { color: theme.dark ? 'rgba(255,255,255,0.8)' : '#6B7280' }
+                ]}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </Animated.View>
+      </Modal>
+
+      {/* Waiver Modal */}
+      <Modal
+        visible={waiverModalVisible}
+        transparent
+        animationType="none"
+        onRequestClose={dismissWaiverModal}
+      >
+        <Animated.View style={[
+          styles.waiverModalOverlay,
+          {
+            opacity: waiverSheetAnim.interpolate({
+              inputRange: [0, Dimensions.get('window').height],
+              outputRange: [1, 0],
+              extrapolate: 'clamp',
+            }),
+          }
+        ]}>
+          {/* Tap outside to dismiss */}
+          <Pressable style={styles.waiverModalBackdrop} onPress={dismissWaiverModal} />
+
+          <Animated.View style={[
+            styles.waiverModalContent,
+            { backgroundColor: theme.dark ? '#1C1C1E' : '#FFFFFF' },
+            { transform: [{ translateY: waiverSheetAnim }] }
+          ]}>
+            {/* Draggable handle area */}
+            <View {...waiverPanResponder.panHandlers} style={styles.waiverHandleArea}>
+              <View style={[
+                styles.waiverModalHandle,
+                { backgroundColor: theme.dark ? 'rgba(255,255,255,0.3)' : '#E5E7EB' }
+              ]} />
+            </View>
+
+            <View style={styles.waiverModalHeader}>
+              <IconButton
+                icon="file-document-outline"
+                size={28}
+                iconColor={theme.dark ? '#60A5FA' : '#1B365D'}
+              />
+              <Text style={[
+                styles.waiverModalTitle,
+                { color: theme.dark ? '#FFFFFF' : '#1B365D' }
+              ]}>Event Waiver</Text>
+            </View>
+
+            <Text style={[
+              styles.waiverModalSubtitle,
+              { color: theme.dark ? 'rgba(255,255,255,0.7)' : '#6B7280' }
+            ]}>
+              Please read and agree to the following terms before joining this event
+            </Text>
+
+            <ScrollView
+              style={[
+                styles.waiverTextContainer,
+                { backgroundColor: theme.dark ? 'rgba(255,255,255,0.05)' : '#F9FAFB' }
+              ]}
+              showsVerticalScrollIndicator
+              persistentScrollbar
+              nestedScrollEnabled
+              onScroll={handleWaiverScroll}
+              scrollEventThrottle={16}
+            >
+              <Text style={[
+                styles.waiverText,
+                { color: theme.dark ? 'rgba(255,255,255,0.9)' : '#374151' }
+              ]}>{event?.waiverText}</Text>
+            </ScrollView>
+
+            <Animated.Text style={[
+              styles.waiverScrollHint,
+              {
+                color: theme.dark ? 'rgba(255,255,255,0.5)' : '#9CA3AF',
+                opacity: waiverHintOpacity,
+              }
+            ]}>
+              ↓ Scroll to read entire waiver
+            </Animated.Text>
+
+            <Animated.View style={[
+              styles.waiverAgreementSection,
+              {
+                backgroundColor: theme.dark ? 'rgba(255,255,255,0.05)' : '#F9FAFB',
+                borderColor: theme.dark ? 'rgba(255,255,255,0.1)' : '#E5E7EB',
+                opacity: waiverAgreementOpacity,
+              }
+            ]}>
+              <TouchableOpacity
+                style={[
+                  styles.waiverCheckboxRow,
+                  {
+                    backgroundColor: theme.dark ? 'rgba(255,255,255,0.08)' : '#F3F4F6',
+                    borderColor: waiverAgreed
+                      ? (theme.dark ? '#60A5FA' : '#1B365D')
+                      : (theme.dark ? 'rgba(255,255,255,0.2)' : '#D1D5DB'),
+                  }
+                ]}
+                onPress={() => waiverScrolledToBottom && setWaiverAgreed(!waiverAgreed)}
+                activeOpacity={waiverScrolledToBottom ? 0.7 : 1}
+                disabled={!waiverScrolledToBottom}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: waiverAgreed, disabled: !waiverScrolledToBottom }}
+                accessibilityLabel="I have read and agree to the terms above"
+              >
+                <IconButton
+                  icon={waiverAgreed ? "checkbox-marked" : "checkbox-blank-outline"}
+                  size={24}
+                  iconColor={waiverAgreed
+                    ? (theme.dark ? '#60A5FA' : '#1B365D')
+                    : (theme.dark ? 'rgba(255,255,255,0.5)' : '#9CA3AF')}
+                  style={{ margin: 0 }}
+                />
+                <Text style={[
+                  styles.waiverCheckboxText,
+                  { color: theme.dark ? '#FFFFFF' : '#374151' }
+                ]}>
+                  I have read and agree to the terms above
+                </Text>
+              </TouchableOpacity>
+
+              <View style={styles.waiverInitialsRow}>
+                <Text style={[
+                  styles.waiverInitialsLabel,
+                  { color: theme.dark ? 'rgba(255,255,255,0.7)' : '#6B7280' }
+                ]}>
+                  Sign with your initials
+                </Text>
+                <TextInput
+                  style={[
+                    styles.waiverInitialsInput,
+                    {
+                      backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : '#FFFFFF',
+                      borderColor: waiverInitials.length > 0
+                        ? (theme.dark ? '#60A5FA' : '#1B365D')
+                        : (theme.dark ? 'rgba(255,255,255,0.2)' : '#D1D5DB'),
+                      color: theme.dark ? '#FFFFFF' : '#1B365D',
+                    }
+                  ]}
+                  value={waiverInitials}
+                  onChangeText={(text) => waiverScrolledToBottom && setWaiverInitials(text)}
+                  editable={waiverScrolledToBottom}
+                  placeholder="AB"
+                  placeholderTextColor={theme.dark ? 'rgba(255,255,255,0.3)' : '#9CA3AF'}
+                  autoCapitalize="characters"
+                  maxLength={4}
+                />
+              </View>
+            </Animated.View>
+
+            <View style={styles.waiverButtonRow}>
+              <TouchableOpacity
+                style={[
+                  styles.waiverCancelButton,
+                  { backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }
+                ]}
+                onPress={dismissWaiverModal}
+              >
+                <Text style={[
+                  styles.waiverCancelButtonText,
+                  { color: theme.dark ? 'rgba(255,255,255,0.8)' : '#6B7280' }
+                ]}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.waiverConfirmButton,
+                  {
+                    backgroundColor: (waiverAgreed && waiverInitials.length > 0)
+                      ? (theme.dark ? '#60A5FA' : '#1B365D')
+                      : (theme.dark ? 'rgba(255,255,255,0.1)' : '#D1D5DB'),
+                  }
+                ]}
+                onPress={async () => {
+                  // IMPORTANT: Store waiver signature BEFORE joining the event
+                  // This ensures we have proof of agreement in the database
+                  if (event && user) {
+                    const signResult = await storeWaiverSignature(
+                      event.id,
+                      user.uid,
+                      waiverInitials
+                    );
+                    if (!signResult.success) {
+                      // If signature storage fails, stop here and don't join the event
+                      Alert.alert('Error', 'Failed to record waiver signature. Please try again.');
+                      return;
+                    }
+                  }
+
+                  // Signature stored successfully, now dismiss the modal with animation
+                  Animated.timing(waiverSheetAnim, {
+                    toValue: Dimensions.get('window').height, // Slide down off-screen
+                    duration: 250,
+                    useNativeDriver: true,
+                  }).start(() => {
+                    // After animation completes, reset all waiver-related state
+                    setWaiverModalVisible(false);
+                    setWaiverInitials('');
+                    setWaiverAgreed(false);
+                    setWaiverScrolledToBottom(false);
+                    // Finally, proceed with joining the event (payment or free join)
+                    proceedWithJoin();
+                  });
+                }}
+                disabled={!waiverAgreed || waiverInitials.length === 0}
+              >
+                <Text style={[
+                  styles.waiverConfirmButtonText,
+                  {
+                    color: (waiverAgreed && waiverInitials.length > 0)
+                      ? '#FFFFFF'
+                      : (theme.dark ? 'rgba(255,255,255,0.4)' : '#9CA3AF'),
+                  }
+                ]}>
+                  Continue
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </Animated.View>
+      </Modal>
 
       {/* Floating Action Button */}
       {user && isUpcoming && (
@@ -861,8 +1539,25 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 4,
   },
-  heroClubName: {
+  clubHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     marginBottom: 16,
+  },
+  clubHeaderLogo: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  clubHeaderLogoPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroClubName: {
+    flex: 1,
   },
   quickInfo: {
     flexDirection: 'row',
@@ -1051,5 +1746,255 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',
+  },
+  waiverModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  waiverModalBackdrop: {
+    flex: 1,
+  },
+  waiverModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+    maxHeight: '80%',
+  },
+  waiverHandleArea: {
+    paddingTop: 12,
+    paddingBottom: 8,
+    alignItems: 'center',
+  },
+  waiverModalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 2,
+    marginBottom: 12,
+  },
+  waiverModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  waiverModalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1B365D',
+  },
+  waiverModalSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  waiverTextContainer: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    maxHeight: 250,
+    marginBottom: 8,
+  },
+  waiverText: {
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 22,
+  },
+  waiverScrollHint: {
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 8,
+    fontStyle: 'italic',
+  },
+  waiverAgreementSection: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 20,
+  },
+  waiverCheckboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  waiverCheckboxText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  waiverInitialsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 16,
+  },
+  waiverInitialsLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  waiverInitialsInput: {
+    width: 80,
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 2,
+  },
+  waiverButtonRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  waiverCancelButton: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+  },
+  waiverCancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  waiverConfirmButton: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
+    backgroundColor: '#1B365D',
+    alignItems: 'center',
+  },
+  waiverConfirmButtonDisabled: {
+    backgroundColor: '#D1D5DB',
+  },
+  waiverConfirmButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  waiverConfirmButtonTextDisabled: {
+    color: '#9CA3AF',
+  },
+  // Signed Waiver Modal Styles
+  signedWaiverModalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 40,
+    maxHeight: '85%',
+  },
+  signedWaiverHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  signedWaiverTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  signedWaiverTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  signedWaiverScroll: {
+    flexGrow: 0,
+    marginBottom: 20,
+  },
+  signedWaiverEventHeader: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+  },
+  signedWaiverEventTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  signedWaiverSection: {
+    marginBottom: 24,
+  },
+  signedWaiverSectionHeader: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 12,
+  },
+  signedWaiverContentBox: {
+    borderRadius: 8,
+    padding: 16,
+    borderLeftWidth: 3,
+  },
+  signedWaiverBodyText: {
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  signedWaiverSignatureBox: {
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+  },
+  signedWaiverSigRow: {
+    paddingVertical: 12,
+  },
+  signedWaiverSigLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  signedWaiverSigValue: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  signedWaiverInitials: {
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: 3,
+  },
+  signedWaiverSigDivider: {
+    height: 1,
+    marginVertical: 0,
+  },
+  signedWaiverActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  signedWaiverShareButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 4,
+  },
+  signedWaiverShareText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  signedWaiverCloseButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  signedWaiverCloseText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

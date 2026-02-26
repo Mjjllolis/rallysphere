@@ -186,6 +186,7 @@ export interface Event {
   description: string;
   clubId: string;
   clubName: string;
+  clubLogo?: string;  // Club's logo URL
   createdBy: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -206,6 +207,9 @@ export interface Event {
   currency?: string;
   rallyCreditsAwarded?: number;  // RallyCredits users earn for attending
   checkedIn?: string[];  // Users who have been checked in at the event
+  hasWaiver?: boolean;  // Whether event requires waiver agreement
+  waiverText?: string;  // The waiver/terms text users must agree to
+  // Note: Waiver signatures are stored in subcollection: events/{eventId}/waiverSignatures/{userId}
 }
 
 export interface ClubJoinRequest {
@@ -1071,8 +1075,18 @@ export const updateClub = async (clubId: string, clubData: any) => {
 // --- 8. Event Functions ---
 export const createEvent = async (eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt' | 'attendees' | 'waitlist' | 'likes'>) => {
   try {
+    // Fetch club logo if not provided
+    let clubLogo = eventData.clubLogo;
+    if (!clubLogo && eventData.clubId) {
+      const clubDoc = await getDoc(doc(db, 'clubs', eventData.clubId));
+      if (clubDoc.exists()) {
+        clubLogo = clubDoc.data().logo;
+      }
+    }
+
     const event = {
       ...eventData,
+      clubLogo,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       attendees: [],
@@ -1277,6 +1291,107 @@ export const leaveEvent = async (eventId: string, userId: string) => {
   } catch (error: any) {
     console.error('Error leaving event:', error);
     return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Store a waiver signature when user joins an event with a waiver
+ * Uses a subcollection for easier security rules (users can write their own signature doc)
+ *
+ * Why subcollection? Firestore security rules are easier when users write to their own document.
+ * Instead of updating a field on the event doc (which requires event-level permissions),
+ * we let users create a document with their userId as the doc ID in a subcollection.
+ */
+export const storeWaiverSignature = async (
+  eventId: string,
+  userId: string,
+  initials: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    // Create reference to the user's signature document in the waiverSignatures subcollection
+    // Path structure: events/{eventId}/waiverSignatures/{userId}
+    const signatureRef = doc(db, 'events', eventId, 'waiverSignatures', userId);
+
+    // Store the signature data
+    // serverTimestamp() records the exact time on the Firebase server (more reliable than client time)
+    await setDoc(signatureRef, {
+      userId,
+      initials: initials.toUpperCase(), // Convert to uppercase for consistency
+      signedAt: serverTimestamp() // Server-side timestamp
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error storing waiver signature:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Get a user's waiver signature for a specific event
+ * Used to check if a user has already signed the waiver (shows "View Signed Waiver" button)
+ */
+export const getWaiverSignature = async (
+  eventId: string,
+  userId: string
+): Promise<{ success: boolean; signature?: { initials: string; signedAt: Date }; error?: string }> => {
+  try {
+    // Reference to the specific user's signature document
+    const signatureRef = doc(db, 'events', eventId, 'waiverSignatures', userId);
+    const signatureDoc = await getDoc(signatureRef);
+
+    // Check if the signature document exists
+    if (!signatureDoc.exists()) {
+      return { success: false, error: 'Waiver not signed' };
+    }
+
+    // Extract the data from the document
+    const data = signatureDoc.data();
+    return {
+      success: true,
+      signature: {
+        initials: data.initials,
+        // Convert Firestore Timestamp to JavaScript Date object
+        // The ?. is optional chaining - safely calls toDate() only if it exists
+        signedAt: data.signedAt?.toDate?.() || new Date()
+      }
+    };
+  } catch (error: any) {
+    console.error('Error getting waiver signature:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Get all waiver signatures for an event (for check-in screen)
+ * Returns a map of userId -> signature data for all users who signed the waiver
+ */
+export const getEventWaiverSignatures = async (
+  eventId: string
+): Promise<{ success: boolean; signatures: { [userId: string]: { initials: string; signedAt: Date } }; error?: string }> => {
+  try {
+    // Get reference to the entire waiverSignatures subcollection for this event
+    const signaturesRef = collection(db, 'events', eventId, 'waiverSignatures');
+    // Fetch all documents in the subcollection
+    const signaturesSnapshot = await getDocs(signaturesRef);
+
+    // Build a map where keys are userIds and values are signature data
+    // Using an object as a map: { "userId1": {...}, "userId2": {...} }
+    const signatures: { [userId: string]: { initials: string; signedAt: Date } } = {};
+    signaturesSnapshot.forEach((doc) => {
+      const data = doc.data();
+      // doc.id is the userId (because we used userId as the document ID when storing)
+      signatures[doc.id] = {
+        initials: data.initials,
+        signedAt: data.signedAt?.toDate?.() || new Date()
+      };
+    });
+
+    return { success: true, signatures };
+  } catch (error: any) {
+    console.error('Error getting event waiver signatures:', error);
+    // Return empty signatures object on error (check-in screen can handle empty)
+    return { success: false, signatures: {}, error: error.message };
   }
 };
 
