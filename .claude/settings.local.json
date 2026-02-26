@@ -73,7 +73,8 @@
       "Bash(git checkout:*)",
       "Bash(git merge:*)",
       "Bash(comm:*)",
-      "Bash(eas submit:*)"
+      "Bash(eas submit:*)",
+      "Bash(wc -l /Users/mishawnlolis/Documents/DevRepo/rallysphere/app/\\\\\\(tabs\\\\\\)/store/\\\\[id\\\\].tsx)"
     ],
     "deny": [],
     "ask": []

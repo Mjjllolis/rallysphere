@@ -277,6 +277,7 @@ export interface StoreItem {
   shippingCost: number | null;  // null if pickup only
   allowPickup: boolean;
   pickupOnly: boolean;
+  pickupAddress?: string;
   inventory: number;
   sold: number;
   variants: StoreItemVariant[];

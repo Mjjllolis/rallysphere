@@ -29,7 +29,7 @@ export default function CartScreen() {
   const theme = useTheme();
   const { user } = useAuth();
   const { cart, removeFromCart, updateQuantity, clearCart } = useCart();
-  const [deliveryMethod, setDeliveryMethod] = useState<'shipping' | 'pickup'>('shipping');
+  const [deliveryMethod, setDeliveryMethod] = useState<'shipping' | 'pickup'>('pickup');
   const [processing, setProcessing] = useState(false);
 
   // Stripe hooks for native payments
@@ -256,27 +256,10 @@ export default function CartScreen() {
         {/* Delivery Method */}
         <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
           <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Delivery Method</Text>
-          <SegmentedButtons
-            value={deliveryMethod}
-            onValueChange={(value) => setDeliveryMethod(value as 'shipping' | 'pickup')}
-            buttons={[
-              {
-                value: 'shipping',
-                label: 'Shipping',
-                icon: 'truck-delivery',
-              },
-              {
-                value: 'pickup',
-                label: 'Pickup',
-                icon: 'map-marker',
-              },
-            ]}
-          />
-          {deliveryMethod === 'shipping' && (
-            <Text style={[styles.deliveryNote, { color: theme.colors.onSurfaceVariant }]}>
-              Shipping costs calculated per item
-            </Text>
-          )}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 }}>
+            <Ionicons name="location" size={20} color={theme.colors.primary} />
+            <Text style={{ color: theme.colors.onSurface, fontSize: 15, fontWeight: '600' }}>Pickup Only</Text>
+          </View>
         </View>
 
         {/* Order Summary */}
@@ -287,13 +270,6 @@ export default function CartScreen() {
             <Text style={[styles.summaryLabel, { color: theme.colors.onSurfaceVariant }]}>Items Total</Text>
             <Text style={styles.summaryValue}>${itemsTotal.toFixed(2)}</Text>
           </View>
-
-          {deliveryMethod === 'shipping' && shipping > 0 && (
-            <View style={styles.summaryRow}>
-              <Text style={[styles.summaryLabel, { color: theme.colors.onSurfaceVariant }]}>Shipping</Text>
-              <Text style={[styles.summaryValue, { color: theme.colors.onSurface }]}>${shipping.toFixed(2)}</Text>
-            </View>
-          )}
 
           <View style={styles.summaryRow}>
             <Text style={[styles.summaryLabel, { color: theme.colors.onSurfaceVariant }]}>Tax</Text>
