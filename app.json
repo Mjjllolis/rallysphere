@@ -21,8 +21,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.rallysphere.app",
-      "buildNumber": "19",
-      "deploymentTarget": "13.4",
+      "buildNumber": "27",
+      "icon": {
+        "light": "./assets/Logo.png",
+        "dark": "./assets/Logo-dark.png"
+      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
