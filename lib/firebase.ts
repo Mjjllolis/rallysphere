@@ -33,6 +33,7 @@ import {
   serverTimestamp,
   onSnapshot,
   increment,
+  deleteField,
   type Timestamp
 } from 'firebase/firestore';
 import {
@@ -1099,6 +1100,34 @@ export const createEvent = async (eventData: Omit<Event, 'id' | 'createdAt' | 'u
     return { success: true, eventId: docRef.id };
   } catch (error: any) {
     console.error('Error creating event:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Update an existing event
+export const updateEvent = async (eventId: string, eventData: Partial<Omit<Event, 'id' | 'createdAt' | 'attendees' | 'waitlist' | 'likes'>>) => {
+  try {
+    const eventRef = doc(db, 'events', eventId);
+    // Convert undefined values to deleteField() for Firestore compatibility
+    const cleanedData: Record<string, any> = { updatedAt: serverTimestamp() };
+    for (const [key, value] of Object.entries(eventData)) {
+      cleanedData[key] = value === undefined ? deleteField() : value;
+    }
+    await updateDoc(eventRef, cleanedData);
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error updating event:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Delete an event
+export const deleteEvent = async (eventId: string) => {
+  try {
+    await deleteDoc(doc(db, 'events', eventId));
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error deleting event:', error);
     return { success: false, error: error.message };
   }
 };

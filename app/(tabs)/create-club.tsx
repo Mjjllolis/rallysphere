@@ -20,7 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import BackButton from '../../components/BackButton';
 
 const SPORTS = [
-  'Basketball', 'Football', 'Soccer', 'Tennis', 'Baseball', 'Volleyball',
+  'Basketball', 'Football', 'Soccer', 'Tennis', 'Pickleball', 'Baseball', 'Volleyball',
   'Swimming', 'Track & Field', 'Golf', 'Hockey', 'Wrestling', 'Cross Country',
   'Softball', 'Lacrosse', 'Rugby', 'Cricket', 'Badminton', 'Table Tennis',
   'Martial Arts', 'Cycling', 'Running', 'Fitness', 'Other'
