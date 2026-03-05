@@ -1,7 +1,8 @@
 // lib/waiverPdf.ts - Generate professional PDF waivers
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
-import { moveAsync } from 'expo-file-system/legacy';
+// Lazy-load native modules to avoid crashing if native module isn't available at import time
+const getPrint = () => require('expo-print') as typeof import('expo-print');
+const getSharing = () => require('expo-sharing') as typeof import('expo-sharing');
+const getFileSystem = () => require('expo-file-system/legacy') as typeof import('expo-file-system/legacy');
 
 interface WaiverData {
   eventTitle: string;
@@ -258,6 +259,7 @@ export const generateAndShareWaiverPDF = async (data: WaiverData): Promise<{ suc
     } else {
       // Generate HTML content and create PDF
       const html = generateWaiverHTML(data);
+      const Print = getPrint();
       const result = await Print.printToFileAsync({
         html,
         base64: false,
@@ -268,6 +270,7 @@ export const generateAndShareWaiverPDF = async (data: WaiverData): Promise<{ suc
       const newUri = directory + filename;
 
       // Move/rename the file using legacy API
+      const { moveAsync } = getFileSystem();
       await moveAsync({
         from: result.uri,
         to: newUri,
@@ -277,6 +280,7 @@ export const generateAndShareWaiverPDF = async (data: WaiverData): Promise<{ suc
     }
 
     // Share the PDF with the proper filename
+    const Sharing = getSharing();
     const canShare = await Sharing.isAvailableAsync();
     if (canShare) {
       await Sharing.shareAsync(uri, {
@@ -302,6 +306,7 @@ export const previewWaiverPDF = async (data: WaiverData): Promise<{ success: boo
   try {
     const html = generateWaiverHTML(data);
 
+    const Print = getPrint();
     await Print.printAsync({
       html,
     });

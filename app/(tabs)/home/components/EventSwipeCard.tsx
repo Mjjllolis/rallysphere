@@ -67,6 +67,7 @@ export default function EventSwipeCard({
   const [likeLoading, setLikeLoading] = useState(false);
   const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
   const [clubLogo, setClubLogo] = useState<string | undefined>(initialEvent.clubLogo);
+  const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null);
 
   useEffect(() => {
     setEvent(initialEvent);
@@ -79,6 +80,15 @@ export default function EventSwipeCard({
       loadLikeStatus();
     }
   }, [user, event.id]);
+
+  // Get cover image aspect ratio for proper rounded corners
+  useEffect(() => {
+    if (event.coverImage) {
+      Image.getSize(event.coverImage, (w, h) => {
+        setImageAspectRatio(w / h);
+      }, () => {});
+    }
+  }, [event.coverImage]);
 
   // Fetch club logo if not present on event
   useEffect(() => {
@@ -344,15 +354,20 @@ export default function EventSwipeCard({
       </Svg>
 
       {/* Main Cover Image - Maintains aspect ratio and centered */}
-      <View style={styles.coverImageContainer}>
+      <View style={styles.coverImageOuter}>
         {event.coverImage ? (
-          <Image
-            source={{ uri: event.coverImage }}
-            style={styles.coverImage}
-            resizeMode="contain"
-          />
+          <View style={[
+            styles.coverImageWrapper,
+            imageAspectRatio ? { aspectRatio: imageAspectRatio } : { flex: 1 }
+          ]}>
+            <Image
+              source={{ uri: event.coverImage }}
+              style={styles.coverImage}
+              resizeMode="cover"
+            />
+          </View>
         ) : (
-          <View style={[styles.coverImage, styles.coverPlaceholder, { backgroundColor: theme.colors.surfaceVariant }]}>
+          <View style={[styles.coverImageWrapper, styles.coverPlaceholder, { flex: 1, backgroundColor: theme.colors.surfaceVariant }]}>
             <Text variant="displayLarge" style={{ color: theme.colors.onSurfaceVariant }}>
               {event.title.charAt(0)}
             </Text>
@@ -529,12 +544,20 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
-  coverImageContainer: {
+  coverImageOuter: {
     width: '88%',
     position: 'absolute',
     alignSelf: 'center',
     top: '22%',
     bottom: '36%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  coverImageWrapper: {
+    width: '100%',
+    maxHeight: '100%',
+    borderRadius: 16,
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.6,
