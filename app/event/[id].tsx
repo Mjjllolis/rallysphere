@@ -1,5 +1,5 @@
 // app/event/[id].tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Alert, Image, Linking, Dimensions, TouchableOpacity, ActivityIndicator, Modal, Animated, TextInput, PanResponder, Pressable } from 'react-native';
 import {
   Text,
@@ -13,9 +13,10 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
-import { router, useLocalSearchParams, Stack } from 'expo-router';
+import { router, useLocalSearchParams, Stack, useFocusEffect } from 'expo-router';
 import { useAuth, useThemeToggle } from '../_layout';
-import { getEventById, joinEvent, getUserRallyCredits, getClub, getUserProfile, storeWaiverSignature, getWaiverSignature } from '../../lib/firebase';
+import { getEventById, joinEvent, getUserRallyCredits, getClub, getUserProfile, storeWaiverSignature, getWaiverSignature, deleteEvent } from '../../lib/firebase';
+import type { Club } from '../../lib/firebase';
 import { leaveEventWithRefund } from '../../lib/stripe';
 import type { Event, UserRallyCredits, UserProfile } from '../../lib/firebase';
 import BackButton from '../../components/BackButton';
@@ -55,6 +56,7 @@ export default function EventDetailScreen() {
   const [showSignedWaiverModal, setShowSignedWaiverModal] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
   const [clubLogo, setClubLogo] = useState<string | undefined>(undefined);
+  const [club, setClub] = useState<Club | null>(null);
   const waiverSheetAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
   const waiverHintOpacity = useRef(new Animated.Value(1)).current;
   const waiverAgreementOpacity = useRef(new Animated.Value(0.4)).current;
@@ -150,6 +152,18 @@ export default function EventDetailScreen() {
       loadEventData();
     }
   }, [eventId]);
+
+  // Silently refresh event data when screen regains focus (e.g. after editing)
+  const hasLoadedOnce = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (hasLoadedOnce.current && eventId) {
+        loadEventData(true);
+      }
+      hasLoadedOnce.current = true;
+    }, [eventId])
+  );
+
 
   useEffect(() => {
     if (event?.attendees?.length) {
@@ -259,33 +273,36 @@ export default function EventDetailScreen() {
     }
   };
 
-  const loadEventData = async () => {
+  const loadEventData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
 
       // Load the specific event by ID
       const result = await getEventById(eventId);
       if (result.success && result.event) {
         setEvent(result.event);
 
-        // Fetch club logo if not present on event
-        if (result.event.clubLogo) {
-          setClubLogo(result.event.clubLogo);
-        } else if (result.event.clubId) {
+        // Fetch club data for logo and admin check
+        if (result.event.clubId) {
           const clubResult = await getClub(result.event.clubId);
-          if (clubResult.success && clubResult.club?.logo) {
-            setClubLogo(clubResult.club.logo);
+          if (clubResult.success && clubResult.club) {
+            setClub(clubResult.club);
+            if (clubResult.club.logo) {
+              setClubLogo(clubResult.club.logo);
+            }
           }
+        } else if (result.event.clubLogo) {
+          setClubLogo(result.event.clubLogo);
         }
-      } else {
+      } else if (!silent) {
         Alert.alert('Error', 'Event not found');
         router.back();
       }
     } catch (error) {
       console.error('Error loading event data:', error);
-      Alert.alert('Error', 'Failed to load event information');
+      if (!silent) Alert.alert('Error', 'Failed to load event information');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -431,6 +448,44 @@ export default function EventDetailScreen() {
     );
   };
 
+  const handleDeleteEvent = () => {
+    if (!event) return;
+    Alert.alert(
+      'Delete Event',
+      `Are you sure you want to delete "${event.title}"? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setActionLoading(true);
+            try {
+              const result = await deleteEvent(event.id);
+              if (result.success) {
+                Alert.alert('Deleted', 'Event has been deleted.', [
+                  { text: 'OK', onPress: () => router.back() }
+                ]);
+              } else {
+                Alert.alert('Error', result.error || 'Failed to delete event');
+              }
+            } catch (error) {
+              console.error('Error deleting event:', error);
+              Alert.alert('Error', 'An unexpected error occurred');
+            } finally {
+              setActionLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleEditEvent = () => {
+    if (!event) return;
+    router.push(`/event/edit?eventId=${event.id}`);
+  };
+
   const openVirtualLink = () => {
     if (event?.virtualLink) {
       Linking.openURL(event.virtualLink);
@@ -476,6 +531,8 @@ export default function EventDetailScreen() {
   const isUpcoming = event.startDate && new Date(event.startDate.toDate ? event.startDate.toDate() : event.startDate) > new Date();
   const isPast = event.endDate && new Date(event.endDate.toDate ? event.endDate.toDate() : event.endDate) < new Date();
   const isCreator = user && event.createdBy === user.uid;
+  const isClubAdmin = user && club && (club.admins.includes(user.uid) || club.owner === user.uid);
+  const canManageEvent = isCreator || isClubAdmin;
   const isFull = event.maxAttendees && event.attendees.length >= event.maxAttendees;
 
   return (
@@ -525,7 +582,7 @@ export default function EventDetailScreen() {
             </BlurView>
 
             {/* Menu for additional options */}
-            {user && (isAttending || isWaitlisted) && (
+            {user && (isAttending || isWaitlisted || canManageEvent) && (
               <Menu
                 visible={menuVisible}
                 onDismiss={() => setMenuVisible(false)}
@@ -540,14 +597,37 @@ export default function EventDetailScreen() {
                   </BlurView>
                 }
               >
-                <Menu.Item
-                  onPress={() => {
-                    setMenuVisible(false);
-                    handleLeaveEvent();
-                  }}
-                  title={isWaitlisted ? "Leave Waitlist" : "Leave Event"}
-                  leadingIcon="exit-to-app"
-                />
+                {canManageEvent && (
+                  <Menu.Item
+                    onPress={() => {
+                      setMenuVisible(false);
+                      handleEditEvent();
+                    }}
+                    title="Edit Event"
+                    leadingIcon="pencil"
+                  />
+                )}
+                {(isAttending || isWaitlisted) && (
+                  <Menu.Item
+                    onPress={() => {
+                      setMenuVisible(false);
+                      handleLeaveEvent();
+                    }}
+                    title={isWaitlisted ? "Leave Waitlist" : "Leave Event"}
+                    leadingIcon="exit-to-app"
+                  />
+                )}
+                {canManageEvent && (
+                  <Menu.Item
+                    onPress={() => {
+                      setMenuVisible(false);
+                      handleDeleteEvent();
+                    }}
+                    title="Delete Event"
+                    leadingIcon="delete"
+                    titleStyle={{ color: '#EF4444' }}
+                  />
+                )}
               </Menu>
             )}
           </View>

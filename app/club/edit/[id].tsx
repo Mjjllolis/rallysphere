@@ -1,6 +1,6 @@
 // app/club/edit/[id].tsx - Modern Edit Club Screen
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, Alert, Image, TouchableOpacity } from 'react-native';
+import { View, ScrollView, StyleSheet, Alert, Image, TouchableOpacity, Modal, FlatList } from 'react-native';
 import {
   Text,
   TextInput,
@@ -9,7 +9,6 @@ import {
   useTheme,
   Switch,
   IconButton,
-  Menu
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -21,7 +20,7 @@ import type { Club } from '../../../lib/firebase';
 import BackButton from '../../../components/BackButton';
 
 const SPORTS = [
-  'Basketball', 'Football', 'Soccer', 'Tennis', 'Baseball', 'Volleyball',
+  'Basketball', 'Football', 'Soccer', 'Tennis', 'Pickleball', 'Baseball', 'Volleyball',
   'Swimming', 'Track & Field', 'Golf', 'Hockey', 'Wrestling', 'Cross Country',
   'Softball', 'Lacrosse', 'Rugby', 'Cricket', 'Badminton', 'Table Tennis',
   'Martial Arts', 'Cycling', 'Running', 'Fitness', 'Other'
@@ -295,6 +294,7 @@ export default function EditClubScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         stickyHeaderIndices={[0]}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Header with Gradient */}
         <View>
@@ -406,32 +406,15 @@ export default function EditClubScreen() {
               />
 
               <Text variant="bodyLarge" style={styles.fieldLabel}>Category *</Text>
-              <Menu
-                visible={showSportsMenu}
-                onDismiss={() => setShowSportsMenu(false)}
-                anchor={
-                  <TouchableOpacity
-                    style={[styles.categorySelector, { borderColor: theme.colors.outlineVariant, backgroundColor: theme.colors.surface }]}
-                    onPress={() => setShowSportsMenu(true)}
-                  >
-                    <Text style={styles.categorySelectorText}>
-                      {formData.sport || 'Select a category...'}
-                    </Text>
-                    <IconButton icon="chevron-down" size={20} />
-                  </TouchableOpacity>
-                }
+              <TouchableOpacity
+                style={[styles.categorySelector, { borderColor: theme.colors.outlineVariant, backgroundColor: theme.colors.surface }]}
+                onPress={() => setShowSportsMenu(true)}
               >
-                {SPORTS.map((sport) => (
-                  <Menu.Item
-                    key={sport}
-                    onPress={() => {
-                      updateFormData('sport', sport);
-                      setShowSportsMenu(false);
-                    }}
-                    title={sport}
-                  />
-                ))}
-              </Menu>
+                <Text style={[styles.categorySelectorText, { color: formData.sport ? theme.colors.onSurface : theme.colors.onSurfaceVariant }]}>
+                  {formData.sport || 'Select a category...'}
+                </Text>
+                <IconButton icon="chevron-down" size={20} pointerEvents="none" />
+              </TouchableOpacity>
 
               <TextInput
                 label="Contact Email"
@@ -541,30 +524,15 @@ export default function EditClubScreen() {
               </View>
 
               <Text variant="bodyLarge" style={styles.fieldLabel}>Club Type</Text>
-              <Menu
-                visible={showTagsMenu}
-                onDismiss={() => setShowTagsMenu(false)}
-                anchor={
-                  <TouchableOpacity
-                    style={[styles.categorySelector, { borderColor: theme.colors.outlineVariant, backgroundColor: theme.colors.surface }]}
-                    onPress={() => setShowTagsMenu(true)}
-                  >
-                    <Text style={styles.categorySelectorText}>
-                      {selectedTags.length > 0 ? selectedTags.join(', ') : 'Select club type(s)...'}
-                    </Text>
-                    <IconButton icon="chevron-down" size={20} />
-                  </TouchableOpacity>
-                }
+              <TouchableOpacity
+                style={[styles.categorySelector, { borderColor: theme.colors.outlineVariant, backgroundColor: theme.colors.surface }]}
+                onPress={() => setShowTagsMenu(true)}
               >
-                {TAGS.map((tag) => (
-                  <Menu.Item
-                    key={tag}
-                    onPress={() => toggleTag(tag)}
-                    title={tag}
-                    leadingIcon={selectedTags.includes(tag) ? 'check' : undefined}
-                  />
-                ))}
-              </Menu>
+                <Text style={[styles.categorySelectorText, { color: selectedTags.length > 0 ? theme.colors.onSurface : theme.colors.onSurfaceVariant }]}>
+                  {selectedTags.length > 0 ? selectedTags.join(', ') : 'Select club type(s)...'}
+                </Text>
+                <IconButton icon="chevron-down" size={20} pointerEvents="none" />
+              </TouchableOpacity>
 
               <View style={[styles.switchRow, { borderTopColor: theme.colors.outlineVariant }]}>
                 <View style={styles.switchContent}>
@@ -590,6 +558,107 @@ export default function EditClubScreen() {
           </Button>
         </View>
       </ScrollView>
+
+      {/* Category Picker Modal */}
+      <Modal
+        visible={showSportsMenu}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowSportsMenu(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowSportsMenu(false)}
+        >
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
+            <View style={styles.modalHeader}>
+              <Text variant="titleMedium" style={[styles.modalTitle, { color: theme.colors.onSurface }]}>Select Category</Text>
+              <IconButton icon="close" size={20} onPress={() => setShowSportsMenu(false)} />
+            </View>
+            <FlatList
+              data={SPORTS}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.modalOption,
+                    { borderBottomColor: theme.colors.outlineVariant },
+                    formData.sport === item && { backgroundColor: theme.colors.primaryContainer },
+                  ]}
+                  onPress={() => {
+                    updateFormData('sport', item);
+                    setShowSportsMenu(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.modalOptionText,
+                    { color: theme.colors.onSurface },
+                    formData.sport === item && { color: theme.colors.primary, fontWeight: '700' },
+                  ]}>
+                    {item}
+                  </Text>
+                  {formData.sport === item && (
+                    <IconButton icon="check" size={18} iconColor={theme.colors.primary} style={{ margin: 0 }} />
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Club Type Picker Modal */}
+      <Modal
+        visible={showTagsMenu}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowTagsMenu(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowTagsMenu(false)}
+        >
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
+            <View style={styles.modalHeader}>
+              <Text variant="titleMedium" style={[styles.modalTitle, { color: theme.colors.onSurface }]}>Select Club Type(s)</Text>
+              <IconButton icon="close" size={20} onPress={() => setShowTagsMenu(false)} />
+            </View>
+            <FlatList
+              data={TAGS}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.modalOption,
+                    { borderBottomColor: theme.colors.outlineVariant },
+                    selectedTags.includes(item) && { backgroundColor: theme.colors.primaryContainer },
+                  ]}
+                  onPress={() => toggleTag(item)}
+                >
+                  <Text style={[
+                    styles.modalOptionText,
+                    { color: theme.colors.onSurface },
+                    selectedTags.includes(item) && { color: theme.colors.primary, fontWeight: '700' },
+                  ]}>
+                    {item}
+                  </Text>
+                  {selectedTags.includes(item) && (
+                    <IconButton icon="check" size={18} iconColor={theme.colors.primary} style={{ margin: 0 }} />
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity
+              style={[styles.modalDoneButton, { backgroundColor: theme.colors.primary }]}
+              onPress={() => setShowTagsMenu(false)}
+            >
+              <Text style={[styles.modalDoneText, { color: theme.colors.onPrimary }]}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -753,5 +822,49 @@ const styles = StyleSheet.create({
   },
   buttonContent: {
     paddingVertical: 12,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '60%',
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  modalTitle: {
+    fontWeight: '700',
+  },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  modalOptionText: {
+    fontSize: 16,
+    flex: 1,
+  },
+  modalDoneButton: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalDoneText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
