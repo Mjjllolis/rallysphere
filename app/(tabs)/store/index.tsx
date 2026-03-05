@@ -217,8 +217,7 @@ export default function StoreScreen() {
       setLoading(true);
       const result = await getAllStoreItems();
 
-      // Merge Firebase items with mock items
-      const allItems = result.success ? [...result.items, ...MOCK_ITEMS] : MOCK_ITEMS;
+      const allItems = result.success ? result.items : [];
       setItems(allItems);
 
       // Get featured items (top sellers or newest)
@@ -246,25 +245,11 @@ export default function StoreScreen() {
       setCategories(dynamicCategories);
     } catch (error) {
       console.error('Error loading store items:', error);
-      setItems(MOCK_ITEMS);
-
-      const featured = [...MOCK_ITEMS]
-        .sort((a, b) => b.sold - a.sold)
-        .slice(0, 5);
-      setFeaturedItems(featured);
-
-      const uniqueCategories = new Set<string>();
-      MOCK_ITEMS.forEach((item) => {
-        if (item.category) {
-          uniqueCategories.add(item.category);
-        }
-      });
+      setItems([]);
+      setFeaturedItems([]);
 
       const dynamicCategories = [
         { id: 'all', label: 'Everything' },
-        ...Array.from(uniqueCategories)
-          .sort()
-          .map((cat) => ({ id: cat, label: cat })),
       ];
 
       setCategories(dynamicCategories);

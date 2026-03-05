@@ -1,5 +1,5 @@
 // app/(tabs)/clubs.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Alert, RefreshControl, TouchableOpacity, Image, Dimensions } from 'react-native';
 import {
   Text,
@@ -19,10 +19,6 @@ import JoinClubModal from '../../components/JoinClubModal';
 import CreateScreen from '../../components/CreateScreen';
 import RallyCreditsDisplay from '../../components/RallyCreditsDisplay';
 
-const CATEGORIES = [
-  'All', 'Academic', 'Sports', 'Arts & Culture', 'Technology', 'Business',
-  'Community Service', 'Hobbies', 'Religious', 'Political', 'Social'
-];
 
 export default function ClubsPage() {
   const theme = useTheme();
@@ -42,6 +38,11 @@ export default function ClubsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [createModalVisible, setCreateModalVisible] = useState(false);
 
+  const availableCategories = useMemo(() => {
+    const cats = [...new Set(discoverClubs.map(club => club.category).filter(Boolean))].sort();
+    return ['All', ...cats];
+  }, [discoverClubs]);
+
   useEffect(() => {
     if (user) {
       loadClubs();
@@ -54,8 +55,12 @@ export default function ClubsPage() {
   }, [user]);
 
   useEffect(() => {
+    // Reset category if it no longer exists in available clubs
+    if (selectedCategory !== 'All' && !availableCategories.includes(selectedCategory)) {
+      setSelectedCategory('All');
+    }
     filterClubs();
-  }, [discoverClubs, searchQuery, selectedCategory]);
+  }, [discoverClubs, searchQuery, selectedCategory, availableCategories]);
 
   const loadClubs = async () => {
     if (!user) return;
@@ -396,15 +401,15 @@ export default function ClubsPage() {
           </BlurView>
         </View>
 
-        {/* Category Filter - Only show on Discover tab */}
-        {activeTab === 'discover' && (
+        {/* Category Filter - Only show on Discover tab when there are categories */}
+        {activeTab === 'discover' && availableCategories.length > 2 && (
           <View style={styles.categoryContainer}>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.categoryContent}
             >
-              {CATEGORIES.map((category) => (
+              {availableCategories.map((category) => (
                 <TouchableOpacity
                   key={category}
                   onPress={() => setSelectedCategory(category)}
