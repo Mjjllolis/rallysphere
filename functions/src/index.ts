@@ -235,7 +235,7 @@ export const createPaymentIntent = functions.https.onCall(
     }
 
     // Use originalPrice for fee calculations (or ticketPrice if no discount)
-    const priceForFees = originalPrice || ticketPrice;
+    // originalPrice || ticketPrice used for fee calculations if needed
 
     // Calculate fees - User pays: price + 6% processing + $0.29
     // Club receives the full ticket price (no platform fee on events)
@@ -398,7 +398,7 @@ export const createStorePaymentIntent = functions.https.onCall(
       const shipping = deliveryMethod === "shipping" ? (item.shippingCost || 0) : 0;
 
       // ORIGINAL price before any discount (for fee calculation)
-      const originalItemAndShipping = itemPrice + shipping;
+      // originalItemAndShipping = itemPrice + shipping used for fee calc if needed
 
       // Apply reward discount if provided
       const discountAmount = rewardDiscount?.discountAmount || 0;
@@ -1011,7 +1011,7 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
           shipping,
           totalAmount,
           rallyCreditsDiscount,
-          redemptionId,
+          redemptionId: _redemptionId,
           creditsUsed,
         } = session.metadata;
 
