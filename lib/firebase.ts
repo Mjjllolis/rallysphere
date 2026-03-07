@@ -137,6 +137,9 @@ export interface Club {
     tiktok?: string;
     discord?: string;
   };
+  // Location
+  location?: string;
+  locationCoords?: { latitude: number; longitude: number };
   // Stripe Connect for payouts
   stripeAccountId?: string;
   stripeAccountStatus?: 'pending' | 'active' | 'disabled';
@@ -194,6 +197,7 @@ export interface Event {
   startDate: Timestamp;
   endDate: Timestamp;
   location: string;
+  locationCoords?: { latitude: number; longitude: number };
   isVirtual: boolean;
   virtualLink?: string;
   maxAttendees?: number;
@@ -1074,6 +1078,32 @@ export const updateClub = async (clubId: string, clubData: any) => {
 };
 
 // --- 8. Event Functions ---
+export const geocodeLocation = async (address: string): Promise<{ latitude: number; longitude: number } | null> => {
+  try {
+    const apiKey = process.env.EXPO_PUBLIC_GOOGLE_API_KEY;
+    if (!apiKey || !address.trim()) {
+      console.log('[Geocode] No API key or empty address');
+      return null;
+    }
+    console.log('[Geocode] Geocoding address:', address);
+    const response = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`
+    );
+    const data = await response.json();
+    console.log('[Geocode] Response status:', data.status);
+    if (data.status === 'OK' && data.results.length > 0) {
+      const { lat, lng } = data.results[0].geometry.location;
+      console.log('[Geocode] Got coords:', lat, lng);
+      return { latitude: lat, longitude: lng };
+    }
+    console.log('[Geocode] Failed:', data.status, data.error_message);
+    return null;
+  } catch (error) {
+    console.error('[Geocode] Error:', error);
+    return null;
+  }
+};
+
 export const createEvent = async (eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt' | 'attendees' | 'waitlist' | 'likes'>) => {
   try {
     // Fetch club logo if not provided
@@ -1085,9 +1115,16 @@ export const createEvent = async (eventData: Omit<Event, 'id' | 'createdAt' | 'u
       }
     }
 
+    // Geocode the location if coordinates aren't already provided
+    let locationCoords = eventData.locationCoords;
+    if (!locationCoords && eventData.location && !eventData.isVirtual) {
+      locationCoords = await geocodeLocation(eventData.location) || undefined;
+    }
+
     const event = {
       ...eventData,
       clubLogo,
+      ...(locationCoords ? { locationCoords } : {}),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       attendees: [],
@@ -1108,6 +1145,15 @@ export const createEvent = async (eventData: Omit<Event, 'id' | 'createdAt' | 'u
 export const updateEvent = async (eventId: string, eventData: Partial<Omit<Event, 'id' | 'createdAt' | 'attendees' | 'waitlist' | 'likes'>>) => {
   try {
     const eventRef = doc(db, 'events', eventId);
+
+    // Geocode location if it changed and no coords provided
+    if (eventData.location && !eventData.locationCoords && !eventData.isVirtual) {
+      const coords = await geocodeLocation(eventData.location);
+      if (coords) {
+        eventData.locationCoords = coords;
+      }
+    }
+
     // Convert undefined values to deleteField() for Firestore compatibility
     const cleanedData: Record<string, any> = { updatedAt: serverTimestamp() };
     for (const [key, value] of Object.entries(eventData)) {

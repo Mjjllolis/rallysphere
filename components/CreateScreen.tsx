@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   Animated,
   Image,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Text, IconButton, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,10 +17,9 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useThemeToggle } from '../app/_layout';
 import EventForm from './forms/EventForm';
-import PostForm from './forms/PostForm';
 import ClubForm from './forms/ClubForm';
 
-type CreateType = 'Event' | 'Post' | 'Club';
+type CreateType = 'Event' | 'Club';
 
 interface CreateScreenProps {
   visible: boolean;
@@ -142,14 +143,14 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
                     ]}
                   >
                     <View style={styles.dropdownAbsoluteContent}>
-                      {(['Club', 'Event', 'Post'] as CreateType[]).map((type, index) => (
+                      {(['Club', 'Event'] as CreateType[]).map((type, index) => (
                         <TouchableOpacity
                           key={type}
                           style={[
                             styles.dropdownAbsoluteItem,
                             { borderBottomColor: theme.colors.outline },
                             selectedType === type && { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' },
-                            index === 2 && styles.dropdownAbsoluteItemLast,
+                            index === 1 && styles.dropdownAbsoluteItemLast,
                           ]}
                           onPress={() => handleTypeSelect(type)}
                           activeOpacity={0.7}
@@ -187,23 +188,23 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
           )}
 
           {/* Form Content */}
-          <ScrollView
-            style={styles.content}
-            contentContainerStyle={styles.contentContainer}
-            showsVerticalScrollIndicator={true}
-            indicatorStyle={isDark ? "white" : "black"}
-            bounces={true}
-          >
-            {selectedType === 'Event' && (
-              <EventForm onColorsExtracted={handleColorsExtracted} onSuccess={onClose} />
-            )}
-            {selectedType === 'Post' && (
-              <PostForm onColorsExtracted={handleColorsExtracted} onSuccess={onClose} />
-            )}
-            {selectedType === 'Club' && (
-              <ClubForm onColorsExtracted={handleColorsExtracted} onSuccess={onClose} />
-            )}
-          </ScrollView>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <ScrollView
+              style={styles.content}
+              contentContainerStyle={styles.contentContainer}
+              showsVerticalScrollIndicator={true}
+              indicatorStyle={isDark ? "white" : "black"}
+              bounces={true}
+              keyboardShouldPersistTaps="handled"
+            >
+              {selectedType === 'Event' && (
+                <EventForm onColorsExtracted={handleColorsExtracted} onSuccess={onClose} />
+              )}
+              {selectedType === 'Club' && (
+                <ClubForm onColorsExtracted={handleColorsExtracted} onSuccess={onClose} />
+              )}
+            </ScrollView>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </View>
     </Modal>

@@ -1,6 +1,7 @@
 // app/event/create.tsx
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, Alert, Image, Dimensions, TouchableOpacity } from 'react-native';
+import { View, ScrollView, StyleSheet, Alert, Dimensions, TouchableOpacity, KeyboardAvoidingView } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import {
   Text,
   TextInput,
@@ -31,6 +32,7 @@ export default function CreateEventScreen() {
   const params = useLocalSearchParams();
   const initialClubId = params.clubId as string;
 
+  const inputTheme = isDark ? { colors: { background: theme.colors.elevation.level2 } } : undefined;
   const [loading, setLoading] = useState(false);
   const [clubId, setClubId] = useState<string>(initialClubId || '');
   const [club, setClub] = useState<Club | null>(null);
@@ -45,6 +47,11 @@ export default function CreateEventScreen() {
     title: '',
     description: '',
     location: '',
+    address: '',
+    address2: '',
+    city: '',
+    state: '',
+    zipCode: '',
     maxAttendees: '',
     ticketPrice: '',
     currency: 'USD',
@@ -143,8 +150,8 @@ export default function CreateEventScreen() {
       Alert.alert('Select a Club', 'Please select which club this event is for');
       return false;
     }
-    if (!formData.location.trim()) {
-      Alert.alert('Error', 'Location is required');
+    if (!formData.address.trim() || !formData.city.trim() || !formData.state.trim() || !formData.zipCode.trim()) {
+      Alert.alert('Error', 'Address, City, State, and Zip are required');
       return false;
     }
     if (endDate <= startDate) {
@@ -179,17 +186,20 @@ export default function CreateEventScreen() {
         createdBy: user.uid,
         startDate: new Date(startDate),
         endDate: new Date(endDate),
-        location: formData.location.trim(),
+        location: [
+          formData.address.trim(),
+          formData.address2.trim(),
+          `${formData.city.trim()}, ${formData.state.trim().toUpperCase()} ${formData.zipCode.trim()}`,
+        ].filter(Boolean).join(', '),
         isVirtual: false,
-        maxAttendees: formData.maxAttendees ? parseInt(formData.maxAttendees) : undefined,
+        ...(formData.maxAttendees ? { maxAttendees: parseInt(formData.maxAttendees) } : {}),
         coverImage: coverImageUrl,
         isPublic,
         requiresApproval: false,
-        ticketPrice: formData.ticketPrice ? parseFloat(formData.ticketPrice) : undefined,
-        currency: formData.ticketPrice ? formData.currency : undefined,
-        rallyCreditsAwarded: formData.rallyCreditsAwarded ? parseInt(formData.rallyCreditsAwarded) : undefined,
+        ...(formData.ticketPrice ? { ticketPrice: parseFloat(formData.ticketPrice), currency: formData.currency } : {}),
+        ...(formData.rallyCreditsAwarded ? { rallyCreditsAwarded: parseInt(formData.rallyCreditsAwarded) } : {}),
         hasWaiver: hasWaiver,
-        waiverText: hasWaiver ? waiverText.trim() : undefined,
+        ...(hasWaiver ? { waiverText: waiverText.trim() } : {}),
       };
 
       const result = await createEvent(eventData);
@@ -302,11 +312,12 @@ export default function CreateEventScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <KeyboardAvoidingView style={[styles.container, { backgroundColor: theme.colors.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         stickyHeaderIndices={[0]}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Header with Gradient */}
         <View>
@@ -328,7 +339,7 @@ export default function CreateEventScreen() {
 
         <View style={styles.content}>
           {/* Club Selection */}
-          <Card style={[styles.formCard, { backgroundColor: theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -374,7 +385,7 @@ export default function CreateEventScreen() {
           </Card>
 
           {/* Cover Image Section */}
-          <Card style={[styles.formCard, { backgroundColor: theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -389,7 +400,7 @@ export default function CreateEventScreen() {
                   style={styles.coverImageContainer}
                 >
                   {coverImage ? (
-                    <Image source={{ uri: coverImage }} style={styles.coverImage} />
+                    <ExpoImage source={{ uri: coverImage }} style={styles.coverImage} contentFit="cover" transition={200} cachePolicy="memory-disk" />
                   ) : (
                     <View style={styles.imagePlaceholder}>
                       <IconButton icon="camera-plus" size={40} iconColor={theme.colors.primary} />
@@ -403,7 +414,7 @@ export default function CreateEventScreen() {
           </Card>
 
           {/* Basic Information */}
-          <Card style={[styles.formCard, { backgroundColor: theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -413,6 +424,7 @@ export default function CreateEventScreen() {
               </View>
 
               <TextInput
+                theme={inputTheme}
                 label="Event Title *"
                 value={formData.title}
                 onChangeText={(value) => updateFormData('title', value)}
@@ -421,6 +433,7 @@ export default function CreateEventScreen() {
               />
 
               <TextInput
+                theme={inputTheme}
                 label="Description *"
                 value={formData.description}
                 onChangeText={(value) => updateFormData('description', value)}
@@ -432,19 +445,63 @@ export default function CreateEventScreen() {
               />
 
               <TextInput
-                label="Location *"
-                value={formData.location}
-                onChangeText={(value) => updateFormData('location', value)}
+                theme={inputTheme}
+                label="Address *"
+                value={formData.address}
+                onChangeText={(value) => updateFormData('address', value)}
                 mode="outlined"
                 style={styles.input}
-                placeholder="e.g., Student Center Room 201"
-                left={<TextInput.Icon icon="map-marker" />}
+                placeholder="123 Main St"
               />
+
+              <TextInput
+                theme={inputTheme}
+                label="Address Line 2"
+                value={formData.address2}
+                onChangeText={(value) => updateFormData('address2', value)}
+                mode="outlined"
+                style={styles.input}
+                placeholder="Suite, Unit, Floor (optional)"
+              />
+
+              <View style={styles.addressRow}>
+                <TextInput
+                  theme={inputTheme}
+                  label="City *"
+                  value={formData.city}
+                  onChangeText={(value) => updateFormData('city', value)}
+                  mode="outlined"
+                  style={[styles.input, styles.addressCity]}
+                  placeholder="City"
+                />
+                <TextInput
+                  theme={inputTheme}
+                  label="State *"
+                  value={formData.state}
+                  onChangeText={(value) => updateFormData('state', value)}
+                  mode="outlined"
+                  style={[styles.input, styles.addressState]}
+                  placeholder="TX"
+                  maxLength={2}
+                  autoCapitalize="characters"
+                />
+                <TextInput
+                  theme={inputTheme}
+                  label="Zip *"
+                  value={formData.zipCode}
+                  onChangeText={(value) => updateFormData('zipCode', value)}
+                  mode="outlined"
+                  style={[styles.input, styles.addressZip]}
+                  placeholder="75001"
+                  keyboardType="number-pad"
+                  maxLength={5}
+                />
+              </View>
             </Card.Content>
           </Card>
 
           {/* Date and Time */}
-          <Card style={[styles.formCard, { backgroundColor: theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -578,7 +635,7 @@ export default function CreateEventScreen() {
           </Card>
 
           {/* Additional Options */}
-          <Card style={[styles.formCard, { backgroundColor: theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -588,6 +645,7 @@ export default function CreateEventScreen() {
               </View>
 
               <TextInput
+                theme={inputTheme}
                 label="Max Attendees"
                 value={formData.maxAttendees}
                 onChangeText={(value) => updateFormData('maxAttendees', value)}
@@ -599,6 +657,7 @@ export default function CreateEventScreen() {
               />
 
               <TextInput
+                theme={inputTheme}
                 label="Ticket Price"
                 value={formData.ticketPrice}
                 onChangeText={(value) => updateFormData('ticketPrice', value)}
@@ -610,13 +669,13 @@ export default function CreateEventScreen() {
                 disabled={!club?.stripeOnboardingComplete}
               />
               {!club?.stripeOnboardingComplete && (
-                <View style={styles.warningBox}>
+                <View style={[styles.warningBox, isDark && styles.warningBoxDark]}>
                   <IconButton icon="alert-circle" size={20} iconColor="#F59E0B" />
                   <View style={{ flex: 1 }}>
                     <Text variant="bodyMedium" style={{ color: '#F59E0B', fontWeight: 'bold' }}>
                       Connect Stripe to accept payments
                     </Text>
-                    <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}>
+                    <Text variant="bodySmall" style={{ color: isDark ? 'rgba(255,255,255,0.7)' : theme.colors.onSurfaceVariant, marginTop: 4 }}>
                       Set up payouts in club settings to create paid events
                     </Text>
                   </View>
@@ -624,6 +683,7 @@ export default function CreateEventScreen() {
               )}
 
               <TextInput
+                theme={inputTheme}
                 label="RallyCredits Awarded"
                 value={formData.rallyCreditsAwarded}
                 onChangeText={(value) => updateFormData('rallyCreditsAwarded', value)}
@@ -658,23 +718,24 @@ export default function CreateEventScreen() {
               </View>
 
               {hasWaiver && (
-                <View style={styles.waiverSection}>
+                <View style={[styles.waiverSection, isDark && { borderTopColor: 'rgba(255,255,255,0.1)' }]}>
                   <View style={styles.waiverHeader}>
-                    <IconButton icon="file-document-outline" size={20} iconColor="#1B365D" />
-                    <Text variant="bodyMedium" style={styles.waiverHeaderText}>
+                    <IconButton icon="file-document-outline" size={20} iconColor={isDark ? '#60A5FA' : '#1B365D'} />
+                    <Text variant="bodyMedium" style={[styles.waiverHeaderText, isDark && { color: '#60A5FA' }]}>
                       Waiver / Terms Text
                     </Text>
                   </View>
                   <TextInput
+                    theme={inputTheme}
                     value={waiverText}
                     onChangeText={setWaiverText}
                     mode="outlined"
                     multiline
                     numberOfLines={6}
-                    style={styles.waiverInput}
+                    style={[styles.waiverInput, isDark && { backgroundColor: 'rgba(255,255,255,0.05)' }]}
                     placeholder="Enter the waiver or terms that attendees must agree to before joining this event..."
                   />
-                  <Text variant="bodySmall" style={styles.waiverHint}>
+                  <Text variant="bodySmall" style={[styles.waiverHint, isDark && { color: 'rgba(255,255,255,0.5)' }]}>
                     This will be shown to users when they try to join the event
                   </Text>
                 </View>
@@ -694,7 +755,7 @@ export default function CreateEventScreen() {
           </Button>
         </View>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -811,6 +872,20 @@ const styles = StyleSheet.create({
   input: {
     marginBottom: 12,
     borderRadius: 12,
+    backgroundColor: 'transparent',
+  },
+  addressRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  addressCity: {
+    flex: 3,
+  },
+  addressState: {
+    flex: 1.5,
+  },
+  addressZip: {
+    flex: 2,
   },
   fieldLabel: {
     fontWeight: '600',
@@ -856,7 +931,7 @@ const styles = StyleSheet.create({
   },
   createButton: {
     marginTop: 8,
-    marginBottom: 20,
+    marginBottom: 100,
     borderRadius: 12,
   },
   buttonContent: {
@@ -872,6 +947,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: '#FCD34D',
+  },
+  warningBoxDark: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderColor: 'rgba(245, 158, 11, 0.3)',
   },
   waiverSection: {
     marginTop: 16,

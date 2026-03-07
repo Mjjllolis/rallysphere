@@ -7,12 +7,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useThemeToggle } from '../../_layout';
 import TopTabs from './components/TopTabs';
 import HomeFeed from './components/HomeFeed';
+import LocalFeed from './components/LocalFeed';
 import SavedFeed from './components/SavedFeed';
 
 export default function HomeLayout() {
   const theme = useTheme();
   const { isDark } = useThemeToggle();
-  const [activeTab, setActiveTab] = useState("Editors' Pick");
+  const [activeTab, setActiveTab] = useState('RallyFeed');
+  const [radiusMiles, setRadiusMiles] = useState(25);
   const insets = useSafeAreaInsets();
 
   const topSpacing = insets.top + 4;
@@ -22,18 +24,13 @@ export default function HomeLayout() {
 
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor="transparent" translucent />
 
-
       {/* All feeds mounted simultaneously - hidden when not active */}
-      <View style={[styles.feedWrapper, { paddingBottom: bottomTabHeight }, activeTab === "Editors' Pick" ? styles.visible : styles.hidden]}>
-        <HomeFeed feedType="editors-pick" isActive={activeTab === "Editors' Pick"} />
+      <View style={[styles.feedWrapper, { paddingBottom: bottomTabHeight }, activeTab === 'RallyFeed' ? styles.visible : styles.hidden]}>
+        <HomeFeed feedType="editors-pick" isActive={activeTab === 'RallyFeed'} />
       </View>
 
-      <View style={[styles.feedWrapper, { paddingBottom: bottomTabHeight }, activeTab === 'For You' ? styles.visible : styles.hidden]}>
-        <HomeFeed feedType="for-you" isActive={activeTab === 'For You'} />
-      </View>
-
-      <View style={[styles.feedWrapper, { paddingBottom: bottomTabHeight }, activeTab === 'Following' ? styles.visible : styles.hidden]}>
-        <HomeFeed feedType="following" isActive={activeTab === 'Following'} />
+      <View style={[styles.feedWrapper, { paddingBottom: bottomTabHeight }, activeTab === 'Local' ? styles.visible : styles.hidden]}>
+        <LocalFeed isActive={activeTab === 'Local'} radiusMiles={radiusMiles} />
       </View>
 
       <View style={[styles.feedWrapper, { paddingBottom: bottomTabHeight }, activeTab === 'Saved' ? styles.visible : styles.hidden]}>
@@ -61,7 +58,7 @@ export default function HomeLayout() {
         />
       )}
       <View style={[styles.tabsOverlay, { top: topSpacing + 16 }]}>
-        <TopTabs activeTab={activeTab} setActiveTab={setActiveTab} />
+        <TopTabs activeTab={activeTab} setActiveTab={setActiveTab} radiusMiles={radiusMiles} onRadiusChange={setRadiusMiles} />
       </View>
     </View>
   );
