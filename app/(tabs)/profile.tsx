@@ -1,6 +1,7 @@
 // app/(tabs)/profile.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, TouchableOpacity, Dimensions, Image, Animated } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Dimensions, Animated, RefreshControl } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { Text, IconButton, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -34,6 +35,13 @@ export default function ProfilePage() {
   const [rallyCredits, setRallyCredits] = useState<UserRallyCredits | null>(null);
   const [userClubs, setUserClubs] = useState<Club[]>([]);
   const [pastEvents, setPastEvents] = useState<Event[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([loadProfile(), loadRallyCredits(), loadUserClubs(), loadPastEvents()]);
+    setRefreshing(false);
+  };
 
   useEffect(() => {
     if (user) {
@@ -154,10 +162,12 @@ export default function ProfilePage() {
           ]}
           pointerEvents="none"
         >
-          <Image
+          <ExpoImage
             source={{ uri: profile.backgroundImage }}
             style={styles.backgroundImage}
-            resizeMode="cover"
+            contentFit="cover"
+            transition={200}
+            cachePolicy="memory-disk"
           />
           {/* Overlay for Readability - white wash in light mode, dark in dark mode */}
           <View style={[styles.backgroundOverlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.55)' }]} />
@@ -211,15 +221,24 @@ export default function ProfilePage() {
             { useNativeDriver: true }
           )}
           scrollEventThrottle={16}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.colors.onSurface}
+            />
+          }
         >
           {/* Profile Header */}
           <View style={styles.profileHeader}>
             {/* Avatar */}
             <View style={styles.avatarContainer}>
               {profile?.avatar || user.photoURL ? (
-                <Image
+                <ExpoImage
                   source={{ uri: profile?.avatar || user.photoURL || undefined }}
                   style={styles.avatarImage}
+                  transition={200}
+                  cachePolicy="memory-disk"
                 />
               ) : profile?.profileEmoji ? (
                 <View style={styles.avatarPlaceholder}>
@@ -313,7 +332,7 @@ export default function ProfilePage() {
                     onPress={() => router.push(`/club/${club.id}`)}
                   >
                     {club.logo ? (
-                      <Image source={{ uri: club.logo }} style={[styles.clubCircleImage, { borderColor: theme.colors.outline }]} />
+                      <ExpoImage source={{ uri: club.logo }} style={[styles.clubCircleImage, { borderColor: theme.colors.outline }]} transition={200} cachePolicy="memory-disk" />
                     ) : (
                       <LinearGradient
                         colors={['#60A5FA', '#3B82F6']}
@@ -360,7 +379,7 @@ export default function ProfilePage() {
                     onPress={() => router.push(`/event/${event.id}`)}
                   >
                     {event.coverImage ? (
-                      <Image source={{ uri: event.coverImage }} style={styles.eventGridImage} />
+                      <ExpoImage source={{ uri: event.coverImage }} style={styles.eventGridImage} contentFit="cover" transition={200} cachePolicy="memory-disk" />
                     ) : (
                       <LinearGradient
                         colors={isDark ? ['#1e1e1e', '#2a2a2a'] : ['#e2e8f0', '#cbd5e1']}
@@ -578,6 +597,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
+    alignItems: 'center',
     gap: 12,
   },
   detailText: {

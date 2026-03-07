@@ -1,14 +1,14 @@
 // app/event/[id].tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Image, Linking, Dimensions, TouchableOpacity, ActivityIndicator, Modal, Animated, TextInput, PanResponder, Pressable } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Linking, Dimensions, TouchableOpacity, ActivityIndicator, Modal, Animated, TextInput, PanResponder, Pressable, Platform, RefreshControl } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import {
   Text,
   Button,
   Card,
   Chip,
   IconButton,
-  useTheme,
-  Menu
+  useTheme
 } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -57,6 +57,7 @@ export default function EventDetailScreen() {
   const [exportingPDF, setExportingPDF] = useState(false);
   const [clubLogo, setClubLogo] = useState<string | undefined>(undefined);
   const [club, setClub] = useState<Club | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const waiverSheetAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
   const waiverHintOpacity = useRef(new Animated.Value(1)).current;
   const waiverAgreementOpacity = useRef(new Animated.Value(0.4)).current;
@@ -157,13 +158,14 @@ export default function EventDetailScreen() {
   const hasLoadedOnce = useRef(false);
   useFocusEffect(
     useCallback(() => {
+      // Reset menu state when returning from edit/other screens
+      setMenuVisible(false);
       if (hasLoadedOnce.current && eventId) {
         loadEventData(true);
       }
       hasLoadedOnce.current = true;
     }, [eventId])
   );
-
 
   useEffect(() => {
     if (event?.attendees?.length) {
@@ -541,10 +543,12 @@ export default function EventDetailScreen() {
       <Stack.Screen options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true, gestureDirection: 'horizontal' }} />
       {/* Full-screen blurred background image */}
       {event.coverImage && (
-        <Image
+        <ExpoImage
           source={{ uri: event.coverImage }}
           style={styles.backgroundImage}
-          blurRadius={50}
+          blurRadius={80}
+          transition={200}
+          cachePolicy="memory-disk"
         />
       )}
       {/* Gradient overlay for better readability */}
@@ -553,14 +557,16 @@ export default function EventDetailScreen() {
         style={styles.backgroundOverlay}
       />
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await loadEventData(true); setRefreshing(false); }} tintColor={theme.colors.onSurface} />}>
         {/* Hero Section with Cover Image and Content */}
         <View style={styles.heroSection}>
           {/* Full Cover Image */}
-          <Image
+          <ExpoImage
             source={event.coverImage ? { uri: event.coverImage } : require('../../assets/Background.png')}
             style={styles.coverImage}
-            resizeMode="cover"
+            contentFit="cover"
+            transition={200}
+            cachePolicy="memory-disk"
           />
 
           {/* Gradient overlay for text readability */}
@@ -583,52 +589,49 @@ export default function EventDetailScreen() {
 
             {/* Menu for additional options */}
             {user && (isAttending || isWaitlisted || canManageEvent) && (
-              <Menu
-                visible={menuVisible}
-                onDismiss={() => setMenuVisible(false)}
-                anchor={
+              <View>
+                <TouchableOpacity onPress={() => setMenuVisible(prev => !prev)} activeOpacity={0.7}>
                   <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.controlButtonBlur}>
                     <IconButton
                       icon="dots-vertical"
                       iconColor={theme.colors.onSurface}
                       size={24}
-                      onPress={() => setMenuVisible(true)}
                     />
                   </BlurView>
-                }
-              >
-                {canManageEvent && (
-                  <Menu.Item
-                    onPress={() => {
-                      setMenuVisible(false);
-                      handleEditEvent();
-                    }}
-                    title="Edit Event"
-                    leadingIcon="pencil"
-                  />
+                </TouchableOpacity>
+
+                {menuVisible && (
+                  <View style={[styles.customMenu, { backgroundColor: isDark ? 'rgba(30,41,59,0.95)' : 'rgba(255,255,255,0.95)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
+                    {canManageEvent && (
+                      <TouchableOpacity
+                        style={styles.customMenuItem}
+                        onPress={() => { setMenuVisible(false); handleEditEvent(); }}
+                      >
+                        <IconButton icon="pencil" size={18} iconColor={theme.colors.onSurface} style={{ margin: 0 }} />
+                        <Text style={[styles.customMenuText, { color: theme.colors.onSurface }]}>Edit Event</Text>
+                      </TouchableOpacity>
+                    )}
+                    {(isAttending || isWaitlisted) && (
+                      <TouchableOpacity
+                        style={styles.customMenuItem}
+                        onPress={() => { setMenuVisible(false); handleLeaveEvent(); }}
+                      >
+                        <IconButton icon="exit-to-app" size={18} iconColor={theme.colors.onSurface} style={{ margin: 0 }} />
+                        <Text style={[styles.customMenuText, { color: theme.colors.onSurface }]}>{isWaitlisted ? 'Leave Waitlist' : 'Leave Event'}</Text>
+                      </TouchableOpacity>
+                    )}
+                    {canManageEvent && (
+                      <TouchableOpacity
+                        style={styles.customMenuItem}
+                        onPress={() => { setMenuVisible(false); handleDeleteEvent(); }}
+                      >
+                        <IconButton icon="delete" size={18} iconColor="#EF4444" style={{ margin: 0 }} />
+                        <Text style={[styles.customMenuText, { color: '#EF4444' }]}>Delete Event</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 )}
-                {(isAttending || isWaitlisted) && (
-                  <Menu.Item
-                    onPress={() => {
-                      setMenuVisible(false);
-                      handleLeaveEvent();
-                    }}
-                    title={isWaitlisted ? "Leave Waitlist" : "Leave Event"}
-                    leadingIcon="exit-to-app"
-                  />
-                )}
-                {canManageEvent && (
-                  <Menu.Item
-                    onPress={() => {
-                      setMenuVisible(false);
-                      handleDeleteEvent();
-                    }}
-                    title="Delete Event"
-                    leadingIcon="delete"
-                    titleStyle={{ color: '#EF4444' }}
-                  />
-                )}
-              </Menu>
+              </View>
             )}
           </View>
 
@@ -664,10 +667,12 @@ export default function EventDetailScreen() {
               accessibilityLabel={`View ${event.clubName} club page`}
             >
               {clubLogo ? (
-                <Image
+                <ExpoImage
                   source={{ uri: clubLogo }}
                   style={styles.clubHeaderLogo}
-                  resizeMode="cover"
+                  contentFit="cover"
+                  transition={200}
+                  cachePolicy="memory-disk"
                   accessible={true}
                   accessibilityLabel={`${event.clubName} logo`}
                 />
@@ -681,6 +686,7 @@ export default function EventDetailScreen() {
               <Text variant="titleMedium" style={[styles.heroClubName, { color: theme.colors.onSurfaceVariant }]}>
                 by {event.clubName}
               </Text>
+              <IconButton icon="chevron-right" size={18} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0 }} />
             </TouchableOpacity>
 
             {/* Quick Info Row */}
@@ -746,22 +752,37 @@ export default function EventDetailScreen() {
               </View>
             </View>
 
-            <View style={[styles.detailRow, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }]}>
-              <IconButton icon={event.isVirtual ? "video" : "map-marker"} size={24} />
-              <View style={styles.detailContent}>
-                <Text variant="labelLarge">Location</Text>
-                <Text variant="bodyMedium" style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>
-                  {event.isVirtual ? 'Virtual Event' : event.location}
-                </Text>
+            <TouchableOpacity
+              activeOpacity={event.isVirtual ? 1 : 0.7}
+              onPress={() => {
+                if (event.isVirtual) return;
+                const address = encodeURIComponent(event.location);
+                const url = Platform.select({
+                  ios: `maps:0,0?q=${address}`,
+                  android: `geo:0,0?q=${address}`,
+                }) || `https://www.google.com/maps/search/?api=1&query=${address}`;
+                Linking.openURL(url);
+              }}
+            >
+              <View style={[styles.detailRow, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }]}>
+                <IconButton icon={event.isVirtual ? "video" : "map-marker"} size={24} />
+                <View style={styles.detailContent}>
+                  <Text variant="labelLarge">Location</Text>
+                  <Text variant="bodyMedium" style={[styles.detailText, { color: event.isVirtual ? theme.colors.onSurfaceVariant : '#60A5FA' }]}>
+                    {event.isVirtual ? 'Virtual Event' : event.location}
+                  </Text>
+                </View>
+                {event.isVirtual && event.virtualLink && isAttending ? (
+                  <IconButton
+                    icon="open-in-new"
+                    size={20}
+                    onPress={openVirtualLink}
+                  />
+                ) : !event.isVirtual ? (
+                  <IconButton icon="open-in-new" size={20} iconColor="#60A5FA" />
+                ) : null}
               </View>
-              {event.isVirtual && event.virtualLink && isAttending && (
-                <IconButton
-                  icon="open-in-new"
-                  size={20}
-                  onPress={openVirtualLink}
-                />
-              )}
-            </View>
+            </TouchableOpacity>
 
             {event.ticketPrice > 0 && (
               <View style={[styles.detailRow, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }]}>
@@ -908,9 +929,11 @@ export default function EventDetailScreen() {
                     >
                       <View style={styles.memberInfo}>
                         {attendee?.avatar ? (
-                          <Image
+                          <ExpoImage
                             source={{ uri: attendee.avatar }}
                             style={styles.attendeeAvatar}
+                            transition={200}
+                            cachePolicy="memory-disk"
                           />
                         ) : (
                           <View style={[styles.avatarCircle, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)' }]}>
@@ -1578,6 +1601,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     overflow: 'hidden',
     backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  customMenu: {
+    position: 'absolute',
+    top: 54,
+    right: 0,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+    minWidth: 180,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  customMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    gap: 4,
+  },
+  customMenuText: {
+    fontSize: 15,
+    fontWeight: '500',
   },
   heroContent: {
     paddingHorizontal: 20,

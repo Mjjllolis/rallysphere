@@ -10,6 +10,7 @@ import {
   Share,
   Platform
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { Text, Chip, IconButton, useTheme } from 'react-native-paper';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -311,11 +312,14 @@ export default function EventSwipeCard({
     >
       {/* Blurred Background Image - only in dark mode */}
       {isDark && event.coverImage ? (
-        <Image
+        <ExpoImage
           source={{ uri: event.coverImage }}
           style={styles.blurredBackground}
-          resizeMode="cover"
-          blurRadius={25}
+          contentFit="cover"
+          blurRadius={80}
+          transition={200}
+          cachePolicy="memory-disk"
+          recyclingKey={event.coverImage}
         />
       ) : isDark ? (
         <View style={[styles.blurredBackground, { backgroundColor: theme.colors.surfaceVariant }]} />
@@ -360,10 +364,13 @@ export default function EventSwipeCard({
             styles.coverImageWrapper,
             imageAspectRatio ? { aspectRatio: imageAspectRatio } : { flex: 1 }
           ]}>
-            <Image
+            <ExpoImage
               source={{ uri: event.coverImage }}
               style={styles.coverImage}
-              resizeMode="cover"
+              contentFit="cover"
+              transition={200}
+              cachePolicy="memory-disk"
+              recyclingKey={event.coverImage}
             />
           </View>
         ) : (
@@ -393,12 +400,19 @@ export default function EventSwipeCard({
             {event.title}
           </Text>
 
-          <View style={styles.clubRow}>
+          <TouchableOpacity
+            style={styles.clubRow}
+            onPress={(e) => { e.stopPropagation(); router.push(`/club/${event.clubId}`); }}
+            activeOpacity={0.7}
+          >
             {clubLogo ? (
-              <Image
+              <ExpoImage
                 source={{ uri: clubLogo }}
                 style={styles.clubLogo}
-                resizeMode="cover"
+                contentFit="cover"
+                transition={200}
+                cachePolicy="memory-disk"
+                recyclingKey={clubLogo}
                 accessible={true}
                 accessibilityLabel={`${event.clubName} logo`}
               />
@@ -412,7 +426,8 @@ export default function EventSwipeCard({
             <Text variant="bodyLarge" style={[styles.clubName, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
               {event.clubName}
             </Text>
-          </View>
+            <IconButton icon="chevron-right" size={16} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0 }} />
+          </TouchableOpacity>
 
           <View style={styles.compactDetailsRow}>
             <View style={styles.detailItem}>

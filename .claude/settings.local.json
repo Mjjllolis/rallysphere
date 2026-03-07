@@ -87,7 +87,10 @@
       "Bash(pod --version 2>/dev/null || echo \"CocoaPods not found\")",
       "Bash(watchman watch-del '/Users/mishawnlolis/Documents/DevRepo/rallysphere' ; watchman watch-project '/Users/mishawnlolis/Documents/DevRepo/rallysphere')",
       "Bash(wc -l /Users/mishawnlolis/Documents/DevRepo/rallysphere/app/event/\\\\[id\\\\].tsx)",
-      "Bash(wc -l /Users/mishawnlolis/Documents/DevRepo/rallysphere/app/\\\\\\(tabs\\\\\\)/event-detail.tsx)"
+      "Bash(wc -l /Users/mishawnlolis/Documents/DevRepo/rallysphere/app/\\\\\\(tabs\\\\\\)/event-detail.tsx)",
+      "Bash(ls /Users/mishawnlolis/Documents/DevRepo/rallysphere/app/\\\\\\(tabs\\\\\\)/)",
+      "Bash(ls /Users/mishawnlolis/Documents/DevRepo/rallysphere/app/\\\\\\(tabs\\\\\\)/home/)",
+      "Bash(ls /Users/mishawnlolis/Documents/DevRepo/rallysphere/app/\\\\\\(tabs\\\\\\)/home/components/)"
     ],
     "deny": [],
     "ask": []

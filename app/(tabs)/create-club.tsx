@@ -1,6 +1,7 @@
 // app/(tabs)/create-club.tsx
 import React, { useState } from 'react';
-import { View, ScrollView, StyleSheet, Alert, Image, TouchableOpacity } from 'react-native';
+import { View, ScrollView, StyleSheet, Alert, TouchableOpacity, Modal, FlatList, KeyboardAvoidingView, Platform } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import {
   Text,
   TextInput,
@@ -9,7 +10,6 @@ import {
   useTheme,
   Switch,
   IconButton,
-  Menu
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -35,6 +35,7 @@ export default function CreateClubScreen() {
   const theme = useTheme();
   const { isDark } = useThemeToggle();
   const { user } = useAuth();
+  const inputTheme = isDark ? { colors: { background: theme.colors.elevation.level2 } } : undefined;
   const [loading, setLoading] = useState(false);
   const [showSportsMenu, setShowSportsMenu] = useState(false);
   const [showTagsMenu, setShowTagsMenu] = useState(false);
@@ -43,6 +44,11 @@ export default function CreateClubScreen() {
     name: '',
     description: '',
     sport: '',
+    address: '',
+    address2: '',
+    city: '',
+    state: '',
+    zipCode: '',
     contactEmail: '',
     website: '',
     instagram: '',
@@ -139,12 +145,21 @@ export default function CreateClubScreen() {
       if (formData.twitter.trim()) socialLinks.twitter = formData.twitter.trim();
       if (formData.discord.trim()) socialLinks.discord = formData.discord.trim();
 
+      const location = [
+        formData.address.trim(),
+        formData.address2.trim(),
+        formData.city.trim() || formData.state.trim() || formData.zipCode.trim()
+          ? `${formData.city.trim()}, ${formData.state.trim().toUpperCase()} ${formData.zipCode.trim()}`
+          : '',
+      ].filter(Boolean).join(', ');
+
       const clubData: any = {
         name: formData.name.trim(),
         description: formData.description.trim(),
         category: formData.sport,
         createdBy: user.uid,
         isPublic,
+        ...(location ? { location } : {}),
       };
 
       if (formData.contactEmail.trim()) {
@@ -185,11 +200,12 @@ export default function CreateClubScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <KeyboardAvoidingView style={[styles.container, { backgroundColor: theme.colors.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         stickyHeaderIndices={[0]}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Header with Gradient */}
         <View>
@@ -211,7 +227,7 @@ export default function CreateClubScreen() {
 
         <View style={styles.content}>
           {/* Cover Image Section */}
-          <Card style={[styles.formCard, { backgroundColor: theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -226,7 +242,7 @@ export default function CreateClubScreen() {
                   style={styles.coverImageContainer}
                 >
                   {coverImage ? (
-                    <Image source={{ uri: coverImage }} style={styles.coverImage} />
+                    <ExpoImage source={{ uri: coverImage }} style={styles.coverImage} contentFit="cover" transition={200} cachePolicy="memory-disk" />
                   ) : (
                     <View style={styles.imagePlaceholder}>
                       <IconButton icon="camera-plus" size={40} iconColor={theme.colors.primary} />
@@ -240,7 +256,7 @@ export default function CreateClubScreen() {
           </Card>
 
           {/* Logo Section */}
-          <Card style={[styles.formCard, { backgroundColor: theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -256,7 +272,7 @@ export default function CreateClubScreen() {
                     style={styles.logoContainer}
                   >
                     {logo ? (
-                      <Image source={{ uri: logo }} style={styles.logoImage} />
+                      <ExpoImage source={{ uri: logo }} style={styles.logoImage} contentFit="cover" transition={200} cachePolicy="memory-disk" />
                     ) : (
                       <View style={styles.logoPlaceholder}>
                         <IconButton icon="account-circle" size={40} iconColor={theme.colors.primary} />
@@ -270,7 +286,7 @@ export default function CreateClubScreen() {
           </Card>
 
           {/* Basic Information */}
-          <Card style={[styles.formCard, { backgroundColor: theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -280,6 +296,7 @@ export default function CreateClubScreen() {
               </View>
 
               <TextInput
+                theme={inputTheme}
                 label="Club Name *"
                 value={formData.name}
                 onChangeText={(value) => updateFormData('name', value)}
@@ -288,6 +305,7 @@ export default function CreateClubScreen() {
               />
 
               <TextInput
+                theme={inputTheme}
                 label="Description *"
                 value={formData.description}
                 onChangeText={(value) => updateFormData('description', value)}
@@ -299,34 +317,18 @@ export default function CreateClubScreen() {
               />
 
               <Text variant="bodyLarge" style={styles.fieldLabel}>Category *</Text>
-              <Menu
-                visible={showSportsMenu}
-                onDismiss={() => setShowSportsMenu(false)}
-                anchor={
-                  <TouchableOpacity
-                    style={[styles.categorySelector, { borderColor: theme.colors.outlineVariant }]}
-                    onPress={() => setShowSportsMenu(true)}
-                  >
-                    <Text style={styles.categorySelectorText}>
-                      {formData.sport || 'Select a category...'}
-                    </Text>
-                    <IconButton icon="chevron-down" size={20} />
-                  </TouchableOpacity>
-                }
+              <TouchableOpacity
+                style={[styles.categorySelector, { borderColor: theme.colors.outlineVariant, backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]}
+                onPress={() => setShowSportsMenu(true)}
               >
-                {SPORTS.map((sport) => (
-                  <Menu.Item
-                    key={sport}
-                    onPress={() => {
-                      updateFormData('sport', sport);
-                      setShowSportsMenu(false);
-                    }}
-                    title={sport}
-                  />
-                ))}
-              </Menu>
+                <Text style={[styles.categorySelectorText, { color: formData.sport ? theme.colors.onSurface : theme.colors.onSurfaceVariant }]}>
+                  {formData.sport || 'Select a category...'}
+                </Text>
+                <IconButton icon="chevron-down" size={20} pointerEvents="none" />
+              </TouchableOpacity>
 
               <TextInput
+                theme={inputTheme}
                 label="Contact Email"
                 value={formData.contactEmail}
                 onChangeText={(value) => updateFormData('contactEmail', value)}
@@ -339,8 +341,74 @@ export default function CreateClubScreen() {
             </Card.Content>
           </Card>
 
+          {/* Location */}
+          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
+            <Card.Content style={styles.cardContent}>
+              <View style={styles.sectionHeader}>
+                <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
+                  <IconButton icon="map-marker" size={20} iconColor={theme.colors.primary} />
+                </View>
+                <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.primary }]}>Location</Text>
+              </View>
+
+              <TextInput
+                theme={inputTheme}
+                label="Address"
+                value={formData.address}
+                onChangeText={(value) => updateFormData('address', value)}
+                mode="outlined"
+                style={styles.input}
+                placeholder="123 Main St"
+              />
+
+              <TextInput
+                theme={inputTheme}
+                label="Address Line 2"
+                value={formData.address2}
+                onChangeText={(value) => updateFormData('address2', value)}
+                mode="outlined"
+                style={styles.input}
+                placeholder="Suite, Unit, Floor (optional)"
+              />
+
+              <View style={styles.addressRow}>
+                <TextInput
+                  theme={inputTheme}
+                  label="City"
+                  value={formData.city}
+                  onChangeText={(value) => updateFormData('city', value)}
+                  mode="outlined"
+                  style={[styles.input, styles.addressCity]}
+                  placeholder="City"
+                />
+                <TextInput
+                  theme={inputTheme}
+                  label="State"
+                  value={formData.state}
+                  onChangeText={(value) => updateFormData('state', value)}
+                  mode="outlined"
+                  style={[styles.input, styles.addressState]}
+                  placeholder="TX"
+                  maxLength={2}
+                  autoCapitalize="characters"
+                />
+                <TextInput
+                  theme={inputTheme}
+                  label="Zip"
+                  value={formData.zipCode}
+                  onChangeText={(value) => updateFormData('zipCode', value)}
+                  mode="outlined"
+                  style={[styles.input, styles.addressZip]}
+                  placeholder="75001"
+                  keyboardType="number-pad"
+                  maxLength={5}
+                />
+              </View>
+            </Card.Content>
+          </Card>
+
           {/* Social Links */}
-          <Card style={[styles.formCard, { backgroundColor: theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -350,6 +418,7 @@ export default function CreateClubScreen() {
               </View>
 
               <TextInput
+                theme={inputTheme}
                 label="Website"
                 value={formData.website}
                 onChangeText={(value) => updateFormData('website', value)}
@@ -360,6 +429,7 @@ export default function CreateClubScreen() {
               />
 
               <TextInput
+                theme={inputTheme}
                 label="Instagram"
                 value={formData.instagram}
                 onChangeText={(value) => updateFormData('instagram', value)}
@@ -371,6 +441,7 @@ export default function CreateClubScreen() {
               />
 
               <TextInput
+                theme={inputTheme}
                 label="Twitter"
                 value={formData.twitter}
                 onChangeText={(value) => updateFormData('twitter', value)}
@@ -382,6 +453,7 @@ export default function CreateClubScreen() {
               />
 
               <TextInput
+                theme={inputTheme}
                 label="Discord"
                 value={formData.discord}
                 onChangeText={(value) => updateFormData('discord', value)}
@@ -394,7 +466,7 @@ export default function CreateClubScreen() {
           </Card>
 
           {/* Settings */}
-          <Card style={[styles.formCard, { backgroundColor: theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -404,30 +476,15 @@ export default function CreateClubScreen() {
               </View>
 
               <Text variant="bodyLarge" style={styles.fieldLabel}>Club Type</Text>
-              <Menu
-                visible={showTagsMenu}
-                onDismiss={() => setShowTagsMenu(false)}
-                anchor={
-                  <TouchableOpacity
-                    style={[styles.categorySelector, { borderColor: theme.colors.outlineVariant }]}
-                    onPress={() => setShowTagsMenu(true)}
-                  >
-                    <Text style={styles.categorySelectorText}>
-                      {selectedTags.length > 0 ? selectedTags.join(', ') : 'Select club type(s)...'}
-                    </Text>
-                    <IconButton icon="chevron-down" size={20} />
-                  </TouchableOpacity>
-                }
+              <TouchableOpacity
+                style={[styles.categorySelector, { borderColor: theme.colors.outlineVariant, backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]}
+                onPress={() => setShowTagsMenu(true)}
               >
-                {TAGS.map((tag) => (
-                  <Menu.Item
-                    key={tag}
-                    onPress={() => toggleTag(tag)}
-                    title={tag}
-                    leadingIcon={selectedTags.includes(tag) ? 'check' : undefined}
-                  />
-                ))}
-              </Menu>
+                <Text style={[styles.categorySelectorText, { color: selectedTags.length > 0 ? theme.colors.onSurface : theme.colors.onSurfaceVariant }]}>
+                  {selectedTags.length > 0 ? selectedTags.join(', ') : 'Select club type(s)...'}
+                </Text>
+                <IconButton icon="chevron-down" size={20} pointerEvents="none" />
+              </TouchableOpacity>
 
               <View style={[styles.switchRow, { borderTopColor: theme.colors.outlineVariant }]}>
                 <View style={styles.switchContent}>
@@ -453,7 +510,108 @@ export default function CreateClubScreen() {
           </Button>
         </View>
       </ScrollView>
-    </View>
+
+      {/* Category Picker Modal */}
+      <Modal
+        visible={showSportsMenu}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowSportsMenu(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowSportsMenu(false)}
+        >
+          <View style={[styles.modalContent, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]}>
+            <View style={styles.modalHeader}>
+              <Text variant="titleMedium" style={[styles.modalTitle, { color: theme.colors.onSurface }]}>Select Category</Text>
+              <IconButton icon="close" size={20} onPress={() => setShowSportsMenu(false)} />
+            </View>
+            <FlatList
+              data={SPORTS}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.modalOption,
+                    { borderBottomColor: theme.colors.outlineVariant },
+                    formData.sport === item && { backgroundColor: theme.colors.primaryContainer },
+                  ]}
+                  onPress={() => {
+                    updateFormData('sport', item);
+                    setShowSportsMenu(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.modalOptionText,
+                    { color: theme.colors.onSurface },
+                    formData.sport === item && { color: theme.colors.primary, fontWeight: '700' },
+                  ]}>
+                    {item}
+                  </Text>
+                  {formData.sport === item && (
+                    <IconButton icon="check" size={18} iconColor={theme.colors.primary} style={{ margin: 0 }} />
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Club Type Picker Modal */}
+      <Modal
+        visible={showTagsMenu}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowTagsMenu(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowTagsMenu(false)}
+        >
+          <View style={[styles.modalContent, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]}>
+            <View style={styles.modalHeader}>
+              <Text variant="titleMedium" style={[styles.modalTitle, { color: theme.colors.onSurface }]}>Select Club Type(s)</Text>
+              <IconButton icon="close" size={20} onPress={() => setShowTagsMenu(false)} />
+            </View>
+            <FlatList
+              data={TAGS}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.modalOption,
+                    { borderBottomColor: theme.colors.outlineVariant },
+                    selectedTags.includes(item) && { backgroundColor: theme.colors.primaryContainer },
+                  ]}
+                  onPress={() => toggleTag(item)}
+                >
+                  <Text style={[
+                    styles.modalOptionText,
+                    { color: theme.colors.onSurface },
+                    selectedTags.includes(item) && { color: theme.colors.primary, fontWeight: '700' },
+                  ]}>
+                    {item}
+                  </Text>
+                  {selectedTags.includes(item) && (
+                    <IconButton icon="check" size={18} iconColor={theme.colors.primary} style={{ margin: 0 }} />
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity
+              style={[styles.modalDoneButton, { backgroundColor: theme.colors.primary }]}
+              onPress={() => setShowTagsMenu(false)}
+            >
+              <Text style={[styles.modalDoneText, { color: theme.colors.onPrimary }]}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -565,6 +723,20 @@ const styles = StyleSheet.create({
   input: {
     marginBottom: 12,
     borderRadius: 12,
+    backgroundColor: 'transparent',
+  },
+  addressRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  addressCity: {
+    flex: 3,
+  },
+  addressState: {
+    flex: 1.5,
+  },
+  addressZip: {
+    flex: 2,
   },
   fieldLabel: {
     fontWeight: '600',
@@ -610,5 +782,50 @@ const styles = StyleSheet.create({
   },
   buttonContent: {
     paddingVertical: 12,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '60%',
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  modalTitle: {
+    fontWeight: '700',
+  },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  modalOptionText: {
+    fontSize: 16,
+    flex: 1,
+  },
+  modalDoneButton: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalDoneText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

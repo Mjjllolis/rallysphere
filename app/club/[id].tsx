@@ -1,6 +1,7 @@
 // app/club/[id].tsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Image, Linking, ImageBackground, Dimensions, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Image, Linking, ImageBackground, Dimensions, TouchableOpacity, RefreshControl, Platform } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import {
   Text,
   Button,
@@ -42,6 +43,8 @@ export default function ClubDetailScreen() {
   const [membersData, setMembersData] = useState<Map<string, UserProfile>>(new Map());
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
 
   useEffect(() => {
     if (clubId) {
@@ -135,6 +138,12 @@ export default function ClubDetailScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadClubData();
+    setRefreshing(false);
   };
 
   const handleJoinClub = async (message?: string) => {
@@ -330,10 +339,12 @@ export default function ClubDetailScreen() {
       <Stack.Screen options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true, gestureDirection: 'horizontal' }} />
       {/* Full-screen blurred background image */}
       {club.coverImage ? (
-        <Image
+        <ExpoImage
           source={{ uri: club.coverImage }}
           style={styles.backgroundImage}
-          blurRadius={50}
+          blurRadius={80}
+          transition={200}
+          cachePolicy="memory-disk"
         />
       ) : (
         <View style={styles.backgroundImage} />
@@ -344,14 +355,24 @@ export default function ClubDetailScreen() {
         style={styles.backgroundOverlay}
       />
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.onSurface} />}>
         {/* Hero Header with Dark Gradient */}
         <View style={styles.heroSection}>
-          <Image
-            source={club.coverImage ? { uri: club.coverImage } : require('../../assets/Background.png')}
-            style={styles.coverImage}
-            resizeMode="cover"
-          />
+          {club.coverImage ? (
+            <ExpoImage
+              source={{ uri: club.coverImage }}
+              style={styles.coverImage}
+              contentFit="cover"
+              transition={200}
+              cachePolicy="memory-disk"
+            />
+          ) : (
+            <Image
+              source={require('../../assets/Background.png')}
+              style={styles.coverImage}
+              resizeMode="cover"
+            />
+          )}
 
           {/* Gradient overlay for text readability */}
           <LinearGradient
@@ -437,7 +458,7 @@ export default function ClubDetailScreen() {
             {/* Club Info Overlay */}
             <View style={styles.heroContent}>
               {club.logo ? (
-                <Image source={{ uri: club.logo }} style={styles.heroLogo} />
+                <ExpoImage source={{ uri: club.logo }} style={styles.heroLogo} transition={200} cachePolicy="memory-disk" />
               ) : (
                 <View style={styles.heroLogoInitials}>
                   <Text style={[styles.heroLogoInitialsText, { color: theme.colors.onSurface }]}>{getClubInitials(club.name)}</Text>
@@ -624,10 +645,20 @@ export default function ClubDetailScreen() {
                       Details
                     </Text>
                     {club.location && (
-                      <View style={styles.detailRow}>
-                        <IconButton icon="map-marker" size={20} iconColor={theme.colors.onSurface} />
-                        <Text variant="bodyLarge" style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>{club.location}</Text>
-                      </View>
+                      <TouchableOpacity
+                        style={styles.detailRow}
+                        onPress={() => {
+                          const encoded = encodeURIComponent(club.location!);
+                          const url = Platform.OS === 'ios'
+                            ? `maps:?q=${encoded}`
+                            : `geo:0,0?q=${encoded}`;
+                          Linking.openURL(url);
+                        }}
+                      >
+                        <IconButton icon="map-marker" size={20} iconColor="#60A5FA" />
+                        <Text variant="bodyLarge" style={[styles.detailText, { color: '#60A5FA' }]}>{club.location}</Text>
+                        <IconButton icon="open-in-new" size={14} iconColor="#60A5FA" style={{ margin: 0 }} />
+                      </TouchableOpacity>
                     )}
                     {club.university && (
                       <View style={styles.detailRow}>
@@ -751,9 +782,11 @@ export default function ClubDetailScreen() {
                     >
                       <View style={styles.memberInfo}>
                         {member?.avatar ? (
-                          <Image
+                          <ExpoImage
                             source={{ uri: member.avatar }}
                             style={styles.avatarCircle}
+                            transition={200}
+                            cachePolicy="memory-disk"
                           />
                         ) : (
                           <View style={styles.avatarCircle}>
@@ -792,45 +825,82 @@ export default function ClubDetailScreen() {
           {activeTab === 'events' && (
             <View style={styles.section}>
               {sortedEvents.length > 0 ? (
-                  <View style={styles.eventsGrid}>
-                    {sortedEvents.map((event) => {
-                      const eventDate = event.startDate.toDate ? event.startDate.toDate() : new Date(event.startDate);
-                      const formattedDate = eventDate.toLocaleDateString([], {
-                        month: 'short',
-                        day: 'numeric',
-                      });
-                      return (
+                <View style={styles.eventsList}>
+                  {sortedEvents.map((event) => {
+                    const eventDate = event.startDate?.toDate ? event.startDate.toDate() : new Date(event.startDate);
+                    const isPast = eventDate < new Date();
+                    const isExpanded = expandedEventId === event.id;
+                    const formattedDate = eventDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                    const formattedTime = eventDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+                    return (
+                      <View key={event.id} style={styles.eventCardWrapper}>
                         <TouchableOpacity
-                          key={event.id}
-                          style={styles.eventTile}
-                          onPress={() => router.push(`/event/${event.id}`)}
+                          activeOpacity={0.9}
+                          onPress={() => setExpandedEventId(isExpanded ? null : event.id)}
+                          style={[styles.eventCard, { backgroundColor: isDark ? theme.colors.surface : '#fff' }]}
                         >
-                          <Card style={styles.tileCard}>
-                            {event.coverImage && (
-                              <Image source={{ uri: event.coverImage }} style={styles.tileImage} />
+                          {/* Cover Image */}
+                          <View style={styles.eventCardImageContainer}>
+                            {event.coverImage ? (
+                              <ExpoImage source={{ uri: event.coverImage }} style={styles.eventCardImage} contentFit="cover" transition={200} cachePolicy="memory-disk" />
+                            ) : (
+                              <View style={[styles.eventCardImage, { backgroundColor: theme.colors.surfaceVariant, justifyContent: 'center', alignItems: 'center' }]}>
+                                <Text variant="headlineLarge" style={{ color: theme.colors.onSurfaceVariant }}>{event.title.charAt(0)}</Text>
+                              </View>
                             )}
-                            <View style={styles.tileContent}>
-                              <Text variant="titleSmall" style={styles.tileTitle} numberOfLines={2}>
+                            <LinearGradient
+                              colors={['transparent', 'rgba(0,0,0,0.7)']}
+                              style={styles.eventCardGradient}
+                            />
+                            {/* Overlay info on image */}
+                            <View style={styles.eventCardOverlay}>
+                              <Text variant="titleMedium" style={styles.eventCardTitle} numberOfLines={1}>
                                 {event.title}
                               </Text>
-                              <Text variant="bodySmall" style={styles.tileDate}>
-                                {formattedDate}
-                              </Text>
-                              {event.ticketPrice ? (
-                                <Text variant="bodyMedium" style={styles.tilePrice}>
-                                  ${event.ticketPrice}
-                                </Text>
-                              ) : (
-                                <Text variant="bodyMedium" style={styles.tileFree}>
-                                  Free
-                                </Text>
-                              )}
+                              <View style={styles.eventCardMeta}>
+                                <Text style={styles.eventCardDate}>{formattedDate} · {formattedTime}</Text>
+                                {event.ticketPrice ? (
+                                  <Text style={styles.eventCardPrice}>${event.ticketPrice}</Text>
+                                ) : (
+                                  <Text style={styles.eventCardFree}>Free</Text>
+                                )}
+                              </View>
                             </View>
-                          </Card>
+                            {isPast && (
+                              <View style={styles.eventCardPastBadge}>
+                                <Text style={styles.eventCardPastText}>Past</Text>
+                              </View>
+                            )}
+                          </View>
                         </TouchableOpacity>
-                      );
-                    })}
-                  </View>
+
+                        {/* Expandable details dropdown */}
+                        {isExpanded && (
+                          <View style={[styles.eventCardDropdown, { backgroundColor: isDark ? theme.colors.surface : '#f8fafc', borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }]}>
+                            {event.location && (
+                              <View style={styles.eventCardDetailRow}>
+                                <IconButton icon="map-marker" size={16} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0 }} />
+                                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, flex: 1 }} numberOfLines={2}>{event.location}</Text>
+                              </View>
+                            )}
+                            <View style={styles.eventCardDetailRow}>
+                              <IconButton icon="account-group" size={16} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0 }} />
+                              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                                {event.attendees?.length || 0}{event.maxAttendees ? `/${event.maxAttendees}` : ''} attending
+                              </Text>
+                            </View>
+                            <TouchableOpacity
+                              style={[styles.eventCardViewButton, { backgroundColor: theme.colors.primary }]}
+                              onPress={() => router.push(`/event/${event.id}`)}
+                            >
+                              <Text style={[styles.eventCardViewText, { color: theme.colors.onPrimary }]}>View Event</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
               ) : (
                 <View style={styles.emptyEvents}>
                   <Text variant="bodyLarge" style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
@@ -861,28 +931,28 @@ export default function ClubDetailScreen() {
               )}
 
               {storeItems.length > 0 ? (
-                  <View style={styles.eventsGrid}>
+                  <View style={styles.storeGrid}>
                     {storeItems.map((item: StoreItem) => {
                       const inStock = item.inventory > item.sold;
                       return (
                         <TouchableOpacity
                           key={item.id}
-                          style={styles.eventTile}
+                          style={styles.storeTile}
                           onPress={() => router.push(`/(tabs)/store/${item.id}`)}
                         >
-                          <Card style={styles.tileCard}>
+                          <Card style={styles.storeTileCard}>
                             {item.images && item.images.length > 0 ? (
-                              <Image source={{ uri: item.images[0] }} style={styles.tileImage} />
+                              <ExpoImage source={{ uri: item.images[0] }} style={styles.storeTileImage} transition={200} cachePolicy="memory-disk" />
                             ) : (
-                              <View style={[styles.tileImage, { backgroundColor: theme.colors.surfaceVariant, justifyContent: 'center', alignItems: 'center' }]}>
+                              <View style={[styles.storeTileImage, { backgroundColor: theme.colors.surfaceVariant, justifyContent: 'center', alignItems: 'center' }]}>
                                 <Text variant="bodySmall">No Image</Text>
                               </View>
                             )}
-                            <View style={styles.tileContent}>
-                              <Text variant="titleSmall" style={styles.tileTitle} numberOfLines={2}>
+                            <View style={styles.storeTileContent}>
+                              <Text variant="titleSmall" style={styles.storeTileTitle} numberOfLines={2}>
                                 {item.name}
                               </Text>
-                              <Text variant="bodyMedium" style={styles.tilePrice}>
+                              <Text variant="bodyMedium" style={styles.storeTilePrice}>
                                 ${item.price.toFixed(2)}
                               </Text>
                               {!inStock && (
@@ -1236,44 +1306,134 @@ const styles = StyleSheet.create({
   activeTabText: {
     opacity: 1,
   },
-  eventsGrid: {
+  eventsList: {
+    gap: 16,
+  },
+  eventCardWrapper: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  eventCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  eventCardImageContainer: {
+    width: '100%',
+    height: 180,
+    position: 'relative',
+  },
+  eventCardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  eventCardGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '60%',
+  },
+  eventCardOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+  },
+  eventCardTitle: {
+    color: '#fff',
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  eventCardMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  eventCardDate: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 13,
+  },
+  eventCardPrice: {
+    color: '#60A5FA',
+    fontWeight: 'bold',
+    fontSize: 15,
+  },
+  eventCardFree: {
+    color: '#4CAF50',
+    fontWeight: 'bold',
+    fontSize: 15,
+  },
+  eventCardPastBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  eventCardPastText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  eventCardDropdown: {
+    borderTopWidth: 1,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    padding: 16,
+    gap: 8,
+  },
+  eventCardDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  eventCardViewButton: {
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  eventCardViewText: {
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  storeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 16,
   },
-  eventTile: {
+  storeTile: {
     width: (width - 56) / 2,
     aspectRatio: 1,
   },
-  tileCard: {
+  storeTileCard: {
     height: '100%',
     overflow: 'hidden',
   },
-  tileImage: {
+  storeTileImage: {
     width: '100%',
     height: '50%',
   },
-  tileContent: {
+  storeTileContent: {
     padding: 12,
     flex: 1,
     justifyContent: 'space-between',
   },
-  tileTitle: {
+  storeTileTitle: {
     fontWeight: 'bold',
     marginBottom: 4,
   },
-  tileDate: {
-    opacity: 0.7,
-    fontSize: 12,
-  },
-  tilePrice: {
+  storeTilePrice: {
     fontWeight: 'bold',
     color: '#60A5FA',
-    fontSize: 16,
-  },
-  tileFree: {
-    fontWeight: 'bold',
-    color: '#4CAF50',
     fontSize: 16,
   },
   membersList: {

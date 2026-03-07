@@ -5,7 +5,8 @@ import {
   FlatList,
   Dimensions,
   ViewToken,
-  ActivityIndicator
+  ActivityIndicator,
+  RefreshControl
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { Text, useTheme } from 'react-native-paper';
@@ -36,6 +37,7 @@ const SavedFeed = ({ isActive }: SavedFeedProps) => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [containerHeight, setContainerHeight] = useState(SCREEN_HEIGHT);
+  const [refreshing, setRefreshing] = useState(false);
   const hasLoadedRef = useRef(false);
   const wasActiveRef = useRef(false);
 
@@ -133,6 +135,12 @@ const SavedFeed = ({ isActive }: SavedFeedProps) => {
     }
   };
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadSavedEvents();
+    setRefreshing(false);
+  };
+
   const loadMoreEvents = () => {
     if (loadingMore || displayedEvents.length >= allEvents.length) return;
 
@@ -150,14 +158,12 @@ const SavedFeed = ({ isActive }: SavedFeedProps) => {
   };
 
   const renderItem = ({ item, index }: { item: Event; index: number }) => (
-    <View style={{ height: containerHeight }}>
-      <View style={{ flex: 1, marginBottom: 2 }}>
-        <EventSwipeCard
-          event={item}
-          isActive={index === activeIndex}
-          isFeatured={false}
-        />
-      </View>
+    <View style={{ height: containerHeight, paddingBottom: 16 }}>
+      <EventSwipeCard
+        event={item}
+        isActive={index === activeIndex}
+        isFeatured={false}
+      />
     </View>
   );
 
@@ -216,6 +222,13 @@ const SavedFeed = ({ isActive }: SavedFeedProps) => {
         keyExtractor={(item) => item.id}
         pagingEnabled
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.onSurface}
+          />
+        }
         snapToInterval={containerHeight}
         snapToAlignment="start"
         decelerationRate="fast"
@@ -242,10 +255,6 @@ export default SavedFeed;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    borderTopLeftRadius: 25,
-    borderTopRightRadius: 25,
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
     overflow: 'hidden',
   },
   loadingMoreContainer: {

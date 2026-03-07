@@ -1,6 +1,7 @@
 // app/(tabs)/clubs.tsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, StyleSheet, ScrollView, Alert, RefreshControl, TouchableOpacity, Image, Dimensions } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, RefreshControl, TouchableOpacity, Dimensions } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import {
   Text,
   Searchbar,
@@ -215,10 +216,12 @@ export default function ClubsPage() {
           <View style={styles.clubCardContent}>
             {/* Left: Club Logo/Image */}
             {club.logo || club.coverImage ? (
-              <Image
+              <ExpoImage
                 source={{ uri: club.logo || club.coverImage }}
                 style={styles.clubImage}
-                resizeMode="cover"
+                contentFit="cover"
+                transition={200}
+                cachePolicy="memory-disk"
               />
             ) : (
               <View style={styles.clubImagePlaceholder}>

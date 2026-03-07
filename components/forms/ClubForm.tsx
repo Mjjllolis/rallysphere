@@ -12,7 +12,7 @@ import GlassButton from '../GlassButton';
 import { Text, useTheme } from 'react-native-paper';
 
 const SPORTS = [
-  'Basketball', 'Football', 'Soccer', 'Tennis', 'Baseball', 'Volleyball',
+  'Basketball', 'Football', 'Soccer', 'Tennis', 'Pickleball', 'Baseball', 'Volleyball',
   'Swimming', 'Track & Field', 'Golf', 'Hockey', 'Wrestling', 'Cross Country',
   'Softball', 'Lacrosse', 'Rugby', 'Cricket', 'Badminton', 'Table Tennis',
   'Martial Arts', 'Cycling', 'Running', 'Fitness', 'Other'

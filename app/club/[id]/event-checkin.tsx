@@ -368,14 +368,14 @@ export default function EventCheckinScreen() {
                 </View>
               ) : (
                 filteredAttendees.map(attendee => (
-                  <TouchableOpacity
-                    key={attendee.userId}
-                    onPress={() => handleCheckIn(attendee)}
-                    disabled={attendee.isCheckedIn || checkingIn === attendee.userId}
-                    activeOpacity={0.7}
-                  >
-                    <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.attendeeCard, { borderColor: theme.colors.outline }]}>
-                      <View style={styles.attendeeCardInner}>
+                  <BlurView key={attendee.userId} intensity={20} tint={isDark ? "dark" : "light"} style={[styles.attendeeCard, { borderColor: theme.colors.outline }]}>
+                    <View style={styles.attendeeCardInner}>
+                      {/* Avatar + Info - Tappable to view profile */}
+                      <TouchableOpacity
+                        style={styles.attendeeProfileArea}
+                        onPress={() => router.push(`/user/${attendee.userId}`)}
+                        activeOpacity={0.7}
+                      >
                         {/* Avatar */}
                         <View
                           style={[
@@ -415,22 +415,27 @@ export default function EventCheckinScreen() {
                             <Text style={styles.noWaiverText}>No waiver signed</Text>
                           )}
                         </View>
+                      </TouchableOpacity>
 
-                        {/* Status/Action */}
-                        {checkingIn === attendee.userId ? (
-                          <ActivityIndicator size="small" color="#60A5FA" />
-                        ) : attendee.isCheckedIn ? (
-                          <View style={styles.checkedInButton}>
-                            <IconButton icon="check" size={20} iconColor="#FFFFFF" style={{ margin: 0 }} />
-                          </View>
-                        ) : (
+                      {/* Status/Action */}
+                      {checkingIn === attendee.userId ? (
+                        <ActivityIndicator size="small" color="#60A5FA" />
+                      ) : attendee.isCheckedIn ? (
+                        <View style={styles.checkedInButton}>
+                          <IconButton icon="check" size={20} iconColor="#FFFFFF" style={{ margin: 0 }} />
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          onPress={() => handleCheckIn(attendee)}
+                          activeOpacity={0.7}
+                        >
                           <View style={styles.checkInButton}>
                             <Text style={styles.checkInButtonText}>Check In</Text>
                           </View>
-                        )}
-                      </View>
-                    </BlurView>
-                  </TouchableOpacity>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </BlurView>
                 ))
               )}
             </ScrollView>
@@ -843,6 +848,12 @@ const styles = StyleSheet.create({
   avatarText: {
     fontSize: 18,
     fontWeight: '700',
+  },
+  attendeeProfileArea: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   attendeeInfo: {
     flex: 1,

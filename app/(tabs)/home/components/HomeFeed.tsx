@@ -5,7 +5,8 @@ import {
   FlatList,
   Dimensions,
   ViewToken,
-  ActivityIndicator
+  ActivityIndicator,
+  RefreshControl
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { Text, useTheme } from 'react-native-paper';
@@ -38,6 +39,7 @@ const HomeFeed = ({ feedType, isActive }: HomeFeedProps) => {
   const [displayedEvents, setDisplayedEvents] = useState<EventWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [containerHeight, setContainerHeight] = useState(SCREEN_HEIGHT);
   const hasLoadedRef = useRef(false);
@@ -149,6 +151,12 @@ const HomeFeed = ({ feedType, isActive }: HomeFeedProps) => {
     }
   };
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadEvents();
+    setRefreshing(false);
+  };
+
   const loadMoreEvents = () => {
     if (loadingMore || displayedEvents.length >= allEvents.length) return;
 
@@ -225,6 +233,7 @@ const HomeFeed = ({ feedType, isActive }: HomeFeedProps) => {
         snapToInterval={containerHeight}
         snapToAlignment="start"
         decelerationRate="fast"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.onSurface} />}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig.current}
         removeClippedSubviews

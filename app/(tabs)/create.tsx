@@ -16,9 +16,8 @@ export default function CreatePage() {
   };
 
   // Map URL parameter to CreateScreen type
-  const getInitialType = (): 'Club' | 'Event' | 'Post' => {
+  const getInitialType = (): 'Club' | 'Event' => {
     if (initialType.toLowerCase() === 'event') return 'Event';
-    if (initialType.toLowerCase() === 'post') return 'Post';
     return 'Club';
   };
 
