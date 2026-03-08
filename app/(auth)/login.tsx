@@ -20,7 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { signIn } from '../../lib/firebase';
-import { Video } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 
 const { width, height } = Dimensions.get('window');
 
@@ -28,8 +28,14 @@ export default function LoginScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
-    
+
     const theme = useTheme();
+
+    const player = useVideoPlayer(require('../../assets/BGSignIn.mp4'), (player) => {
+        player.loop = true;
+        player.muted = true;
+        player.play();
+    });
     
     // Animation values
     const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -98,13 +104,11 @@ export default function LoginScreen() {
 
     {/* Base black background */}
     <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'black' }]} />
-        <Video
-                source={require('../../assets/BGSignIn.mp4')}
+        <VideoView
+                player={player}
                 style={[StyleSheet.absoluteFill, styles.video]}
-                resizeMode="cover"
-                shouldPlay
-                isLooping
-                isMuted
+                contentFit="cover"
+                nativeControls={false}
               />
     </View>
 

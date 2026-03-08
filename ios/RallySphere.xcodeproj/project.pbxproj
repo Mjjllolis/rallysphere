@@ -8,30 +8,30 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
-		21C9AC3BE21F4084BCAE6A16 /* noop-file.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58BF6C778EB34E4AAB696333 /* noop-file.swift */; };
+		1D11CDB019264906A7DD204E /* noop-file.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB2AD52FE0CD4E0D8F56BBA0 /* noop-file.swift */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		9D5C86339CBB3E5F27C6F567 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 132D1E6D9B87EC4522B61665 /* PrivacyInfo.xcprivacy */; };
-		A2E16A19200B79A825B48316 /* libPods-RallySphere.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 6A12163FDA783D5DDBC5EACE /* libPods-RallySphere.a */; };
-		ABDE3ACBBFCEA2CBE842A4E6 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3F942C1228E825CDC3E4F66 /* ExpoModulesProvider.swift */; };
+		AC424B66AAC6AA8469B73EFF /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C16E5BBB57671D3E528BE7BB /* ExpoModulesProvider.swift */; };
+		AF8CAEDC2797A5EC992FE278 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B741EBC063718920A5DE93CE /* PrivacyInfo.xcprivacy */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
+		F1F0BE1336D281A1991967F7 /* libPods-RallySphere.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BE5A54E4509388063E09EA1D /* libPods-RallySphere.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		132D1E6D9B87EC4522B61665 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = RallySphere/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* RallySphere.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RallySphere.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = RallySphere/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = RallySphere/Info.plist; sourceTree = "<group>"; };
-		56FC11BF9D3394FCF3DF6D04 /* Pods-RallySphere.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RallySphere.release.xcconfig"; path = "Target Support Files/Pods-RallySphere/Pods-RallySphere.release.xcconfig"; sourceTree = "<group>"; };
-		58BF6C778EB34E4AAB696333 /* noop-file.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = "noop-file.swift"; path = "RallySphere/noop-file.swift"; sourceTree = "<group>"; };
-		6A12163FDA783D5DDBC5EACE /* libPods-RallySphere.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-RallySphere.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		7ED521DBBE6606E55D84E401 /* Pods-RallySphere.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RallySphere.debug.xcconfig"; path = "Target Support Files/Pods-RallySphere/Pods-RallySphere.debug.xcconfig"; sourceTree = "<group>"; };
+		3367874C6EFA7C1B0A66A2B0 /* Pods-RallySphere.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RallySphere.debug.xcconfig"; path = "Target Support Files/Pods-RallySphere/Pods-RallySphere.debug.xcconfig"; sourceTree = "<group>"; };
+		97471BA8D6A0EF874FBF59BF /* Pods-RallySphere.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RallySphere.release.xcconfig"; path = "Target Support Files/Pods-RallySphere/Pods-RallySphere.release.xcconfig"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = RallySphere/SplashScreen.storyboard; sourceTree = "<group>"; };
+		AB2AD52FE0CD4E0D8F56BBA0 /* noop-file.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = "noop-file.swift"; path = "RallySphere/noop-file.swift"; sourceTree = "<group>"; };
+		B741EBC063718920A5DE93CE /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = RallySphere/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
+		BE5A54E4509388063E09EA1D /* libPods-RallySphere.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-RallySphere.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		C16E5BBB57671D3E528BE7BB /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-RallySphere/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = RallySphere/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* RallySphere-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "RallySphere-Bridging-Header.h"; path = "RallySphere/RallySphere-Bridging-Header.h"; sourceTree = "<group>"; };
-		F3F942C1228E825CDC3E4F66 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-RallySphere/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -39,19 +39,19 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A2E16A19200B79A825B48316 /* libPods-RallySphere.a in Frameworks */,
+				F1F0BE1336D281A1991967F7 /* libPods-RallySphere.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		0EC6F981B94256B06281271F /* ExpoModulesProviders */ = {
+		0511E622850295BDA8FF7B34 /* RallySphere */ = {
 			isa = PBXGroup;
 			children = (
-				6F3DD6737F6BA5524FCB5297 /* RallySphere */,
+				C16E5BBB57671D3E528BE7BB /* ExpoModulesProvider.swift */,
 			);
-			name = ExpoModulesProviders;
+			name = RallySphere;
 			sourceTree = "<group>";
 		};
 		13B07FAE1A68108700A75B9A /* RallySphere */ = {
@@ -63,36 +63,37 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				58BF6C778EB34E4AAB696333 /* noop-file.swift */,
-				132D1E6D9B87EC4522B61665 /* PrivacyInfo.xcprivacy */,
+				AB2AD52FE0CD4E0D8F56BBA0 /* noop-file.swift */,
+				B741EBC063718920A5DE93CE /* PrivacyInfo.xcprivacy */,
 			);
 			name = RallySphere;
+			sourceTree = "<group>";
+		};
+		19CE60F12F6F69C66B49D04A /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				3367874C6EFA7C1B0A66A2B0 /* Pods-RallySphere.debug.xcconfig */,
+				97471BA8D6A0EF874FBF59BF /* Pods-RallySphere.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		242B966973A5D557ADC00C0A /* ExpoModulesProviders */ = {
+			isa = PBXGroup;
+			children = (
+				0511E622850295BDA8FF7B34 /* RallySphere */,
+			);
+			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				6A12163FDA783D5DDBC5EACE /* libPods-RallySphere.a */,
+				BE5A54E4509388063E09EA1D /* libPods-RallySphere.a */,
 			);
 			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		6A2DACAF48BCDA48EA799C99 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				7ED521DBBE6606E55D84E401 /* Pods-RallySphere.debug.xcconfig */,
-				56FC11BF9D3394FCF3DF6D04 /* Pods-RallySphere.release.xcconfig */,
-			);
-			path = Pods;
-			sourceTree = "<group>";
-		};
-		6F3DD6737F6BA5524FCB5297 /* RallySphere */ = {
-			isa = PBXGroup;
-			children = (
-				F3F942C1228E825CDC3E4F66 /* ExpoModulesProvider.swift */,
-			);
-			name = RallySphere;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -109,8 +110,8 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				6A2DACAF48BCDA48EA799C99 /* Pods */,
-				0EC6F981B94256B06281271F /* ExpoModulesProviders */,
+				19CE60F12F6F69C66B49D04A /* Pods */,
+				242B966973A5D557ADC00C0A /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -142,13 +143,13 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "RallySphere" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				E2546DAD731C5B069B910E5A /* [Expo] Configure project */,
+				F6AF75DB6399ABDECB79446E /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				1B7840CDAE591654BFB35FE3 /* [CP] Embed Pods Frameworks */,
+				DA0363D7696121ED35A5A2C0 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -169,7 +170,6 @@
 				TargetAttributes = {
 					13B07F861A680F5B00A75B9A = {
 						LastSwiftMigration = 1250;
-						ProvisioningStyle = Automatic;
 					};
 				};
 			};
@@ -199,7 +199,7 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				9D5C86339CBB3E5F27C6F567 /* PrivacyInfo.xcprivacy in Resources */,
+				AF8CAEDC2797A5EC992FE278 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -243,28 +243,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
-		1B7840CDAE591654BFB35FE3 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-RallySphere/Pods-RallySphere-frameworks.sh",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-RallySphere/Pods-RallySphere-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
@@ -325,7 +303,29 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-RallySphere/Pods-RallySphere-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		E2546DAD731C5B069B910E5A /* [Expo] Configure project */ = {
+		DA0363D7696121ED35A5A2C0 /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-RallySphere/Pods-RallySphere-frameworks.sh",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-RallySphere/Pods-RallySphere-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		F6AF75DB6399ABDECB79446E /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -357,8 +357,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				21C9AC3BE21F4084BCAE6A16 /* noop-file.swift in Sources */,
-				ABDE3ACBBFCEA2CBE842A4E6 /* ExpoModulesProvider.swift in Sources */,
+				1D11CDB019264906A7DD204E /* noop-file.swift in Sources */,
+				AC424B66AAC6AA8469B73EFF /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -367,15 +367,12 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 7ED521DBBE6606E55D84E401 /* Pods-RallySphere.debug.xcconfig */;
+			baseConfigurationReference = 3367874C6EFA7C1B0A66A2B0 /* Pods-RallySphere.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = RallySphere/RallySphere.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 66YBRZM5J5;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -406,15 +403,12 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 56FC11BF9D3394FCF3DF6D04 /* Pods-RallySphere.release.xcconfig */;
+			baseConfigurationReference = 97471BA8D6A0EF874FBF59BF /* Pods-RallySphere.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = RallySphere/RallySphere.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 66YBRZM5J5;
 				INFOPLIST_FILE = RallySphere/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (

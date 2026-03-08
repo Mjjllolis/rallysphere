@@ -90,7 +90,9 @@
       "Bash(wc -l /Users/mishawnlolis/Documents/DevRepo/rallysphere/app/\\\\\\(tabs\\\\\\)/event-detail.tsx)",
       "Bash(ls /Users/mishawnlolis/Documents/DevRepo/rallysphere/app/\\\\\\(tabs\\\\\\)/)",
       "Bash(ls /Users/mishawnlolis/Documents/DevRepo/rallysphere/app/\\\\\\(tabs\\\\\\)/home/)",
-      "Bash(ls /Users/mishawnlolis/Documents/DevRepo/rallysphere/app/\\\\\\(tabs\\\\\\)/home/components/)"
+      "Bash(ls /Users/mishawnlolis/Documents/DevRepo/rallysphere/app/\\\\\\(tabs\\\\\\)/home/components/)",
+      "Bash(ls -la /Users/mishawnlolis/Documents/DevRepo/rallysphere/app/\\\\\\(tabs\\\\\\)/home/components/)",
+      "Bash(ls /Users/mishawnlolis/Documents/DevRepo/rallysphere/app/\\\\\\(tabs\\\\\\)/home/_components/)"
     ],
     "deny": [],
     "ask": []

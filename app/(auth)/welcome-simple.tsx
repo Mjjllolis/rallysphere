@@ -3,11 +3,17 @@ import { View, StyleSheet, Image, Platform } from 'react-native';
 import { Text, Button, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Video } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function WelcomeScreen() {
   const theme = useTheme();
+
+  const player = useVideoPlayer(require('../../assets/bgWelcome.mp4'), (player) => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
 
   const handleGetStarted = () => {
     console.log('Get Started pressed');
@@ -22,13 +28,11 @@ export default function WelcomeScreen() {
   return (
     <View style={styles.container}>
       {/* BG video */}
-      <Video
-        source={require('../../assets/bgWelcome.mp4')}
+      <VideoView
+        player={player}
         style={[StyleSheet.absoluteFill, styles.video]}
-        resizeMode="cover"
-        shouldPlay
-        isLooping
-        isMuted
+        contentFit="cover"
+        nativeControls={false}
       />
 
       {/* Gradient overlay for readability */}
