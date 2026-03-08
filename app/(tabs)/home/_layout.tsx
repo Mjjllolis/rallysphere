@@ -5,10 +5,10 @@ import { useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useThemeToggle } from '../../_layout';
-import TopTabs from './components/TopTabs';
-import HomeFeed from './components/HomeFeed';
-import LocalFeed from './components/LocalFeed';
-import SavedFeed from './components/SavedFeed';
+import TopTabs from './_components/TopTabs';
+import HomeFeed from './_components/HomeFeed';
+import LocalFeed from './_components/LocalFeed';
+import SavedFeed from './_components/SavedFeed';
 
 export default function HomeLayout() {
   const theme = useTheme();
