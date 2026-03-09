@@ -92,7 +92,19 @@
       "Bash(ls /Users/mishawnlolis/Documents/DevRepo/rallysphere/app/\\\\\\(tabs\\\\\\)/home/)",
       "Bash(ls /Users/mishawnlolis/Documents/DevRepo/rallysphere/app/\\\\\\(tabs\\\\\\)/home/components/)",
       "Bash(ls -la /Users/mishawnlolis/Documents/DevRepo/rallysphere/app/\\\\\\(tabs\\\\\\)/home/components/)",
-      "Bash(ls /Users/mishawnlolis/Documents/DevRepo/rallysphere/app/\\\\\\(tabs\\\\\\)/home/_components/)"
+      "Bash(ls /Users/mishawnlolis/Documents/DevRepo/rallysphere/app/\\\\\\(tabs\\\\\\)/home/_components/)",
+      "Bash(eas env:list --environment production --non-interactive 2>&1)",
+      "Bash(eas env:delete --name EXPO_PUBLIC_FIREBASE_API_KEY --environment production --non-interactive 2>&1)",
+      "Bash(eas env:delete --help 2>&1 | head -20)",
+      "Bash(eas env:delete production --variable-name EXPO_PUBLIC_FIREBASE_API_KEY --non-interactive 2>&1)",
+      "Bash(eas env:delete production --variable-name EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN --non-interactive 2>&1)",
+      "Bash(eas env:delete production --variable-name EXPO_PUBLIC_FIREBASE_PROJECT_ID --non-interactive 2>&1)",
+      "Bash(eas env:delete production --variable-name EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET --non-interactive 2>&1)",
+      "Bash(eas env:delete production --variable-name EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID --non-interactive 2>&1)",
+      "Bash(eas env:delete production --variable-name EXPO_PUBLIC_FIREBASE_APP_ID --non-interactive 2>&1)",
+      "Bash(eas env:delete production --variable-name EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID --non-interactive 2>&1)",
+      "Bash(eas env:delete production --variable-name EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY --non-interactive 2>&1)",
+      "Bash(eas env:delete production --variable-name EXPO_PUBLIC_GOOGLE_API_KEY --non-interactive 2>&1)"
     ],
     "deny": [],
     "ask": []

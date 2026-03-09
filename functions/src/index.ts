@@ -77,6 +77,7 @@ export const createStripeConnectAccount = functions.https.onCall(
         name: clubName,
       },
       capabilities: {
+        card_payments: {requested: true},
         transfers: {requested: true},
       },
     });
