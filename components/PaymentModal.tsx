@@ -48,7 +48,7 @@ export default function PaymentModal({
         setBreakdown(result.breakdown);
       }
     } catch (error) {
-      console.error('Error calculating fees:', error);
+      // console.error('Error calculating fees:', error);
     }
   };
 
@@ -91,7 +91,7 @@ export default function PaymentModal({
         Alert.alert('Payment Failed', confirmResult.error || 'An error occurred during payment');
       }
     } catch (error: any) {
-      console.error('Payment error:', error);
+      // console.error('Payment error:', error);
       Alert.alert('Error', error.message || 'An unexpected error occurred');
     } finally {
       setLoading(false);

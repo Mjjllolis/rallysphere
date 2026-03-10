@@ -126,7 +126,7 @@ export default function EditEventScreen() {
         router.back();
       }
     } catch (error) {
-      console.error('Error loading event:', error);
+      // console.error('Error loading event:', error);
       Alert.alert('Error', 'Failed to load event');
       router.back();
     } finally {
@@ -157,7 +157,7 @@ export default function EditEventScreen() {
         setCoverImage(result.assets[0].uri);
       }
     } catch (error) {
-      console.error('Image picker error:', error);
+      // console.error('Image picker error:', error);
       Alert.alert('Error', 'Failed to pick image');
     }
   };
@@ -225,7 +225,7 @@ export default function EditEventScreen() {
         Alert.alert('Error', result.error || 'Failed to update event');
       }
     } catch (error) {
-      console.error('Save event error:', error);
+      // console.error('Save event error:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setSaving(false);

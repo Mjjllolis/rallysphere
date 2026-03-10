@@ -45,7 +45,7 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
                 Alert.alert('Error', 'Failed to sign out');
               }
             } catch (error) {
-              console.error('Sign out error:', error);
+              // console.error('Sign out error:', error);
               Alert.alert('Error', 'An unexpected error occurred');
             }
           }

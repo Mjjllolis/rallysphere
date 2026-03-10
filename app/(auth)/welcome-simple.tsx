@@ -16,12 +16,12 @@ export default function WelcomeScreen() {
   });
 
   const handleGetStarted = () => {
-    console.log('Get Started pressed');
+    // console.log('Get Started pressed');
     router.push('/(auth)/signup');
   };
 
   const handleSignIn = () => {
-    console.log('Sign In pressed');
+    // console.log('Sign In pressed');
     router.push('/(auth)/login');
   };
 

@@ -81,7 +81,7 @@ export default function EventsScreen() {
         setFeaturedEvents(featured);
       }
     } catch (error) {
-      console.error('Error loading events:', error);
+      // console.error('Error loading events:', error);
     } finally {
       setLoading(false);
     }
@@ -126,7 +126,7 @@ export default function EventsScreen() {
         Alert.alert('Error', result.error || 'Failed to join event');
       }
     } catch (error) {
-      console.error('Error joining event:', error);
+      // console.error('Error joining event:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setActionLoading(null);
@@ -156,7 +156,7 @@ export default function EventsScreen() {
               Alert.alert('Error', result.error || 'Failed to leave event');
             }
           } catch (error) {
-            console.error('Error leaving event:', error);
+            // console.error('Error leaving event:', error);
             Alert.alert('Error', 'An unexpected error occurred');
           } finally {
             setActionLoading(null);

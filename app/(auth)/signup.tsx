@@ -86,7 +86,7 @@ export default function SignupScreen() {
                 Alert.alert('Error', result.error || 'Signup failed');
             }
         } catch (error) {
-            console.error('Signup error:', error);
+            // console.error('Signup error:', error);
             Alert.alert('Error', 'An unexpected error occurred');
         } finally {
             setLoading(false);

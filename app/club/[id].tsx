@@ -44,7 +44,6 @@ export default function ClubDetailScreen() {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
 
   useEffect(() => {
     if (clubId) {
@@ -63,13 +62,13 @@ export default function ClubDetailScreen() {
     useCallback(() => {
       const refreshCredits = async () => {
         if (user && clubId) {
-          console.log('[ClubDetail] Refreshing credits for user:', user.uid, 'club:', clubId);
+          // console.log('[ClubDetail] Refreshing credits for user:', user.uid, 'club:', clubId);
           const creditsResult = await getUserRallyCredits(user.uid);
-          console.log('[ClubDetail] Credits result:', creditsResult);
+          // console.log('[ClubDetail] Credits result:', creditsResult);
           if (creditsResult.success && creditsResult.credits) {
-            console.log('[ClubDetail] Current clubId:', clubId);
-            console.log('[ClubDetail] All club credits:', creditsResult.credits.clubCredits);
-            console.log('[ClubDetail] Credits for THIS club:', creditsResult.credits.clubCredits?.[clubId]);
+            // console.log('[ClubDetail] Current clubId:', clubId);
+            // console.log('[ClubDetail] All club credits:', creditsResult.credits.clubCredits);
+            // console.log('[ClubDetail] Credits for THIS club:', creditsResult.credits.clubCredits?.[clubId]);
             setUserCredits(creditsResult.credits);
           }
         }
@@ -88,7 +87,7 @@ export default function ClubDetailScreen() {
             newData.set(userId, profile);
           }
         } catch (error) {
-          console.error('Error loading profile for', userId, error);
+          // console.error('Error loading profile for', userId, error);
         }
       })
     );
@@ -133,7 +132,7 @@ export default function ClubDetailScreen() {
         setIsSubscribed(subResult.isSubscribed);
       }
     } catch (error) {
-      console.error('Error loading club data:', error);
+      // console.error('Error loading club data:', error);
       Alert.alert('Error', 'Failed to load club information');
     } finally {
       setLoading(false);
@@ -163,7 +162,7 @@ export default function ClubDetailScreen() {
         Alert.alert('Error', result.error || 'Failed to join club');
       }
     } catch (error) {
-      console.error('Error joining club:', error);
+      // console.error('Error joining club:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setActionLoading(false);
@@ -192,7 +191,7 @@ export default function ClubDetailScreen() {
                 Alert.alert('Error', result.error || 'Failed to leave club');
               }
             } catch (error) {
-              console.error('Error leaving club:', error);
+              // console.error('Error leaving club:', error);
               Alert.alert('Error', 'An unexpected error occurred');
             } finally {
               setActionLoading(false);
@@ -224,7 +223,7 @@ export default function ClubDetailScreen() {
         Alert.alert('Error', 'Failed to start subscription process');
       }
     } catch (error: any) {
-      console.error('Error subscribing to club:', error);
+      // console.error('Error subscribing to club:', error);
       Alert.alert('Error', error.message || 'Failed to subscribe to club');
     } finally {
       setSubscriptionLoading(false);
@@ -258,7 +257,7 @@ export default function ClubDetailScreen() {
                 Alert.alert('Error', 'Failed to cancel subscription');
               }
             } catch (error: any) {
-              console.error('Error canceling subscription:', error);
+              // console.error('Error canceling subscription:', error);
               Alert.alert('Error', error.message || 'Failed to cancel subscription');
             } finally {
               setSubscriptionLoading(false);
@@ -304,15 +303,15 @@ export default function ClubDetailScreen() {
   const isSubscriber = user ? (club.subscribers?.includes(user.uid) || false) : false;
 
   // Debug logging for credits display
-  console.log('[ClubDetail] Display conditions:', {
-    hasUser: !!user,
-    isJoined,
-    isAdmin,
-    isOwner,
-    hasUserCredits: !!userCredits,
-    shouldShow: !!(user && (isJoined || isAdmin || isOwner) && userCredits),
-    creditsValue: userCredits?.clubCredits?.[clubId]
-  });
+  // console.log('[ClubDetail] Display conditions:', {
+  //   hasUser: !!user,
+  //   isJoined,
+  //   isAdmin,
+  //   isOwner,
+  //   hasUserCredits: !!userCredits,
+  //   shouldShow: !!(user && (isJoined || isAdmin || isOwner) && userCredits),
+  //   creditsValue: userCredits?.clubCredits?.[clubId]
+  // });
 
   const sortedEvents = [...events].sort((a, b) => {
     const dateA = a.startDate.toDate ? a.startDate.toDate() : new Date(a.startDate);
@@ -829,14 +828,13 @@ export default function ClubDetailScreen() {
                   {sortedEvents.map((event) => {
                     const eventDate = event.startDate?.toDate ? event.startDate.toDate() : new Date(event.startDate);
                     const isPast = eventDate < new Date();
-                    const isExpanded = expandedEventId === event.id;
                     const formattedDate = eventDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
                     const formattedTime = eventDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
                     return (
                       <View key={event.id} style={styles.eventCardWrapper}>
                         <TouchableOpacity
                           activeOpacity={0.9}
-                          onPress={() => setExpandedEventId(isExpanded ? null : event.id)}
+                          onPress={() => router.push(`/event/${event.id}`)}
                           style={[styles.eventCard, { backgroundColor: isDark ? theme.colors.surface : '#fff' }]}
                         >
                           {/* Cover Image */}
@@ -874,29 +872,21 @@ export default function ClubDetailScreen() {
                           </View>
                         </TouchableOpacity>
 
-                        {/* Expandable details dropdown */}
-                        {isExpanded && (
-                          <View style={[styles.eventCardDropdown, { backgroundColor: isDark ? theme.colors.surface : '#f8fafc', borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }]}>
-                            {event.location && (
-                              <View style={styles.eventCardDetailRow}>
-                                <IconButton icon="map-marker" size={16} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0 }} />
-                                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, flex: 1 }} numberOfLines={2}>{event.location}</Text>
-                              </View>
-                            )}
+                        {/* Event details always visible */}
+                        <View style={[styles.eventCardDropdown, { backgroundColor: isDark ? theme.colors.surface : '#f8fafc', borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }]}>
+                          {event.location && (
                             <View style={styles.eventCardDetailRow}>
-                              <IconButton icon="account-group" size={16} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0 }} />
-                              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                                {event.attendees?.length || 0}{event.maxAttendees ? `/${event.maxAttendees}` : ''} attending
-                              </Text>
+                              <IconButton icon="map-marker" size={16} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0 }} />
+                              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, flex: 1 }} numberOfLines={2}>{event.location}</Text>
                             </View>
-                            <TouchableOpacity
-                              style={[styles.eventCardViewButton, { backgroundColor: theme.colors.primary }]}
-                              onPress={() => router.push(`/event/${event.id}`)}
-                            >
-                              <Text style={[styles.eventCardViewText, { color: theme.colors.onPrimary }]}>View Event</Text>
-                            </TouchableOpacity>
+                          )}
+                          <View style={styles.eventCardDetailRow}>
+                            <IconButton icon="account-group" size={16} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0 }} />
+                            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                              {event.attendees?.length || 0}{event.maxAttendees ? `/${event.maxAttendees}` : ''} attending
+                            </Text>
                           </View>
-                        )}
+                        </View>
                       </View>
                     );
                   })}

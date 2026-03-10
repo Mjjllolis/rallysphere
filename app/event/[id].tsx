@@ -184,7 +184,7 @@ export default function EventDetailScreen() {
               newData.set(userId, profile);
             }
           } catch (e) {
-            console.error('Error loading attendee:', e);
+            // console.error('Error loading attendee:', e);
           }
         } else {
           newData.set(userId, attendeesData.get(userId)!);
@@ -271,7 +271,7 @@ export default function EventDetailScreen() {
         setUserCredits(result.credits);
       }
     } catch (error) {
-      console.error('Error loading user credits:', error);
+      // console.error('Error loading user credits:', error);
     }
   };
 
@@ -301,7 +301,7 @@ export default function EventDetailScreen() {
         router.back();
       }
     } catch (error) {
-      console.error('Error loading event data:', error);
+      // console.error('Error loading event data:', error);
       if (!silent) Alert.alert('Error', 'Failed to load event information');
     } finally {
       if (!silent) setLoading(false);
@@ -333,16 +333,16 @@ export default function EventDetailScreen() {
 
     // Free event - join directly
     setActionLoading(true);
-    console.log('[EventDetail] Joining free event:', event.id, 'clubId:', event.clubId, 'rallyCreditsAwarded:', event.rallyCreditsAwarded);
+    // console.log('[EventDetail] Joining free event:', event.id, 'clubId:', event.clubId, 'rallyCreditsAwarded:', event.rallyCreditsAwarded);
     try {
       const result = await joinEvent(event.id, user.uid);
-      console.log('[EventDetail] Join result:', result);
+      // console.log('[EventDetail] Join result:', result);
       if (result.success) {
         if (result.waitlisted) {
           Alert.alert('Added to Waitlist!', 'You have been added to the waitlist for this event.');
         } else {
           // Check if event has Rally Credits payout
-          console.log('[EventDetail] Checking for rally credits payout:', event.rallyCreditsAwarded);
+          // console.log('[EventDetail] Checking for rally credits payout:', event.rallyCreditsAwarded);
           if (event.rallyCreditsAwarded && event.rallyCreditsAwarded > 0) {
             // Check if user is already a club member
             const clubResult = await getClub(event.clubId);
@@ -365,7 +365,7 @@ export default function EventDetailScreen() {
         Alert.alert('Error', result.error || 'Failed to join event');
       }
     } catch (error) {
-      console.error('Error joining event:', error);
+      // console.error('Error joining event:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setActionLoading(false);
@@ -439,7 +439,7 @@ export default function EventDetailScreen() {
                 Alert.alert('Error', result.error || 'Failed to leave event');
               }
             } catch (error) {
-              console.error('Error leaving event:', error);
+              // console.error('Error leaving event:', error);
               Alert.alert('Error', 'An unexpected error occurred');
             } finally {
               setActionLoading(false);
@@ -472,7 +472,7 @@ export default function EventDetailScreen() {
                 Alert.alert('Error', result.error || 'Failed to delete event');
               }
             } catch (error) {
-              console.error('Error deleting event:', error);
+              // console.error('Error deleting event:', error);
               Alert.alert('Error', 'An unexpected error occurred');
             } finally {
               setActionLoading(false);
@@ -1289,6 +1289,13 @@ export default function EventDetailScreen() {
               nestedScrollEnabled
               onScroll={handleWaiverScroll}
               scrollEventThrottle={16}
+              onContentSizeChange={(contentWidth, contentHeight) => {
+                // If content fits without scrolling (5 lines or less), auto-unlock agreement
+                // maxHeight is 250, padding is 32 (16 top + 16 bottom)
+                if (contentHeight <= 250 - 32 && !waiverScrolledToBottom) {
+                  setWaiverScrolledToBottom(true);
+                }
+              }}
             >
               <Text style={[
                 styles.waiverText,
@@ -1923,6 +1930,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
     borderRadius: 12,
     padding: 16,
+    minHeight: 110, // At least 5 lines (5 * 22 lineHeight)
     maxHeight: 250,
     marginBottom: 8,
   },

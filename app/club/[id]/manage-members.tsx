@@ -89,7 +89,7 @@ export default function ManageMembersScreen() {
         setJoinRequests(requestsResult.requests);
       }
     } catch (error) {
-      console.error('Error loading members data:', error);
+      // console.error('Error loading members data:', error);
     } finally {
       setLoading(false);
     }

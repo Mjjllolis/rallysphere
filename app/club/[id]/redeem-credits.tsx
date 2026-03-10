@@ -82,7 +82,7 @@ export default function RedeemCreditsScreen() {
         }
       }
     } catch (error) {
-      console.error('Error loading redemption data:', error);
+      // console.error('Error loading redemption data:', error);
       Alert.alert('Error', 'Failed to load redemption options');
     } finally {
       setLoading(false);
@@ -142,7 +142,7 @@ export default function RedeemCreditsScreen() {
         Alert.alert('Error', result.error || 'Failed to redeem');
       }
     } catch (error: any) {
-      console.error('Error redeeming credits:', error);
+      // console.error('Error redeeming credits:', error);
       Alert.alert('Error', error.message || 'Failed to redeem');
     } finally {
       setRedeeming(false);

@@ -8,7 +8,12 @@ import {
   Pressable,
   Alert,
   Share,
-  Platform
+  Platform,
+  Modal,
+  Animated,
+  ScrollView,
+  TextInput,
+  PanResponder,
 } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { Text, Chip, IconButton, useTheme } from 'react-native-paper';
@@ -18,7 +23,8 @@ import { router } from 'expo-router';
 import Svg, { Defs, Pattern as SvgPattern, Rect as SvgRect } from 'react-native-svg';
 import type { Event } from '../../../../lib/firebase';
 import { useAuth, useThemeToggle } from '../../../_layout';
-import { joinEvent, getEventById, bookmarkEvent, unbookmarkEvent, getUserBookmarks, likeEvent, unlikeEvent, getUserLikes, getClub } from '../../../../lib/firebase';
+import { joinEvent, getEventById, bookmarkEvent, unbookmarkEvent, getUserBookmarks, likeEvent, unlikeEvent, getUserLikes, getClub, storeWaiverSignature } from '../../../../lib/firebase';
+import PaymentSheet from '../../../../components/PaymentSheet';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const ALBUM_WIDTH = SCREEN_WIDTH * 0.85;
@@ -67,6 +73,102 @@ export default function EventSwipeCard({
   const [isLiked, setIsLiked] = useState(false);
   const [likeLoading, setLikeLoading] = useState(false);
   const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
+
+  // Waiver state
+  const [waiverModalVisible, setWaiverModalVisible] = useState(false);
+  const [waiverAgreed, setWaiverAgreed] = useState(false);
+  const [waiverInitials, setWaiverInitials] = useState('');
+  const [waiverScrolledToBottom, setWaiverScrolledToBottom] = useState(false);
+  const waiverSheetAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
+  const waiverHintOpacity = useRef(new Animated.Value(1)).current;
+  const waiverAgreementOpacity = useRef(new Animated.Value(0.4)).current;
+
+  const dismissWaiverModal = () => {
+    Animated.timing(waiverSheetAnim, {
+      toValue: Dimensions.get('window').height,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      setWaiverModalVisible(false);
+      setWaiverScrolledToBottom(false);
+    });
+  };
+
+  const showWaiverModal = () => {
+    setWaiverAgreed(false);
+    setWaiverInitials('');
+    setWaiverScrolledToBottom(false);
+    waiverHintOpacity.setValue(1);
+    waiverAgreementOpacity.setValue(0.4);
+    setWaiverModalVisible(true);
+    Animated.timing(waiverSheetAnim, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handleWaiverScroll = (e: any) => {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    const isAtBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 20;
+    if (isAtBottom && !waiverScrolledToBottom) {
+      setWaiverScrolledToBottom(true);
+    }
+  };
+
+  useEffect(() => {
+    if (waiverScrolledToBottom) {
+      Animated.parallel([
+        Animated.timing(waiverHintOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+        Animated.timing(waiverAgreementOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [waiverScrolledToBottom]);
+
+  const waiverPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gs) => gs.dy > 5,
+      onPanResponderMove: (_, gs) => { if (gs.dy > 0) waiverSheetAnim.setValue(gs.dy); },
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dy > 100 || gs.vy > 0.5) {
+          dismissWaiverModal();
+        } else {
+          Animated.spring(waiverSheetAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start();
+        }
+      },
+    })
+  ).current;
+
+  const proceedAfterWaiver = () => {
+    if (event.ticketPrice && event.ticketPrice > 0) {
+      setPaymentSheetVisible(true);
+    } else {
+      joinFreeEvent();
+    }
+  };
+
+  const joinFreeEvent = async () => {
+    if (!user) return;
+    setIsJoining(true);
+    try {
+      const result = await joinEvent(event.id, user.uid);
+      if (result.success) {
+        if (result.waitlisted) {
+          Alert.alert('Added to Waitlist', 'You have been added to the waitlist');
+        } else {
+          Alert.alert('Joined!', 'You have joined this event');
+        }
+        await refreshEventData();
+      } else {
+        Alert.alert('Error', result.error || 'Failed to join event');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'An unexpected error occurred');
+    } finally {
+      setIsJoining(false);
+    }
+  };
   const [clubLogo, setClubLogo] = useState<string | undefined>(initialEvent.clubLogo);
   const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null);
 
@@ -153,32 +255,17 @@ export default function EventSwipeCard({
       return;
     }
 
-    // If event has a ticket price, show native payment sheet
-    if (event.ticketPrice && event.ticketPrice > 0) {
-      setPaymentSheetVisible(true);
+    // If event has a waiver, show waiver modal first
+    if (event.hasWaiver && event.waiverText) {
+      showWaiverModal();
       return;
     }
 
-    // Free event - join directly
-    setIsJoining(true);
-    try {
-      const result = await joinEvent(event.id, user.uid);
-      if (result.success) {
-        if (result.waitlisted) {
-          Alert.alert('Added to Waitlist', 'You have been added to the waitlist');
-        } else {
-          Alert.alert('Joined!', 'You have joined this event');
-        }
-        // Refresh event data to show updated attendee status
-        await refreshEventData();
-      } else {
-        Alert.alert('Error', result.error || 'Failed to join event');
-      }
-    } catch (error) {
-      console.error('Error joining event:', error);
-      Alert.alert('Error', 'An unexpected error occurred');
-    } finally {
-      setIsJoining(false);
+    // No waiver - proceed directly
+    if (event.ticketPrice && event.ticketPrice > 0) {
+      setPaymentSheetVisible(true);
+    } else {
+      await joinFreeEvent();
     }
   };
 
@@ -211,7 +298,7 @@ export default function EventSwipeCard({
         }
       }
     } catch (error) {
-      console.error('Error bookmarking event:', error);
+      // console.error('Error bookmarking event:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setBookmarkLoading(false);
@@ -246,7 +333,7 @@ export default function EventSwipeCard({
         }
       }
     } catch (error) {
-      console.error('Error liking event:', error);
+      // console.error('Error liking event:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setLikeLoading(false);
@@ -280,17 +367,17 @@ export default function EventSwipeCard({
 
       if (result.action === Share.sharedAction) {
         if (result.activityType) {
-          console.log('Shared via:', result.activityType); //works for IOS
+          // console.log('Shared via:', result.activityType); //works for IOS
         } else {
           // shared
-          console.log('Content shared'); //android we dont get type
+          // console.log('Content shared'); //android we dont get type
         }
       } else if (result.action === Share.dismissedAction) {
         // dismissed
-        console.log('Share dismissed');
+        // console.log('Share dismissed');
       }
     } catch (error) {
-      console.error('Error sharing:', error);
+      // console.error('Error sharing:', error);
       Alert.alert('Error', 'Failed to share event');
     }
   };
@@ -494,14 +581,18 @@ export default function EventSwipeCard({
 
         {/* Bottom Join Button */}
         {user && (
-          <TouchableOpacity
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation();
+              if (!(isJoining || isFull || isPastEvent || isAttending || isWaitlisted)) {
+                handleQuickJoin();
+              }
+            }}
             style={[
               styles.bottomJoinButton,
               { backgroundColor: isPastEvent ? theme.colors.surfaceDisabled : theme.colors.primary },
               isPastEvent && styles.bottomJoinButtonDisabled
             ]}
-            onPress={handleQuickJoin}
-            disabled={isJoining || isFull || isPastEvent || isAttending || isWaitlisted}
           >
             <Text
               variant="titleMedium"
@@ -525,12 +616,215 @@ export default function EventSwipeCard({
                           ? `Join - $${event.ticketPrice}`
                           : 'Join Event'}
             </Text>
-          </TouchableOpacity>
+          </Pressable>
         )}
       </View>
+
+      {/* Payment Sheet for paid events */}
+      <PaymentSheet
+        visible={paymentSheetVisible}
+        event={event}
+        onDismiss={() => setPaymentSheetVisible(false)}
+        onSuccess={async () => {
+          await refreshEventData();
+        }}
+      />
+
+      {/* Waiver Modal */}
+      <Modal
+        visible={waiverModalVisible}
+        transparent
+        animationType="none"
+        onRequestClose={dismissWaiverModal}
+      >
+        <Animated.View style={[
+          waiverStyles.overlay,
+          {
+            opacity: waiverSheetAnim.interpolate({
+              inputRange: [0, Dimensions.get('window').height],
+              outputRange: [1, 0],
+              extrapolate: 'clamp',
+            }),
+          }
+        ]}>
+          <Pressable style={waiverStyles.backdrop} onPress={dismissWaiverModal} />
+
+          <Animated.View style={[
+            waiverStyles.content,
+            { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' },
+            { transform: [{ translateY: waiverSheetAnim }] }
+          ]}>
+            <View {...waiverPanResponder.panHandlers} style={waiverStyles.handleArea}>
+              <View style={[waiverStyles.handle, { backgroundColor: isDark ? 'rgba(255,255,255,0.3)' : '#E5E7EB' }]} />
+            </View>
+
+            <View style={waiverStyles.header}>
+              <IconButton icon="file-document-outline" size={28} iconColor={isDark ? '#60A5FA' : '#1B365D'} />
+              <Text style={[waiverStyles.title, { color: isDark ? '#FFFFFF' : '#1B365D' }]}>Event Waiver</Text>
+            </View>
+
+            <Text style={[waiverStyles.subtitle, { color: isDark ? 'rgba(255,255,255,0.7)' : '#6B7280' }]}>
+              Please read and agree to the following terms before joining this event
+            </Text>
+
+            <ScrollView
+              style={[waiverStyles.textContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F9FAFB' }]}
+              showsVerticalScrollIndicator
+              persistentScrollbar
+              nestedScrollEnabled
+              onScroll={handleWaiverScroll}
+              scrollEventThrottle={16}
+              onContentSizeChange={(_, contentHeight) => {
+                if (contentHeight <= 218 && !waiverScrolledToBottom) {
+                  setWaiverScrolledToBottom(true);
+                }
+              }}
+            >
+              <Text style={[waiverStyles.text, { color: isDark ? 'rgba(255,255,255,0.9)' : '#374151' }]}>
+                {event?.waiverText}
+              </Text>
+            </ScrollView>
+
+            <Animated.Text style={[waiverStyles.scrollHint, { color: isDark ? 'rgba(255,255,255,0.5)' : '#9CA3AF', opacity: waiverHintOpacity }]}>
+              ↓ Scroll to read entire waiver
+            </Animated.Text>
+
+            <Animated.View style={[
+              waiverStyles.agreementSection,
+              {
+                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F9FAFB',
+                borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#E5E7EB',
+                opacity: waiverAgreementOpacity,
+              }
+            ]}>
+              <TouchableOpacity
+                style={[
+                  waiverStyles.checkboxRow,
+                  {
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F3F4F6',
+                    borderColor: waiverAgreed ? (isDark ? '#60A5FA' : '#1B365D') : (isDark ? 'rgba(255,255,255,0.2)' : '#D1D5DB'),
+                  }
+                ]}
+                onPress={() => waiverScrolledToBottom && setWaiverAgreed(!waiverAgreed)}
+                disabled={!waiverScrolledToBottom}
+              >
+                <IconButton
+                  icon={waiverAgreed ? "checkbox-marked" : "checkbox-blank-outline"}
+                  size={24}
+                  iconColor={waiverAgreed ? (isDark ? '#60A5FA' : '#1B365D') : (isDark ? 'rgba(255,255,255,0.5)' : '#9CA3AF')}
+                  style={{ margin: 0 }}
+                />
+                <Text style={[waiverStyles.checkboxText, { color: isDark ? '#FFFFFF' : '#374151' }]}>
+                  I have read and agree to the terms above
+                </Text>
+              </TouchableOpacity>
+
+              <View style={waiverStyles.initialsRow}>
+                <Text style={[waiverStyles.initialsLabel, { color: isDark ? 'rgba(255,255,255,0.7)' : '#6B7280' }]}>
+                  Sign with your initials
+                </Text>
+                <TextInput
+                  style={[
+                    waiverStyles.initialsInput,
+                    {
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#FFFFFF',
+                      borderColor: waiverInitials.length > 0 ? (isDark ? '#60A5FA' : '#1B365D') : (isDark ? 'rgba(255,255,255,0.2)' : '#D1D5DB'),
+                      color: isDark ? '#FFFFFF' : '#1B365D',
+                    }
+                  ]}
+                  value={waiverInitials}
+                  onChangeText={(t) => waiverScrolledToBottom && setWaiverInitials(t)}
+                  editable={waiverScrolledToBottom}
+                  placeholder="AB"
+                  placeholderTextColor={isDark ? 'rgba(255,255,255,0.3)' : '#9CA3AF'}
+                  autoCapitalize="characters"
+                  maxLength={4}
+                />
+              </View>
+            </Animated.View>
+
+            <View style={waiverStyles.buttonRow}>
+              <TouchableOpacity
+                style={[waiverStyles.cancelButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }]}
+                onPress={dismissWaiverModal}
+              >
+                <Text style={[waiverStyles.cancelButtonText, { color: isDark ? 'rgba(255,255,255,0.8)' : '#6B7280' }]}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  waiverStyles.confirmButton,
+                  {
+                    backgroundColor: (waiverAgreed && waiverInitials.length > 0)
+                      ? (isDark ? '#60A5FA' : '#1B365D')
+                      : (isDark ? 'rgba(255,255,255,0.1)' : '#D1D5DB'),
+                  }
+                ]}
+                onPress={async () => {
+                  if (event && user) {
+                    const signResult = await storeWaiverSignature(event.id, user.uid, waiverInitials);
+                    if (!signResult.success) {
+                      Alert.alert('Error', 'Failed to record waiver signature. Please try again.');
+                      return;
+                    }
+                  }
+                  Animated.timing(waiverSheetAnim, {
+                    toValue: Dimensions.get('window').height,
+                    duration: 250,
+                    useNativeDriver: true,
+                  }).start(() => {
+                    setWaiverModalVisible(false);
+                    setWaiverInitials('');
+                    setWaiverAgreed(false);
+                    setWaiverScrolledToBottom(false);
+                    proceedAfterWaiver();
+                  });
+                }}
+                disabled={!waiverAgreed || waiverInitials.length === 0}
+              >
+                <Text style={[
+                  waiverStyles.confirmButtonText,
+                  {
+                    color: (waiverAgreed && waiverInitials.length > 0)
+                      ? '#FFFFFF'
+                      : (isDark ? 'rgba(255,255,255,0.4)' : '#9CA3AF'),
+                  }
+                ]}>
+                  Continue
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </Animated.View>
+      </Modal>
     </Pressable>
   );
 }
+
+const waiverStyles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.6)', justifyContent: 'flex-end' },
+  backdrop: { flex: 1 },
+  content: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingBottom: 40, maxHeight: '80%' },
+  handleArea: { paddingTop: 12, paddingBottom: 8, alignItems: 'center' },
+  handle: { width: 40, height: 4, borderRadius: 2, marginBottom: 12 },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  title: { fontSize: 22, fontWeight: '700' },
+  subtitle: { fontSize: 14, marginBottom: 16, lineHeight: 20 },
+  textContainer: { borderRadius: 12, padding: 16, minHeight: 110, maxHeight: 250, marginBottom: 8 },
+  text: { fontSize: 14, lineHeight: 22 },
+  scrollHint: { fontSize: 13, textAlign: 'center', marginBottom: 8, fontStyle: 'italic' },
+  agreementSection: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 20 },
+  checkboxRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1 },
+  checkboxText: { flex: 1, fontSize: 15, fontWeight: '500' },
+  initialsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 },
+  initialsLabel: { fontSize: 14, fontWeight: '500' },
+  initialsInput: { width: 80, height: 44, borderRadius: 10, borderWidth: 1.5, textAlign: 'center', fontSize: 18, fontWeight: '700', letterSpacing: 2 },
+  buttonRow: { flexDirection: 'row', gap: 12 },
+  cancelButton: { flex: 1, paddingVertical: 16, borderRadius: 12, alignItems: 'center' },
+  cancelButtonText: { fontSize: 16, fontWeight: '600' },
+  confirmButton: { flex: 1, paddingVertical: 16, borderRadius: 12, alignItems: 'center' },
+  confirmButtonText: { fontSize: 16, fontWeight: '600' },
+});
 
 const styles = StyleSheet.create({
   container: {

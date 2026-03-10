@@ -26,7 +26,7 @@ export default function EditorsPickFeed() {
 
         setEvents(list);
       } catch (error) {
-        console.error('Error fetching events:', error);
+        // console.error('Error fetching events:', error);
       } finally {
         setLoading(false);
       }

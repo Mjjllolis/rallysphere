@@ -53,7 +53,7 @@ export default function GlassImageCard({
           setImageAspectRatio(width / height);
         },
         (error) => {
-          console.error('Error getting image size:', error);
+          // console.error('Error getting image size:', error);
           setImageAspectRatio(null);
         }
       );
@@ -85,7 +85,7 @@ export default function GlassImageCard({
         onImageSelected(result.assets[0].uri);
       }
     } catch (error) {
-      console.error('Image picker error:', error);
+      // console.error('Image picker error:', error);
       Alert.alert('Error', 'Failed to pick image');
     }
   };

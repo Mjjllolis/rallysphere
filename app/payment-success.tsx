@@ -37,10 +37,10 @@ export default function PaymentSuccess() {
           attendees: arrayUnion(userId),
         });
 
-        console.log('Successfully added user to event after payment');
+        // console.log('Successfully added user to event after payment');
         setProcessing(false);
       } catch (error: any) {
-        console.error('Error adding user to event:', error);
+        // console.error('Error adding user to event:', error);
         setError(error.message);
         setProcessing(false);
       }

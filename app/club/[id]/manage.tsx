@@ -72,7 +72,7 @@ export default function ClubManageDashboard() {
         setPendingRequests(requestsResult.requests.length);
       }
     } catch (error) {
-      console.error('Error loading dashboard data:', error);
+      // console.error('Error loading dashboard data:', error);
     } finally {
       setLoading(false);
     }

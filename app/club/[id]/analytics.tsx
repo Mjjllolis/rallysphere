@@ -64,7 +64,7 @@ export default function AnalyticsDashboard() {
         setAnalytics(analyticsResult.analytics);
       }
     } catch (error) {
-      console.error('Error loading analytics:', error);
+      // console.error('Error loading analytics:', error);
     } finally {
       setLoading(false);
     }

@@ -73,7 +73,7 @@ export const useImageUpload = (options: UseImageUploadOptions = {}): UseImageUpl
                 setImageUri(manipResult.uri);
             }
         } catch (error) {
-            console.error('Error picking image:', error);
+            // console.error('Error picking image:', error);
             Alert.alert('Error', 'Failed to select image. Please try again.');
         }
     };
@@ -94,7 +94,7 @@ export const useImageUpload = (options: UseImageUploadOptions = {}): UseImageUpl
             const downloadUrl = await uploadImage(imageUri, imagePath);
             return downloadUrl;
         } catch (error) {
-            console.error('Error uploading image:', error);
+            // console.error('Error uploading image:', error);
             Alert.alert('Upload Error', 'Failed to upload image. Please try again.');
             return null;
         } finally {

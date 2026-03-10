@@ -145,7 +145,7 @@ const HomeFeed = ({ feedType, isActive }: HomeFeedProps) => {
         setDisplayedEvents(mergedEvents.slice(0, INITIAL_LOAD));
       }
     } catch (error) {
-      console.error('Error loading events:', error);
+      // console.error('Error loading events:', error);
     } finally {
       setLoading(false);
     }

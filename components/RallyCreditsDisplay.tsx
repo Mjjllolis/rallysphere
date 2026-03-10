@@ -39,7 +39,7 @@ export default function RallyCreditsDisplay({
         setCredits(result.credits);
       }
     } catch (error) {
-      console.error('Error loading rally credits:', error);
+      // console.error('Error loading rally credits:', error);
     } finally {
       setLoading(false);
     }

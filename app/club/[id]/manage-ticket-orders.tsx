@@ -105,7 +105,7 @@ export default function ManageTicketOrdersScreen() {
         setOrders(result.orders);
       }
     } catch (error) {
-      console.error('Error loading ticket orders:', error);
+      // console.error('Error loading ticket orders:', error);
       Alert.alert('Error', 'Failed to load ticket orders');
     } finally {
       setLoading(false);
@@ -201,7 +201,7 @@ export default function ManageTicketOrdersScreen() {
         Alert.alert('Error', result.error || 'Failed to update ticket status');
       }
     } catch (error) {
-      console.error('Error updating ticket status:', error);
+      // console.error('Error updating ticket status:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setUpdating(false);

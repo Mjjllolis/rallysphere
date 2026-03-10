@@ -116,7 +116,7 @@ export default function ManageOrdersScreen() {
         setOrders(result.orders);
       }
     } catch (error) {
-      console.error('Error loading orders:', error);
+      // console.error('Error loading orders:', error);
       Alert.alert('Error', 'Failed to load orders');
     } finally {
       setLoading(false);
@@ -212,7 +212,7 @@ export default function ManageOrdersScreen() {
         Alert.alert('Error', result.error || 'Failed to update order status');
       }
     } catch (error) {
-      console.error('Error updating order status:', error);
+      // console.error('Error updating order status:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setUpdating(false);

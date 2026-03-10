@@ -89,7 +89,7 @@ export default function TicketsScreen() {
         setTickets(result.orders);
       }
     } catch (error) {
-      console.error('Error loading tickets:', error);
+      // console.error('Error loading tickets:', error);
     } finally {
       setLoading(false);
     }

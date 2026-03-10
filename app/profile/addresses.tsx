@@ -71,7 +71,7 @@ export default function AddressesScreen() {
         setAddresses(userData.savedAddresses || []);
       }
     } catch (error) {
-      console.error('Error loading addresses:', error);
+      // console.error('Error loading addresses:', error);
       Alert.alert('Error', 'Failed to load addresses');
     } finally {
       setLoading(false);
@@ -153,7 +153,7 @@ export default function AddressesScreen() {
         }
       }
     } catch (error) {
-      console.error('Error saving address:', error);
+      // console.error('Error saving address:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setSaving(false);
@@ -182,7 +182,7 @@ export default function AddressesScreen() {
                 Alert.alert('Error', result.error || 'Failed to delete address');
               }
             } catch (error) {
-              console.error('Error deleting address:', error);
+              // console.error('Error deleting address:', error);
               Alert.alert('Error', 'An unexpected error occurred');
             }
           },
@@ -203,7 +203,7 @@ export default function AddressesScreen() {
         Alert.alert('Error', result.error || 'Failed to update address');
       }
     } catch (error) {
-      console.error('Error setting default address:', error);
+      // console.error('Error setting default address:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     }
   };

@@ -84,7 +84,7 @@ export default function ClubsPage() {
         setDiscoverClubs(availableClubs);
       }
     } catch (error) {
-      console.error('Error loading clubs:', error);
+      // console.error('Error loading clubs:', error);
     } finally {
       setLoading(false);
     }
@@ -135,7 +135,7 @@ export default function ClubsPage() {
         Alert.alert('Error', result.error || 'Failed to join club');
       }
     } catch (error) {
-      console.error('Error joining club:', error);
+      // console.error('Error joining club:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setActionLoading(null);
@@ -164,7 +164,7 @@ export default function ClubsPage() {
                 Alert.alert('Error', result.error || 'Failed to leave club');
               }
             } catch (error) {
-              console.error('Error leaving club:', error);
+              // console.error('Error leaving club:', error);
               Alert.alert('Error', 'An unexpected error occurred');
             } finally {
               setActionLoading(null);

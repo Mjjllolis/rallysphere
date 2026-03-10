@@ -51,7 +51,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setCart(JSON.parse(cartJson));
       }
     } catch (error) {
-      console.error('Error loading cart:', error);
+      // console.error('Error loading cart:', error);
     }
   };
 
@@ -59,7 +59,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     try {
       await AsyncStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
     } catch (error) {
-      console.error('Error saving cart:', error);
+      // console.error('Error saving cart:', error);
     }
   };
 
