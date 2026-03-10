@@ -95,7 +95,7 @@ export default function ManageSubscriptionsScreen() {
         setSubscriberProfiles(profiles);
       }
     } catch (error) {
-      console.error('Error loading data:', error);
+      // console.error('Error loading data:', error);
       Alert.alert('Error', 'Failed to load subscription data');
     } finally {
       setLoading(false);
@@ -132,7 +132,7 @@ export default function ManageSubscriptionsScreen() {
         Alert.alert('Error', result.error || 'Failed to save settings');
       }
     } catch (error) {
-      console.error('Error saving settings:', error);
+      // console.error('Error saving settings:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setSaving(false);

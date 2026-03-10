@@ -195,7 +195,7 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
         Alert.alert('Error', result.error || 'Failed to update profile');
       }
     } catch (error) {
-      console.error('Update profile error:', error);
+      // console.error('Update profile error:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setLoading(false);

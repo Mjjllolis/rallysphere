@@ -42,7 +42,7 @@ export default function UserSubscriptionScreen() {
         setSubscription(subResult.subscription);
       }
     } catch (error) {
-      console.error('Error loading subscription data:', error);
+      // console.error('Error loading subscription data:', error);
       Alert.alert('Error', 'Failed to load subscription information');
     } finally {
       setLoading(false);
@@ -62,7 +62,7 @@ export default function UserSubscriptionScreen() {
         Alert.alert('Error', result.error || 'Failed to create subscription');
       }
     } catch (error) {
-      console.error('Error creating subscription:', error);
+      // console.error('Error creating subscription:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setActionLoading(false);
@@ -91,7 +91,7 @@ export default function UserSubscriptionScreen() {
                 Alert.alert('Error', result.error || 'Failed to cancel membership');
               }
             } catch (error) {
-              console.error('Error canceling subscription:', error);
+              // console.error('Error canceling subscription:', error);
               Alert.alert('Error', 'An unexpected error occurred');
             } finally {
               setActionLoading(false);

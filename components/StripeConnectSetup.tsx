@@ -45,7 +45,7 @@ export default function StripeConnectSetup({ club, isAdmin, onStatusChange }: St
         }
       }
     } catch (error) {
-      console.error('Error checking status:', error);
+      // console.error('Error checking status:', error);
       Alert.alert('Error', 'Failed to check account status. Please try again.');
     } finally {
       setChecking(false);
@@ -61,10 +61,10 @@ export default function StripeConnectSetup({ club, isAdmin, onStatusChange }: St
     setLoading(true);
 
     try {
-      console.log('=== STRIPE CONNECT SETUP ===');
-      console.log('Club ID:', club.id);
-      console.log('Club Email:', club.contactEmail);
-      console.log('Club Name:', club.name);
+      // console.log('=== STRIPE CONNECT SETUP ===');
+      // console.log('Club ID:', club.id);
+      // console.log('Club Email:', club.contactEmail);
+      // console.log('Club Name:', club.name);
 
       const result = await createStripeConnectAccount(
         club.id,
@@ -72,7 +72,7 @@ export default function StripeConnectSetup({ club, isAdmin, onStatusChange }: St
         club.name
       );
 
-      console.log('Stripe Connect Result:', result);
+      // console.log('Stripe Connect Result:', result);
 
       if (result.success && result.onboardingUrl) {
         // Open Stripe onboarding in browser
@@ -95,14 +95,14 @@ export default function StripeConnectSetup({ club, isAdmin, onStatusChange }: St
       } else {
         // Show detailed error to user
         const errorMsg = result.error || 'Failed to start onboarding';
-        console.error('Stripe Connect Error:', errorMsg);
+        // console.error('Stripe Connect Error:', errorMsg);
         Alert.alert(
           'Connection Error',
           errorMsg + '\n\nPlease make sure:\n• You are logged in\n• Firebase Functions are deployed\n• Stripe keys are configured'
         );
       }
     } catch (error: any) {
-      console.error('Error setting up Stripe:', error);
+      // console.error('Error setting up Stripe:', error);
       Alert.alert('Error', error.message || 'Failed to set up payouts');
     } finally {
       setLoading(false);

@@ -294,7 +294,7 @@ export const generateAndShareWaiverPDF = async (data: WaiverData): Promise<{ suc
 
     return { success: true, uri };
   } catch (error: any) {
-    console.error('Error generating PDF:', error);
+    // console.error('Error generating PDF:', error);
     return { success: false, error: error.message };
   }
 };
@@ -313,7 +313,7 @@ export const previewWaiverPDF = async (data: WaiverData): Promise<{ success: boo
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error previewing PDF:', error);
+    // console.error('Error previewing PDF:', error);
     return { success: false, error: error.message };
   }
 };

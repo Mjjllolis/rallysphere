@@ -35,7 +35,7 @@ export default function ClubPayoutsScreen() {
         router.back();
       }
     } catch (error) {
-      console.error('Error loading club data:', error);
+      // console.error('Error loading club data:', error);
       Alert.alert('Error', 'Failed to load club information');
     } finally {
       setLoading(false);

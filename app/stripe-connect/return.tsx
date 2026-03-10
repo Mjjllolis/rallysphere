@@ -61,7 +61,7 @@ export default function StripeConnectReturn() {
         setTimeout(() => handleContinue(), 2000);
       }
     } catch (err: any) {
-      console.error('Error verifying onboarding:', err);
+      // console.error('Error verifying onboarding:', err);
       setError(err.message || 'Failed to verify onboarding status');
       // Redirect back to club after 2 seconds
       setTimeout(() => handleContinue(), 2000);

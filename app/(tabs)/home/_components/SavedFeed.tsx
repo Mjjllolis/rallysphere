@@ -125,7 +125,7 @@ const SavedFeed = ({ isActive }: SavedFeedProps) => {
         setDisplayedEvents([]);
       }
     } catch (error) {
-      console.error('Error loading saved events:', error);
+      // console.error('Error loading saved events:', error);
       setAllEvents([]);
       setDisplayedEvents([]);
     } finally {

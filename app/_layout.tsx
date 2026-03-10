@@ -13,20 +13,22 @@ import { FavoritesProvider } from '../lib/favoritesContext';
 // Conditionally import Stripe - only on native platforms
 let StripeProvider: any = null;
 let initializeStripe: any = null;
+let handleURLCallback: ((url: string) => Promise<boolean>) | null = null;
 
 if (Platform.OS !== 'web') {
   try {
     const stripeModule = require('@stripe/stripe-react-native');
     StripeProvider = stripeModule.StripeProvider;
+    handleURLCallback = stripeModule.handleURLCallback;
     const stripeLib = require('../lib/stripe');
     initializeStripe = stripeLib.initializeStripe;
   } catch (error) {
-    console.warn('Stripe not available - rebuild app with: npx expo prebuild');
+    // console.warn('Stripe not available - rebuild app with: npx expo prebuild');
   }
 }
 
 // Prevent auto-hiding splash screen
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 // Auth Context
 type AuthContextType = { 
@@ -185,7 +187,7 @@ const getStoredTheme = async (): Promise<string | null> => {
       return await SecureStore.getItemAsync(THEME_STORAGE_KEY);
     }
   } catch (error) {
-    console.log('Error getting stored theme:', error);
+    // console.log('Error getting stored theme:', error);
     return null;
   }
 };
@@ -198,7 +200,7 @@ const setStoredTheme = async (theme: string): Promise<void> => {
       await SecureStore.setItemAsync(THEME_STORAGE_KEY, theme);
     }
   } catch (error) {
-    console.log('Error setting stored theme:', error);
+    // console.log('Error setting stored theme:', error);
   }
 };
 
@@ -218,7 +220,7 @@ export default function RootLayout() {
         const result = await initializeStripe();
         setStripeInitialized(result.success);
         if (!result.success) {
-          console.error('Failed to initialize Stripe:', result.error);
+          // console.error('Failed to initialize Stripe:', result.error);
         }
       };
       init();
@@ -240,7 +242,7 @@ export default function RootLayout() {
           await setStoredTheme('system');
         }
       } catch (error) {
-        console.log('Error loading theme:', error);
+        // console.log('Error loading theme:', error);
       } finally {
         setThemeLoading(false);
       }
@@ -262,10 +264,10 @@ export default function RootLayout() {
 
   // Auth state listener
   useEffect(() => {
-    console.log('Setting up Firebase auth listener...');
+    // console.log('Setting up Firebase auth listener...');
 
     const unsubscribe = onAuthStateChange((user) => {
-      console.log('Auth state changed:', user ? `User: ${user.email}` : 'No user');
+      // console.log('Auth state changed:', user ? `User: ${user.email}` : 'No user');
       setUser(user);
       setAuthLoading(false);
     });
@@ -276,9 +278,25 @@ export default function RootLayout() {
 
   // Deep link handler for Stripe payment callbacks
   useEffect(() => {
-    const handleDeepLink = (event: { url: string }) => {
+    const handleDeepLink = async (event: { url: string }) => {
       const url = event.url;
-      console.log('Deep link received:', url);
+      // console.log('Deep link received:', url);
+
+      // Forward Stripe return URLs to the Stripe SDK so it can dismiss the browser
+      // and complete the payment flow (3D Secure, Link, Apple Pay redirects, etc.)
+      if (handleURLCallback && url.includes('rallysphere://')) {
+        const stripeHandled = await handleURLCallback(url);
+        if (stripeHandled) {
+          // console.log('URL handled by Stripe SDK');
+          return;
+        }
+      }
+
+      // Handle payment-return (Stripe redirect back from external payment methods)
+      // Just absorb it - the Stripe payment sheet handles the result automatically
+      if (url.includes('payment-return')) {
+        return;
+      }
 
       // Handle payment success
       if (url.includes('payment-success')) {
@@ -348,14 +366,18 @@ export default function RootLayout() {
 
   // Hide splash screen when ready
   useEffect(() => {
+    console.log('[Splash] authLoading:', authLoading, 'themeLoading:', themeLoading);
     const hideSplash = async () => {
       if (!authLoading && !themeLoading) {
+        console.log('[Splash] Conditions met, hiding splash screen...');
         try {
           await SplashScreen.hideAsync();
-          console.log('Splash screen hidden');
+          console.log('[Splash] Splash screen hidden successfully');
         } catch (error) {
-          console.log('Error hiding splash screen:', error);
+          console.log('[Splash] Error hiding splash screen:', error);
         }
+      } else {
+        console.log('[Splash] Still waiting - authLoading:', authLoading, 'themeLoading:', themeLoading);
       }
     };
     hideSplash();
@@ -367,12 +389,12 @@ export default function RootLayout() {
 
   // Show loading state while initializing
   if (authLoading || themeLoading) {
-    console.log('Still loading - Auth:', authLoading, 'Theme:', themeLoading);
+    // console.log('Still loading - Auth:', authLoading, 'Theme:', themeLoading);
     return null; // This will show the splash screen
   }
 
   // Log final state
-  console.log('Layout ready - User:', user ? user.email : 'No user');
+  // console.log('Layout ready - User:', user ? user.email : 'No user');
 
   const content = (
     <PaperProvider theme={theme}>
@@ -388,7 +410,7 @@ export default function RootLayout() {
             {StripeProvider ? (
               <StripeProvider
                 publishableKey={publishableKey}
-                merchantIdentifier="merchant.com.rallysphere"
+                merchantIdentifier="merchant.com.rallysphere.app"
                 urlScheme="rallysphere"
               >
                 {content}

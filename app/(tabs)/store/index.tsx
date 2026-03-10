@@ -244,7 +244,7 @@ export default function StoreScreen() {
 
       setCategories(dynamicCategories);
     } catch (error) {
-      console.error('Error loading store items:', error);
+      // console.error('Error loading store items:', error);
       setItems([]);
       setFeaturedItems([]);
 

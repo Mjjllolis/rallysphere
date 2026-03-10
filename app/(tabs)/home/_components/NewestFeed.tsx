@@ -86,7 +86,7 @@ const NewestFeed = ({ isActive }: NewestFeedProps) => {
         setDisplayedEvents(sortedEvents.slice(0, INITIAL_LOAD));
       }
     } catch (error) {
-      console.error('Error loading events:', error);
+      // console.error('Error loading events:', error);
     } finally {
       setLoading(false);
     }

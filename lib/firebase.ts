@@ -443,7 +443,7 @@ const getFirebaseConfig = () => {
 const firebaseConfig = getFirebaseConfig();
 
 // --- 4. Initialize Firebase ---
-console.log("Firebase config:", firebaseConfig);
+// console.log("Firebase config:", firebaseConfig);
 
 // Initialize Firebase App
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
@@ -492,7 +492,7 @@ export const onAuthStateChange = (callback: (user: User | null) => void) => {
         };
         callback(user);
       } catch (error) {
-        console.error('Error getting user data:', error);
+        // console.error('Error getting user data:', error);
         // Return basic user info if Firestore fails
         const user: User = {
           uid: firebaseUser.uid,
@@ -513,7 +513,7 @@ export const signIn = async (email: string, password: string) => {
     const result = await signInWithEmailAndPassword(auth, email, password);
     return { success: true, user: result.user };
   } catch (error: any) {
-    console.error('Sign in error:', error);
+    // console.error('Sign in error:', error);
     return { success: false, error: error.message };
   }
 };
@@ -546,7 +546,7 @@ export async function signUp(
 
     return { success: true, user };
   } catch (err: any) {
-    console.error("Firebase signup error:", err);
+    // console.error("Firebase signup error:", err);
     return { success: false, error: err.message };
   }
 }
@@ -556,7 +556,7 @@ export const logout = async () => {
     await signOut(auth);
     return { success: true };
   } catch (error: any) {
-    console.error('Logout error:', error);
+    // console.error('Logout error:', error);
     return { success: false, error: error.message };
   }
 };
@@ -572,7 +572,7 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
     }
     return null;
   } catch (error) {
-    console.error('Error getting user profile:', error);
+    // console.error('Error getting user profile:', error);
     return null;
   }
 };
@@ -585,7 +585,7 @@ export const updateUserProfile = async (userId: string, profile: Partial<UserPro
     });
     return { success: true };
   } catch (error: any) {
-    console.error('Error updating user profile:', error);
+    // console.error('Error updating user profile:', error);
     return { success: false, error: error.message };
   }
 };
@@ -627,7 +627,7 @@ export const createClub = async (clubData: any) => {
     
     return { success: true, clubId: docRef.id };
   } catch (error: any) {
-    console.error('Error creating club:', error);
+    // console.error('Error creating club:', error);
     return { success: false, error: error.message };
   }
 };
@@ -697,7 +697,7 @@ export const getClubs = async (userId?: string) => {
     
     return { success: true, clubs };
   } catch (error: any) {
-    console.error('Error getting clubs:', error);
+    // console.error('Error getting clubs:', error);
     return { success: false, error: error.message, clubs: [] };
   }
 };
@@ -742,7 +742,7 @@ export const getClub = async (clubId: string) => {
     }
     return { success: false, error: 'Club not found' };
   } catch (error: any) {
-    console.error('Error getting club:', error);
+    // console.error('Error getting club:', error);
     return { success: false, error: error.message };
   }
 };
@@ -778,7 +778,7 @@ export const joinClub = async (clubId: string, userId: string, userEmail: string
       return { success: true, approved: false };
     }
   } catch (error: any) {
-    console.error('Error joining club:', error);
+    // console.error('Error joining club:', error);
     return { success: false, error: error.message };
   }
 };
@@ -792,7 +792,7 @@ export const leaveClub = async (clubId: string, userId: string) => {
     });
     return { success: true };
   } catch (error: any) {
-    console.error('Error leaving club:', error);
+    // console.error('Error leaving club:', error);
     return { success: false, error: error.message };
   }
 };
@@ -817,7 +817,7 @@ export const updateClubSubscriptionSettings = async (
     });
     return { success: true };
   } catch (error: any) {
-    console.error('Error updating subscription settings:', error);
+    // console.error('Error updating subscription settings:', error);
     return { success: false, error: error.message };
   }
 };
@@ -839,7 +839,7 @@ export const getUserClubSubscriptions = async (userId: string) => {
     });
     return { success: true, subscriptions };
   } catch (error: any) {
-    console.error('Error getting user subscriptions:', error);
+    // console.error('Error getting user subscriptions:', error);
     return { success: false, error: error.message, subscriptions: [] };
   }
 };
@@ -862,7 +862,7 @@ export const getClubSubscribers = async (clubId: string) => {
     });
     return { success: true, subscriptions };
   } catch (error: any) {
-    console.error('Error getting club subscribers:', error);
+    // console.error('Error getting club subscribers:', error);
     return { success: false, error: error.message, subscriptions: [] };
   }
 };
@@ -881,7 +881,7 @@ export const isUserSubscribedToClub = async (userId: string, clubId: string) => 
     const snapshot = await getDocs(q);
     return { success: true, isSubscribed: !snapshot.empty };
   } catch (error: any) {
-    console.error('Error checking subscription:', error);
+    // console.error('Error checking subscription:', error);
     return { success: false, error: error.message, isSubscribed: false };
   }
 };
@@ -923,7 +923,7 @@ export const getClubJoinRequests = async (clubId: string, status?: 'pending' | '
 
     return { success: true, requests };
   } catch (error: any) {
-    console.error('Error getting join requests:', error);
+    // console.error('Error getting join requests:', error);
     return { success: false, error: error.message, requests: [] };
   }
 };
@@ -948,7 +948,7 @@ export const approveJoinRequest = async (requestId: string, clubId: string, user
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error approving join request:', error);
+    // console.error('Error approving join request:', error);
     return { success: false, error: error.message };
   }
 };
@@ -966,7 +966,7 @@ export const rejectJoinRequest = async (requestId: string, adminId: string) => {
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error rejecting join request:', error);
+    // console.error('Error rejecting join request:', error);
     return { success: false, error: error.message };
   }
 };
@@ -984,7 +984,7 @@ export const removeMember = async (clubId: string, userId: string) => {
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error removing member:', error);
+    // console.error('Error removing member:', error);
     return { success: false, error: error.message };
   }
 };
@@ -1001,7 +1001,7 @@ export const promoteToAdmin = async (clubId: string, userId: string) => {
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error promoting to admin:', error);
+    // console.error('Error promoting to admin:', error);
     return { success: false, error: error.message };
   }
 };
@@ -1018,7 +1018,7 @@ export const demoteAdmin = async (clubId: string, userId: string) => {
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error demoting admin:', error);
+    // console.error('Error demoting admin:', error);
     return { success: false, error: error.message };
   }
 };
@@ -1072,7 +1072,7 @@ export const updateClub = async (clubId: string, clubData: any) => {
     await updateDoc(doc(db, 'clubs', clubId), updateData);
     return { success: true };
   } catch (error: any) {
-    console.error('Error updating club:', error);
+    // console.error('Error updating club:', error);
     return { success: false, error: error.message };
   }
 };
@@ -1082,24 +1082,24 @@ export const geocodeLocation = async (address: string): Promise<{ latitude: numb
   try {
     const apiKey = process.env.EXPO_PUBLIC_GOOGLE_API_KEY;
     if (!apiKey || !address.trim()) {
-      console.log('[Geocode] No API key or empty address');
+      // console.log('[Geocode] No API key or empty address');
       return null;
     }
-    console.log('[Geocode] Geocoding address:', address);
+    // console.log('[Geocode] Geocoding address:', address);
     const response = await fetch(
       `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`
     );
     const data = await response.json();
-    console.log('[Geocode] Response status:', data.status);
+    // console.log('[Geocode] Response status:', data.status);
     if (data.status === 'OK' && data.results.length > 0) {
       const { lat, lng } = data.results[0].geometry.location;
-      console.log('[Geocode] Got coords:', lat, lng);
+      // console.log('[Geocode] Got coords:', lat, lng);
       return { latitude: lat, longitude: lng };
     }
-    console.log('[Geocode] Failed:', data.status, data.error_message);
+    // console.log('[Geocode] Failed:', data.status, data.error_message);
     return null;
   } catch (error) {
-    console.error('[Geocode] Error:', error);
+    // console.error('[Geocode] Error:', error);
     return null;
   }
 };
@@ -1136,7 +1136,7 @@ export const createEvent = async (eventData: Omit<Event, 'id' | 'createdAt' | 'u
 
     return { success: true, eventId: docRef.id };
   } catch (error: any) {
-    console.error('Error creating event:', error);
+    // console.error('Error creating event:', error);
     return { success: false, error: error.message };
   }
 };
@@ -1162,7 +1162,7 @@ export const updateEvent = async (eventId: string, eventData: Partial<Omit<Event
     await updateDoc(eventRef, cleanedData);
     return { success: true };
   } catch (error: any) {
-    console.error('Error updating event:', error);
+    // console.error('Error updating event:', error);
     return { success: false, error: error.message };
   }
 };
@@ -1173,7 +1173,7 @@ export const deleteEvent = async (eventId: string) => {
     await deleteDoc(doc(db, 'events', eventId));
     return { success: true };
   } catch (error: any) {
-    console.error('Error deleting event:', error);
+    // console.error('Error deleting event:', error);
     return { success: false, error: error.message };
   }
 };
@@ -1233,7 +1233,7 @@ export const getAllEvents = async (includeFeatured: boolean = false) => {
 
     return { success: true, events };
   } catch (error: any) {
-    console.error('Error getting all events:', error);
+    // console.error('Error getting all events:', error);
     return { success: false, error: error.message, events: [] };
   }
 };
@@ -1271,7 +1271,7 @@ export const getEvents = async (clubId?: string) => {
     
     return { success: true, events };
   } catch (error: any) {
-    console.error('Error getting events:', error);
+    // console.error('Error getting events:', error);
     return { success: false, error: error.message, events: [] };
   }
 };
@@ -1307,12 +1307,12 @@ export const joinEvent = async (eventId: string, userId: string) => {
       });
 
       // Award RallyCredits if the event has them
-      console.log('[joinEvent] Checking rally credits:', {
-        rallyCreditsAwarded: event.rallyCreditsAwarded,
-        hasCredits: event.rallyCreditsAwarded && event.rallyCreditsAwarded > 0
-      });
+      // console.log('[joinEvent] Checking rally credits:', {
+      //   rallyCreditsAwarded: event.rallyCreditsAwarded,
+      //   hasCredits: event.rallyCreditsAwarded && event.rallyCreditsAwarded > 0
+      // });
       if (event.rallyCreditsAwarded && event.rallyCreditsAwarded > 0) {
-        console.log('[joinEvent] Awarding rally credits:', event.rallyCreditsAwarded);
+        // console.log('[joinEvent] Awarding rally credits:', event.rallyCreditsAwarded);
         const creditsResult = await awardRallyCredits(
           userId,
           event.clubId,
@@ -1321,13 +1321,13 @@ export const joinEvent = async (eventId: string, userId: string) => {
           event.title,
           event.rallyCreditsAwarded
         );
-        console.log('[joinEvent] Award result:', creditsResult);
+        // console.log('[joinEvent] Award result:', creditsResult);
       }
 
       return { success: true, waitlisted: false };
     }
   } catch (error: any) {
-    console.error('Error joining event:', error);
+    // console.error('Error joining event:', error);
     return { success: false, error: error.message };
   }
 };
@@ -1364,7 +1364,7 @@ export const leaveEvent = async (eventId: string, userId: string) => {
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error leaving event:', error);
+    // console.error('Error leaving event:', error);
     return { success: false, error: error.message };
   }
 };
@@ -1397,7 +1397,7 @@ export const storeWaiverSignature = async (
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error storing waiver signature:', error);
+    // console.error('Error storing waiver signature:', error);
     return { success: false, error: error.message };
   }
 };
@@ -1432,7 +1432,7 @@ export const getWaiverSignature = async (
       }
     };
   } catch (error: any) {
-    console.error('Error getting waiver signature:', error);
+    // console.error('Error getting waiver signature:', error);
     return { success: false, error: error.message };
   }
 };
@@ -1464,7 +1464,7 @@ export const getEventWaiverSignatures = async (
 
     return { success: true, signatures };
   } catch (error: any) {
-    console.error('Error getting event waiver signatures:', error);
+    // console.error('Error getting event waiver signatures:', error);
     // Return empty signatures object on error (check-in screen can handle empty)
     return { success: false, signatures: {}, error: error.message };
   }
@@ -1486,7 +1486,7 @@ export const getEventById = async (eventId: string) => {
 
     return { success: true, event };
   } catch (error: any) {
-    console.error('Error getting event:', error);
+    // console.error('Error getting event:', error);
     return { success: false, error: error.message };
   }
 };
@@ -1499,7 +1499,7 @@ export const bookmarkEvent = async (eventId: string, userId: string) => {
     });
     return { success: true };
   } catch (error: any) {
-    console.error('Error bookmarking event:', error);
+    // console.error('Error bookmarking event:', error);
     return { success: false, error: error.message };
   }
 };
@@ -1512,7 +1512,7 @@ export const unbookmarkEvent = async (eventId: string, userId: string) => {
     });
     return { success: true };
   } catch (error: any) {
-    console.error('Error unbookmarking event:', error);
+    // console.error('Error unbookmarking event:', error);
     return { success: false, error: error.message };
   }
 };
@@ -1528,7 +1528,7 @@ export const getUserBookmarks = async (userId: string) => {
     const bookmarks = data.bookmarkedEvents || [];
     return { success: true, bookmarks };
   } catch (error: any) {
-    console.error('Error getting bookmarks:', error);
+    // console.error('Error getting bookmarks:', error);
     return { success: false, error: error.message, bookmarks: [] };
   }
 };
@@ -1550,7 +1550,7 @@ export const likeEvent = async (eventId: string, userId: string) => {
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error liking event:', error);
+    // console.error('Error liking event:', error);
     return { success: false, error: error.message };
   }
 };
@@ -1572,7 +1572,7 @@ export const unlikeEvent = async (eventId: string, userId: string) => {
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error unliking event:', error);
+    // console.error('Error unliking event:', error);
     return { success: false, error: error.message };
   }
 };
@@ -1588,7 +1588,7 @@ export const getUserLikes = async (userId: string) => {
     const likes = data.likedEvents || [];
     return { success: true, likes };
   } catch (error: any) {
-    console.error('Error getting likes:', error);
+    // console.error('Error getting likes:', error);
     return { success: false, error: error.message, likes: [] };
   }
 };
@@ -1597,13 +1597,13 @@ export const getUserLikes = async (userId: string) => {
 // Test storage configuration
 export const testStorageConnection = async (): Promise<{ success: boolean; error?: string; details?: any }> => {
   try {
-    console.log('=== STORAGE DIAGNOSTIC ===');
-    console.log('Firebase app name:', app.name);
-    console.log('Project ID:', app.options.projectId);
-    console.log('Storage bucket from config:', app.options.storageBucket);
-    console.log('Auth domain:', app.options.authDomain);
-    console.log('Storage instance bucket:', storage.app.options.storageBucket);
-    console.log('Storage._bucket:', storage._bucket);
+    // console.log('=== STORAGE DIAGNOSTIC ===');
+    // console.log('Firebase app name:', app.name);
+    // console.log('Project ID:', app.options.projectId);
+    // console.log('Storage bucket from config:', app.options.storageBucket);
+    // console.log('Auth domain:', app.options.authDomain);
+    // console.log('Storage instance bucket:', storage.app.options.storageBucket);
+    // console.log('Storage._bucket:', storage._bucket);
     
     // Check if storage bucket is configured
     if (!app.options.storageBucket) {
@@ -1615,49 +1615,49 @@ export const testStorageConnection = async (): Promise<{ success: boolean; error
     }
     
     // Try to create a simple reference (this should not fail even if storage is disabled)
-    console.log('Creating storage reference...');
+    // console.log('Creating storage reference...');
     const testRef = ref(storage, 'diagnostic-test.txt');
-    console.log('Reference created:', testRef.toString());
-    console.log('Reference bucket:', testRef.bucket);
-    console.log('Reference fullPath:', testRef.fullPath);
+    // console.log('Reference created:', testRef.toString());
+    // console.log('Reference bucket:', testRef.bucket);
+    // console.log('Reference fullPath:', testRef.fullPath);
     
     // Try a simple upload using proper React Native blob creation
-    console.log('Attempting upload...');
+    // console.log('Attempting upload...');
     
     // Create a simple text blob using fetch (React Native compatible)
     const testString = 'Hello from Firebase Storage test!';
     const response = await fetch(`data:text/plain;base64,${btoa(testString)}`);
     const blob = await response.blob();
     
-    console.log('Blob created successfully, size:', blob.size, 'type:', blob.type);
+    // console.log('Blob created successfully, size:', blob.size, 'type:', blob.type);
     
     const uploadResult = await uploadBytes(testRef, blob);
-    console.log('Upload successful! Metadata:', {
-      name: uploadResult.metadata.name,
-      bucket: uploadResult.metadata.bucket,
-      fullPath: uploadResult.metadata.fullPath,
-      size: uploadResult.metadata.size
-    });
+    // console.log('Upload successful! Metadata:', {
+    //   name: uploadResult.metadata.name,
+    //   bucket: uploadResult.metadata.bucket,
+    //   fullPath: uploadResult.metadata.fullPath,
+    //   size: uploadResult.metadata.size
+    // });
     
     // Try to get download URL
     const downloadURL = await getDownloadURL(testRef);
-    console.log('Download URL obtained successfully');
+    // console.log('Download URL obtained successfully');
     
     // Clean up test file
     try {
       await deleteObject(testRef);
-      console.log('Test file cleaned up');
+      // console.log('Test file cleaned up');
     } catch (deleteError) {
-      console.log('Could not delete test file (this is normal):', deleteError);
+      // console.log('Could not delete test file (this is normal):', deleteError);
     }
     
     return { success: true };
   } catch (error: any) {
-    console.error('=== STORAGE ERROR ===');
-    console.error('Error code:', error.code);
-    console.error('Error message:', error.message);
-    console.error('Error name:', error.name);
-    console.error('Full error:', error);
+    // console.error('=== STORAGE ERROR ===');
+    // console.error('Error code:', error.code);
+    // console.error('Error message:', error.message);
+    // console.error('Error name:', error.name);
+    // console.error('Full error:', error);
     
     return { 
       success: false, 
@@ -1674,26 +1674,26 @@ export const testStorageConnection = async (): Promise<{ success: boolean; error
 
 export const uploadImage = async (uri: string, path: string): Promise<string | null> => {
   try {
-    console.log('Starting image upload:', { uri, path });
-    console.log('Storage bucket:', storage.app.options.storageBucket);
+    // console.log('Starting image upload:', { uri, path });
+    // console.log('Storage bucket:', storage.app.options.storageBucket);
     
     // Convert URI to blob using React Native compatible method
-    console.log('Fetching image from URI...');
+    // console.log('Fetching image from URI...');
     const response = await fetch(uri);
     if (!response.ok) {
       throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
     }
     
     const blob = await response.blob();
-    console.log('Blob created successfully:', {
-      size: blob.size, 
-      type: blob.type,
-      sizeInMB: (blob.size / (1024 * 1024)).toFixed(2)
-    });
+    // console.log('Blob created successfully:', {
+    //   size: blob.size,
+    //   type: blob.type,
+    //   sizeInMB: (blob.size / (1024 * 1024)).toFixed(2)
+    // });
     
     // Create a reference to the file in Firebase Storage
     const storageRef = ref(storage, path);
-    console.log('Storage reference created:', path);
+    // console.log('Storage reference created:', path);
     
     // Upload the file with metadata
     const metadata = {
@@ -1701,30 +1701,30 @@ export const uploadImage = async (uri: string, path: string): Promise<string | n
       cacheControl: 'public,max-age=3600',
     };
     
-    console.log('Starting upload with metadata:', metadata);
+    // console.log('Starting upload with metadata:', metadata);
     const uploadResult = await uploadBytes(storageRef, blob, metadata);
-    console.log('Upload completed successfully:', {
-      name: uploadResult.metadata.name,
-      bucket: uploadResult.metadata.bucket,
-      size: uploadResult.metadata.size,
-      contentType: uploadResult.metadata.contentType
-    });
+    // console.log('Upload completed successfully:', {
+    //   name: uploadResult.metadata.name,
+    //   bucket: uploadResult.metadata.bucket,
+    //   size: uploadResult.metadata.size,
+    //   contentType: uploadResult.metadata.contentType
+    // });
     
     // Get the download URL
     const downloadURL = await getDownloadURL(storageRef);
-    console.log('Download URL obtained successfully');
+    // console.log('Download URL obtained successfully');
     
     return downloadURL;
   } catch (error: any) {
-    console.error('Error uploading image:', error);
-    console.error('Error details:', {
-      code: error.code,
-      message: error.message,
-      serverResponse: error.serverResponse,
-      customData: error.customData,
-      name: error.name,
-      stack: error.stack?.substring(0, 200) + '...' // Truncate stack for readability
-    });
+    // console.error('Error uploading image:', error);
+    // console.error('Error details:', {
+    //   code: error.code,
+    //   message: error.message,
+    //   serverResponse: error.serverResponse,
+    //   customData: error.customData,
+    //   name: error.name,
+    //   stack: error.stack?.substring(0, 200) + '...' // Truncate stack for readability
+    // });
     return null;
   }
 };
@@ -1735,7 +1735,7 @@ export const deleteImage = async (path: string) => {
     await deleteObject(storageRef);
     return { success: true };
   } catch (error: any) {
-    console.error('Error deleting image:', error);
+    // console.error('Error deleting image:', error);
     return { success: false, error: error.message };
   }
 };
@@ -1787,7 +1787,7 @@ export const subscribeToClubs = (userId: string, callback: (clubs: Club[]) => vo
       
       callback(clubs);
     }, (error) => {
-      console.error('Error in clubs subscription:', error);
+      // console.error('Error in clubs subscription:', error);
       // Fall back to polling approach
       const pollClubs = async () => {
         try {
@@ -1796,7 +1796,7 @@ export const subscribeToClubs = (userId: string, callback: (clubs: Club[]) => vo
             callback(result.clubs);
           }
         } catch (error) {
-          console.error('Error in clubs polling:', error);
+          // console.error('Error in clubs polling:', error);
         }
       };
       
@@ -1810,7 +1810,7 @@ export const subscribeToClubs = (userId: string, callback: (clubs: Club[]) => vo
       return () => clearInterval(interval);
     });
   } catch (error) {
-    console.error('Error setting up clubs subscription:', error);
+    // console.error('Error setting up clubs subscription:', error);
     return () => {};
   }
 };
@@ -1838,7 +1838,7 @@ export const subscribeToEvents = (clubId: string, callback: (events: Event[]) =>
 
       callback(events);
     }, (error) => {
-      console.error('Error in events subscription:', error);
+      // console.error('Error in events subscription:', error);
       // Fall back to polling approach
       const pollEvents = async () => {
         try {
@@ -1847,7 +1847,7 @@ export const subscribeToEvents = (clubId: string, callback: (events: Event[]) =>
             callback(result.events);
           }
         } catch (error) {
-          console.error('Error in events polling:', error);
+          // console.error('Error in events polling:', error);
         }
       };
 
@@ -1861,7 +1861,7 @@ export const subscribeToEvents = (clubId: string, callback: (events: Event[]) =>
       return () => clearInterval(interval);
     });
   } catch (error) {
-    console.error('Error setting up events subscription:', error);
+    // console.error('Error setting up events subscription:', error);
     return () => {};
   }
 };
@@ -1899,7 +1899,7 @@ export const createFeaturedEvent = async (featuredData: Omit<FeaturedEvent, 'id'
 
     return { success: true, featuredId: docRef.id };
   } catch (error: any) {
-    console.error('Error creating featured event:', error);
+    // console.error('Error creating featured event:', error);
     return { success: false, error: error.message };
   }
 };
@@ -1936,7 +1936,7 @@ export const getActiveFeaturedEvents = async (placement?: 'home_feed' | 'categor
 
     return { success: true, featured };
   } catch (error: any) {
-    console.error('Error getting featured events:', error);
+    // console.error('Error getting featured events:', error);
     return { success: false, error: error.message, featured: [] };
   }
 };
@@ -1955,7 +1955,7 @@ export const trackFeaturedImpression = async (featuredId: string) => {
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error tracking impression:', error);
+    // console.error('Error tracking impression:', error);
     return { success: false, error: error.message };
   }
 };
@@ -1974,7 +1974,7 @@ export const trackFeaturedClick = async (featuredId: string) => {
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error tracking click:', error);
+    // console.error('Error tracking click:', error);
     return { success: false, error: error.message };
   }
 };
@@ -1996,7 +1996,7 @@ export const createStoreItem = async (item: Omit<StoreItem, 'id' | 'createdAt' |
 
     return { success: true, itemId: docRef.id };
   } catch (error: any) {
-    console.error('Error creating store item:', error);
+    // console.error('Error creating store item:', error);
     return { success: false, error: error.message };
   }
 };
@@ -2014,7 +2014,7 @@ export const updateStoreItem = async (itemId: string, updates: Partial<StoreItem
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error updating store item:', error);
+    // console.error('Error updating store item:', error);
     return { success: false, error: error.message };
   }
 };
@@ -2034,7 +2034,7 @@ export const getStoreItem = async (itemId: string) => {
     const item = { id: itemDoc.id, ...itemDoc.data() } as StoreItem;
     return { success: true, item };
   } catch (error: any) {
-    console.error('Error getting store item:', error);
+    // console.error('Error getting store item:', error);
     return { success: false, error: error.message };
   }
 };
@@ -2060,7 +2060,7 @@ export const getClubStoreItems = async (clubId: string, activeOnly: boolean = fa
 
     return { success: true, items };
   } catch (error: any) {
-    console.error('Error getting club store items:', error);
+    // console.error('Error getting club store items:', error);
     return { success: false, error: error.message, items: [] };
   }
 };
@@ -2082,7 +2082,7 @@ export const getAllStoreItems = async () => {
 
     return { success: true, items };
   } catch (error: any) {
-    console.error('Error getting all store items:', error);
+    // console.error('Error getting all store items:', error);
     return { success: false, error: error.message, items: [] };
   }
 };
@@ -2108,7 +2108,7 @@ export const deleteStoreItem = async (itemId: string) => {
           const imageRef = ref(storage, imageUrl);
           await deleteObject(imageRef);
         } catch (error) {
-          console.warn('Failed to delete image:', imageUrl);
+          // console.warn('Failed to delete image:', imageUrl);
         }
       }
     }
@@ -2118,7 +2118,7 @@ export const deleteStoreItem = async (itemId: string) => {
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error deleting store item:', error);
+    // console.error('Error deleting store item:', error);
     return { success: false, error: error.message };
   }
 };
@@ -2148,7 +2148,7 @@ export const createStoreOrder = async (order: Omit<StoreOrder, 'id' | 'createdAt
 
     return { success: true, orderId: docRef.id };
   } catch (error: any) {
-    console.error('Error creating store order:', error);
+    // console.error('Error creating store order:', error);
     return { success: false, error: error.message };
   }
 };
@@ -2179,7 +2179,7 @@ export const updateStoreOrderStatus = async (
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error updating order status:', error);
+    // console.error('Error updating order status:', error);
     return { success: false, error: error.message };
   }
 };
@@ -2201,7 +2201,7 @@ export const getUserStoreOrders = async (userId: string) => {
 
     return { success: true, orders };
   } catch (error: any) {
-    console.error('Error getting user orders:', error);
+    // console.error('Error getting user orders:', error);
     return { success: false, error: error.message, orders: [] };
   }
 };
@@ -2223,7 +2223,7 @@ export const getClubStoreOrders = async (clubId: string) => {
 
     return { success: true, orders };
   } catch (error: any) {
-    console.error('Error getting club orders:', error);
+    // console.error('Error getting club orders:', error);
     return { success: false, error: error.message, orders: [] };
   }
 };
@@ -2245,7 +2245,7 @@ export const getClubTicketPayments = async (clubId: string) => {
 
     return { success: true, payments };
   } catch (error: any) {
-    console.error('Error getting club ticket payments:', error);
+    // console.error('Error getting club ticket payments:', error);
     return { success: false, error: error.message, payments: [] };
   }
 };
@@ -2264,7 +2264,7 @@ export const createTicketOrder = async (order: Omit<TicketOrder, 'id' | 'created
 
     return { success: true, orderId: docRef.id };
   } catch (error: any) {
-    console.error('Error creating ticket order:', error);
+    // console.error('Error creating ticket order:', error);
     return { success: false, error: error.message };
   }
 };
@@ -2293,7 +2293,7 @@ export const updateTicketOrderStatus = async (
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error updating ticket order status:', error);
+    // console.error('Error updating ticket order status:', error);
     return { success: false, error: error.message };
   }
 };
@@ -2315,7 +2315,7 @@ export const getUserTicketOrders = async (userId: string) => {
 
     return { success: true, orders };
   } catch (error: any) {
-    console.error('Error getting user ticket orders:', error);
+    // console.error('Error getting user ticket orders:', error);
     return { success: false, error: error.message, orders: [] };
   }
 };
@@ -2337,7 +2337,7 @@ export const getClubTicketOrders = async (clubId: string) => {
 
     return { success: true, orders };
   } catch (error: any) {
-    console.error('Error getting club ticket orders:', error);
+    // console.error('Error getting club ticket orders:', error);
     return { success: false, error: error.message, orders: [] };
   }
 };
@@ -2359,7 +2359,7 @@ export const getEventTicketOrders = async (eventId: string) => {
 
     return { success: true, orders };
   } catch (error: any) {
-    console.error('Error getting event ticket orders:', error);
+    // console.error('Error getting event ticket orders:', error);
     return { success: false, error: error.message, orders: [] };
   }
 };
@@ -2401,7 +2401,7 @@ export const saveShippingAddress = async (userId: string, address: Omit<Shipping
 
     return { success: true, addressId: newAddress.id };
   } catch (error: any) {
-    console.error('Error saving shipping address:', error);
+    // console.error('Error saving shipping address:', error);
     return { success: false, error: error.message };
   }
 };
@@ -2442,7 +2442,7 @@ export const updateShippingAddress = async (userId: string, addressId: string, u
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error updating shipping address:', error);
+    // console.error('Error updating shipping address:', error);
     return { success: false, error: error.message };
   }
 };
@@ -2478,7 +2478,7 @@ export const deleteShippingAddress = async (userId: string, addressId: string) =
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error deleting shipping address:', error);
+    // console.error('Error deleting shipping address:', error);
     return { success: false, error: error.message };
   }
 };
@@ -2500,7 +2500,7 @@ export const getUserAddresses = async (userId: string) => {
 
     return { success: true, addresses };
   } catch (error: any) {
-    console.error('Error getting user addresses:', error);
+    // console.error('Error getting user addresses:', error);
     return { success: false, error: error.message, addresses: [] };
   }
 };
@@ -2512,10 +2512,10 @@ export const getUserAddresses = async (userId: string) => {
  */
 export const getUserRallyCredits = async (userId: string) => {
   try {
-    console.log('[getUserRallyCredits] Fetching credits for user:', userId);
+    // console.log('[getUserRallyCredits] Fetching credits for user:', userId);
     const creditsRef = doc(db, 'rallyCredits', userId);
     const creditsDoc = await getDoc(creditsRef);
-    console.log('[getUserRallyCredits] Doc exists:', creditsDoc.exists());
+    // console.log('[getUserRallyCredits] Doc exists:', creditsDoc.exists());
 
     if (!creditsDoc.exists()) {
       // Initialize credits for new user
@@ -2536,13 +2536,13 @@ export const getUserRallyCredits = async (userId: string) => {
     }
 
     const credits = creditsDoc.data() as UserRallyCredits;
-    console.log('[getUserRallyCredits] Returning credits:', {
-      totalCredits: credits.totalCredits,
-      clubCredits: credits.clubCredits
-    });
+    // console.log('[getUserRallyCredits] Returning credits:', {
+    //   totalCredits: credits.totalCredits,
+    //   clubCredits: credits.clubCredits
+    // });
     return { success: true, credits };
   } catch (error: any) {
-    console.error('[getUserRallyCredits] Error getting rally credits:', error);
+    // console.error('[getUserRallyCredits] Error getting rally credits:', error);
     return { success: false, error: error.message };
   }
 };
@@ -2560,10 +2560,10 @@ export const awardRallyCredits = async (
   amount: number
 ) => {
   try {
-    console.log('[awardRallyCredits] Starting award:', { userId, clubId, clubName, eventId, eventName, amount });
+    // console.log('[awardRallyCredits] Starting award:', { userId, clubId, clubName, eventId, eventName, amount });
     const creditsRef = doc(db, 'rallyCredits', userId);
     const creditsDoc = await getDoc(creditsRef);
-    console.log('[awardRallyCredits] Existing credits doc exists:', creditsDoc.exists());
+    // console.log('[awardRallyCredits] Existing credits doc exists:', creditsDoc.exists());
     const currentCredits = creditsDoc.exists() ? creditsDoc.data() as UserRallyCredits : null;
 
     // Check if already awarded pending credits for this event (prevent duplicates)
@@ -2610,7 +2610,7 @@ export const awardRallyCredits = async (
     }
     return { success: true };
   } catch (error: any) {
-    console.error('Error awarding rally credits:', error);
+    // console.error('Error awarding rally credits:', error);
     return { success: false, error: error.message };
   }
 };
@@ -2669,7 +2669,7 @@ export const confirmRallyCredits = async (
 
     return { success: true, confirmedAmount: pendingAmount };
   } catch (error: any) {
-    console.error('[awardRallyCredits] Error awarding rally credits:', error);
+    // console.error('[awardRallyCredits] Error awarding rally credits:', error);
     return { success: false, error: error.message };
   }
 };
@@ -2748,7 +2748,7 @@ export const forfeitRallyCredits = async (
 
     return { success: true, amountForfeited: amountToForfeit };
   } catch (error: any) {
-    console.error('Error forfeiting rally credits:', error);
+    // console.error('Error forfeiting rally credits:', error);
     return { success: false, error: error.message };
   }
 };
@@ -2769,7 +2769,7 @@ export const getClubRedemptions = async (clubId: string) => {
 
     return { success: true, redemptions };
   } catch (error: any) {
-    console.error('Error getting club redemptions:', error);
+    // console.error('Error getting club redemptions:', error);
     return { success: false, error: error.message, redemptions: [] };
   }
 };
@@ -2790,7 +2790,7 @@ export const createRedemption = async (redemption: Omit<RallyCreditRedemption, '
     const docRef = await addDoc(redemptionsRef, newRedemption);
     return { success: true, redemptionId: docRef.id };
   } catch (error: any) {
-    console.error('Error creating redemption:', error);
+    // console.error('Error creating redemption:', error);
     return { success: false, error: error.message };
   }
 };
@@ -2854,13 +2854,13 @@ export const spendRallyCredits = async (
         updatedAt: serverTimestamp(),
       });
     } catch (redemptionError) {
-      console.error('Error updating redemption count:', redemptionError);
+      // console.error('Error updating redemption count:', redemptionError);
       // Don't fail the spend operation if this update fails
     }
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error spending rally credits:', error);
+    // console.error('Error spending rally credits:', error);
     return { success: false, error: error.message };
   }
 };
@@ -2885,7 +2885,7 @@ export const getClubRallyRedemptions = async (clubId: string) => {
 
     return { success: true, redemptions };
   } catch (error: any) {
-    console.error('Error getting club rally redemptions:', error);
+    // console.error('Error getting club rally redemptions:', error);
     return { success: false, error: error.message, redemptions: [] };
   }
 };
@@ -2907,7 +2907,7 @@ export const getAllClubRallyRedemptions = async (clubId: string) => {
 
     return { success: true, redemptions };
   } catch (error: any) {
-    console.error('Error getting all club rally redemptions:', error);
+    // console.error('Error getting all club rally redemptions:', error);
     return { success: false, error: error.message, redemptions: [] };
   }
 };
@@ -2928,7 +2928,7 @@ export const createRallyRedemption = async (redemptionData: Partial<RallyCreditR
     const docRef = await addDoc(redemptionsRef, newRedemption);
     return { success: true, redemptionId: docRef.id };
   } catch (error: any) {
-    console.error('Error creating rally redemption:', error);
+    // console.error('Error creating rally redemption:', error);
     return { success: false, error: error.message };
   }
 };
@@ -2948,7 +2948,7 @@ export const updateRallyRedemption = async (
     });
     return { success: true };
   } catch (error: any) {
-    console.error('Error updating rally redemption:', error);
+    // console.error('Error updating rally redemption:', error);
     return { success: false, error: error.message };
   }
 };
@@ -2962,7 +2962,7 @@ export const deleteRallyRedemption = async (redemptionId: string) => {
     await deleteDoc(redemptionRef);
     return { success: true };
   } catch (error: any) {
-    console.error('Error deleting rally redemption:', error);
+    // console.error('Error deleting rally redemption:', error);
     return { success: false, error: error.message };
   }
 };
@@ -3032,7 +3032,7 @@ export const redeemRallyCredits = async (
 
     return { success: true, redemption };
   } catch (error: any) {
-    console.error('Error redeeming rally credits:', error);
+    // console.error('Error redeeming rally credits:', error);
     return { success: false, error: error.message };
   }
 };
@@ -3109,7 +3109,7 @@ export const adminAddRallyCredits = async (
 
     return { success: true, amount };
   } catch (error: any) {
-    console.error('Error adding rally credits (admin):', error);
+    // console.error('Error adding rally credits (admin):', error);
     return { success: false, error: error.message };
   }
 };
@@ -3182,7 +3182,7 @@ export const adminRemoveRallyCredits = async (
 
     return { success: true, amount };
   } catch (error: any) {
-    console.error('Error removing rally credits (admin):', error);
+    // console.error('Error removing rally credits (admin):', error);
     return { success: false, error: error.message };
   }
 };
@@ -3268,7 +3268,7 @@ export const adminSetRallyCredits = async (
 
     return { success: true, amount: newAmount };
   } catch (error: any) {
-    console.error('Error setting rally credits (admin):', error);
+    // console.error('Error setting rally credits (admin):', error);
     return { success: false, error: error.message };
   }
 };
@@ -3315,7 +3315,7 @@ export const checkInAttendee = async (eventId: string, userId: string) => {
       eventTitle: event.title,
     };
   } catch (error: any) {
-    console.error('Error checking in attendee:', error);
+    // console.error('Error checking in attendee:', error);
     return { success: false, error: error.message };
   }
 };
@@ -3402,7 +3402,7 @@ export const confirmMyCredits = async (
 
     return { success: true, confirmedAmount: pendingAmount };
   } catch (error: any) {
-    console.error('Error confirming credits:', error);
+    // console.error('Error confirming credits:', error);
     return { success: false, error: error.message };
   }
 };
@@ -3502,14 +3502,14 @@ export const confirmAllPendingCredits = async (currentUserId: string) => {
         }
         // If event hasn't ended and user isn't checked in, leave as pending
       } catch (eventError) {
-        console.error(`Error processing event ${eventId}:`, eventError);
+        // console.error(`Error processing event ${eventId}:`, eventError);
         // Continue with other events
       }
     }
 
     return { success: true, totalConfirmed, totalForfeited };
   } catch (error: any) {
-    console.error('Error confirming all pending credits:', error);
+    // console.error('Error confirming all pending credits:', error);
     return { success: false, error: error.message };
   }
 };
@@ -3564,7 +3564,7 @@ export const getEventAttendees = async (eventId: string) => {
       checkedInCount: checkedInIds.length,
     };
   } catch (error: any) {
-    console.error('Error getting event attendees:', error);
+    // console.error('Error getting event attendees:', error);
     return { success: false, error: error.message, attendees: [] };
   }
 };
@@ -3604,7 +3604,7 @@ export const createProSubscription = async (clubId: string, userId: string) => {
 
     return { success: true, sessionUrl: data.sessionUrl };
   } catch (error: any) {
-    console.error('Error creating pro subscription:', error);
+    // console.error('Error creating pro subscription:', error);
     return { success: false, error: error.message };
   }
 };
@@ -3640,7 +3640,7 @@ export const cancelProSubscription = async (clubId: string) => {
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error canceling pro subscription:', error);
+    // console.error('Error canceling pro subscription:', error);
     return { success: false, error: error.message };
   }
 };
@@ -3663,7 +3663,7 @@ export const getProSubscription = async (clubId: string) => {
 
     return { success: true, subscription };
   } catch (error: any) {
-    console.error('Error getting pro subscription:', error);
+    // console.error('Error getting pro subscription:', error);
     return { success: false, error: error.message };
   }
 };
@@ -3688,7 +3688,7 @@ export const createUserProSubscription = async (userId: string, userEmail: strin
 
     return { success: true, sessionUrl: data.sessionUrl };
   } catch (error: any) {
-    console.error('Error creating user pro subscription:', error);
+    // console.error('Error creating user pro subscription:', error);
     return { success: false, error: error.message };
   }
 };
@@ -3725,7 +3725,7 @@ export const cancelUserProSubscription = async (userId: string) => {
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error canceling user pro subscription:', error);
+    // console.error('Error canceling user pro subscription:', error);
     return { success: false, error: error.message };
   }
 };
@@ -3748,7 +3748,7 @@ export const getUserProSubscription = async (userId: string) => {
 
     return { success: true, subscription };
   } catch (error: any) {
-    console.error('Error getting user pro subscription:', error);
+    // console.error('Error getting user pro subscription:', error);
     return { success: false, error: error.message };
   }
 };
@@ -3829,7 +3829,7 @@ export const getClubAnalytics = async (clubId: string) => {
 
     return { success: true, analytics };
   } catch (error: any) {
-    console.error('Error getting club analytics:', error);
+    // console.error('Error getting club analytics:', error);
     return { success: false, error: error.message };
   }
 };
@@ -3845,13 +3845,13 @@ export const getClubAnalytics = async (clubId: string) => {
  */
 export const fixEventsAndCredits = async () => {
   try {
-    console.log('[fixEventsAndCredits] Calling Cloud Function to fix data...');
+    // console.log('[fixEventsAndCredits] Calling Cloud Function to fix data...');
     const fixFunction = httpsCallable(functions, 'fixEventsAndCredits');
     const result = await fixFunction({});
-    console.log('[fixEventsAndCredits] Result:', result.data);
+    // console.log('[fixEventsAndCredits] Result:', result.data);
     return { success: true, data: result.data };
   } catch (error: any) {
-    console.error('[fixEventsAndCredits] Error:', error);
+    // console.error('[fixEventsAndCredits] Error:', error);
     return { success: false, error: error.message };
   }
 };

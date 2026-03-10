@@ -89,7 +89,7 @@ export default function StoreItemDetailScreen() {
         router.back();
       }
     } catch (error) {
-      console.error('Error loading item:', error);
+      // console.error('Error loading item:', error);
       Alert.alert('Error', 'Failed to load item');
     } finally {
       setLoading(false);
@@ -111,7 +111,7 @@ export default function StoreItemDetailScreen() {
         }
       }
     } catch (error) {
-      console.error('Error loading addresses:', error);
+      // console.error('Error loading addresses:', error);
     }
   };
 

@@ -87,15 +87,15 @@ export default function CreateEventScreen() {
         c.admins.includes(user.uid) ||
         c.members.includes(user.uid)
       );
-      console.log('[CreateEvent] Available clubs:', userClubs.map(c => ({ id: c.id, name: c.name })));
+      // console.log('[CreateEvent] Available clubs:', userClubs.map(c => ({ id: c.id, name: c.name })));
       setAvailableClubs(userClubs);
 
       // Only set club if one was passed via URL params - don't auto-select
       if (initialClubId && userClubs.some(c => c.id === initialClubId)) {
-        console.log('[CreateEvent] Using passed clubId:', initialClubId);
+        // console.log('[CreateEvent] Using passed clubId:', initialClubId);
         setClubId(initialClubId);
       } else if (!initialClubId) {
-        console.log('[CreateEvent] No clubId passed - user must select one');
+        // console.log('[CreateEvent] No clubId passed - user must select one');
       }
     }
   };
@@ -132,7 +132,7 @@ export default function CreateEventScreen() {
         setCoverImage(result.assets[0].uri);
       }
     } catch (error) {
-      console.error('Image picker error:', error);
+      // console.error('Image picker error:', error);
       Alert.alert('Error', 'Failed to pick image');
     }
   };
@@ -177,7 +177,7 @@ export default function CreateEventScreen() {
         coverImageUrl = await uploadImage(coverImage, imagePath) || undefined;
       }
 
-      console.log('[CreateEvent] Creating event for club:', clubId, club.name);
+      // console.log('[CreateEvent] Creating event for club:', clubId, club.name);
       const eventData = {
         title: formData.title.trim(),
         description: formData.description.trim(),
@@ -216,7 +216,7 @@ export default function CreateEventScreen() {
         Alert.alert('Error', result.error || 'Failed to create event');
       }
     } catch (error) {
-      console.error('Create event error:', error);
+      // console.error('Create event error:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setLoading(false);

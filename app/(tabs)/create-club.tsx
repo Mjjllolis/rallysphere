@@ -96,7 +96,7 @@ export default function CreateClubScreen() {
         }
       }
     } catch (error) {
-      console.error('Image picker error:', error);
+      // console.error('Image picker error:', error);
       Alert.alert('Error', 'Failed to pick image');
     }
   };
@@ -192,7 +192,7 @@ export default function CreateClubScreen() {
         Alert.alert('Error', result.error || 'Failed to create club');
       }
     } catch (error) {
-      console.error('Create club error:', error);
+      // console.error('Create club error:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setLoading(false);

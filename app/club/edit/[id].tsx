@@ -130,7 +130,7 @@ export default function EditClubScreen() {
         ]);
       }
     } catch (error) {
-      console.error('Error loading club:', error);
+      // console.error('Error loading club:', error);
       Alert.alert('Error', 'Failed to load club data');
     } finally {
       setInitialLoading(false);
@@ -172,7 +172,7 @@ export default function EditClubScreen() {
         }
       }
     } catch (error) {
-      console.error('Image picker error:', error);
+      // console.error('Image picker error:', error);
       Alert.alert('Error', 'Failed to pick image');
     }
   };
@@ -275,7 +275,7 @@ export default function EditClubScreen() {
         Alert.alert('Error', result.error || 'Failed to update club');
       }
     } catch (error) {
-      console.error('Update club error:', error);
+      // console.error('Update club error:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setLoading(false);

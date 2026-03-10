@@ -104,7 +104,7 @@ export default function ManageCreditsScreen() {
               });
             }
           } catch (error) {
-            console.error('Error loading member data:', error);
+            // console.error('Error loading member data:', error);
           }
         }
 
@@ -116,7 +116,7 @@ export default function ManageCreditsScreen() {
         router.back();
       }
     } catch (error) {
-      console.error('Error loading data:', error);
+      // console.error('Error loading data:', error);
       Alert.alert('Error', 'Failed to load member credits');
     } finally {
       setLoading(false);
@@ -203,7 +203,7 @@ export default function ManageCreditsScreen() {
         Alert.alert('Error', result.error || 'Failed to update credits');
       }
     } catch (error: any) {
-      console.error('Error updating credits:', error);
+      // console.error('Error updating credits:', error);
       Alert.alert('Error', error.message || 'Failed to update credits');
     } finally {
       setProcessing(false);

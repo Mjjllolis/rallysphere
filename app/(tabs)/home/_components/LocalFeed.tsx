@@ -104,13 +104,13 @@ const LocalFeed = ({ isActive, radiusMiles }: LocalFeedProps) => {
   }, [activeIndex, displayedEvents.length, filteredEvents.length]);
 
   const filterByDistance = useCallback((events: Event[], loc: { latitude: number; longitude: number }, radius: number) => {
-    console.log(`[LocalFeed] Filtering ${events.length} events within ${radius} mi of`, loc);
+    // console.log(`[LocalFeed] Filtering ${events.length} events within ${radius} mi of`, loc);
     events.forEach(e => {
       if (!e.locationCoords) {
-        console.log(`[LocalFeed] Event "${e.title}" has no coords`);
+        // console.log(`[LocalFeed] Event "${e.title}" has no coords`);
       } else {
         const dist = getDistanceMiles(loc.latitude, loc.longitude, e.locationCoords.latitude, e.locationCoords.longitude);
-        console.log(`[LocalFeed] Event "${e.title}" is ${dist.toFixed(1)} mi away`);
+        // console.log(`[LocalFeed] Event "${e.title}" is ${dist.toFixed(1)} mi away`);
       }
     });
     const nearby = events.filter(event => {
@@ -121,7 +121,7 @@ const LocalFeed = ({ isActive, radiusMiles }: LocalFeedProps) => {
       );
       return dist <= radius;
     });
-    console.log(`[LocalFeed] ${nearby.length} events within range`);
+    // console.log(`[LocalFeed] ${nearby.length} events within range`);
     setFilteredEvents(nearby);
     setDisplayedEvents(nearby.slice(0, INITIAL_LOAD));
     setActiveIndex(0);
@@ -144,7 +144,7 @@ const LocalFeed = ({ isActive, radiusMiles }: LocalFeedProps) => {
         }
       }
     } catch (error) {
-      console.error('Error loading local events:', error);
+      // console.error('Error loading local events:', error);
     } finally {
       setLoading(false);
     }

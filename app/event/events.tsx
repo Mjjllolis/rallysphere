@@ -73,7 +73,7 @@ export default function EventsPage() {
         setMyEvents(attendingEvents);
       }
     } catch (error) {
-      console.error('Error loading data:', error);
+      // console.error('Error loading data:', error);
     } finally {
       setLoading(false);
     }
@@ -149,7 +149,7 @@ export default function EventsPage() {
         Alert.alert('Error', result.error || 'Failed to join event');
       }
     } catch (error) {
-      console.error('Error joining event:', error);
+      // console.error('Error joining event:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setActionLoading(null);
@@ -178,7 +178,7 @@ export default function EventsPage() {
                 Alert.alert('Error', result.error || 'Failed to leave event');
               }
             } catch (error) {
-              console.error('Error leaving event:', error);
+              // console.error('Error leaving event:', error);
               Alert.alert('Error', 'An unexpected error occurred');
             } finally {
               setActionLoading(null);

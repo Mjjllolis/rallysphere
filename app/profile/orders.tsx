@@ -100,7 +100,7 @@ export default function OrdersScreen() {
         setOrders(result.orders);
       }
     } catch (error) {
-      console.error('Error loading orders:', error);
+      // console.error('Error loading orders:', error);
     } finally {
       setLoading(false);
     }

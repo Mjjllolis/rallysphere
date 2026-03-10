@@ -98,7 +98,7 @@ export default function ManageStoreScreen() {
         setItems(result.items);
       }
     } catch (error) {
-      console.error('Error loading data:', error);
+      // console.error('Error loading data:', error);
       Alert.alert('Error', 'Failed to load store items');
     } finally {
       setLoading(false);
@@ -175,7 +175,7 @@ export default function ManageStoreScreen() {
 
         setFormData({ ...formData, images: [...formData.images, ...uploadedUrls] });
       } catch (error) {
-        console.error('Error uploading images:', error);
+        // console.error('Error uploading images:', error);
         Alert.alert('Error', 'Failed to upload images');
       }
     }
@@ -303,7 +303,7 @@ export default function ManageStoreScreen() {
         }
       }
     } catch (error) {
-      console.error('Error saving item:', error);
+      // console.error('Error saving item:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setSaving(false);
@@ -330,7 +330,7 @@ export default function ManageStoreScreen() {
                 Alert.alert('Error', result.error || 'Failed to delete product');
               }
             } catch (error) {
-              console.error('Error deleting item:', error);
+              // console.error('Error deleting item:', error);
               Alert.alert('Error', 'An unexpected error occurred');
             }
           },

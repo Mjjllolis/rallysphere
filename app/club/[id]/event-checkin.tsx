@@ -122,7 +122,7 @@ export default function EventCheckinScreen() {
         }
       }
     } catch (error) {
-      console.error('Error loading data:', error);
+      // console.error('Error loading data:', error);
     } finally {
       setLoading(false);
     }
@@ -143,7 +143,7 @@ export default function EventCheckinScreen() {
         setWaiverSignatures(waiverResult.signatures);
       }
     } catch (error) {
-      console.error('Error loading attendees:', error);
+      // console.error('Error loading attendees:', error);
     } finally {
       setLoadingAttendees(false);
     }

@@ -13,13 +13,13 @@ export const initializeStripe = async () => {
   try {
     await initStripe({
       publishableKey,
-      merchantIdentifier: 'merchant.com.rallysphere', // Update with your merchant ID for Apple Pay
+      merchantIdentifier: 'merchant.com.rallysphere.app', // Apple Pay merchant ID
       urlScheme: 'rallysphere', // For handling redirects
     });
-    console.log('Stripe initialized successfully');
+    // console.log('Stripe initialized successfully');
     return { success: true };
   } catch (error: any) {
-    console.error('Error initializing Stripe:', error);
+    // console.error('Error initializing Stripe:', error);
     return { success: false, error: error.message };
   }
 };
@@ -34,8 +34,8 @@ const auth = getAuth(app);
 const functions = getFunctions(app, 'us-central1');
 
 // Debug: Log functions URL to verify we're not using emulator
-console.log('Firebase Functions URL:', functions.customDomain || 'using default');
-console.log('Firebase Auth:', auth.currentUser ? 'User authenticated' : 'No user');
+// console.log('Firebase Functions URL:', functions.customDomain || 'using default');
+// console.log('Firebase Auth:', auth.currentUser ? 'User authenticated' : 'No user');
 
 export interface CreatePaymentIntentParams {
   eventId: string;
@@ -89,7 +89,7 @@ export const createPaymentIntent = async (
       };
     }
   } catch (error: any) {
-    console.error('Error creating payment intent:', error);
+    // console.error('Error creating payment intent:', error);
     return {
       success: false,
       error: error.message || 'Failed to create payment intent',
@@ -127,7 +127,7 @@ export const processPayment = async (
     });
 
     if (error) {
-      console.error('Payment confirmation error:', error);
+      // console.error('Payment confirmation error:', error);
       return {
         success: false,
         error: error.message || 'Payment failed',
@@ -143,7 +143,7 @@ export const processPayment = async (
       error: 'Payment was not successful',
     };
   } catch (error: any) {
-    console.error('Error processing payment:', error);
+    // console.error('Error processing payment:', error);
     return {
       success: false,
       error: error.message || 'An unexpected error occurred',
@@ -174,23 +174,23 @@ export const createCheckoutSession = async (
   try {
     const currentUser = auth.currentUser;
     if (!currentUser) {
-      console.error('No authenticated user found');
+      // console.error('No authenticated user found');
       return {
         success: false,
         error: 'You must be logged in to purchase tickets',
       };
     }
 
-    console.log('Creating checkout session for:', {
-      eventId: params.eventId,
-      ticketPrice: params.ticketPrice,
-      userId: currentUser.uid,
-      email: currentUser.email
-    });
+    // console.log('Creating checkout session for:', {
+    //   eventId: params.eventId,
+    //   ticketPrice: params.ticketPrice,
+    //   userId: currentUser.uid,
+    //   email: currentUser.email
+    // });
 
     // Get fresh auth token to ensure it's valid
     const idToken = await currentUser.getIdToken(true);
-    console.log('Got auth token for checkout, length:', idToken.length);
+    // console.log('Got auth token for checkout, length:', idToken.length);
 
     const createSessionFn = httpsCallable(functions, 'createCheckoutSession');
     const result = await createSessionFn({
@@ -214,13 +214,13 @@ export const createCheckoutSession = async (
       };
     }
   } catch (error: any) {
-    console.error('Error creating checkout session:', error);
-    console.error('Error details:', {
-      code: error.code,
-      message: error.message,
-      details: error.details,
-      customData: error.customData
-    });
+    // console.error('Error creating checkout session:', error);
+    // console.error('Error details:', {
+    //   code: error.code,
+    //   message: error.message,
+    //   details: error.details,
+    //   customData: error.customData
+    // });
     return {
       success: false,
       error: error.message || 'Failed to create checkout session',
@@ -242,7 +242,7 @@ export const getUserPayments = async () => {
       payments: data.payments || [],
     };
   } catch (error: any) {
-    console.error('Error getting user payments:', error);
+    // console.error('Error getting user payments:', error);
     return {
       success: false,
       error: error.message,
@@ -259,18 +259,18 @@ export const createStripeConnectAccount = async (clubId: string, email: string, 
     // Check if user is authenticated
     const currentUser = auth.currentUser;
     if (!currentUser) {
-      console.error('No authenticated user found');
+      // console.error('No authenticated user found');
       return {
         success: false,
         error: 'You must be logged in to connect Stripe',
       };
     }
 
-    console.log('Creating Stripe Connect account for:', { clubId, email, clubName, userId: currentUser.uid });
+    // console.log('Creating Stripe Connect account for:', { clubId, email, clubName, userId: currentUser.uid });
 
     // Get fresh auth token to ensure it's valid
     const idToken = await currentUser.getIdToken(true);
-    console.log('Got auth token, length:', idToken.length);
+    // console.log('Got auth token, length:', idToken.length);
 
     const createAccountFn = httpsCallable(functions, 'createStripeConnectAccount');
     const result = await createAccountFn({ clubId, email, clubName });
@@ -282,13 +282,13 @@ export const createStripeConnectAccount = async (clubId: string, email: string, 
       onboardingUrl: data.onboardingUrl,
     };
   } catch (error: any) {
-    console.error('Error creating Stripe Connect account:', error);
-    console.error('Error details:', {
-      code: error.code,
-      message: error.message,
-      details: error.details,
-      customData: error.customData
-    });
+    // console.error('Error creating Stripe Connect account:', error);
+    // console.error('Error details:', {
+    //   code: error.code,
+    //   message: error.message,
+    //   details: error.details,
+    //   customData: error.customData
+    // });
     return {
       success: false,
       error: error.message || 'Failed to create Stripe account',
@@ -304,7 +304,7 @@ export const checkStripeAccountStatus = async (accountId: string) => {
     // Check if user is authenticated
     const currentUser = auth.currentUser;
     if (!currentUser) {
-      console.error('No authenticated user found');
+      // console.error('No authenticated user found');
       return {
         success: false,
         error: 'You must be logged in to check account status',
@@ -320,7 +320,7 @@ export const checkStripeAccountStatus = async (accountId: string) => {
       ...data,
     };
   } catch (error: any) {
-    console.error('Error checking account status:', error);
+    // console.error('Error checking account status:', error);
     return {
       success: false,
       error: error.message,
@@ -361,18 +361,18 @@ export const createStorePaymentIntent = async (
   try {
     const currentUser = auth.currentUser;
     if (!currentUser) {
-      console.error('No authenticated user found');
+      // console.error('No authenticated user found');
       return {
         success: false,
         error: 'You must be logged in to purchase',
       };
     }
 
-    console.log('Creating store payment intent for:', {
-      itemId: params.itemId,
-      quantity: params.quantity,
-      userId: currentUser.uid,
-    });
+    // console.log('Creating store payment intent for:', {
+    //   itemId: params.itemId,
+    //   quantity: params.quantity,
+    //   userId: currentUser.uid,
+    // });
 
     // Get fresh auth token
     const idToken = await currentUser.getIdToken(true);
@@ -401,12 +401,12 @@ export const createStorePaymentIntent = async (
       };
     }
   } catch (error: any) {
-    console.error('Error creating store payment intent:', error);
-    console.error('Error details:', {
-      code: error.code,
-      message: error.message,
-      details: error.details,
-    });
+    // console.error('Error creating store payment intent:', error);
+    // console.error('Error details:', {
+    //   code: error.code,
+    //   message: error.message,
+    //   details: error.details,
+    // });
     return {
       success: false,
       error: error.message || 'Failed to create payment intent',
@@ -447,23 +447,23 @@ export const createStoreCheckoutSession = async (
   try {
     const currentUser = auth.currentUser;
     if (!currentUser) {
-      console.error('No authenticated user found');
+      // console.error('No authenticated user found');
       return {
         success: false,
         error: 'You must be logged in to purchase',
       };
     }
 
-    console.log('Creating store checkout session for:', {
-      itemId: params.itemId,
-      quantity: params.quantity,
-      userId: currentUser.uid,
-      email: currentUser.email
-    });
+    // console.log('Creating store checkout session for:', {
+    //   itemId: params.itemId,
+    //   quantity: params.quantity,
+    //   userId: currentUser.uid,
+    //   email: currentUser.email
+    // });
 
     // Get fresh auth token
     const idToken = await currentUser.getIdToken(true);
-    console.log('Got auth token for checkout, length:', idToken.length);
+    // console.log('Got auth token for checkout, length:', idToken.length);
 
     const createSessionFn = httpsCallable(functions, 'createStoreCheckoutSession');
     const result = await createSessionFn({
@@ -489,13 +489,13 @@ export const createStoreCheckoutSession = async (
       };
     }
   } catch (error: any) {
-    console.error('Error creating store checkout session:', error);
-    console.error('Error details:', {
-      code: error.code,
-      message: error.message,
-      details: error.details,
-      customData: error.customData
-    });
+    // console.error('Error creating store checkout session:', error);
+    // console.error('Error details:', {
+    //   code: error.code,
+    //   message: error.message,
+    //   details: error.details,
+    //   customData: error.customData
+    // });
     return {
       success: false,
       error: error.message || 'Failed to create checkout session',
@@ -542,7 +542,7 @@ export const leaveEventWithRefund = async (
       creditsForfeited: data.creditsForfeited,
     };
   } catch (error: any) {
-    console.error('Error leaving event with refund:', error);
+    // console.error('Error leaving event with refund:', error);
     const errorMessage = error.details?.message || error.message || 'Failed to leave event';
     return {
       success: false,
@@ -589,7 +589,7 @@ export const refundTicketOrder = async (
       refundAmount: data.refundAmount,
     };
   } catch (error: any) {
-    console.error('Error refunding ticket order:', error);
+    // console.error('Error refunding ticket order:', error);
     // Extract the actual error message from Firebase Functions error
     const errorMessage = error.details?.message || error.message || 'Failed to process refund';
     return {
@@ -626,7 +626,7 @@ export const refundStoreOrder = async (
       refundAmount: data.refundAmount,
     };
   } catch (error: any) {
-    console.error('Error refunding store order:', error);
+    // console.error('Error refunding store order:', error);
     // Extract the actual error message from Firebase Functions error
     const errorMessage = error.details?.message || error.message || 'Failed to process refund';
     return {

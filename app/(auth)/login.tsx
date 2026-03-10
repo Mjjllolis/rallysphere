@@ -78,7 +78,7 @@ export default function LoginScreen() {
                 Alert.alert('Login Failed', result.error || 'Invalid email or password');
             }
         } catch (error) {
-            console.error('Login error:', error);
+            // console.error('Login error:', error);
             Alert.alert('Error', 'An unexpected error occurred');
         } finally {
             setLoading(false);

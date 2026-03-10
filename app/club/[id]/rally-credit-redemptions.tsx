@@ -110,7 +110,7 @@ export default function RallyCreditRedemptionsScreen() {
         setRedemptions(redemptionsResult.redemptions || []);
       }
     } catch (error) {
-      console.error('Error loading redemptions:', error);
+      // console.error('Error loading redemptions:', error);
     } finally {
       setLoading(false);
     }
@@ -217,7 +217,7 @@ export default function RallyCreditRedemptionsScreen() {
         }
       }
     } catch (error) {
-      console.error('Error saving redemption:', error);
+      // console.error('Error saving redemption:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setSaving(false);

@@ -97,7 +97,7 @@ export default function PostForm({ onColorsExtracted, onSuccess }: PostFormProps
         }]
       );
     } catch (error) {
-      console.error('Create post error:', error);
+      // console.error('Create post error:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setLoading(false);

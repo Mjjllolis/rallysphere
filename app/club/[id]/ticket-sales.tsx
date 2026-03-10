@@ -74,7 +74,7 @@ export default function TicketSalesScreen() {
                 enriched.eventTitle = eventResult.event.title;
               }
             } catch (e) {
-              console.error('Error getting event:', e);
+              // console.error('Error getting event:', e);
             }
 
             // Get user info
@@ -85,7 +85,7 @@ export default function TicketSalesScreen() {
                 enriched.userEmail = userResult.user.email;
               }
             } catch (e) {
-              console.error('Error getting user:', e);
+              // console.error('Error getting user:', e);
             }
 
             return enriched;
@@ -94,7 +94,7 @@ export default function TicketSalesScreen() {
         setPayments(enrichedPayments);
       }
     } catch (error) {
-      console.error('Error loading ticket sales:', error);
+      // console.error('Error loading ticket sales:', error);
     } finally {
       setLoading(false);
     }

@@ -70,7 +70,7 @@ export default function EventDetailScreen() {
               newData.set(userId, profile);
             }
           } catch (e) {
-            console.error('Error loading attendee:', e);
+            // console.error('Error loading attendee:', e);
           }
         } else {
           newData.set(userId, attendeesData.get(userId)!);
@@ -104,7 +104,7 @@ export default function EventDetailScreen() {
           }
         } catch (error) {
           // Silent fail - user can manually refresh
-          console.error('Auto-confirm credits error:', error);
+          // console.error('Auto-confirm credits error:', error);
         }
       }
     };
@@ -121,7 +121,7 @@ export default function EventDetailScreen() {
         setUserCredits(result.credits);
       }
     } catch (error) {
-      console.error('Error loading user credits:', error);
+      // console.error('Error loading user credits:', error);
     }
   };
 
@@ -138,7 +138,7 @@ export default function EventDetailScreen() {
         router.back();
       }
     } catch (error) {
-      console.error('Error loading event data:', error);
+      // console.error('Error loading event data:', error);
       Alert.alert('Error', 'Failed to load event information');
     } finally {
       setLoading(false);
@@ -185,7 +185,7 @@ export default function EventDetailScreen() {
         Alert.alert('Error', result.error || 'Failed to join event');
       }
     } catch (error) {
-      console.error('Error joining event:', error);
+      // console.error('Error joining event:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setActionLoading(false);
@@ -210,7 +210,7 @@ export default function EventDetailScreen() {
         );
       } catch (error) {
         // Silent fail - Cloud Function may have already awarded them
-        console.log('Client-side credit award (backup):', error);
+        // console.log('Client-side credit award (backup):', error);
       }
     }
 
@@ -254,7 +254,7 @@ export default function EventDetailScreen() {
                 Alert.alert('Error', result.error || 'Failed to leave event');
               }
             } catch (error) {
-              console.error('Error leaving event:', error);
+              // console.error('Error leaving event:', error);
               Alert.alert('Error', 'An unexpected error occurred');
             } finally {
               setActionLoading(false);

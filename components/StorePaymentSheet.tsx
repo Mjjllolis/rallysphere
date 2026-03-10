@@ -222,8 +222,8 @@ export default function StorePaymentSheet({
         } : undefined,
       };
 
-      console.log('Store payment params:', JSON.stringify(paymentParams, null, 2));
-      console.log('Item price:', item.price, 'Quantity:', quantity, 'Total:', total);
+      // console.log('Store payment params:', JSON.stringify(paymentParams, null, 2));
+      // console.log('Item price:', item.price, 'Quantity:', quantity, 'Total:', total);
 
       const paymentIntentResult = await createStorePaymentIntent(paymentParams);
 
@@ -275,7 +275,7 @@ export default function StorePaymentSheet({
             `Store discount: ${item.name}`
           );
         } catch (error) {
-          console.error('Error spending credits:', error);
+          // console.error('Error spending credits:', error);
         }
       }
 
@@ -283,7 +283,7 @@ export default function StorePaymentSheet({
       onSuccess();
       onDismiss();
     } catch (error) {
-      console.error('Error processing payment:', error);
+      // console.error('Error processing payment:', error);
       Alert.alert('Error', 'Failed to process payment');
     } finally {
       setProcessing(false);

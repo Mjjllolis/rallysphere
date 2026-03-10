@@ -136,9 +136,9 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
         ? parseInt(formData.rallyCreditsPayout)
         : undefined;
 
-      console.log('Max Attendees Input:', formData.maxAttendees);
-      console.log('Max Attendees Value:', maxAttendeesValue);
-      console.log('Rally Credits Payout:', rallyCreditsPayoutValue);
+      // console.log('Max Attendees Input:', formData.maxAttendees);
+      // console.log('Max Attendees Value:', maxAttendeesValue);
+      // console.log('Rally Credits Payout:', rallyCreditsPayoutValue);
 
       const eventData = {
         title: formData.title.trim(),
@@ -170,7 +170,7 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
         Alert.alert('Error', result.error || 'Failed to create event');
       }
     } catch (error) {
-      console.error('Create event error:', error);
+      // console.error('Create event error:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setLoading(false);

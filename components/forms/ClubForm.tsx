@@ -150,7 +150,7 @@ export default function ClubForm({ onColorsExtracted, onSuccess }: ClubFormProps
         Alert.alert('Error', result.error || 'Failed to create club');
       }
     } catch (error) {
-      console.error('Create club error:', error);
+      // console.error('Create club error:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setLoading(false);

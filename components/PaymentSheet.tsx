@@ -127,7 +127,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
         setEventRedemptions(eventDiscounts);
       }
     } catch (error) {
-      console.error('Error loading discounts:', error);
+      // console.error('Error loading discounts:', error);
     } finally {
       setLoadingDiscounts(false);
     }
@@ -139,11 +139,11 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
     if (!priceToUse) return;
 
     try {
-      console.log('🔍 loadFeeBreakdown params:', {
-        ticketPrice: priceToUse,
-        originalPrice: originalPriceToUse,
-        eventTicketPrice: event.ticketPrice
-      });
+      // console.log('🔍 loadFeeBreakdown params:', {
+      //   ticketPrice: priceToUse,
+      //   originalPrice: originalPriceToUse,
+      //   eventTicketPrice: event.ticketPrice
+      // });
 
       const paymentIntentResult = await createPaymentIntent({
         eventId: event.id,
@@ -156,7 +156,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
         setFeeBreakdown(paymentIntentResult.breakdown);
       }
     } catch (error) {
-      console.error('Error loading fee breakdown:', error);
+      // console.error('Error loading fee breakdown:', error);
     }
   };
 
@@ -164,7 +164,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
     try {
       const userId = auth.currentUser?.uid;
       if (!userId) {
-        console.error('No user ID found');
+        // console.error('No user ID found');
         return;
       }
 
@@ -173,9 +173,9 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
         attendees: arrayUnion(userId),
       });
 
-      console.log('Successfully added user to event');
+      // console.log('Successfully added user to event');
     } catch (error) {
-      console.error('Error adding user to event:', error);
+      // console.error('Error adding user to event:', error);
     }
   };
 
@@ -246,7 +246,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
         onDismiss();
       }
     } catch (error: any) {
-      console.error('Payment error:', error);
+      // console.error('Payment error:', error);
       Alert.alert('Error', error.message || 'An unexpected error occurred');
     } finally {
       setLoading(false);
@@ -327,7 +327,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
         );
       }, 1500); // Wait 1.5 seconds for webhook to process
     } catch (error: any) {
-      console.error('Apple Pay error:', error);
+      // console.error('Apple Pay error:', error);
       Alert.alert('Error', error.message || 'An unexpected error occurred');
     } finally {
       setLoading(false);
@@ -405,7 +405,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
         ]
       );
     } catch (error: any) {
-      console.error('Google Pay error:', error);
+      // console.error('Google Pay error:', error);
       Alert.alert('Error', error.message || 'An unexpected error occurred');
     } finally {
       setLoading(false);
@@ -508,11 +508,11 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
       });
 
       if (initError) {
-        console.error('Payment Sheet init error:', {
-          code: initError.code,
-          message: initError.message,
-          localizedMessage: initError.localizedMessage,
-        });
+        // console.error('Payment Sheet init error:', {
+        //   code: initError.code,
+        //   message: initError.message,
+        //   localizedMessage: initError.localizedMessage,
+        // });
         Alert.alert('Payment Error', `${initError.message}\n\nCode: ${initError.code}`);
         setLoading(false);
         return;
@@ -540,7 +540,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
         );
 
         if (!spendResult.success) {
-          console.error('Failed to spend rally credits:', spendResult.error);
+          // console.error('Failed to spend rally credits:', spendResult.error);
           // Note: Payment already succeeded, so we don't fail the transaction
           // The credits spend is best-effort
         }
@@ -563,7 +563,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
         ]
       );
     } catch (error: any) {
-      console.error('Payment Sheet error:', error);
+      // console.error('Payment Sheet error:', error);
       Alert.alert('Error', error.message || 'An unexpected error occurred');
     } finally {
       setLoading(false);
@@ -669,7 +669,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
       // Redirect to Stripe Checkout
       window.location.href = result.checkoutUrl;
     } catch (error: any) {
-      console.error('Web payment error:', error);
+      // console.error('Web payment error:', error);
       Alert.alert('Error', error.message || 'An unexpected error occurred');
       setLoading(false);
     }
@@ -1045,7 +1045,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
 const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
   },
   webMessage: {
     margin: 'auto',
