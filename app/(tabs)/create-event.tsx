@@ -1,6 +1,6 @@
 // app/event/create.tsx
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, Alert, Dimensions, TouchableOpacity, KeyboardAvoidingView, KeyboardAvoidingView } from 'react-native';
+import { View, ScrollView, StyleSheet, Alert, Dimensions, TouchableOpacity, KeyboardAvoidingView } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import {
   Text,
