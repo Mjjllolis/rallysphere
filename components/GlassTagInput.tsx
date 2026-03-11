@@ -1,9 +1,10 @@
 // components/GlassTagInput.tsx
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { View, TextInput, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Text, IconButton, useTheme } from 'react-native-paper';
 import { BlurView } from 'expo-blur';
 import { useThemeToggle } from '../app/_layout';
+import { useScrollContext } from '../contexts/ScrollContext';
 
 interface GlassTagInputProps {
   label: string;
@@ -21,6 +22,14 @@ export default function GlassTagInput({
   const theme = useTheme();
   const { isDark } = useThemeToggle();
   const [inputValue, setInputValue] = useState('');
+  const containerRef = useRef<View>(null);
+  const scrollContext = useScrollContext();
+
+  const handleFocus = useCallback(() => {
+    if (scrollContext) {
+      scrollContext.scrollToInput(containerRef);
+    }
+  }, [scrollContext]);
 
   const handleSubmitEditing = () => {
     const newTag = inputValue.trim();
@@ -35,7 +44,7 @@ export default function GlassTagInput({
   };
 
   return (
-    <View style={styles.container}>
+    <View ref={containerRef} style={styles.container}>
       <Text style={[styles.label, { color: theme.colors.onSurface }]}>{label}</Text>
 
       {/* Tag Display Area */}
@@ -78,6 +87,7 @@ export default function GlassTagInput({
               value={inputValue}
               onChangeText={setInputValue}
               onSubmitEditing={handleSubmitEditing}
+              onFocus={handleFocus}
               placeholder={placeholder}
               placeholderTextColor={theme.colors.onSurfaceDisabled}
               style={[styles.input, { color: theme.colors.onSurface }]}
@@ -94,6 +104,7 @@ export default function GlassTagInput({
               value={inputValue}
               onChangeText={setInputValue}
               onSubmitEditing={handleSubmitEditing}
+              onFocus={handleFocus}
               placeholder={placeholder}
               placeholderTextColor={theme.colors.onSurfaceDisabled}
               style={[styles.input, { color: theme.colors.onSurface }]}

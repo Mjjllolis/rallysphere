@@ -1,9 +1,10 @@
 // components/GlassInput.tsx
-import React from 'react';
+import React, { useRef, useCallback } from 'react';
 import { View, TextInput, StyleSheet, TextInputProps, Text } from 'react-native';
 import { IconButton, useTheme } from 'react-native-paper';
 import { BlurView } from 'expo-blur';
 import { useThemeToggle } from '../app/_layout';
+import { useScrollContext } from '../contexts/ScrollContext';
 
 interface GlassInputProps extends TextInputProps {
   label: string;
@@ -12,13 +13,22 @@ interface GlassInputProps extends TextInputProps {
   compact?: boolean;
 }
 
-export default function GlassInput({ label, icon, error, style, compact, ...props }: GlassInputProps) {
+export default function GlassInput({ label, icon, error, style, compact, onFocus, ...props }: GlassInputProps) {
   const theme = useTheme();
   const { isDark } = useThemeToggle();
   const isMultiline = props.multiline;
+  const containerRef = useRef<View>(null);
+  const scrollContext = useScrollContext();
+
+  const handleFocus = useCallback((e: any) => {
+    if (scrollContext) {
+      scrollContext.scrollToInput(containerRef);
+    }
+    onFocus?.(e);
+  }, [scrollContext, onFocus]);
 
   return (
-    <View style={[styles.container, isMultiline && styles.containerMultiline, style]}>
+    <View ref={containerRef} style={[styles.container, isMultiline && styles.containerMultiline, style]}>
       <Text style={[styles.label, { color: theme.colors.onSurface }]}>{label}</Text>
       <View style={styles.inputWrapper}>
         {isDark ? (
@@ -32,6 +42,7 @@ export default function GlassInput({ label, icon, error, style, compact, ...prop
               <TextInput
                 style={[styles.input, icon && styles.inputWithIcon, isMultiline && styles.inputMultiline, { color: theme.colors.onSurface }]}
                 placeholderTextColor={theme.colors.onSurfaceDisabled}
+                onFocus={handleFocus}
                 {...props}
               />
             </View>
@@ -47,6 +58,7 @@ export default function GlassInput({ label, icon, error, style, compact, ...prop
               <TextInput
                 style={[styles.input, icon && styles.inputWithIcon, isMultiline && styles.inputMultiline, { color: theme.colors.onSurface }]}
                 placeholderTextColor={theme.colors.onSurfaceDisabled}
+                onFocus={handleFocus}
                 {...props}
               />
             </View>

@@ -308,7 +308,7 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
 
       {hasWaiver && (
         <GlassInput
-          label="Waiver / Terms Text"
+          label="Waiver / Terms Text (RED TEST)"
           value={waiverText}
           onChangeText={setWaiverText}
           placeholder="Enter the waiver or terms that attendees must agree to..."

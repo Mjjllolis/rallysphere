@@ -1,6 +1,6 @@
 // app/event/create.tsx
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, Alert, Dimensions, TouchableOpacity, KeyboardAvoidingView } from 'react-native';
+import { View, ScrollView, StyleSheet, Alert, Dimensions, TouchableOpacity, KeyboardAvoidingView, KeyboardAvoidingView } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import {
   Text,
@@ -312,12 +312,17 @@ export default function CreateEventScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={[styles.container, { backgroundColor: theme.colors.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        stickyHeaderIndices={[0]}
-        keyboardShouldPersistTaps="handled"
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <KeyboardAvoidingView style={[styles.container, { backgroundColor: theme.colors.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          stickyHeaderIndices={[0]}
+          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="handled"
       >
         {/* Header with Gradient */}
         <View>
@@ -721,7 +726,7 @@ export default function CreateEventScreen() {
                 <View style={[styles.waiverSection, isDark && { borderTopColor: 'rgba(255,255,255,0.1)' }]}>
                   <View style={styles.waiverHeader}>
                     <IconButton icon="file-document-outline" size={20} iconColor={isDark ? '#60A5FA' : '#1B365D'} />
-                    <Text variant="bodyMedium" style={[styles.waiverHeaderText, isDark && { color: '#60A5FA' }]}>
+                    <Text variant="bodyMedium" style={[[styles.waiverHeaderText, { color: 'red' }], isDark && { color: '#60A5FA' }]}>
                       Waiver / Terms Text
                     </Text>
                   </View>
@@ -754,7 +759,8 @@ export default function CreateEventScreen() {
             Create Event
           </Button>
         </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </KeyboardAvoidingView>
   );
 }

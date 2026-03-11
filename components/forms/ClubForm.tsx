@@ -12,7 +12,7 @@ import GlassButton from '../GlassButton';
 import { Text, useTheme } from 'react-native-paper';
 
 const SPORTS = [
-  'Basketball', 'Football', 'Soccer', 'Tennis', 'Pickleball', 'Baseball', 'Volleyball',
+  'Pickle Ball', 'Basketball', 'Football', 'Soccer', 'Tennis', 'Pickleball', 'Baseball', 'Volleyball',
   'Swimming', 'Track & Field', 'Golf', 'Hockey', 'Wrestling', 'Cross Country',
   'Softball', 'Lacrosse', 'Rugby', 'Cricket', 'Badminton', 'Table Tennis',
   'Martial Arts', 'Cycling', 'Running', 'Fitness', 'Other'
@@ -61,6 +61,12 @@ export default function ClubForm({ onColorsExtracted, onSuccess }: ClubFormProps
         ? prev.filter(t => t !== tag)
         : [...prev, tag]
     );
+  };
+
+  const isFormComplete = () => {
+    return formData.name.trim() !== '' &&
+           formData.description.trim() !== '' &&
+           formData.sport !== '';
   };
 
   const validateForm = () => {
@@ -296,6 +302,7 @@ export default function ClubForm({ onColorsExtracted, onSuccess }: ClubFormProps
         loading={loading}
         disabled={loading}
         variant="primary"
+        isReady={isFormComplete()}
       />
     </View>
   );
