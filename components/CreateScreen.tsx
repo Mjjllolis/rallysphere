@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useThemeToggle } from '../app/_layout';
+import { ScrollProvider } from '../contexts/ScrollContext';
 import EventForm from './forms/EventForm';
 import ClubForm from './forms/ClubForm';
 
@@ -36,6 +37,8 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
 
   const scaleAnim = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView>(null);
+  const currentScrollY = useRef(0);
 
   useEffect(() => {
     if (dropdownVisible) {
@@ -188,23 +191,30 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
           )}
 
           {/* Form Content */}
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <ScrollView
-              style={styles.content}
-              contentContainerStyle={styles.contentContainer}
-              showsVerticalScrollIndicator={true}
-              indicatorStyle={isDark ? "white" : "black"}
-              bounces={true}
-              keyboardShouldPersistTaps="handled"
-            >
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.content}
+            contentContainerStyle={styles.contentContainer}
+            showsVerticalScrollIndicator={true}
+            indicatorStyle={isDark ? "white" : "black"}
+            bounces={true}
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets={true}
+            onScroll={(e) => { currentScrollY.current = e.nativeEvent.contentOffset.y; }}
+            scrollEventThrottle={16}
+          >
+            <ScrollProvider scrollViewRef={scrollViewRef} currentScrollY={currentScrollY}>
               {selectedType === 'Event' && (
                 <EventForm onColorsExtracted={handleColorsExtracted} onSuccess={onClose} />
+              )}
+              {selectedType === 'Post' && (
+                <PostForm onColorsExtracted={handleColorsExtracted} onSuccess={onClose} />
               )}
               {selectedType === 'Club' && (
                 <ClubForm onColorsExtracted={handleColorsExtracted} onSuccess={onClose} />
               )}
-            </ScrollView>
-          </KeyboardAvoidingView>
+            </ScrollProvider>
+          </ScrollView>
         </SafeAreaView>
       </View>
     </Modal>
