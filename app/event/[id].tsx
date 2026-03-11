@@ -1,6 +1,6 @@
 // app/event/[id].tsx
-import React, { useState, useEffect, useRef, useCallback, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Linking, Dimensions, TouchableOpacity, ActivityIndicator, Modal, Animated, TextInput, PanResponder, Pressable, Platform, Platform, RefreshControl } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, StyleSheet, ScrollView, Alert, Linking, Dimensions, TouchableOpacity, ActivityIndicator, Modal, Animated, TextInput, PanResponder, Pressable, Platform, RefreshControl } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import {
   Text,
