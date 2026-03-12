@@ -9,6 +9,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import Constants from 'expo-constants';
 import { CartProvider } from '../lib/cartContext';
 import { FavoritesProvider } from '../lib/favoritesContext';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 // Conditionally import Stripe - only on native platforms
 let StripeProvider: any = null;
@@ -397,9 +398,11 @@ export default function RootLayout() {
   // console.log('Layout ready - User:', user ? user.email : 'No user');
 
   const content = (
-    <PaperProvider theme={theme}>
-      <Stack screenOptions={{ headerShown: false, animation: 'none' }} />
-    </PaperProvider>
+    <KeyboardProvider>
+      <PaperProvider theme={theme}>
+        <Stack screenOptions={{ headerShown: false, animation: 'none' }} />
+      </PaperProvider>
+    </KeyboardProvider>
   );
 
   return (
