@@ -11,7 +11,7 @@ export interface CartItem {
   images: string[];
   clubId: string;
   clubName: string;
-  taxRate: number;
+  taxRate?: number; // deprecated - tax calculated via Stripe Tax
   shippingCost: number;
   inventory: number;
   sold: number;

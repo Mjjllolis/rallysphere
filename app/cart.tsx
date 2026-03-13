@@ -41,8 +41,6 @@ export default function CartScreen() {
   const calculateTotals = () => {
     let itemsTotal = 0;
     let shipping = 0;
-    let taxableAmount = 0;
-    let tax = 0;
 
     cart.forEach((item) => {
       const itemSubtotal = item.price * item.quantity;
@@ -54,22 +52,10 @@ export default function CartScreen() {
       }
     });
 
-    // Calculate tax on (items + shipping)
-    taxableAmount = itemsTotal + shipping;
+    // Tax is calculated at checkout via Stripe Tax
+    const total = itemsTotal + shipping;
 
-    // Use weighted average tax rate based on item totals
-    if (cart.length > 0) {
-      const weightedTaxRate = cart.reduce((sum, item) => {
-        const itemTotal = item.price * item.quantity;
-        return sum + (item.taxRate * itemTotal);
-      }, 0) / itemsTotal;
-
-      tax = taxableAmount * (weightedTaxRate / 100);
-    }
-
-    const total = taxableAmount + tax;
-
-    return { itemsTotal, shipping, tax, total };
+    return { itemsTotal, shipping, tax: 0, total };
   };
 
   const handleRemoveItem = (item: CartItem) => {
@@ -273,7 +259,7 @@ export default function CartScreen() {
 
           <View style={styles.summaryRow}>
             <Text style={[styles.summaryLabel, { color: theme.colors.onSurfaceVariant }]}>Tax</Text>
-            <Text style={[styles.summaryValue, { color: theme.colors.onSurface }]}>${tax.toFixed(2)}</Text>
+            <Text style={[styles.summaryValue, { color: theme.colors.onSurfaceVariant, fontStyle: 'italic', fontSize: 13 }]}>Calculated at checkout</Text>
           </View>
 
           <Divider style={{ marginVertical: 12 }} />

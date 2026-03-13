@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { createStorePaymentIntent } from '../lib/stripe';
+import type { StoreBreakdown } from '../lib/stripe';
 import { useThemeToggle } from '../app/_layout';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -47,6 +48,11 @@ export default function StorePaymentSheet({
   const [loadingRewards, setLoadingRewards] = useState(false);
   const [processing, setProcessing] = useState(false);
 
+  // Payment state
+  const [serverBreakdown, setServerBreakdown] = useState<StoreBreakdown | null>(null);
+  const [initializingPayment, setInitializingPayment] = useState(false);
+  const [paymentReady, setPaymentReady] = useState(false);
+
   // Stripe hooks
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
 
@@ -61,14 +67,99 @@ export default function StorePaymentSheet({
       }).start();
       loadUserCredits();
       loadStoreRedemptions();
+      preparePayment();
     } else {
       Animated.timing(slideAnim, {
         toValue: SCREEN_HEIGHT,
         duration: 250,
         useNativeDriver: true,
       }).start();
+      setServerBreakdown(null);
+      setPaymentReady(false);
     }
   }, [visible]);
+
+  // Re-prepare payment when reward changes
+  useEffect(() => {
+    if (visible && userId) {
+      preparePayment();
+    }
+  }, [selectedReward]);
+
+  const preparePayment = async () => {
+    const price = item.price || 0;
+    const qty = quantity || 1;
+    const itemPrice = price * qty;
+
+    // Skip if item is free (after potential discount)
+    if (itemPrice <= 0) return;
+
+    setInitializingPayment(true);
+    setPaymentReady(false);
+
+    try {
+      const rewardDiscountAmount = selectedReward
+        ? selectedReward.discountPercent
+          ? (itemPrice * selectedReward.discountPercent) / 100
+          : Math.min(itemPrice, selectedReward.discountAmount || 0)
+        : 0;
+
+      const paymentParams: any = {
+        itemId: item.id,
+        quantity,
+        selectedVariants,
+        deliveryMethod,
+        shippingAddress: deliveryMethod === 'shipping' && selectedAddress ? {
+          fullName: selectedAddress.fullName,
+          addressLine1: selectedAddress.addressLine1,
+          addressLine2: selectedAddress.addressLine2,
+          city: selectedAddress.city,
+          state: selectedAddress.state,
+          zipCode: selectedAddress.zipCode,
+          country: selectedAddress.country || 'US',
+          phone: selectedAddress.phone || '',
+        } : undefined,
+        rewardDiscount: selectedReward ? {
+          redemptionId: selectedReward.id,
+          redemptionName: selectedReward.name,
+          creditsRequired: selectedReward.creditsRequired,
+          discountAmount: rewardDiscountAmount,
+        } : undefined,
+      };
+
+      const result = await createStorePaymentIntent(paymentParams);
+
+      if (!result.success || !result.clientSecret) {
+        setInitializingPayment(false);
+        return;
+      }
+
+      if (result.breakdown) {
+        setServerBreakdown(result.breakdown);
+      }
+
+      const { error: initError } = await initPaymentSheet({
+        merchantDisplayName: 'RallySphere',
+        paymentIntentClientSecret: result.clientSecret,
+        allowsDelayedPaymentMethods: true,
+        googlePay: {
+          merchantCountryCode: 'US',
+          testEnv: true,
+        },
+        applePay: {
+          merchantCountryCode: 'US',
+        },
+      });
+
+      if (!initError) {
+        setPaymentReady(true);
+      }
+    } catch (error) {
+      // Payment preparation failed silently
+    } finally {
+      setInitializingPayment(false);
+    }
+  };
 
   const loadUserCredits = async () => {
     if (!userId) return;
@@ -134,9 +225,6 @@ export default function StorePaymentSheet({
     const itemPrice = price * qty;
     const shipping = deliveryMethod === 'shipping' ? (item.shippingCost || 0) : 0;
 
-    // ORIGINAL price before any discount (for fee calculation)
-    const originalItemAndShipping = itemPrice + shipping;
-
     let rewardDiscount = 0;
     if (selectedReward) {
       if (selectedReward.discountPercent) {
@@ -146,20 +234,12 @@ export default function StorePaymentSheet({
       }
     }
 
-    // Calculate subtotal after discount
     const subtotal = Math.max(0, itemPrice - rewardDiscount);
-    const itemAndShipping = subtotal + shipping;
 
-    // Calculate tax on item + shipping (after discount)
-    const taxRate = item.taxRate || 0;
-    const tax = Math.round(itemAndShipping * (taxRate / 100) * 100) / 100;
-
-    const PROCESSING_FEE_PERCENTAGE = 0.06;  // 6%
-    const PROCESSING_FEE_FIXED = 0.29;  // $0.29
-    const processingFee = Math.round(((originalItemAndShipping * PROCESSING_FEE_PERCENTAGE) + PROCESSING_FEE_FIXED) * 100) / 100;
-
-    // Total: discounted item + shipping + tax + processing fee (on original)
-    const total = Math.round((itemAndShipping + tax + processingFee) * 100) / 100;
+    // Tax and processing fee come from server (Stripe Tax)
+    const tax = serverBreakdown?.tax ?? 0;
+    const processingFee = serverBreakdown?.processingFee ?? 0;
+    const total = serverBreakdown?.totalAmount ?? (subtotal + shipping + tax + processingFee);
 
     return {
       itemPrice,
@@ -198,62 +278,13 @@ export default function StorePaymentSheet({
         return;
       }
 
-      // Create payment intent
-      const paymentParams = {
-        itemId: item.id,
-        quantity,
-        selectedVariants,
-        deliveryMethod,
-        shippingAddress: deliveryMethod === 'shipping' && selectedAddress ? {
-          fullName: selectedAddress.fullName,
-          addressLine1: selectedAddress.addressLine1,
-          addressLine2: selectedAddress.addressLine2,
-          city: selectedAddress.city,
-          state: selectedAddress.state,
-          zipCode: selectedAddress.zipCode,
-          country: selectedAddress.country || 'US',
-          phone: selectedAddress.phone || '',
-        } : undefined,
-        rewardDiscount: selectedReward ? {
-          redemptionId: selectedReward.id,
-          redemptionName: selectedReward.name,
-          creditsRequired: selectedReward.creditsRequired,
-          discountAmount: calculateTotal().rewardDiscount,
-        } : undefined,
-      };
-
-      // console.log('Store payment params:', JSON.stringify(paymentParams, null, 2));
-      // console.log('Item price:', item.price, 'Quantity:', quantity, 'Total:', total);
-
-      const paymentIntentResult = await createStorePaymentIntent(paymentParams);
-
-      if (!paymentIntentResult.success || !paymentIntentResult.clientSecret) {
-        Alert.alert('Error', paymentIntentResult.error || 'Failed to initialize payment');
+      if (!paymentReady) {
+        Alert.alert('Please Wait', 'Payment is still being prepared. Please try again in a moment.');
         setProcessing(false);
         return;
       }
 
-      // Initialize Payment Sheet
-      const { error: initError } = await initPaymentSheet({
-        merchantDisplayName: 'RallySphere',
-        paymentIntentClientSecret: paymentIntentResult.clientSecret,
-        allowsDelayedPaymentMethods: true,
-        googlePay: {
-          merchantCountryCode: 'US',
-          testEnv: true,
-        },
-        applePay: {
-          merchantCountryCode: 'US',
-        },
-      });
-
-      if (initError) {
-        Alert.alert('Error', initError.message);
-        setProcessing(false);
-        return;
-      }
-
-      // Present Payment Sheet
+      // Present Payment Sheet (already initialized in preparePayment)
       const { error: presentError } = await presentPaymentSheet();
 
       if (presentError) {
@@ -275,7 +306,7 @@ export default function StorePaymentSheet({
             `Store discount: ${item.name}`
           );
         } catch (error) {
-          // console.error('Error spending credits:', error);
+          // Error spending credits
         }
       }
 
@@ -283,7 +314,6 @@ export default function StorePaymentSheet({
       onSuccess();
       onDismiss();
     } catch (error) {
-      // console.error('Error processing payment:', error);
       Alert.alert('Error', 'Failed to process payment');
     } finally {
       setProcessing(false);
@@ -496,17 +526,15 @@ export default function StorePaymentSheet({
                   </View>
                 )}
 
-                {calculateTotal().tax > 0 && (
-                  <View style={styles.breakdownRow}>
-                    <Text style={[styles.breakdownLabel, { color: theme.colors.onSurfaceVariant }]}>Tax</Text>
-                    <Text style={[styles.breakdownValue, { color: theme.colors.onSurface }]}>
-                      ${calculateTotal().tax.toFixed(2)}
-                    </Text>
-                  </View>
-                )}
+                <View style={styles.breakdownRow}>
+                  <Text style={[styles.breakdownLabel, { color: theme.colors.onSurfaceVariant }]}>Tax</Text>
+                  <Text style={[styles.breakdownValue, { color: theme.colors.onSurface }]}>
+                    {initializingPayment ? 'Calculating...' : `$${calculateTotal().tax.toFixed(2)}`}
+                  </Text>
+                </View>
 
                 <View style={styles.breakdownRow}>
-                  <Text style={[styles.breakdownLabel, { color: theme.colors.onSurfaceVariant }]}>Processing Fee</Text>
+                  <Text style={[styles.breakdownLabel, { color: theme.colors.onSurfaceVariant }]}>Service Fee (10% + $0.29)</Text>
                   <Text style={[styles.breakdownValue, { color: '#EF4444' }]}>
                     ${calculateTotal().processingFee.toFixed(2)}
                   </Text>
@@ -528,11 +556,11 @@ export default function StorePaymentSheet({
               <TouchableOpacity
                 style={styles.purchaseButton}
                 onPress={handlePurchase}
-                disabled={processing}
+                disabled={processing || initializingPayment}
                 activeOpacity={0.8}
               >
-                <LinearGradient colors={['#EF4444', '#DC2626']} style={styles.purchaseButtonGradient}>
-                  {processing ? (
+                <LinearGradient colors={['#EF4444', '#DC2626']} style={[styles.purchaseButtonGradient, initializingPayment && { opacity: 0.6 }]}>
+                  {processing || initializingPayment ? (
                     <ActivityIndicator color="white" />
                   ) : (
                     <Text style={styles.purchaseButtonText}>

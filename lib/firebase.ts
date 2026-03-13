@@ -280,9 +280,9 @@ export interface StoreItem {
   category: string;  // e.g., "Merch", "Equipment", "Snacks", "Etc"
   images: string[];  // URLs to Firebase Storage
   price: number;
-  taxRate: number;  // percentage for sales tax
+  taxRate?: number;  // deprecated - tax now calculated via Stripe Tax
   adminFeeRate: number;  // percentage for admin fee
-  transactionFeeRate: number;  // percentage for transaction fee (default 2.9%)
+  transactionFeeRate?: number;  // deprecated - removed from UI
   shippingCost: number | null;  // null if pickup only
   allowPickup: boolean;
   pickupOnly: boolean;
