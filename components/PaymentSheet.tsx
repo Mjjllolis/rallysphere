@@ -133,31 +133,24 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
     }
   };
 
-  const loadFeeBreakdown = async (ticketPrice?: number, originalPrice?: number) => {
+  const loadFeeBreakdown = (ticketPrice?: number, _originalPrice?: number) => {
     const priceToUse = ticketPrice ?? event.ticketPrice;
-    const originalPriceToUse = originalPrice ?? event.ticketPrice;
     if (!priceToUse) return;
 
-    try {
-      // console.log('🔍 loadFeeBreakdown params:', {
-      //   ticketPrice: priceToUse,
-      //   originalPrice: originalPriceToUse,
-      //   eventTicketPrice: event.ticketPrice
-      // });
+    // Calculate fee breakdown locally for instant display
+    // Service fee: 10% + $0.29
+    const SERVICE_FEE_PERCENTAGE = 0.10;
+    const SERVICE_FEE_FIXED = 0.29;
+    const processingFee = Math.round(((priceToUse * SERVICE_FEE_PERCENTAGE) + SERVICE_FEE_FIXED) * 100) / 100;
+    const totalAmount = Math.round((priceToUse + processingFee) * 100) / 100;
 
-      const paymentIntentResult = await createPaymentIntent({
-        eventId: event.id,
-        ticketPrice: priceToUse,
-        originalPrice: originalPriceToUse, // Always use original price for fee calculations
-        currency: event.currency || 'usd',
-      });
-
-      if (paymentIntentResult.success && paymentIntentResult.breakdown) {
-        setFeeBreakdown(paymentIntentResult.breakdown);
-      }
-    } catch (error) {
-      // console.error('Error loading fee breakdown:', error);
-    }
+    setFeeBreakdown({
+      ticketPrice: priceToUse,
+      processingFee,
+      platformFee: 0,
+      totalAmount,
+      clubReceives: priceToUse,
+    });
   };
 
   const addUserToEvent = async () => {
@@ -977,7 +970,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
 
               {feeBreakdown && !isFree && discountedTicketPrice > 0 && (
                 <View style={styles.breakdownRow}>
-                  <Text variant="bodyMedium" style={{ opacity: 0.7 }}>Processing Fee (6% + $0.29)</Text>
+                  <Text variant="bodyMedium" style={{ opacity: 0.7 }}>Service Fee (10% + $0.29)</Text>
                   <Text variant="bodyMedium" style={{ opacity: 0.7 }}>
                     {formatPrice(feeBreakdown.processingFee, event.currency)}
                   </Text>

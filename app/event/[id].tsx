@@ -403,8 +403,10 @@ export default function EventDetailScreen() {
     let message = 'Are you sure you want to leave this event?';
     if (isPaidEvent || hasCredits) {
       const parts = [];
-      if (isPaidEvent) {
-        parts.push(`You will be refunded $${event.ticketPrice.toFixed(2)}`);
+      if (isPaidEvent && event.ticketPrice) {
+        const serviceFee = (event.ticketPrice * 0.10) + 0.29;
+        const totalPaid = event.ticketPrice + serviceFee;
+        parts.push(`You will be refunded $${totalPaid.toFixed(2)} (ticket + service fee)`);
       }
       if (hasCredits) {
         parts.push(`${event.rallyCreditsAwarded} Rally Credits will be forfeited`);
@@ -790,7 +792,7 @@ export default function EventDetailScreen() {
                 <View style={styles.detailContent}>
                   <Text variant="labelLarge">Price</Text>
                   <Text variant="bodyMedium" style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>
-                    ${event.ticketPrice.toString()} {typeof event.currency === 'string' && event.currency.trim() !== '' ? event.currency : 'USD'}
+                    ${event.ticketPrice.toFixed(2)} + processing fee
                   </Text>
                 </View>
               </View>
@@ -1486,7 +1488,7 @@ export default function EventDetailScreen() {
                   : isFull
                   ? 'Event Full'
                   : event.ticketPrice && event.ticketPrice > 0
-                  ? `Buy Ticket - $${event.ticketPrice.toString()}`
+                  ? `Buy Ticket - $${event.ticketPrice.toFixed(2)} + fees`
                   : 'Join Event'}
               </Text>
             )}

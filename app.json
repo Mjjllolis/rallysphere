@@ -21,7 +21,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.rallysphere.app",
-      "buildNumber": "33",
+      "buildNumber": "35",
       "icon": {
         "light": "./assets/Logo.png",
         "dark": "./assets/Logo-dark.png"
@@ -60,7 +60,7 @@
       ],
       "expo-video"
     ],
-    "owner": "ibemisha",
+    "owner": "rallysphere",
     "extra": {
       "router": {},
       "eas": {

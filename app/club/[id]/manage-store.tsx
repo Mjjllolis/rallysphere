@@ -59,9 +59,7 @@ export default function ManageStoreScreen() {
     description: '',
     category: '',
     price: '',
-    taxRate: '',
     adminFeeRate: '10',
-    transactionFeeRate: '2.9',
     shippingCost: '',
     allowPickup: true,
     pickupOnly: false,
@@ -112,9 +110,7 @@ export default function ManageStoreScreen() {
       description: '',
       category: '',
       price: '',
-      taxRate: '0',
       adminFeeRate: '10',
-      transactionFeeRate: '2.9',
       shippingCost: '0',
       allowPickup: true,
       pickupOnly: false,
@@ -133,9 +129,7 @@ export default function ManageStoreScreen() {
       description: item.description,
       category: item.category || '',
       price: item.price.toString(),
-      taxRate: item.taxRate.toString(),
       adminFeeRate: (item.adminFeeRate || 10).toString(),
-      transactionFeeRate: (item.transactionFeeRate || 2.9).toString(),
       shippingCost: item.shippingCost?.toString() || '0',
       allowPickup: item.allowPickup,
       pickupOnly: item.pickupOnly,
@@ -239,9 +233,7 @@ export default function ManageStoreScreen() {
     }
 
     const price = parseFloat(formData.price);
-    const taxRate = parseFloat(formData.taxRate);
     const adminFeeRate = parseFloat(formData.adminFeeRate);
-    const transactionFeeRate = parseFloat(formData.transactionFeeRate);
     const shippingCost = formData.pickupOnly ? null : parseFloat(formData.shippingCost);
     const inventory = parseInt(formData.inventory);
 
@@ -266,9 +258,7 @@ export default function ManageStoreScreen() {
         category: formData.category,
         images: formData.images,
         price,
-        taxRate,
         adminFeeRate,
-        transactionFeeRate,
         shippingCost,
         allowPickup: formData.allowPickup,
         pickupOnly: formData.pickupOnly,
@@ -586,19 +576,9 @@ export default function ManageStoreScreen() {
               />
             </View>
 
-            {/* Taxes & Fees Section */}
+            {/* Fees Section */}
             <View style={styles.formSection}>
-              <Text variant="titleMedium" style={styles.sectionTitle}>Taxes & Fees</Text>
-
-              <TextInput
-                label="Sales Tax Rate (%)"
-                value={formData.taxRate}
-                onChangeText={(text) => setFormData({ ...formData, taxRate: text })}
-                style={styles.input}
-                mode="outlined"
-                keyboardType="decimal-pad"
-                placeholder="0"
-              />
+              <Text variant="titleMedium" style={styles.sectionTitle}>Fees</Text>
 
               <TextInput
                 label="Admin Fee (%)"
@@ -608,17 +588,6 @@ export default function ManageStoreScreen() {
                 mode="outlined"
                 keyboardType="decimal-pad"
                 placeholder="10"
-                disabled
-              />
-
-              <TextInput
-                label="Transaction Fee (%)"
-                value={formData.transactionFeeRate}
-                onChangeText={(text) => setFormData({ ...formData, transactionFeeRate: text })}
-                style={styles.input}
-                mode="outlined"
-                keyboardType="decimal-pad"
-                placeholder="2.9"
                 disabled
               />
             </View>

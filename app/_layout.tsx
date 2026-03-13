@@ -346,6 +346,12 @@ export default function RootLayout() {
             },
           ]
         );
+        return;
+      }
+
+      // Any other unrecognized deep link — go home
+      if (url.includes('rallysphere://')) {
+        router.replace('/(tabs)/home');
       }
     };
 

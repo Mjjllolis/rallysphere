@@ -238,18 +238,15 @@ export const createPaymentIntent = functions.https.onCall(
     // Use originalPrice for fee calculations (or ticketPrice if no discount)
     // originalPrice || ticketPrice used for fee calculations if needed
 
-    // Calculate fees - User pays: price + 6% processing + $0.29
-    // Club receives the full ticket price (no platform fee on events)
-    const PROCESSING_FEE_PERCENTAGE = 0.06; // 6%
-    const PROCESSING_FEE_FIXED = 0.29; // $0.29
+    // Calculate fees - User pays: price + 10% + $0.29 service fee
+    // Club receives the full ticket price
+    const SERVICE_FEE_PERCENTAGE = 0.10; // 10%
+    const SERVICE_FEE_FIXED = 0.29; // $0.29
 
-    // Calculate processing fee on ticket price
-    const processingFee = (ticketPrice * PROCESSING_FEE_PERCENTAGE) + PROCESSING_FEE_FIXED;
-
-    // No platform fee on events - club gets full ticket price
+    const processingFee = Math.round(((ticketPrice * SERVICE_FEE_PERCENTAGE) + SERVICE_FEE_FIXED) * 100) / 100;
     const platformFee = 0;
 
-    // Total amount to charge user (ticket + processing fee)
+    // Total amount to charge user (ticket + service fee)
     const totalAmount = ticketPrice + processingFee;
 
     // Amount club receives (full ticket price)
@@ -260,6 +257,7 @@ export const createPaymentIntent = functions.https.onCall(
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(totalAmount * 100), // Convert to cents
       currency: currency.toLowerCase(),
+      automatic_payment_methods: {enabled: true},
       metadata: {
         eventId,
         clubId: event.clubId,
@@ -397,32 +395,74 @@ export const createStorePaymentIntent = functions.https.onCall(
       // Calculate pricing
       const itemPrice = item.price * quantity;
       const shipping = deliveryMethod === "shipping" ? (item.shippingCost || 0) : 0;
-
-      // ORIGINAL price before any discount (for fee calculation)
-      // originalItemAndShipping = itemPrice + shipping used for fee calc if needed
+      const originalItemAndShipping = itemPrice + shipping;
 
       // Apply reward discount if provided
       const discountAmount = rewardDiscount?.discountAmount || 0;
       const subtotal = Math.max(0, itemPrice - discountAmount);
       const itemAndShipping = subtotal + shipping;
 
-      // Calculate fees
-      const tax = itemAndShipping * (item.taxRate / 100);
+      // Calculate tax using Stripe Tax API
+      const stripe = getStripe();
+      let taxAmount = 0;
+      let taxCalculationId: string | null = null;
 
-      // Platform fee: 10% of item subtotal only (not shipping/tax)
-      const PLATFORM_FEE_PERCENTAGE = 0.10;
-      const platformFee = subtotal * PLATFORM_FEE_PERCENTAGE;
+      // Build customer address for tax calculation
+      const customerAddress = shippingAddress ? {
+        line1: shippingAddress.addressLine1,
+        city: shippingAddress.city,
+        state: shippingAddress.state,
+        postal_code: shippingAddress.zipCode,
+        country: shippingAddress.country || "US",
+      } : null;
 
-      // Club receives: 90% of subtotal + shipping + tax (they remit tax)
-      const clubAmount = (subtotal - platformFee) + shipping + tax;
+      if (customerAddress && itemAndShipping > 0) {
+        try {
+          const taxCalcParams: Stripe.Tax.CalculationCreateParams = {
+            currency: "usd",
+            line_items: [
+              {
+                amount: Math.round(subtotal * 100),
+                reference: "item",
+              },
+            ],
+            customer_details: {
+              address: customerAddress,
+              address_source: "shipping",
+            },
+            ...(shipping > 0 ? {
+              shipping_cost: {
+                amount: Math.round(shipping * 100),
+              },
+            } : {}),
+          };
 
-      const totalAmount = itemAndShipping + tax;
+          const taxCalculation = await stripe.tax.calculations.create(taxCalcParams);
+          taxAmount = taxCalculation.tax_amount_exclusive / 100;
+          taxCalculationId = taxCalculation.id;
+          console.log(`Stripe Tax calculated: $${taxAmount} (calc: ${taxCalculationId})`);
+        } catch (taxError: any) {
+          console.error("Stripe Tax calculation error:", taxError.message);
+          taxAmount = 0;
+        }
+      }
+
+      // Service fee: 10% + $0.29 on original total (before discount)
+      const SERVICE_FEE_PERCENTAGE = 0.10;
+      const SERVICE_FEE_FIXED = 0.29;
+      const processingFee = Math.round(((originalItemAndShipping * SERVICE_FEE_PERCENTAGE) + SERVICE_FEE_FIXED) * 100) / 100;
+      const platformFee = 0;
+
+      // Club receives: subtotal + shipping + tax (service fee goes to RallySphere)
+      const clubAmount = itemAndShipping + taxAmount;
+
+      const totalAmount = itemAndShipping + taxAmount + processingFee;
 
       // Create payment intent with Stripe
-      const stripe = getStripe();
       const paymentIntent = await stripe.paymentIntents.create({
         amount: Math.round(totalAmount * 100), // Convert to cents
         currency: "usd",
+        automatic_payment_methods: {enabled: true},
         metadata: {
           type: "store_purchase",
           itemId,
@@ -435,7 +475,8 @@ export const createStorePaymentIntent = functions.https.onCall(
           deliveryMethod,
           shippingAddress: shippingAddress ? JSON.stringify(shippingAddress) : "",
           subtotal: subtotal.toString(),
-          tax: tax.toString(),
+          tax: taxAmount.toString(),
+          processingFee: processingFee.toFixed(2),
           platformFee: platformFee.toFixed(2),
           clubAmount: clubAmount.toFixed(2),
           shipping: shipping.toString(),
@@ -443,6 +484,9 @@ export const createStorePaymentIntent = functions.https.onCall(
           stripeAccountId: stripeAccountId,
           originalItemPrice: itemPrice.toString(),
           discountAmount: discountAmount.toString(),
+          ...(taxCalculationId && {
+            taxCalculationId: taxCalculationId,
+          }),
           ...(rewardDiscount && {
             rewardRedemptionId: rewardDiscount.redemptionId,
             rewardRedemptionName: rewardDiscount.redemptionName,
@@ -458,7 +502,8 @@ export const createStorePaymentIntent = functions.https.onCall(
         breakdown: {
           subtotal,
           shipping,
-          tax,
+          tax: taxAmount,
+          processingFee,
           platformFee,
           clubReceives: clubAmount,
           totalAmount,
@@ -562,10 +607,10 @@ export const createCheckoutSession = functions.https.onCall(
         );
       }
 
-      // Calculate fees - User pays: price + 6% processing + $0.29
-      const PROCESSING_FEE_PERCENTAGE = 0.06; // 6%
-      const PROCESSING_FEE_FIXED = 0.29; // $0.29
-      const processingFee = (ticketPrice * PROCESSING_FEE_PERCENTAGE) + PROCESSING_FEE_FIXED;
+      // Calculate fees - User pays: price + 10% + $0.29 service fee
+      const SERVICE_FEE_PERCENTAGE = 0.10; // 10%
+      const SERVICE_FEE_FIXED = 0.29; // $0.29
+      const processingFee = Math.round(((ticketPrice * SERVICE_FEE_PERCENTAGE) + SERVICE_FEE_FIXED) * 100) / 100;
       // totalAmount = ticketPrice + processingFee (calculated via line items)
 
       // Create Stripe Checkout Session
@@ -593,8 +638,8 @@ export const createCheckoutSession = functions.https.onCall(
             price_data: {
               currency: currency.toLowerCase(),
               product_data: {
-                name: "Processing Fee",
-                description: "6% + $0.29 processing fee",
+                name: "Service Fee",
+                description: "10% + $0.29 service fee",
               },
               unit_amount: Math.round(processingFee * 100), // Convert to cents
             },
@@ -810,6 +855,21 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
           await admin.firestore().collection("storeItems").doc(itemId).update({
             sold: admin.firestore.FieldValue.increment(parseInt(quantity)),
           });
+
+          // Create Stripe Tax transaction if tax was calculated
+          const taxCalcId = paymentIntent.metadata.taxCalculationId;
+          if (taxCalcId) {
+            try {
+              const stripe = getStripe();
+              await stripe.tax.transactions.createFromCalculation({
+                calculation: taxCalcId,
+                reference: paymentIntent.id,
+              });
+              console.log(`Tax transaction created for payment ${paymentIntent.id}`);
+            } catch (taxTxError: any) {
+              console.error("Error creating tax transaction:", taxTxError.message);
+            }
+          }
 
           console.log(`Store order created for user ${userId}, item ${itemId}`);
         } catch (error) {
@@ -1112,7 +1172,7 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
             });
           }
 
-          // Calculate fees - 6% + $0.29 processing fee, club gets full ticket price
+          // Calculate fees - 10% service fee, club gets full ticket price
           const ticketPriceNum = parseFloat(ticketPrice || "0");
           const totalAmountNum = (session.amount_total || 0) / 100;
           const processingFee = totalAmountNum - ticketPriceNum;
@@ -1767,10 +1827,10 @@ export const createStoreCheckoutSession = functions.https.onCall(
       const discountedSubtotal = Math.max(0, subtotal - discountAmountValue);
       const discountedItemAndShipping = discountedSubtotal + shipping;
 
-      // Processing fee: 6% + $0.29 on ORIGINAL total (before discount)
-      const PROCESSING_FEE_PERCENTAGE = 0.06; // 6%
-      const PROCESSING_FEE_FIXED = 0.29; // $0.29
-      const processingFee = (itemAndShipping * PROCESSING_FEE_PERCENTAGE) + PROCESSING_FEE_FIXED;
+      // Service fee: 10% + $0.29 on ORIGINAL total (before discount)
+      const SERVICE_FEE_PERCENTAGE = 0.10; // 10%
+      const SERVICE_FEE_FIXED = 0.29; // $0.29
+      const processingFee = Math.round(((itemAndShipping * SERVICE_FEE_PERCENTAGE) + SERVICE_FEE_FIXED) * 100) / 100;
 
       // Total amount charged to user (after discount)
       const totalAmount = discountedItemAndShipping + processingFee;
@@ -1830,7 +1890,7 @@ export const createStoreCheckoutSession = functions.https.onCall(
           currency: "usd",
           product_data: {
             name: "Processing Fee",
-            description: "6% + $0.29 processing fee",
+            description: "10% + $0.29 service fee",
           },
           unit_amount: Math.round(processingFee * 100),
         },
@@ -1842,6 +1902,7 @@ export const createStoreCheckoutSession = functions.https.onCall(
         payment_method_types: ["card"],
         line_items: lineItems,
         mode: "payment",
+        automatic_tax: {enabled: true},
         success_url: `rallysphere://payment-success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `rallysphere://payment-cancel`,
         customer_email: auth.token.email,

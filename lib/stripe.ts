@@ -346,12 +346,29 @@ export interface CreateStorePaymentIntentParams {
     country: string;
     phone: string;
   };
+  rewardDiscount?: {
+    redemptionId: string;
+    redemptionName: string;
+    creditsRequired: number;
+    discountAmount: number;
+  };
+}
+
+export interface StoreBreakdown {
+  subtotal: number;
+  shipping: number;
+  tax: number;
+  processingFee: number;
+  platformFee: number;
+  clubReceives: number;
+  totalAmount: number;
 }
 
 export interface CreateStorePaymentIntentResult {
   success: boolean;
   clientSecret?: string;
   paymentIntentId?: string;
+  breakdown?: StoreBreakdown;
   error?: string;
 }
 
@@ -384,6 +401,7 @@ export const createStorePaymentIntent = async (
       selectedVariants: params.selectedVariants,
       deliveryMethod: params.deliveryMethod,
       shippingAddress: params.shippingAddress,
+      rewardDiscount: params.rewardDiscount,
     });
 
     const data = result.data as any;
@@ -393,6 +411,7 @@ export const createStorePaymentIntent = async (
         success: true,
         clientSecret: data.clientSecret,
         paymentIntentId: data.paymentIntentId,
+        breakdown: data.breakdown,
       };
     } else {
       return {
