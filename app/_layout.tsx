@@ -390,8 +390,10 @@ export default function RootLayout() {
   }, [authLoading, themeLoading]);
 
   const theme = isDark ? darkTheme : lightTheme;
-  const publishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
-    Constants.expoConfig?.extra?.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
+  const isTestMode = process.env.EXPO_PUBLIC_APP_ENV === 'test';
+  const publishableKey = isTestMode
+    ? (process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY_TEST || '')
+    : (process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY_LIVE || '');
 
   // Show loading state while initializing
   if (authLoading || themeLoading) {

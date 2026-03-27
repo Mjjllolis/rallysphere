@@ -3,6 +3,9 @@ PODS:
     - ExpoModulesCore
   - EXConstants (18.0.13):
     - ExpoModulesCore
+  - EXFirebaseCore (6.0.0):
+    - ExpoModulesCore
+    - Firebase/Core (= 9.5.0)
   - EXImageLoader (6.0.0):
     - ExpoModulesCore
     - React-Core
@@ -277,6 +280,114 @@ PODS:
   - EXUpdatesInterface (2.0.0):
     - ExpoModulesCore
   - FBLazyVector (0.81.5)
+  - Firebase/Core (9.5.0):
+    - Firebase/CoreOnly
+    - FirebaseAnalytics (~> 9.5.0)
+  - Firebase/CoreOnly (9.5.0):
+    - FirebaseCore (= 9.5.0)
+  - FirebaseAnalytics (9.5.0):
+    - FirebaseAnalytics/AdIdSupport (= 9.5.0)
+    - FirebaseCore (~> 9.0)
+    - FirebaseInstallations (~> 9.0)
+    - GoogleUtilities/AppDelegateSwizzler (~> 7.7)
+    - GoogleUtilities/MethodSwizzler (~> 7.7)
+    - GoogleUtilities/Network (~> 7.7)
+    - "GoogleUtilities/NSData+zlib (~> 7.7)"
+    - nanopb (< 2.30910.0, >= 2.30908.0)
+  - FirebaseAnalytics/AdIdSupport (9.5.0):
+    - FirebaseCore (~> 9.0)
+    - FirebaseInstallations (~> 9.0)
+    - GoogleAppMeasurement (= 9.5.0)
+    - GoogleUtilities/AppDelegateSwizzler (~> 7.7)
+    - GoogleUtilities/MethodSwizzler (~> 7.7)
+    - GoogleUtilities/Network (~> 7.7)
+    - "GoogleUtilities/NSData+zlib (~> 7.7)"
+    - nanopb (< 2.30910.0, >= 2.30908.0)
+  - FirebaseCore (9.5.0):
+    - FirebaseCoreDiagnostics (~> 9.0)
+    - FirebaseCoreInternal (~> 9.0)
+    - GoogleUtilities/Environment (~> 7.7)
+    - GoogleUtilities/Logger (~> 7.7)
+  - FirebaseCoreDiagnostics (9.6.0):
+    - GoogleDataTransport (< 10.0.0, >= 9.1.4)
+    - GoogleUtilities/Environment (~> 7.7)
+    - GoogleUtilities/Logger (~> 7.7)
+    - nanopb (< 2.30910.0, >= 2.30908.0)
+  - FirebaseCoreInternal (9.6.0):
+    - "GoogleUtilities/NSData+zlib (~> 7.7)"
+  - FirebaseInstallations (9.6.0):
+    - FirebaseCore (~> 9.0)
+    - GoogleUtilities/Environment (~> 7.7)
+    - GoogleUtilities/UserDefaults (~> 7.7)
+    - PromisesObjC (~> 2.1)
+  - GoogleAppMeasurement (9.5.0):
+    - GoogleAppMeasurement/AdIdSupport (= 9.5.0)
+    - GoogleUtilities/AppDelegateSwizzler (~> 7.7)
+    - GoogleUtilities/MethodSwizzler (~> 7.7)
+    - GoogleUtilities/Network (~> 7.7)
+    - "GoogleUtilities/NSData+zlib (~> 7.7)"
+    - nanopb (< 2.30910.0, >= 2.30908.0)
+  - GoogleAppMeasurement/AdIdSupport (9.5.0):
+    - GoogleAppMeasurement/WithoutAdIdSupport (= 9.5.0)
+    - GoogleUtilities/AppDelegateSwizzler (~> 7.7)
+    - GoogleUtilities/MethodSwizzler (~> 7.7)
+    - GoogleUtilities/Network (~> 7.7)
+    - "GoogleUtilities/NSData+zlib (~> 7.7)"
+    - nanopb (< 2.30910.0, >= 2.30908.0)
+  - GoogleAppMeasurement/WithoutAdIdSupport (9.5.0):
+    - GoogleUtilities/AppDelegateSwizzler (~> 7.7)
+    - GoogleUtilities/MethodSwizzler (~> 7.7)
+    - GoogleUtilities/Network (~> 7.7)
+    - "GoogleUtilities/NSData+zlib (~> 7.7)"
+    - nanopb (< 2.30910.0, >= 2.30908.0)
+  - GoogleDataTransport (9.4.1):
+    - GoogleUtilities/Environment (~> 7.7)
+    - nanopb (< 2.30911.0, >= 2.30908.0)
+    - PromisesObjC (< 3.0, >= 1.2)
+  - GoogleUtilities (7.13.3):
+    - GoogleUtilities/AppDelegateSwizzler (= 7.13.3)
+    - GoogleUtilities/Environment (= 7.13.3)
+    - GoogleUtilities/ISASwizzler (= 7.13.3)
+    - GoogleUtilities/Logger (= 7.13.3)
+    - GoogleUtilities/MethodSwizzler (= 7.13.3)
+    - GoogleUtilities/Network (= 7.13.3)
+    - "GoogleUtilities/NSData+zlib (= 7.13.3)"
+    - GoogleUtilities/Privacy (= 7.13.3)
+    - GoogleUtilities/Reachability (= 7.13.3)
+    - GoogleUtilities/SwizzlerTestHelpers (= 7.13.3)
+    - GoogleUtilities/UserDefaults (= 7.13.3)
+  - GoogleUtilities/AppDelegateSwizzler (7.13.3):
+    - GoogleUtilities/Environment
+    - GoogleUtilities/Logger
+    - GoogleUtilities/Network
+    - GoogleUtilities/Privacy
+  - GoogleUtilities/Environment (7.13.3):
+    - GoogleUtilities/Privacy
+    - PromisesObjC (< 3.0, >= 1.2)
+  - GoogleUtilities/ISASwizzler (7.13.3):
+    - GoogleUtilities/Privacy
+  - GoogleUtilities/Logger (7.13.3):
+    - GoogleUtilities/Environment
+    - GoogleUtilities/Privacy
+  - GoogleUtilities/MethodSwizzler (7.13.3):
+    - GoogleUtilities/Logger
+    - GoogleUtilities/Privacy
+  - GoogleUtilities/Network (7.13.3):
+    - GoogleUtilities/Logger
+    - "GoogleUtilities/NSData+zlib"
+    - GoogleUtilities/Privacy
+    - GoogleUtilities/Reachability
+  - "GoogleUtilities/NSData+zlib (7.13.3)":
+    - GoogleUtilities/Privacy
+  - GoogleUtilities/Privacy (7.13.3)
+  - GoogleUtilities/Reachability (7.13.3):
+    - GoogleUtilities/Logger
+    - GoogleUtilities/Privacy
+  - GoogleUtilities/SwizzlerTestHelpers (7.13.3):
+    - GoogleUtilities/MethodSwizzler
+  - GoogleUtilities/UserDefaults (7.13.3):
+    - GoogleUtilities/Logger
+    - GoogleUtilities/Privacy
   - hermes-engine (0.81.5):
     - hermes-engine/Pre-built (= 0.81.5)
   - hermes-engine/Pre-built (0.81.5)
@@ -297,6 +408,12 @@ PODS:
   - libwebp/sharpyuv (1.5.0)
   - libwebp/webp (1.5.0):
     - libwebp/sharpyuv
+  - nanopb (2.30909.1):
+    - nanopb/decode (= 2.30909.1)
+    - nanopb/encode (= 2.30909.1)
+  - nanopb/decode (2.30909.1)
+  - nanopb/encode (2.30909.1)
+  - PromisesObjC (2.4.0)
   - RCTDeprecation (0.81.5)
   - RCTRequired (0.81.5)
   - RCTTypeSafety (0.81.5):
@@ -2309,13 +2426,14 @@ PODS:
   - SDWebImageWebPCoder (0.14.6):
     - libwebp (~> 1.0)
     - SDWebImage/Core (~> 5.17)
-  - Stripe (24.19.0):
-    - StripeApplePay (= 24.19.0)
-    - StripeCore (= 24.19.0)
-    - StripePayments (= 24.19.0)
-    - StripePaymentsUI (= 24.19.0)
-    - StripeUICore (= 24.19.0)
-  - stripe-react-native (0.50.3):
+  - Stripe (25.7.1):
+    - StripeApplePay (= 25.7.1)
+    - StripeCore (= 25.7.1)
+    - StripeIssuing (= 25.7.1)
+    - StripePayments (= 25.7.1)
+    - StripePaymentsUI (= 25.7.1)
+    - StripeUICore (= 25.7.1)
+  - stripe-react-native (0.60.0):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2336,15 +2454,10 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
-    - Stripe (~> 24.19.0)
-    - stripe-react-native/NewArch (= 0.50.3)
-    - StripeApplePay (~> 24.19.0)
-    - StripeFinancialConnections (~> 24.19.0)
-    - StripePayments (~> 24.19.0)
-    - StripePaymentSheet (~> 24.19.0)
-    - StripePaymentsUI (~> 24.19.0)
+    - stripe-react-native/Core (= 0.60.0)
+    - stripe-react-native/NewArch (= 0.60.0)
     - Yoga
-  - stripe-react-native/NewArch (0.50.3):
+  - stripe-react-native/Core (0.60.0):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2365,40 +2478,67 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
-    - Stripe (~> 24.19.0)
-    - StripeApplePay (~> 24.19.0)
-    - StripeFinancialConnections (~> 24.19.0)
-    - StripePayments (~> 24.19.0)
-    - StripePaymentSheet (~> 24.19.0)
-    - StripePaymentsUI (~> 24.19.0)
+    - Stripe (~> 25.7.0)
+    - StripeApplePay (~> 25.7.0)
+    - StripeFinancialConnections (~> 25.7.0)
+    - StripePayments (~> 25.7.0)
+    - StripePaymentSheet (~> 25.7.0)
+    - StripePaymentsUI (~> 25.7.0)
     - Yoga
-  - StripeApplePay (24.19.0):
-    - StripeCore (= 24.19.0)
-  - StripeCore (24.19.0)
-  - StripeFinancialConnections (24.19.0):
-    - StripeCore (= 24.19.0)
-    - StripeUICore (= 24.19.0)
-  - StripePayments (24.19.0):
-    - StripeCore (= 24.19.0)
-    - StripePayments/Stripe3DS2 (= 24.19.0)
-  - StripePayments/Stripe3DS2 (24.19.0):
-    - StripeCore (= 24.19.0)
-  - StripePaymentSheet (24.19.0):
-    - StripeApplePay (= 24.19.0)
-    - StripeCore (= 24.19.0)
-    - StripePayments (= 24.19.0)
-    - StripePaymentsUI (= 24.19.0)
-  - StripePaymentsUI (24.19.0):
-    - StripeCore (= 24.19.0)
-    - StripePayments (= 24.19.0)
-    - StripeUICore (= 24.19.0)
-  - StripeUICore (24.19.0):
-    - StripeCore (= 24.19.0)
+  - stripe-react-native/NewArch (0.60.0):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
+  - StripeApplePay (25.7.1):
+    - StripeCore (= 25.7.1)
+  - StripeCore (25.7.1)
+  - StripeFinancialConnections (25.7.1):
+    - StripeCore (= 25.7.1)
+    - StripeUICore (= 25.7.1)
+  - StripeIssuing (25.7.1):
+    - StripeCore (= 25.7.1)
+    - StripePayments (= 25.7.1)
+    - StripePaymentsUI (= 25.7.1)
+  - StripePayments (25.7.1):
+    - StripeCore (= 25.7.1)
+    - StripePayments/Stripe3DS2 (= 25.7.1)
+  - StripePayments/Stripe3DS2 (25.7.1):
+    - StripeCore (= 25.7.1)
+  - StripePaymentSheet (25.7.1):
+    - StripeApplePay (= 25.7.1)
+    - StripeCore (= 25.7.1)
+    - StripePayments (= 25.7.1)
+    - StripePaymentsUI (= 25.7.1)
+  - StripePaymentsUI (25.7.1):
+    - StripeCore (= 25.7.1)
+    - StripePayments (= 25.7.1)
+    - StripeUICore (= 25.7.1)
+  - StripeUICore (25.7.1):
+    - StripeCore (= 25.7.1)
   - Yoga (0.0.0)
 
 DEPENDENCIES:
   - EXApplication (from `../node_modules/expo-application/ios`)
   - EXConstants (from `../node_modules/expo-constants/ios`)
+  - EXFirebaseCore (from `../node_modules/expo-firebase-core/ios`)
   - EXImageLoader (from `../node_modules/expo-image-loader/ios`)
   - EXJSONUtils (from `../node_modules/expo-json-utils/ios`)
   - EXManifests (from `../node_modules/expo-manifests/ios`)
@@ -2429,6 +2569,10 @@ DEPENDENCIES:
   - ExpoVideo (from `../node_modules/expo-video/ios`)
   - EXUpdatesInterface (from `../node_modules/expo-updates-interface/ios`)
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
+  - FirebaseCore
+  - FirebaseCoreInternal
+  - FirebaseInstallations
+  - GoogleUtilities
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - RCTDeprecation (from `../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
   - RCTRequired (from `../node_modules/react-native/Libraries/Required`)
@@ -2508,9 +2652,20 @@ DEPENDENCIES:
 
 SPEC REPOS:
   trunk:
+    - Firebase
+    - FirebaseAnalytics
+    - FirebaseCore
+    - FirebaseCoreDiagnostics
+    - FirebaseCoreInternal
+    - FirebaseInstallations
+    - GoogleAppMeasurement
+    - GoogleDataTransport
+    - GoogleUtilities
     - libavif
     - libdav1d
     - libwebp
+    - nanopb
+    - PromisesObjC
     - SDWebImage
     - SDWebImageAVIFCoder
     - SDWebImageSVGCoder
@@ -2519,6 +2674,7 @@ SPEC REPOS:
     - StripeApplePay
     - StripeCore
     - StripeFinancialConnections
+    - StripeIssuing
     - StripePayments
     - StripePaymentSheet
     - StripePaymentsUI
@@ -2529,6 +2685,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-application/ios"
   EXConstants:
     :path: "../node_modules/expo-constants/ios"
+  EXFirebaseCore:
+    :path: "../node_modules/expo-firebase-core/ios"
   EXImageLoader:
     :path: "../node_modules/expo-image-loader/ios"
   EXJSONUtils:
@@ -2744,6 +2902,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   EXApplication: 1e98d4b1dccdf30627f92917f4b2c5a53c330e5f
   EXConstants: fce59a631a06c4151602843667f7cfe35f81e271
+  EXFirebaseCore: 9317761d8089bad0e2e39e6ba1ae24217cc8ff02
   EXImageLoader: 189e3476581efe3ad4d1d3fb4735b7179eb26f05
   EXJSONUtils: 1d3e4590438c3ee593684186007028a14b3686cd
   EXManifests: a8d97683e5c7a3b026ffbd58559c64dc655b747b
@@ -2774,10 +2933,21 @@ SPEC CHECKSUMS:
   ExpoVideo: 8d9e8a1acd0c4c210e538b4355e34ae8ff5e04f7
   EXUpdatesInterface: 5adf50cb41e079c861da6d9b4b954c3db9a50734
   FBLazyVector: e95a291ad2dadb88e42b06e0c5fb8262de53ec12
+  Firebase: 800f16f07af493d98d017446a315c27af0552f41
+  FirebaseAnalytics: 1b60984a408320dda637306f3f733699ef8473d7
+  FirebaseCore: 25c0400b670fd1e2f2104349cd3b5dcce8d9418f
+  FirebaseCoreDiagnostics: 99a495094b10a57eeb3ae8efa1665700ad0bdaa6
+  FirebaseCoreInternal: bca76517fe1ed381e989f5e7d8abb0da8d85bed3
+  FirebaseInstallations: 0a115432c4e223c5ab20b0dbbe4cbefa793a0e8e
+  GoogleAppMeasurement: 6ee231473fbd75c11221dfce489894334024eead
+  GoogleDataTransport: 6c09b596d841063d76d4288cc2d2f42cc36e1e2a
+  GoogleUtilities: ea963c370a38a8069cc5f7ba4ca849a60b6d7d15
   hermes-engine: 9f4dfe93326146a1c99eb535b1cb0b857a3cd172
   libavif: 5f8e715bea24debec477006f21ef9e95432e254d
   libdav1d: 23581a4d8ec811ff171ed5e2e05cd27bad64c39f
   libwebp: 02b23773aedb6ff1fd38cec7a77b81414c6842a8
+  nanopb: d4d75c12cd1316f4a64e3c6963f879ecd4b5e0d5
+  PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   RCTDeprecation: 943572d4be82d480a48f4884f670135ae30bf990
   RCTRequired: 8f3cfc90cc25cf6e420ddb3e7caaaabc57df6043
   RCTTypeSafety: 16a4144ca3f959583ab019b57d5633df10b5e97c
@@ -2854,17 +3024,18 @@ SPEC CHECKSUMS:
   SDWebImageAVIFCoder: afe194a084e851f70228e4be35ef651df0fc5c57
   SDWebImageSVGCoder: 15a300a97ec1c8ac958f009c02220ac0402e936c
   SDWebImageWebPCoder: e38c0a70396191361d60c092933e22c20d5b1380
-  Stripe: d1824162e4bcb6ead10401a0dc8e8a3d5ffee41f
-  stripe-react-native: eb0d6fac02a31029c3c3d0fc43e6b25dbf9c61fd
-  StripeApplePay: eb64705d3c919492b1b28876652fd0aca2db38cc
-  StripeCore: b5bee05167f0c8ccce936244a031a9972fdeade8
-  StripeFinancialConnections: fd6c661f86f47b1d26a32f588b3a0b09826aba84
-  StripePayments: cf00b3c85cd7b57e40f622493f81bdf361cb3982
-  StripePaymentSheet: b126816213ae4f56ff4525ad25f94bb985a43e27
-  StripePaymentsUI: 05d4be35b34f821d5ddc8617dee04219f3646253
-  StripeUICore: d07bd63a4b53dee8cab4d6f81ce5a7ab3e28511e
+  Stripe: cba7aef14749955c8bbcbe71ecebd84088c6b364
+  stripe-react-native: e0bc54ded6eaaaf27e9983c599078d09bb28013f
+  StripeApplePay: c847abfd5297a42201e00f2609dd09ae791068b4
+  StripeCore: dcdd533cf80ff202e54558ab465d38551985e523
+  StripeFinancialConnections: 9e4e4d5248e7a7949a27841e0c641d98152d5ab3
+  StripeIssuing: 887daedd9541b47961ac7a4e89e702d72f0db3f2
+  StripePayments: 6b39042c8e945fe38a83ea4db1370216ca6a1e0d
+  StripePaymentSheet: d6670b3b5d728c6d20df08e3c3e0b42b9fcc0796
+  StripePaymentsUI: d3fefb50d7dd7f227a8171c7244b632bbe5f8139
+  StripeUICore: 013c8874f1a4eb7c0ff142c40bf3876b3888ad4b
   Yoga: 5934998fbeaef7845dbf698f698518695ab4cd1a
 
-PODFILE CHECKSUM: f701023b752716dbcbe2da09df60b8ec43d51d88
+PODFILE CHECKSUM: 47d99807c56ce07f7cd74f7547d97c47e6cdaeb8
 
 COCOAPODS: 1.16.2

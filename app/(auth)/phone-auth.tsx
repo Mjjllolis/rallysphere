@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
     View,
     StyleSheet,
@@ -11,21 +11,19 @@ import {
 } from 'react-native';
 import { Text, TextInput, Button, Surface } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { useVideoPlayer, VideoView } from 'expo-video';
-import { signIn } from '../../lib/firebase';
-import { getAuth } from 'firebase/auth';
+import { router, useLocalSearchParams } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
+import { sendPhoneVerification, app } from '../../lib/firebase';
 
-export default function LoginScreen() {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+export default function PhoneAuthScreen() {
+    const { mode } = useLocalSearchParams<{ mode?: string }>();
+    const isSignUp = mode !== 'signin';
+
+    const [phone, setPhone] = useState('');
     const [loading, setLoading] = useState(false);
 
-    const player = useVideoPlayer(require('../../assets/BGSignIn.mp4'), (player) => {
-        player.loop = true;
-        player.muted = true;
-        player.play();
-    });
+    const recaptchaVerifier = useRef<any>(null);
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(40)).current;
@@ -37,24 +35,30 @@ export default function LoginScreen() {
         ]).start();
     }, []);
 
-    const handleLogin = async () => {
-        if (!email.trim() || !password.trim()) {
-            Alert.alert('Error', 'Please fill in all fields');
+    const formatPhoneNumber = (raw: string) => {
+        // Strip non-digits
+        const digits = raw.replace(/\D/g, '');
+        // Ensure E.164 format with +1 prefix if no country code entered
+        if (digits.startsWith('1') && digits.length === 11) return `+${digits}`;
+        if (digits.length === 10) return `+1${digits}`;
+        if (raw.startsWith('+')) return raw.replace(/[^\d+]/g, '');
+        return `+${digits}`;
+    };
+
+    const handleSendCode = async () => {
+        const formatted = formatPhoneNumber(phone);
+        if (formatted.length < 12) {
+            Alert.alert('Invalid Number', 'Please enter a valid US phone number.');
             return;
         }
+
         setLoading(true);
         try {
-            const result = await signIn(email.trim(), password);
+            const result = await sendPhoneVerification(formatted, recaptchaVerifier.current);
             if (result.success) {
-                const auth = getAuth();
-                const hasPhone = !!auth.currentUser?.phoneNumber;
-                if (hasPhone) {
-                    router.replace('/(tabs)/home');
-                } else {
-                    router.replace('/(auth)/link-phone');
-                }
+                router.push({ pathname: '/(auth)/verify-otp', params: { phone: formatted } });
             } else {
-                Alert.alert('Login Failed', result.error || 'Invalid email or password');
+                Alert.alert('Error', result.error || 'Failed to send code. Try again.');
             }
         } finally {
             setLoading(false);
@@ -64,15 +68,13 @@ export default function LoginScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <StatusBar barStyle="light-content" />
-            <View style={StyleSheet.absoluteFill}>
-                <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'black' }]} />
-                <VideoView
-                    player={player}
-                    style={StyleSheet.absoluteFill}
-                    contentFit="cover"
-                    nativeControls={false}
-                />
-            </View>
+            <LinearGradient colors={['#2C5282', '#1A365D']} style={StyleSheet.absoluteFill} />
+
+            <FirebaseRecaptchaVerifierModal
+                ref={recaptchaVerifier}
+                firebaseConfig={app.options}
+                attemptInvisibleVerification
+            />
 
             <KeyboardAvoidingView
                 style={styles.content}
@@ -81,51 +83,42 @@ export default function LoginScreen() {
                 <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
                     <View style={styles.header}>
                         <Text style={styles.title}>RallySphere</Text>
-                        <Text style={styles.subtitle}>Sign In</Text>
-                        <Text style={styles.description}>Welcome back!</Text>
+                        <Text style={styles.subtitle}>{isSignUp ? 'Create Account' : 'Welcome Back'}</Text>
+                        <Text style={styles.description}>Enter your phone number to continue.</Text>
                     </View>
 
                     <Surface style={styles.card} elevation={8}>
+                        <Text style={styles.label}>Phone Number</Text>
                         <TextInput
-                            label="Email Address"
-                            value={email}
-                            onChangeText={setEmail}
+                            value={phone}
+                            onChangeText={setPhone}
                             mode="outlined"
-                            keyboardType="email-address"
-                            autoCapitalize="none"
+                            keyboardType="phone-pad"
+                            placeholder="+1 (555) 000-0000"
                             style={styles.input}
                             textColor="#1a1a1a"
                             outlineColor="rgba(0,0,0,0.2)"
                             activeOutlineColor="#2C5282"
                             theme={{ colors: { onSurfaceVariant: 'rgba(0,0,0,0.5)' } }}
+                            left={<TextInput.Icon icon="phone" color="#2C5282" />}
                         />
-                        <TextInput
-                            label="Password"
-                            value={password}
-                            onChangeText={setPassword}
-                            mode="outlined"
-                            secureTextEntry
-                            style={styles.input}
-                            textColor="#1a1a1a"
-                            outlineColor="rgba(0,0,0,0.2)"
-                            activeOutlineColor="#2C5282"
-                            theme={{ colors: { onSurfaceVariant: 'rgba(0,0,0,0.5)' } }}
-                        />
+                        <Text style={styles.hint}>We'll send you a verification code via SMS.</Text>
+
                         <Button
                             mode="contained"
-                            onPress={handleLogin}
+                            onPress={handleSendCode}
                             loading={loading}
-                            disabled={loading}
+                            disabled={loading || phone.length < 10}
                             style={styles.button}
                             contentStyle={styles.buttonContent}
                             labelStyle={styles.buttonLabel}
                         >
-                            Sign In
+                            Send Code
                         </Button>
                     </Surface>
 
                     <View style={styles.footer}>
-                        <TouchableOpacity onPress={() => router.back()}>
+                        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                             <Text style={styles.backText}>Back to Welcome</Text>
                         </TouchableOpacity>
                     </View>
@@ -141,12 +134,15 @@ const styles = StyleSheet.create({
     header: { alignItems: 'center', marginBottom: 40 },
     title: { fontSize: 36, fontWeight: 'bold', color: 'white', marginBottom: 8 },
     subtitle: { fontSize: 26, fontWeight: 'bold', color: 'white', marginBottom: 8 },
-    description: { fontSize: 16, color: 'rgba(255,255,255,0.8)' },
-    card: { borderRadius: 24, padding: 28, backgroundColor: 'white', gap: 16 },
+    description: { fontSize: 16, color: 'rgba(255,255,255,0.8)', textAlign: 'center' },
+    card: { borderRadius: 24, padding: 28, backgroundColor: 'white', gap: 12 },
+    label: { fontSize: 14, fontWeight: '600', color: '#444', marginBottom: 4 },
     input: { backgroundColor: 'white' },
-    button: { marginTop: 4, borderRadius: 12, backgroundColor: '#2C5282' },
+    hint: { fontSize: 12, color: 'rgba(0,0,0,0.45)', marginTop: -4 },
+    button: { marginTop: 8, borderRadius: 12, backgroundColor: '#2C5282' },
     buttonContent: { paddingVertical: 10 },
     buttonLabel: { fontSize: 16, fontWeight: '600' },
     footer: { alignItems: 'center', marginTop: 24 },
+    backButton: { paddingVertical: 8 },
     backText: { color: 'rgba(255,255,255,0.6)', fontSize: 14 },
 });

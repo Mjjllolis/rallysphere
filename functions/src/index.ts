@@ -5,11 +5,14 @@ import Stripe from "stripe";
 // Initialize Firebase Admin
 admin.initializeApp();
 
-// Get Stripe key from environment variable (set in .env file)
+const isTestMode = process.env.TEST_MODE === "true";
+
+// Get Stripe key based on TEST_MODE environment variable
 const getStripeKey = () => {
-  if (process.env.STRIPE_SECRET_KEY) {
-    return process.env.STRIPE_SECRET_KEY;
-  }
+  const key = isTestMode
+    ? process.env.STRIPE_SECRET_KEY_TEST
+    : process.env.STRIPE_SECRET_KEY_LIVE;
+  if (key) return key;
   console.warn("No Stripe key found in environment");
   return "";
 };
@@ -68,36 +71,49 @@ export const createStripeConnectAccount = functions.https.onCall(
   try {
     const stripe = getStripe();
 
-    // Create Stripe Express account
-    const account = await stripe.accounts.create({
-      type: "express",
-      email: email,
-      business_type: "company",
-      company: {
-        name: clubName,
-      },
-      capabilities: {
-        card_payments: {requested: true},
-        transfers: {requested: true},
-      },
-    });
+    // Check if club already has a Stripe account to prevent duplicates
+    const clubDoc = await admin.firestore().collection("clubs").doc(clubId).get();
+    const existingAccountId = clubDoc.data()?.stripeAccountId;
 
-    // Update club with Stripe account ID
-    console.log("Updating club with Stripe account ID:", account.id);
-    try {
-      await admin.firestore().collection("clubs").doc(clubId).update({
-        stripeAccountId: account.id,
-        stripeAccountStatus: "pending",
-        stripeOnboardingComplete: false,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    let account;
+    if (existingAccountId) {
+      // Reuse existing account - just create a new onboarding link
+      console.log("Reusing existing Stripe account:", existingAccountId);
+      account = await stripe.accounts.retrieve(existingAccountId);
+    } else {
+      // Create new Stripe Express account
+      account = await stripe.accounts.create({
+        type: "express",
+        email: email,
+        business_type: "company",
+        company: {
+          name: clubName,
+        },
+        capabilities: {
+          card_payments: {requested: true},
+          transfers: {requested: true},
+        },
       });
-      console.log("Club updated successfully with Stripe account ID");
-    } catch (updateError: any) {
-      console.error("Failed to update club in Firestore:", updateError);
-      throw new functions.https.HttpsError(
-        "internal",
-        `Stripe account created but failed to update club: ${updateError.message}`
-      );
+    }
+
+    // Update club with Stripe account ID (only for new accounts)
+    if (!existingAccountId) {
+      console.log("Updating club with Stripe account ID:", account.id);
+      try {
+        await admin.firestore().collection("clubs").doc(clubId).update({
+          stripeAccountId: account.id,
+          stripeAccountStatus: "pending",
+          stripeOnboardingComplete: false,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        console.log("Club updated successfully with Stripe account ID");
+      } catch (updateError: any) {
+        console.error("Failed to update club in Firestore:", updateError);
+        throw new functions.https.HttpsError(
+          "internal",
+          `Stripe account created but failed to update club: ${updateError.message}`
+        );
+      }
     }
 
     // Create account link for onboarding
@@ -714,7 +730,9 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
   try {
     // Verify webhook signature
     const stripe = getStripe();
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
+    const webhookSecret = isTestMode
+      ? (process.env.STRIPE_WEBHOOK_SECRET_TEST || "")
+      : (process.env.STRIPE_WEBHOOK_SECRET_LIVE || "");
 
     if (!webhookSecret) {
       console.error("Webhook secret not configured");

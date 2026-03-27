@@ -4,9 +4,11 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import Constants from 'expo-constants';
 import { app } from './firebase';
 
-// Initialize Stripe with publishable key
-const publishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
-  Constants.expoConfig?.extra?.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
+// Initialize Stripe with publishable key based on APP_ENV
+const isTestMode = process.env.EXPO_PUBLIC_APP_ENV === 'test';
+const publishableKey = isTestMode
+  ? (process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY_TEST || '')
+  : (process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY_LIVE || '');
 
 // Initialize Stripe SDK
 export const initializeStripe = async () => {
