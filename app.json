@@ -51,13 +51,6 @@
       "expo-font",
       "expo-secure-store",
       [
-        "@stripe/stripe-react-native",
-        {
-          "merchantIdentifier": "merchant.com.rallysphere.app",
-          "enableGooglePay": true
-        }
-      ],
-      [
         "expo-location",
         {
           "locationWhenInUsePermission": "RallySphere needs your location to show nearby events."

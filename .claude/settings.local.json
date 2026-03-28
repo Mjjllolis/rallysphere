@@ -116,7 +116,8 @@
       "Bash(npx tsc --noEmit --pretty app/\\\\\\(tabs\\\\\\)/home/_components/EventSwipeCard.tsx 2>&1 | head -30)",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(''''version:'''', d.get\\(''''version''''\\)\\); deps = d.get\\(''''dependencies'''', {}\\); print\\(''''deps:'''', json.dumps\\(deps, indent=2\\)\\)\")",
       "Bash(python3 -c \":*)",
-      "Bash(pod update:*)"
+      "Bash(pod update:*)",
+      "Skill(update-config)"
     ],
     "deny": [],
     "ask": []

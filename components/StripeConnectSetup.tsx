@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Alert, Linking } from 'react-native';
+import { View, StyleSheet, Alert } from 'react-native';
 import { Card, Button, Text, ActivityIndicator, useTheme, Chip, Divider } from 'react-native-paper';
-import { createStripeConnectAccount, checkStripeAccountStatus } from '../lib/stripe';
+import { createSubMerchantAccount, getSubMerchantStatus } from '../lib/stripe';
 import { updateClub } from '../lib/firebase';
 import type { Club } from '../lib/firebase';
 
@@ -18,34 +18,31 @@ export default function StripeConnectSetup({ club, isAdmin, onStatusChange }: St
   const [accountStatus, setAccountStatus] = useState<any>(null);
 
   useEffect(() => {
-    // Check status on mount if account exists
-    if (club.stripeAccountId) {
+    if (club.braintreeMerchantAccountId) {
       checkStatus();
     }
-  }, [club.stripeAccountId]);
+  }, [club.braintreeMerchantAccountId]);
 
   const checkStatus = async () => {
-    if (!club.stripeAccountId) return;
+    if (!club.braintreeMerchantAccountId) return;
 
     setChecking(true);
     try {
-      const result = await checkStripeAccountStatus(club.stripeAccountId);
+      const result = await getSubMerchantStatus(club.braintreeMerchantAccountId);
 
       if (result.success) {
         setAccountStatus(result);
 
-        // Update club if status has changed
-        if (result.isComplete && !club.stripeOnboardingComplete) {
+        if (result.status === 'active' && !club.braintreeMerchantAccountActive) {
           await updateClub(club.id, {
-            stripeOnboardingComplete: true,
-            stripeAccountStatus: 'active',
+            braintreeMerchantAccountActive: true,
+            braintreeMerchantAccountStatus: 'active',
           });
           onStatusChange?.();
-          Alert.alert('Success!', 'Your Stripe account is now active and ready to receive payments!');
+          Alert.alert('Success!', 'Your payout account is now active and ready to receive payments!');
         }
       }
     } catch (error) {
-      // console.error('Error checking status:', error);
       Alert.alert('Error', 'Failed to check account status. Please try again.');
     } finally {
       setChecking(false);
@@ -61,48 +58,32 @@ export default function StripeConnectSetup({ club, isAdmin, onStatusChange }: St
     setLoading(true);
 
     try {
-      // console.log('=== STRIPE CONNECT SETUP ===');
-      // console.log('Club ID:', club.id);
-      // console.log('Club Email:', club.contactEmail);
-      // console.log('Club Name:', club.name);
-
-      const result = await createStripeConnectAccount(
+      const result = await createSubMerchantAccount(
         club.id,
         club.contactEmail || '',
         club.name
       );
 
-      // console.log('Stripe Connect Result:', result);
+      if (result.success && result.merchantAccountId) {
+        await updateClub(club.id, {
+          braintreeMerchantAccountId: result.merchantAccountId,
+          braintreeMerchantAccountStatus: result.status || 'pending',
+        });
 
-      if (result.success && result.onboardingUrl) {
-        // Open Stripe onboarding in browser
-        const supported = await Linking.canOpenURL(result.onboardingUrl);
+        onStatusChange?.();
 
-        if (supported) {
-          await Linking.openURL(result.onboardingUrl);
-
-          Alert.alert(
-            'Continue in Browser',
-            'Complete the Stripe onboarding process in your browser. When finished, return here to check your account status.',
-            [{ text: 'OK', onPress: () => {
-              // Trigger parent refresh
-              onStatusChange?.();
-            }}]
-          );
-        } else {
-          Alert.alert('Error', 'Cannot open onboarding link');
-        }
-      } else {
-        // Show detailed error to user
-        const errorMsg = result.error || 'Failed to start onboarding';
-        // console.error('Stripe Connect Error:', errorMsg);
         Alert.alert(
-          'Connection Error',
-          errorMsg + '\n\nPlease make sure:\n• You are logged in\n• Firebase Functions are deployed\n• Stripe keys are configured'
+          'Payout Account Created',
+          'Your payout account has been submitted for review. You will be able to receive payments once it is approved (usually within 1-2 business days).',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert(
+          'Setup Error',
+          result.error || 'Failed to create payout account. Please try again.'
         );
       }
     } catch (error: any) {
-      // console.error('Error setting up Stripe:', error);
       Alert.alert('Error', error.message || 'Failed to set up payouts');
     } finally {
       setLoading(false);
@@ -110,15 +91,15 @@ export default function StripeConnectSetup({ club, isAdmin, onStatusChange }: St
   };
 
   const getStatusChip = () => {
-    if (!club.stripeAccountId) {
+    if (!club.braintreeMerchantAccountId) {
       return <Chip icon="alert-circle" mode="outlined" textStyle={{ color: theme.colors.error }}>Not Connected</Chip>;
     }
 
-    if (club.stripeOnboardingComplete) {
+    if (club.braintreeMerchantAccountActive) {
       return <Chip icon="check-circle" mode="outlined" textStyle={{ color: theme.colors.success }}>Active</Chip>;
     }
 
-    return <Chip icon="clock" mode="outlined" textStyle={{ color: theme.colors.primary }}>Pending Setup</Chip>;
+    return <Chip icon="clock" mode="outlined" textStyle={{ color: theme.colors.primary }}>Pending Approval</Chip>;
   };
 
   const getStatusDetails = () => {
@@ -128,23 +109,17 @@ export default function StripeConnectSetup({ club, isAdmin, onStatusChange }: St
       <View style={styles.statusDetails}>
         <Text variant="bodySmall" style={{ marginBottom: 8 }}>Account Details:</Text>
         <View style={styles.statusRow}>
-          <Text variant="bodySmall">Charges Enabled:</Text>
-          <Text variant="bodySmall" style={{ color: accountStatus.chargesEnabled ? theme.colors.success : theme.colors.error }}>
-            {accountStatus.chargesEnabled ? 'Yes' : 'No'}
+          <Text variant="bodySmall">Status:</Text>
+          <Text variant="bodySmall" style={{ color: accountStatus.status === 'active' ? theme.colors.success : theme.colors.primary }}>
+            {accountStatus.status ? accountStatus.status.charAt(0).toUpperCase() + accountStatus.status.slice(1) : 'Unknown'}
           </Text>
         </View>
-        <View style={styles.statusRow}>
-          <Text variant="bodySmall">Payouts Enabled:</Text>
-          <Text variant="bodySmall" style={{ color: accountStatus.payoutsEnabled ? theme.colors.success : theme.colors.error }}>
-            {accountStatus.payoutsEnabled ? 'Yes' : 'No'}
-          </Text>
-        </View>
-        <View style={styles.statusRow}>
-          <Text variant="bodySmall">Details Submitted:</Text>
-          <Text variant="bodySmall" style={{ color: accountStatus.detailsSubmitted ? theme.colors.success : theme.colors.error }}>
-            {accountStatus.detailsSubmitted ? 'Yes' : 'No'}
-          </Text>
-        </View>
+        {accountStatus.merchantAccountId && (
+          <View style={styles.statusRow}>
+            <Text variant="bodySmall">Account ID:</Text>
+            <Text variant="bodySmall">{accountStatus.merchantAccountId}</Text>
+          </View>
+        )}
       </View>
     );
   };
@@ -153,32 +128,41 @@ export default function StripeConnectSetup({ club, isAdmin, onStatusChange }: St
     <Card style={styles.card}>
       <Card.Content>
         <View style={styles.header}>
-          <Text variant="titleLarge" style={{ fontWeight: 'bold' }}>Stripe Payouts</Text>
+          <Text variant="titleLarge" style={{ fontWeight: 'bold' }}>Payouts</Text>
           {getStatusChip()}
         </View>
 
         <Divider style={styles.divider} />
 
         <Text variant="bodyMedium" style={styles.description}>
-          {club.stripeOnboardingComplete
+          {club.braintreeMerchantAccountActive
             ? 'Your club is ready to receive payments! Users can purchase tickets to your paid events.'
-            : 'Connect your Stripe account to receive payouts from paid events. Stripe handles all compliance and verification securely.'}
+            : club.braintreeMerchantAccountId
+            ? 'Your payout account is pending approval. You will be able to receive payments once it is approved.'
+            : 'Set up your payout account to receive revenue from paid events. All compliance and verification is handled securely.'}
         </Text>
 
-        {club.stripeAccountId && accountStatus && getStatusDetails()}
+        {club.braintreeMerchantAccountId && accountStatus && getStatusDetails()}
 
-        <View style={styles.benefits}>
-          <Text variant="bodySmall" style={{ fontWeight: 'bold', marginBottom: 8 }}>
-            Benefits:
+        <View style={[styles.benefits, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.outline }]}>
+          <Text variant="labelMedium" style={{ fontWeight: 'bold', marginBottom: 10, color: theme.colors.primary }}>
+            Benefits
           </Text>
-          <Text variant="bodySmall">• Automatic payouts after each ticket sale</Text>
-          <Text variant="bodySmall">• 90% of ticket revenue goes to your club</Text>
-          <Text variant="bodySmall">• Secure identity verification by Stripe</Text>
-          <Text variant="bodySmall">• Full transparency on all transactions</Text>
+          {[
+            { icon: '💸', text: 'Weekly bank deposits directly to your account' },
+            { icon: '💰', text: 'Keep 100% of ticket price — processing fee is paid by the buyer' },
+            { icon: '🔒', text: 'Identity verified securely by Braintree' },
+            { icon: '📊', text: 'Full transaction history in your dashboard' },
+          ].map((item, i) => (
+            <View key={i} style={styles.benefitRow}>
+              <Text style={styles.benefitIcon}>{item.icon}</Text>
+              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, flex: 1 }}>{item.text}</Text>
+            </View>
+          ))}
         </View>
 
         <View style={styles.actions}>
-          {!club.stripeOnboardingComplete && (
+          {!club.braintreeMerchantAccountActive && !club.braintreeMerchantAccountId && (
             <Button
               mode="contained"
               onPress={handleSetupPayouts}
@@ -187,11 +171,11 @@ export default function StripeConnectSetup({ club, isAdmin, onStatusChange }: St
               icon="bank"
               style={styles.button}
             >
-              {club.stripeAccountId ? 'Continue Setup' : 'Connect Stripe'}
+              Set Up Payouts
             </Button>
           )}
 
-          {club.stripeAccountId && (
+          {club.braintreeMerchantAccountId && (
             <Button
               mode="outlined"
               onPress={checkStatus}
@@ -229,15 +213,26 @@ const styles = StyleSheet.create({
     marginVertical: 12,
   },
   description: {
-    marginBottom: 16,
+    marginBottom: 12,
     lineHeight: 20,
   },
   benefits: {
-    marginTop: 16,
+    marginTop: 4,
     marginBottom: 16,
-    padding: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.04)',
-    borderRadius: 8,
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  benefitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  benefitIcon: {
+    fontSize: 16,
+    width: 24,
+    textAlign: 'center',
   },
   statusDetails: {
     marginTop: 12,

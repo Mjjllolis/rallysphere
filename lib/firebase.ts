@@ -3926,6 +3926,6 @@ export const fixEventsAndCredits = async () => {
 // onAuthStateChange is already exported above, no need to redeclare
 
 // --- 15. Export Firebase instances ---
-export { auth, db, storage, app };
+export { auth, db, storage };
 
 // --- 15. All types are already exported via 'export interface' declarations throughout this file ---

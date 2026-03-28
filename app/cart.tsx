@@ -7,7 +7,6 @@ import {
   Image,
   TouchableOpacity,
   Alert,
-  Platform,
 } from 'react-native';
 import {
   Text,
@@ -15,15 +14,12 @@ import {
   ActivityIndicator,
   Button,
   Divider,
-  SegmentedButtons,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart, type CartItem } from '../lib/cartContext';
 import { useAuth } from './_layout';
-import { createStorePaymentIntent } from '../lib/stripe';
-import { useStripe, usePaymentSheet } from '@stripe/stripe-react-native';
 
 export default function CartScreen() {
   const theme = useTheme();
@@ -31,12 +27,6 @@ export default function CartScreen() {
   const { cart, removeFromCart, updateQuantity, clearCart } = useCart();
   const [deliveryMethod, setDeliveryMethod] = useState<'shipping' | 'pickup'>('pickup');
   const [processing, setProcessing] = useState(false);
-
-  // Stripe hooks for native payments
-  const stripe = Platform.OS !== 'web' ? useStripe() : null;
-  const { initPaymentSheet, presentPaymentSheet } = Platform.OS !== 'web'
-    ? usePaymentSheet()
-    : { initPaymentSheet: null, presentPaymentSheet: null };
 
   const calculateTotals = () => {
     let itemsTotal = 0;

@@ -726,7 +726,7 @@ export default function ClubDetailScreen() {
                       )}
                       {club.socialLinks.discord && (
                         <IconButton
-                          icon="discord"
+                          icon="forum"
                           mode="contained"
                           size={28}
                           onPress={() => openSocialLink(club.socialLinks!.discord!)}
