@@ -10,23 +10,6 @@ import Constants from 'expo-constants';
 import { CartProvider } from '../lib/cartContext';
 import { FavoritesProvider } from '../lib/favoritesContext';
 
-// Conditionally import Stripe - only on native platforms
-let StripeProvider: any = null;
-let initializeStripe: any = null;
-let handleURLCallback: ((url: string) => Promise<boolean>) | null = null;
-
-if (Platform.OS !== 'web') {
-  try {
-    const stripeModule = require('@stripe/stripe-react-native');
-    StripeProvider = stripeModule.StripeProvider;
-    handleURLCallback = stripeModule.handleURLCallback;
-    const stripeLib = require('../lib/stripe');
-    initializeStripe = stripeLib.initializeStripe;
-  } catch (error) {
-    // console.warn('Stripe not available - rebuild app with: npx expo prebuild');
-  }
-}
-
 // Prevent auto-hiding splash screen
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -209,25 +192,8 @@ export default function RootLayout() {
   const [authLoading, setAuthLoading] = useState(true);
   const [themePreference, setThemePreferenceState] = useState<ThemePreference>('system');
   const [themeLoading, setThemeLoading] = useState(true);
-  const [stripeInitialized, setStripeInitialized] = useState(false);
   const router = useRouter();
   const systemColorScheme = useColorScheme();
-
-  // Initialize Stripe (only if available)
-  useEffect(() => {
-    if (initializeStripe) {
-      const init = async () => {
-        const result = await initializeStripe();
-        setStripeInitialized(result.success);
-        if (!result.success) {
-          // console.error('Failed to initialize Stripe:', result.error);
-        }
-      };
-      init();
-    } else {
-      setStripeInitialized(false);
-    }
-  }, []);
 
   // Load theme preference
   useEffect(() => {
@@ -276,24 +242,11 @@ export default function RootLayout() {
     return unsubscribe;
   }, []);
 
-  // Deep link handler for Stripe payment callbacks
+  // Deep link handler
   useEffect(() => {
     const handleDeepLink = async (event: { url: string }) => {
       const url = event.url;
-      // console.log('Deep link received:', url);
 
-      // Forward Stripe return URLs to the Stripe SDK so it can dismiss the browser
-      // and complete the payment flow (3D Secure, Link, Apple Pay redirects, etc.)
-      if (handleURLCallback && url.includes('rallysphere://')) {
-        const stripeHandled = await handleURLCallback(url);
-        if (stripeHandled) {
-          // console.log('URL handled by Stripe SDK');
-          return;
-        }
-      }
-
-      // Handle payment-return (Stripe redirect back from external payment methods)
-      // Just absorb it - the Stripe payment sheet handles the result automatically
       if (url.includes('payment-return')) {
         return;
       }
@@ -346,6 +299,12 @@ export default function RootLayout() {
             },
           ]
         );
+        return;
+      }
+
+      // Any other unrecognized deep link — go home
+      if (url.includes('rallysphere://')) {
+        router.replace('/(tabs)/home');
       }
     };
 
@@ -384,8 +343,6 @@ export default function RootLayout() {
   }, [authLoading, themeLoading]);
 
   const theme = isDark ? darkTheme : lightTheme;
-  const publishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
-    Constants.expoConfig?.extra?.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
 
   // Show loading state while initializing
   if (authLoading || themeLoading) {
@@ -407,17 +364,7 @@ export default function RootLayout() {
       <ThemeContext.Provider value={{ isDark, themePreference, setThemePreference, isLoading: themeLoading }}>
         <FavoritesProvider>
           <CartProvider>
-            {StripeProvider ? (
-              <StripeProvider
-                publishableKey={publishableKey}
-                merchantIdentifier="merchant.com.rallysphere.app"
-                urlScheme="rallysphere"
-              >
-                {content}
-              </StripeProvider>
-            ) : (
-              content
-            )}
+            {content}
           </CartProvider>
         </FavoritesProvider>
       </ThemeContext.Provider>

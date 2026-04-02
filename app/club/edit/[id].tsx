@@ -606,7 +606,7 @@ export default function EditClubScreen() {
                 autoCapitalize="none"
                 style={styles.input}
 
-                left={<TextInput.Icon icon="discord" />}
+                left={<TextInput.Icon icon="forum" />}
                 placeholder="Invite link"
               />
             </Card.Content>

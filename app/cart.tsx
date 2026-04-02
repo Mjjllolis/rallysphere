@@ -7,7 +7,6 @@ import {
   Image,
   TouchableOpacity,
   Alert,
-  Platform,
 } from 'react-native';
 import {
   Text,
@@ -15,15 +14,12 @@ import {
   ActivityIndicator,
   Button,
   Divider,
-  SegmentedButtons,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart, type CartItem } from '../lib/cartContext';
 import { useAuth } from './_layout';
-import { createStorePaymentIntent } from '../lib/stripe';
-import { useStripe, usePaymentSheet } from '@stripe/stripe-react-native';
 
 export default function CartScreen() {
   const theme = useTheme();
@@ -32,17 +28,9 @@ export default function CartScreen() {
   const [deliveryMethod, setDeliveryMethod] = useState<'shipping' | 'pickup'>('pickup');
   const [processing, setProcessing] = useState(false);
 
-  // Stripe hooks for native payments
-  const stripe = Platform.OS !== 'web' ? useStripe() : null;
-  const { initPaymentSheet, presentPaymentSheet } = Platform.OS !== 'web'
-    ? usePaymentSheet()
-    : { initPaymentSheet: null, presentPaymentSheet: null };
-
   const calculateTotals = () => {
     let itemsTotal = 0;
     let shipping = 0;
-    let taxableAmount = 0;
-    let tax = 0;
 
     cart.forEach((item) => {
       const itemSubtotal = item.price * item.quantity;
@@ -54,22 +42,10 @@ export default function CartScreen() {
       }
     });
 
-    // Calculate tax on (items + shipping)
-    taxableAmount = itemsTotal + shipping;
+    // Tax is calculated at checkout via Stripe Tax
+    const total = itemsTotal + shipping;
 
-    // Use weighted average tax rate based on item totals
-    if (cart.length > 0) {
-      const weightedTaxRate = cart.reduce((sum, item) => {
-        const itemTotal = item.price * item.quantity;
-        return sum + (item.taxRate * itemTotal);
-      }, 0) / itemsTotal;
-
-      tax = taxableAmount * (weightedTaxRate / 100);
-    }
-
-    const total = taxableAmount + tax;
-
-    return { itemsTotal, shipping, tax, total };
+    return { itemsTotal, shipping, tax: 0, total };
   };
 
   const handleRemoveItem = (item: CartItem) => {
@@ -273,7 +249,7 @@ export default function CartScreen() {
 
           <View style={styles.summaryRow}>
             <Text style={[styles.summaryLabel, { color: theme.colors.onSurfaceVariant }]}>Tax</Text>
-            <Text style={[styles.summaryValue, { color: theme.colors.onSurface }]}>${tax.toFixed(2)}</Text>
+            <Text style={[styles.summaryValue, { color: theme.colors.onSurfaceVariant, fontStyle: 'italic', fontSize: 13 }]}>Calculated at checkout</Text>
           </View>
 
           <Divider style={{ marginVertical: 12 }} />

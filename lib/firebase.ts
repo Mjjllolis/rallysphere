@@ -1,18 +1,19 @@
 // lib/firebase.ts - Unified Firebase configuration for RallySphere
 // Combines all Firebase functionality with Expo compatibility and persistence
 import { initializeApp, getApps } from 'firebase/app';
-import { 
-  initializeAuth, 
-  getAuth, 
-  getReactNativePersistence, 
-  onAuthStateChanged, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut, 
-  updateProfile, 
+import {
+  initializeAuth,
+  getAuth,
+  getReactNativePersistence,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signInWithPhoneNumber,
+  linkWithPhoneNumber,
+  signOut,
+  updateProfile,
   type User as FirebaseUser,
-  type UserCredential,
-  type Auth
+  type Auth,
+  type ConfirmationResult
 } from 'firebase/auth';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -66,6 +67,7 @@ type Extra = {
 export interface User {
   uid: string;
   email: string | null;
+  phoneNumber: string | null;
   displayName: string | null;
   photoURL: string | null;
   createdAt?: Timestamp;
@@ -75,8 +77,9 @@ export interface User {
 export interface UserProfile {
   firstName: string;
   lastName: string;
+  email: string;
+  phone: string;
   displayName?: string;
-  email?: string;
   photoURL?: string;
   bio?: string;
   avatar?: string;
@@ -280,9 +283,9 @@ export interface StoreItem {
   category: string;  // e.g., "Merch", "Equipment", "Snacks", "Etc"
   images: string[];  // URLs to Firebase Storage
   price: number;
-  taxRate: number;  // percentage for sales tax
+  taxRate?: number;  // deprecated - tax now calculated via Stripe Tax
   adminFeeRate: number;  // percentage for admin fee
-  transactionFeeRate: number;  // percentage for transaction fee (default 2.9%)
+  transactionFeeRate?: number;  // deprecated - removed from UI
   shippingCost: number | null;  // null if pickup only
   allowPickup: boolean;
   pickupOnly: boolean;
@@ -446,7 +449,7 @@ const firebaseConfig = getFirebaseConfig();
 // console.log("Firebase config:", firebaseConfig);
 
 // Initialize Firebase App
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
 // Initialize Auth with proper persistence
 let auth: Auth;
@@ -486,6 +489,7 @@ export const onAuthStateChange = (callback: (user: User | null) => void) => {
         const user: User = {
           uid: firebaseUser.uid,
           email: firebaseUser.email,
+          phoneNumber: firebaseUser.phoneNumber,
           displayName: firebaseUser.displayName,
           photoURL: firebaseUser.photoURL,
           ...userData
@@ -493,10 +497,10 @@ export const onAuthStateChange = (callback: (user: User | null) => void) => {
         callback(user);
       } catch (error) {
         // console.error('Error getting user data:', error);
-        // Return basic user info if Firestore fails
         const user: User = {
           uid: firebaseUser.uid,
           email: firebaseUser.email,
+          phoneNumber: firebaseUser.phoneNumber,
           displayName: firebaseUser.displayName,
           photoURL: firebaseUser.photoURL,
         };
@@ -508,48 +512,110 @@ export const onAuthStateChange = (callback: (user: User | null) => void) => {
   });
 };
 
+// --- Phone Auth ---
+let _pendingConfirmation: ConfirmationResult | null = null;
+
+export const setPendingConfirmation = (result: ConfirmationResult) => {
+  _pendingConfirmation = result;
+};
+export const getPendingConfirmation = () => _pendingConfirmation;
+export const clearPendingConfirmation = () => { _pendingConfirmation = null; };
+
+export const sendPhoneVerification = async (
+  phoneNumber: string,
+  recaptchaVerifier: any
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const confirmation = await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
+    setPendingConfirmation(confirmation);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const confirmOTPCode = async (
+  otp: string
+): Promise<{ success: boolean; isNewUser?: boolean; error?: string }> => {
+  try {
+    const confirmation = getPendingConfirmation();
+    if (!confirmation) throw new Error('No pending verification. Please request a new code.');
+    const result = await confirmation.confirm(otp);
+    clearPendingConfirmation();
+    const userDoc = await getDoc(doc(db, 'users', result.user.uid));
+    const data = userDoc.data();
+    const hasProfile = !!(data?.profile?.firstName && data?.profile?.lastName && data?.profile?.email);
+    return { success: true, isNewUser: !hasProfile };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const createUserProfile = async (
+  profile: UserProfile
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) throw new Error('No authenticated user');
+    await setDoc(doc(db, 'users', firebaseUser.uid), {
+      profile,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    await updateProfile(firebaseUser, {
+      displayName: `${profile.firstName} ${profile.lastName}`,
+      photoURL: profile.photoURL || null
+    });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+};
+
 export const signIn = async (email: string, password: string) => {
   try {
     const result = await signInWithEmailAndPassword(auth, email, password);
     return { success: true, user: result.user };
   } catch (error: any) {
-    // console.error('Sign in error:', error);
     return { success: false, error: error.message };
   }
 };
 
-export async function signUp(
-  email: string,
-  password: string,
-  profile: UserProfile
-): Promise<{ success: boolean; error?: string; user?: FirebaseUser }> {
+export const sendPhoneLinking = async (
+  phoneNumber: string,
+  recaptchaVerifier: any
+): Promise<{ success: boolean; error?: string }> => {
   try {
-    const cred: UserCredential = await createUserWithEmailAndPassword(
-      auth,
-      email,
-      password
-    );
-    const user = cred.user;
-
-    // Update display name
-    await updateProfile(user, {
-      displayName: `${profile.firstName} ${profile.lastName}`
-    });
-
-    // Create user document in Firestore
-    await setDoc(doc(db, "users", user.uid), {
-      email,
-      profile,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
-
-    return { success: true, user };
-  } catch (err: any) {
-    // console.error("Firebase signup error:", err);
-    return { success: false, error: err.message };
+    const user = auth.currentUser;
+    if (!user) throw new Error('No authenticated user');
+    const confirmation = await linkWithPhoneNumber(user, phoneNumber, recaptchaVerifier);
+    setPendingConfirmation(confirmation);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
   }
-}
+};
+
+export const confirmPhoneLink = async (
+  otp: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const confirmation = getPendingConfirmation();
+    if (!confirmation) throw new Error('No pending verification. Please request a new code.');
+    const result = await confirmation.confirm(otp);
+    clearPendingConfirmation();
+    // Save phone number into Firestore profile
+    if (result.user.phoneNumber) {
+      await updateDoc(doc(db, 'users', result.user.uid), {
+        'profile.phone': result.user.phoneNumber,
+        updatedAt: serverTimestamp()
+      });
+    }
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+};
 
 export const logout = async () => {
   try {
@@ -3873,6 +3939,6 @@ export const fixEventsAndCredits = async () => {
 // onAuthStateChange is already exported above, no need to redeclare
 
 // --- 15. Export Firebase instances ---
-export { auth, db, storage, app };
+export { auth, db, storage };
 
 // --- 15. All types are already exported via 'export interface' declarations throughout this file ---

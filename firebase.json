@@ -20,6 +20,9 @@
       "ignore": [
         "node_modules",
         ".git",
+        "ios",
+        "android",
+        ".expo",
         "firebase-debug.log",
         "firebase-debug.*.log",
         "*.local"

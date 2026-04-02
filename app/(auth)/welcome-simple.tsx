@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Image, Platform } from 'react-native';
+import { View, StyleSheet, Image, Platform, TouchableOpacity } from 'react-native';
 import { Text, Button, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -16,12 +16,14 @@ export default function WelcomeScreen() {
   });
 
   const handleGetStarted = () => {
-    // console.log('Get Started pressed');
-    router.push('/(auth)/signup');
+    router.push({ pathname: '/(auth)/phone-auth', params: { mode: 'signup' } });
   };
 
   const handleSignIn = () => {
-    // console.log('Sign In pressed');
+    router.push({ pathname: '/(auth)/phone-auth', params: { mode: 'signin' } });
+  };
+
+  const handleEmailSignIn = () => {
     router.push('/(auth)/login');
   };
 
@@ -76,6 +78,10 @@ export default function WelcomeScreen() {
           >
             Get Started
           </Button>
+
+          <TouchableOpacity onPress={handleEmailSignIn} style={styles.emailSignInButton}>
+            <Text style={styles.emailSignInText}>Sign in with Email instead</Text>
+          </TouchableOpacity>
 
           <Text style={styles.terms}>
             By continuing, you agree to RallySphere's{' '}
@@ -134,6 +140,16 @@ const styles = StyleSheet.create({
   },
   buttonContent: {
     paddingVertical: 4,
+  },
+  emailSignInButton: {
+    alignSelf: 'center',
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  emailSignInText: {
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 13,
+    textDecorationLine: 'underline',
   },
   terms: {
     fontSize: 12,

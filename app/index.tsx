@@ -1,19 +1,30 @@
 import { Redirect } from 'expo-router';
 import { useAuth } from './_layout';
-import { View, Text } from 'react-native';
+import { useEffect, useState } from 'react';
+import { getDoc, doc, getFirestore } from 'firebase/firestore';
 
 export default function Index() {
     const { user, isLoading } = useAuth();
-    
-    // console.log('Index.tsx - isLoading:', isLoading, 'user:', user ? user.email : 'No user');
-    
-    if (isLoading) {
-        // console.log('Index showing loading state');
-        return null;
-    }
-    
-    const redirectPath = user ? '/(tabs)/home' : '/(auth)/welcome-simple';
-    // console.log('Index redirecting to:', redirectPath);
-    
-    return <Redirect href={redirectPath} />;
+    const [checked, setChecked] = useState(false);
+    const [profileComplete, setProfileComplete] = useState(false);
+
+    useEffect(() => {
+        if (!user) {
+            setChecked(true);
+            return;
+        }
+        const db = getFirestore();
+        getDoc(doc(db, 'users', user.uid)).then((snap) => {
+            const data = snap.data();
+            const complete = !!(data?.profile?.firstName && data?.profile?.lastName && data?.profile?.email);
+            setProfileComplete(complete);
+            setChecked(true);
+        }).catch(() => setChecked(true));
+    }, [user]);
+
+    if (isLoading || !checked) return null;
+    if (!user) return <Redirect href="/(auth)/welcome-simple" />;
+    if (!profileComplete) return <Redirect href="/(auth)/profile-setup" />;
+    if (!user.phoneNumber) return <Redirect href="/(auth)/link-phone" />;
+    return <Redirect href="/(tabs)/home" />;
 }

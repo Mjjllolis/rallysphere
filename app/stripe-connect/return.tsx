@@ -1,9 +1,9 @@
-// app/stripe-connect/return.tsx - Stripe Connect onboarding return handler
+// app/stripe-connect/return.tsx - Payout account setup return handler
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
 import { Text, Button, ActivityIndicator, useTheme, Card } from 'react-native-paper';
 import { router, useLocalSearchParams } from 'expo-router';
-import { checkStripeAccountStatus } from '../../lib/stripe';
+import { getSubMerchantStatus } from '../../lib/stripe';
 import { updateClub, getClub } from '../../lib/firebase';
 
 export default function StripeConnectReturn() {
@@ -34,22 +34,22 @@ export default function StripeConnectReturn() {
 
       const club = clubResult.club;
 
-      if (!club.stripeAccountId) {
-        setError('No Stripe account found for this club');
+      if (!club.braintreeMerchantAccountId) {
+        setError('No payout account found for this club');
         setLoading(false);
         // Redirect back to club after 2 seconds
         setTimeout(() => handleContinue(), 2000);
         return;
       }
 
-      // Check if onboarding is complete
-      const statusResult = await checkStripeAccountStatus(club.stripeAccountId);
+      // Check if account is active
+      const statusResult = await getSubMerchantStatus(club.braintreeMerchantAccountId);
 
-      if (statusResult.success && statusResult.isComplete) {
+      if (statusResult.success && statusResult.status === 'active') {
         // Update club status in Firestore
         await updateClub(clubId as string, {
-          stripeOnboardingComplete: true,
-          stripeAccountStatus: 'active',
+          braintreeMerchantAccountActive: true,
+          braintreeMerchantAccountStatus: 'active',
         });
 
         setSuccess(true);
@@ -91,7 +91,7 @@ export default function StripeConnectReturn() {
                 Setup Complete!
               </Text>
               <Text variant="bodyMedium" style={styles.subtitle}>
-                Your club is now ready to accept payments and receive payouts through Stripe.
+                Your club is now ready to accept payments and receive payouts.
               </Text>
               <Text variant="bodySmall" style={[styles.subtitle, { opacity: 0.6, fontStyle: 'italic' }]}>
                 Returning to club page...

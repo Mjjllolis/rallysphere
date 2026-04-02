@@ -279,7 +279,7 @@ export default function ClubForm({ onColorsExtracted, onSuccess }: ClubFormProps
         onChangeText={(value) => updateFormData('discord', value)}
         placeholder="Invite link"
         autoCapitalize="none"
-        icon="discord"
+        icon="forum"
       />
 
       <GlassSwitch

@@ -1,511 +1,33 @@
-// lib/stripe.ts - Stripe payment service for RallySphere
-import { initStripe, useStripe } from '@stripe/stripe-react-native';
+// lib/stripe.ts — Braintree payment service for RallySphere
+// File kept as stripe.ts to avoid import changes throughout the app.
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import Constants from 'expo-constants';
 import { app } from './firebase';
-
-// Initialize Stripe with publishable key
-const publishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
-  Constants.expoConfig?.extra?.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
-
-// Initialize Stripe SDK
-export const initializeStripe = async () => {
-  try {
-    await initStripe({
-      publishableKey,
-      merchantIdentifier: 'merchant.com.rallysphere.app', // Apple Pay merchant ID
-      urlScheme: 'rallysphere', // For handling redirects
-    });
-    // console.log('Stripe initialized successfully');
-    return { success: true };
-  } catch (error: any) {
-    // console.error('Error initializing Stripe:', error);
-    return { success: false, error: error.message };
-  }
-};
-
-// Get current auth instance
 import { getAuth } from 'firebase/auth';
-const auth = getAuth(app);
 
-// Firebase functions instance - specify region to match deployment
-// If your functions are deployed to a specific region, specify it here
-// Default is us-central1
+const auth = getAuth(app);
 const functions = getFunctions(app, 'us-central1');
 
-// Debug: Log functions URL to verify we're not using emulator
-// console.log('Firebase Functions URL:', functions.customDomain || 'using default');
-// console.log('Firebase Auth:', auth.currentUser ? 'User authenticated' : 'No user');
-
-export interface CreatePaymentIntentParams {
-  eventId: string;
-  ticketPrice: number;
-  currency?: string;
-}
-
-export interface CreatePaymentIntentResult {
-  success: boolean;
-  clientSecret?: string;
-  paymentIntentId?: string;
-  breakdown?: {
-    ticketPrice: number;
-    processingFee: number;
-    platformFee: number;
-    totalAmount: number;
-    clubReceives: number;
-  };
-  error?: string;
-}
-
-/**
- * Create a payment intent for an event ticket
- * This calls the Firebase Cloud Function to securely create the payment intent
- */
-export const createPaymentIntent = async (
-  params: CreatePaymentIntentParams
-): Promise<CreatePaymentIntentResult> => {
-  try {
-    const createPaymentIntentFn = httpsCallable(functions, 'createPaymentIntent');
-
-    const result = await createPaymentIntentFn({
-      eventId: params.eventId,
-      ticketPrice: params.ticketPrice,
-      currency: params.currency || 'usd',
-    });
-
-    const data = result.data as any;
-
-    if (data.clientSecret && data.paymentIntentId) {
-      return {
-        success: true,
-        clientSecret: data.clientSecret,
-        paymentIntentId: data.paymentIntentId,
-        breakdown: data.breakdown,
-      };
-    } else {
-      return {
-        success: false,
-        error: 'Invalid response from payment service',
-      };
-    }
-  } catch (error: any) {
-    // console.error('Error creating payment intent:', error);
-    return {
-      success: false,
-      error: error.message || 'Failed to create payment intent',
-    };
-  }
-};
-
-export interface ProcessPaymentParams {
-  clientSecret: string;
-}
-
-export interface ProcessPaymentResult {
-  success: boolean;
-  error?: string;
-}
-
-/**
- * Process a payment using the Stripe SDK
- * This should be called from a component that has access to the useStripe hook
- */
-export const processPayment = async (
-  stripe: ReturnType<typeof useStripe>,
-  params: ProcessPaymentParams
-): Promise<ProcessPaymentResult> => {
-  try {
-    if (!stripe.confirmPayment) {
-      return {
-        success: false,
-        error: 'Stripe is not initialized',
-      };
-    }
-
-    const { error, paymentIntent } = await stripe.confirmPayment(params.clientSecret, {
-      paymentMethodType: 'Card',
-    });
-
-    if (error) {
-      // console.error('Payment confirmation error:', error);
-      return {
-        success: false,
-        error: error.message || 'Payment failed',
-      };
-    }
-
-    if (paymentIntent && paymentIntent.status === 'Succeeded') {
-      return { success: true };
-    }
-
-    return {
-      success: false,
-      error: 'Payment was not successful',
-    };
-  } catch (error: any) {
-    // console.error('Error processing payment:', error);
-    return {
-      success: false,
-      error: error.message || 'An unexpected error occurred',
-    };
-  }
-};
-
-/**
- * Create a Stripe Checkout Session for browser-based payment
- * This will redirect the user to a Stripe-hosted payment page
- */
-export interface CreateCheckoutSessionParams {
-  eventId: string;
-  ticketPrice: number;
-  currency?: string;
-}
-
-export interface CreateCheckoutSessionResult {
-  success: boolean;
-  sessionId?: string;
-  checkoutUrl?: string;
-  error?: string;
-}
-
-export const createCheckoutSession = async (
-  params: CreateCheckoutSessionParams
-): Promise<CreateCheckoutSessionResult> => {
-  try {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      // console.error('No authenticated user found');
-      return {
-        success: false,
-        error: 'You must be logged in to purchase tickets',
-      };
-    }
-
-    // console.log('Creating checkout session for:', {
-    //   eventId: params.eventId,
-    //   ticketPrice: params.ticketPrice,
-    //   userId: currentUser.uid,
-    //   email: currentUser.email
-    // });
-
-    // Get fresh auth token to ensure it's valid
-    const idToken = await currentUser.getIdToken(true);
-    // console.log('Got auth token for checkout, length:', idToken.length);
-
-    const createSessionFn = httpsCallable(functions, 'createCheckoutSession');
-    const result = await createSessionFn({
-      eventId: params.eventId,
-      ticketPrice: params.ticketPrice,
-      currency: params.currency || 'usd',
-    });
-
-    const data = result.data as any;
-
-    if (data.sessionId && data.checkoutUrl) {
-      return {
-        success: true,
-        sessionId: data.sessionId,
-        checkoutUrl: data.checkoutUrl,
-      };
-    } else {
-      return {
-        success: false,
-        error: 'Invalid response from payment service',
-      };
-    }
-  } catch (error: any) {
-    // console.error('Error creating checkout session:', error);
-    // console.error('Error details:', {
-    //   code: error.code,
-    //   message: error.message,
-    //   details: error.details,
-    //   customData: error.customData
-    // });
-    return {
-      success: false,
-      error: error.message || 'Failed to create checkout session',
-    };
-  }
-};
-
-/**
- * Get user's payment history
- */
-export const getUserPayments = async () => {
-  try {
-    const getUserPaymentsFn = httpsCallable(functions, 'getUserPayments');
-    const result = await getUserPaymentsFn();
-    const data = result.data as any;
-
-    return {
-      success: true,
-      payments: data.payments || [],
-    };
-  } catch (error: any) {
-    // console.error('Error getting user payments:', error);
-    return {
-      success: false,
-      error: error.message,
-      payments: [],
-    };
-  }
-};
-
-/**
- * Create a Stripe Connect account for a club
- */
-export const createStripeConnectAccount = async (clubId: string, email: string, clubName: string) => {
-  try {
-    // Check if user is authenticated
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      // console.error('No authenticated user found');
-      return {
-        success: false,
-        error: 'You must be logged in to connect Stripe',
-      };
-    }
-
-    // console.log('Creating Stripe Connect account for:', { clubId, email, clubName, userId: currentUser.uid });
-
-    // Get fresh auth token to ensure it's valid
-    const idToken = await currentUser.getIdToken(true);
-    // console.log('Got auth token, length:', idToken.length);
-
-    const createAccountFn = httpsCallable(functions, 'createStripeConnectAccount');
-    const result = await createAccountFn({ clubId, email, clubName });
-    const data = result.data as any;
-
-    return {
-      success: true,
-      accountId: data.accountId,
-      onboardingUrl: data.onboardingUrl,
-    };
-  } catch (error: any) {
-    // console.error('Error creating Stripe Connect account:', error);
-    // console.error('Error details:', {
-    //   code: error.code,
-    //   message: error.message,
-    //   details: error.details,
-    //   customData: error.customData
-    // });
-    return {
-      success: false,
-      error: error.message || 'Failed to create Stripe account',
-    };
-  }
-};
-
-/**
- * Check Stripe Connect account status
- */
-export const checkStripeAccountStatus = async (accountId: string) => {
-  try {
-    // Check if user is authenticated
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      // console.error('No authenticated user found');
-      return {
-        success: false,
-        error: 'You must be logged in to check account status',
-      };
-    }
-
-    const checkStatusFn = httpsCallable(functions, 'checkStripeAccountStatus');
-    const result = await checkStatusFn({ accountId });
-    const data = result.data as any;
-
-    return {
-      success: true,
-      ...data,
-    };
-  } catch (error: any) {
-    // console.error('Error checking account status:', error);
-    return {
-      success: false,
-      error: error.message,
-    };
-  }
-};
-
-/**
- * Create a payment intent for a store item purchase (for in-app payment)
- */
-export interface CreateStorePaymentIntentParams {
-  itemId: string;
-  quantity: number;
-  selectedVariants: { [key: string]: string };
-  deliveryMethod: 'shipping' | 'pickup';
-  shippingAddress?: {
-    fullName: string;
-    addressLine1: string;
-    addressLine2?: string;
-    city: string;
-    state: string;
-    zipCode: string;
-    country: string;
-    phone: string;
-  };
-}
-
-export interface CreateStorePaymentIntentResult {
-  success: boolean;
-  clientSecret?: string;
-  paymentIntentId?: string;
-  error?: string;
-}
-
-export const createStorePaymentIntent = async (
-  params: CreateStorePaymentIntentParams
-): Promise<CreateStorePaymentIntentResult> => {
-  try {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      // console.error('No authenticated user found');
-      return {
-        success: false,
-        error: 'You must be logged in to purchase',
-      };
-    }
-
-    // console.log('Creating store payment intent for:', {
-    //   itemId: params.itemId,
-    //   quantity: params.quantity,
-    //   userId: currentUser.uid,
-    // });
-
-    // Get fresh auth token
-    const idToken = await currentUser.getIdToken(true);
-
-    const createPaymentIntentFn = httpsCallable(functions, 'createStorePaymentIntent');
-    const result = await createPaymentIntentFn({
-      itemId: params.itemId,
-      quantity: params.quantity,
-      selectedVariants: params.selectedVariants,
-      deliveryMethod: params.deliveryMethod,
-      shippingAddress: params.shippingAddress,
-    });
-
-    const data = result.data as any;
-
-    if (data.clientSecret && data.paymentIntentId) {
-      return {
-        success: true,
-        clientSecret: data.clientSecret,
-        paymentIntentId: data.paymentIntentId,
-      };
-    } else {
-      return {
-        success: false,
-        error: 'Invalid response from payment service',
-      };
-    }
-  } catch (error: any) {
-    // console.error('Error creating store payment intent:', error);
-    // console.error('Error details:', {
-    //   code: error.code,
-    //   message: error.message,
-    //   details: error.details,
-    // });
-    return {
-      success: false,
-      error: error.message || 'Failed to create payment intent',
-    };
-  }
-};
-
-/**
- * Create a Stripe Checkout Session for store item purchase
- */
-export interface CreateStoreCheckoutSessionParams {
-  itemId: string;
-  quantity: number;
-  selectedVariants: { [key: string]: string };
-  deliveryMethod: 'shipping' | 'pickup';
-  shippingAddress?: {
-    fullName: string;
-    addressLine1: string;
-    addressLine2?: string;
-    city: string;
-    state: string;
-    zipCode: string;
-    country: string;
-    phone: string;
-  };
-}
-
-export interface CreateStoreCheckoutSessionResult {
-  success: boolean;
-  sessionId?: string;
-  checkoutUrl?: string;
-  error?: string;
-}
-
-export const createStoreCheckoutSession = async (
-  params: CreateStoreCheckoutSessionParams
-): Promise<CreateStoreCheckoutSessionResult> => {
-  try {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      // console.error('No authenticated user found');
-      return {
-        success: false,
-        error: 'You must be logged in to purchase',
-      };
-    }
-
-    // console.log('Creating store checkout session for:', {
-    //   itemId: params.itemId,
-    //   quantity: params.quantity,
-    //   userId: currentUser.uid,
-    //   email: currentUser.email
-    // });
-
-    // Get fresh auth token
-    const idToken = await currentUser.getIdToken(true);
-    // console.log('Got auth token for checkout, length:', idToken.length);
-
-    const createSessionFn = httpsCallable(functions, 'createStoreCheckoutSession');
-    const result = await createSessionFn({
-      itemId: params.itemId,
-      quantity: params.quantity,
-      selectedVariants: params.selectedVariants,
-      deliveryMethod: params.deliveryMethod,
-      shippingAddress: params.shippingAddress,
-    });
-
-    const data = result.data as any;
-
-    if (data.sessionId && data.checkoutUrl) {
-      return {
-        success: true,
-        sessionId: data.sessionId,
-        checkoutUrl: data.checkoutUrl,
-      };
-    } else {
-      return {
-        success: false,
-        error: 'Invalid response from payment service',
-      };
-    }
-  } catch (error: any) {
-    // console.error('Error creating store checkout session:', error);
-    // console.error('Error details:', {
-    //   code: error.code,
-    //   message: error.message,
-    //   details: error.details,
-    //   customData: error.customData
-    // });
-    return {
-      success: false,
-      error: error.message || 'Failed to create checkout session',
-    };
-  }
-};
-
 // ============================================================================
-// LEAVE EVENT WITH REFUND
+// INTERFACES
 // ============================================================================
+
+export interface PaymentBreakdown {
+  ticketPrice: number;
+  processingFee: number;
+  platformFee: number;
+  totalAmount: number;
+  clubReceives: number;
+}
+
+export interface StoreBreakdown {
+  subtotal: number;
+  shipping: number;
+  tax: number;
+  processingFee: number;
+  platformFee: number;
+  clubReceives: number;
+  totalAmount: number;
+}
 
 export interface LeaveEventResult {
   success: boolean;
@@ -515,24 +37,181 @@ export interface LeaveEventResult {
   error?: string;
 }
 
-/**
- * Leave an event and get a refund if it was a paid event
- * Also forfeits any rally credits earned from the event
- */
-export const leaveEventWithRefund = async (
-  eventId: string
-): Promise<LeaveEventResult> => {
+export interface RefundResult {
+  success: boolean;
+  refundId?: string;
+  refundAmount?: number;
+  error?: string;
+}
+
+// ============================================================================
+// GET BRAINTREE CLIENT TOKEN
+// Call this before showing the payment UI to initialize Braintree Drop-in.
+// ============================================================================
+
+export const getBraintreeClientToken = async (): Promise<{ success: boolean; clientToken?: string; error?: string }> => {
   try {
     const currentUser = auth.currentUser;
     if (!currentUser) {
-      return {
-        success: false,
-        error: 'You must be logged in to leave events',
-      };
+      return { success: false, error: 'You must be logged in to make a payment' };
     }
 
-    const leaveFn = httpsCallable(functions, 'leaveEventWithRefund');
-    const result = await leaveFn({ eventId });
+    const fn = httpsCallable(functions, 'getBraintreeClientToken');
+    const result = await fn({});
+    const data = result.data as any;
+
+    if (data.clientToken) {
+      return { success: true, clientToken: data.clientToken };
+    }
+    return { success: false, error: 'Failed to get payment token' };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to initialize payment' };
+  }
+};
+
+// ============================================================================
+// CREATE EVENT TICKET TRANSACTION
+// Called after the Braintree Drop-in returns a nonce.
+// ============================================================================
+
+export interface CreateEventTransactionParams {
+  paymentMethodNonce: string;
+  eventId: string;
+  ticketPrice: number;
+  currency?: string;
+  discountApplied?: {
+    redemptionId: string;
+    redemptionName: string;
+    creditsUsed: number;
+  };
+  originalPrice?: number;
+  discountAmount?: number;
+}
+
+export interface CreateEventTransactionResult {
+  success: boolean;
+  transactionId?: string;
+  breakdown?: PaymentBreakdown;
+  error?: string;
+}
+
+export const createEventTransaction = async (
+  params: CreateEventTransactionParams
+): Promise<CreateEventTransactionResult> => {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      return { success: false, error: 'You must be logged in to purchase tickets' };
+    }
+
+    const fn = httpsCallable(functions, 'createEventTransaction');
+    const result = await fn({
+      paymentMethodNonce: params.paymentMethodNonce,
+      eventId: params.eventId,
+      ticketPrice: params.ticketPrice,
+      currency: params.currency || 'usd',
+      discountApplied: params.discountApplied,
+      originalPrice: params.originalPrice,
+      discountAmount: params.discountAmount,
+    });
+
+    const data = result.data as any;
+    if (data.success && data.transactionId) {
+      return {
+        success: true,
+        transactionId: data.transactionId,
+        breakdown: data.breakdown,
+      };
+    }
+    return { success: false, error: 'Invalid response from payment service' };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Payment failed' };
+  }
+};
+
+// ============================================================================
+// CREATE STORE TRANSACTION
+// Called after the Braintree Drop-in returns a nonce.
+// ============================================================================
+
+export interface CreateStoreTransactionParams {
+  paymentMethodNonce: string;
+  itemId: string;
+  quantity: number;
+  selectedVariants: { [key: string]: string };
+  deliveryMethod: 'shipping' | 'pickup';
+  shippingAddress?: {
+    fullName: string;
+    addressLine1: string;
+    addressLine2?: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+    phone: string;
+  };
+  rewardDiscount?: {
+    redemptionId: string;
+    redemptionName: string;
+    creditsRequired: number;
+    discountAmount: number;
+  };
+}
+
+export interface CreateStoreTransactionResult {
+  success: boolean;
+  transactionId?: string;
+  breakdown?: StoreBreakdown;
+  error?: string;
+}
+
+export const createStoreTransaction = async (
+  params: CreateStoreTransactionParams
+): Promise<CreateStoreTransactionResult> => {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      return { success: false, error: 'You must be logged in to purchase' };
+    }
+
+    const fn = httpsCallable(functions, 'createStoreTransaction');
+    const result = await fn({
+      paymentMethodNonce: params.paymentMethodNonce,
+      itemId: params.itemId,
+      quantity: params.quantity,
+      selectedVariants: params.selectedVariants,
+      deliveryMethod: params.deliveryMethod,
+      shippingAddress: params.shippingAddress,
+      rewardDiscount: params.rewardDiscount,
+    });
+
+    const data = result.data as any;
+    if (data.success && data.transactionId) {
+      return {
+        success: true,
+        transactionId: data.transactionId,
+        breakdown: data.breakdown,
+      };
+    }
+    return { success: false, error: 'Invalid response from payment service' };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Payment failed' };
+  }
+};
+
+// ============================================================================
+// LEAVE EVENT WITH REFUND
+// ============================================================================
+
+export const leaveEventWithRefund = async (eventId: string): Promise<LeaveEventResult> => {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      return { success: false, error: 'You must be logged in to leave events' };
+    }
+
+    const fn = httpsCallable(functions, 'leaveEventWithRefund');
+    const result = await fn({ eventId });
     const data = result.data as any;
 
     return {
@@ -542,99 +221,135 @@ export const leaveEventWithRefund = async (
       creditsForfeited: data.creditsForfeited,
     };
   } catch (error: any) {
-    // console.error('Error leaving event with refund:', error);
     const errorMessage = error.details?.message || error.message || 'Failed to leave event';
-    return {
-      success: false,
-      error: errorMessage,
-    };
+    return { success: false, error: errorMessage };
   }
 };
 
 // ============================================================================
-// REFUND FUNCTIONS
+// REFUND FUNCTIONS (Admin)
 // ============================================================================
 
-export interface RefundResult {
-  success: boolean;
-  refundId?: string;
-  refundAmount?: number;
-  error?: string;
+export const refundTicketOrder = async (orderId: string, clubId: string): Promise<RefundResult> => {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      return { success: false, error: 'You must be logged in to process refunds' };
+    }
+
+    const fn = httpsCallable(functions, 'refundTicketOrder');
+    const result = await fn({ orderId, clubId });
+    const data = result.data as any;
+
+    return {
+      success: true,
+      refundId: data.refundId,
+      refundAmount: data.refundAmount,
+    };
+  } catch (error: any) {
+    const errorMessage = error.details?.message || error.message || 'Failed to process refund';
+    return { success: false, error: errorMessage };
+  }
+};
+
+export const refundStoreOrder = async (orderId: string, clubId: string): Promise<RefundResult> => {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      return { success: false, error: 'You must be logged in to process refunds' };
+    }
+
+    const fn = httpsCallable(functions, 'refundStoreOrder');
+    const result = await fn({ orderId, clubId });
+    const data = result.data as any;
+
+    return {
+      success: true,
+      refundId: data.refundId,
+      refundAmount: data.refundAmount,
+    };
+  } catch (error: any) {
+    const errorMessage = error.details?.message || error.message || 'Failed to process refund';
+    return { success: false, error: errorMessage };
+  }
+};
+
+// ============================================================================
+// SUB-MERCHANT ACCOUNT (Club Payouts)
+// ============================================================================
+
+export interface SubMerchantIndividual {
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  dateOfBirth?: string; // YYYY-MM-DD
+  ssn?: string;         // last 4 digits or full SSN (required for production)
+  address?: {
+    streetAddress: string;
+    locality: string;  // city
+    region: string;    // state
+    postalCode: string;
+  };
 }
 
-/**
- * Refund a ticket order
- * Only club admins can process refunds
- */
-export const refundTicketOrder = async (
-  orderId: string,
-  clubId: string
-): Promise<RefundResult> => {
+export interface SubMerchantFunding {
+  accountNumber: string;
+  routingNumber: string;
+}
+
+export const createSubMerchantAccount = async (
+  clubId: string,
+  email: string,
+  clubName: string,
+  individual?: SubMerchantIndividual,
+  funding?: SubMerchantFunding
+) => {
   try {
     const currentUser = auth.currentUser;
     if (!currentUser) {
-      return {
-        success: false,
-        error: 'You must be logged in to process refunds',
-      };
+      return { success: false, error: 'You must be logged in' };
     }
 
-    const refundFn = httpsCallable(functions, 'refundTicketOrder');
-    const result = await refundFn({ orderId, clubId });
+    const fn = httpsCallable(functions, 'createSubMerchantAccount');
+    const result = await fn({ clubId, email, clubName, individual, funding });
     const data = result.data as any;
 
     return {
       success: true,
-      refundId: data.refundId,
-      refundAmount: data.refundAmount,
+      merchantAccountId: data.merchantAccountId,
+      status: data.status,
     };
   } catch (error: any) {
-    // console.error('Error refunding ticket order:', error);
-    // Extract the actual error message from Firebase Functions error
-    const errorMessage = error.details?.message || error.message || 'Failed to process refund';
-    return {
-      success: false,
-      error: errorMessage,
-    };
+    return { success: false, error: error.message || 'Failed to create merchant account' };
   }
 };
 
-/**
- * Refund a store order
- * Only club admins can process refunds
- */
-export const refundStoreOrder = async (
-  orderId: string,
-  clubId: string
-): Promise<RefundResult> => {
+export const getSubMerchantStatus = async (merchantAccountId: string) => {
   try {
     const currentUser = auth.currentUser;
     if (!currentUser) {
-      return {
-        success: false,
-        error: 'You must be logged in to process refunds',
-      };
+      return { success: false, error: 'You must be logged in' };
     }
 
-    const refundFn = httpsCallable(functions, 'refundStoreOrder');
-    const result = await refundFn({ orderId, clubId });
+    const fn = httpsCallable(functions, 'getSubMerchantStatus');
+    const result = await fn({ merchantAccountId });
     const data = result.data as any;
 
-    return {
-      success: true,
-      refundId: data.refundId,
-      refundAmount: data.refundAmount,
-    };
+    return { success: true, ...data };
   } catch (error: any) {
-    // console.error('Error refunding store order:', error);
-    // Extract the actual error message from Firebase Functions error
-    const errorMessage = error.details?.message || error.message || 'Failed to process refund';
-    return {
-      success: false,
-      error: errorMessage,
-    };
+    return { success: false, error: error.message };
   }
 };
 
-// Export the useStripe hook for use in components
-export { useStripe };
+// ============================================================================
+// LEGACY ALIASES
+// These names are used in older screens — keep them pointing to the new fns.
+// ============================================================================
+
+/** @deprecated Use createSubMerchantAccount */
+export const createStripeConnectAccount = async (clubId: string, email: string, clubName: string) =>
+  createSubMerchantAccount(clubId, email, clubName);
+
+/** @deprecated Use getSubMerchantStatus */
+export const checkStripeAccountStatus = async (merchantAccountId: string) =>
+  getSubMerchantStatus(merchantAccountId);
