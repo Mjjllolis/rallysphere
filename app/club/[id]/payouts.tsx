@@ -1,16 +1,19 @@
 // app/club/[id]/payouts.tsx - Stripe Connect Payouts Management
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
 import { Text, IconButton, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useAuth } from '../../_layout';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router, useLocalSearchParams, Stack } from 'expo-router';
+import { useAuth, useThemeToggle } from '../../_layout';
 import { getClub } from '../../../lib/firebase';
 import type { Club } from '../../../lib/firebase';
 import StripeConnectSetup from '../../../components/StripeConnectSetup';
 
 export default function ClubPayoutsScreen() {
   const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const { user } = useAuth();
   const { id } = useLocalSearchParams();
   const clubId = id as string;
@@ -44,11 +47,23 @@ export default function ClubPayoutsScreen() {
 
   if (loading || !club) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
-        <View style={styles.loadingContainer}>
-          <Text variant="bodyLarge">Loading...</Text>
+      <View style={styles.container}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={StyleSheet.absoluteFill}>
+          <View style={[styles.background, { backgroundColor: theme.colors.background }]} />
         </View>
-      </SafeAreaView>
+        <LinearGradient
+          colors={isDark ? ['rgba(27, 54, 93, 0.3)', 'rgba(96, 165, 250, 0.1)', 'rgba(0, 0, 0, 0)'] : ['rgba(27, 54, 93, 0.15)', 'rgba(96, 165, 250, 0.05)', 'rgba(255, 255, 255, 0)']}
+          locations={[0, 0.3, 1]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <View style={styles.loadingContainer}>
+            <Text variant="bodyLarge" style={{ color: theme.colors.onSurface }}>Loading...</Text>
+          </View>
+        </SafeAreaView>
+      </View>
     );
   }
 
@@ -56,51 +71,77 @@ export default function ClubPayoutsScreen() {
 
   if (!isAdmin) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
-        <View style={[styles.header, { backgroundColor: theme.colors.surface }]}>
-          <IconButton
-            icon="arrow-left"
-            size={24}
-            onPress={() => router.back()}
-          />
-          <Text variant="titleLarge" style={styles.headerTitle}>
-            Manage Payouts
-          </Text>
-          <View style={{ width: 48 }} />
+      <View style={styles.container}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={StyleSheet.absoluteFill}>
+          <View style={[styles.background, { backgroundColor: theme.colors.background }]} />
         </View>
-        <View style={styles.errorContainer}>
-          <Text variant="bodyLarge">Only club admins can manage payouts</Text>
-        </View>
-      </SafeAreaView>
+        <LinearGradient
+          colors={isDark ? ['rgba(27, 54, 93, 0.3)', 'rgba(96, 165, 250, 0.1)', 'rgba(0, 0, 0, 0)'] : ['rgba(27, 54, 93, 0.15)', 'rgba(96, 165, 250, 0.05)', 'rgba(255, 255, 255, 0)']}
+          locations={[0, 0.3, 1]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.backButtonBlur}>
+                <IconButton icon="arrow-left" size={24} iconColor={theme.colors.onSurface} />
+              </BlurView>
+            </TouchableOpacity>
+            <View style={styles.headerInfo}>
+              <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Manage Payouts</Text>
+            </View>
+          </View>
+          <View style={styles.errorContainer}>
+            <Text variant="bodyLarge" style={{ color: theme.colors.onSurface }}>Only club admins can manage payouts</Text>
+          </View>
+        </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
-      <View style={[styles.header, { backgroundColor: theme.colors.surface }]}>
-        <IconButton
-          icon="arrow-left"
-          size={24}
-          onPress={() => router.back()}
-        />
-        <Text variant="titleLarge" style={styles.headerTitle}>
-          Manage Payouts
-        </Text>
-        <View style={{ width: 48 }} />
+    <View style={styles.container}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={StyleSheet.absoluteFill}>
+        <View style={[styles.background, { backgroundColor: theme.colors.background }]} />
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={true}
-      >
-        <StripeConnectSetup
-          club={club}
-          isAdmin={isAdmin}
-          onStatusChange={loadClubData}
-        />
-      </ScrollView>
-    </SafeAreaView>
+      <LinearGradient
+        colors={isDark ? ['rgba(27, 54, 93, 0.3)', 'rgba(96, 165, 250, 0.1)', 'rgba(0, 0, 0, 0)'] : ['rgba(27, 54, 93, 0.15)', 'rgba(96, 165, 250, 0.05)', 'rgba(255, 255, 255, 0)']}
+        locations={[0, 0.3, 1]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.backButtonBlur}>
+              <IconButton icon="arrow-left" size={24} iconColor={theme.colors.onSurface} />
+            </BlurView>
+          </TouchableOpacity>
+          <View style={styles.headerInfo}>
+            <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Manage Payouts</Text>
+            <Text style={[styles.headerSubtitle, { color: theme.colors.onSurfaceVariant }]}>{club?.name}</Text>
+          </View>
+        </View>
+
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={true}
+        >
+          <StripeConnectSetup
+            club={club}
+            isAdmin={isAdmin}
+            onStatusChange={loadClubData}
+          />
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -108,20 +149,39 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  background: {
+    flex: 1,
+  },
+  safeArea: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  backButton: {
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  backButtonBlur: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerInfo: {
+    flex: 1,
   },
   headerTitle: {
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '700',
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    marginTop: 2,
   },
   scrollView: {
     flex: 1,

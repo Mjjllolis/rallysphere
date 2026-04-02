@@ -9,7 +9,6 @@ import {
   Chip,
   IconButton,
   useTheme,
-  Menu,
   Surface
 } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -427,29 +426,29 @@ export default function ClubDetailScreen() {
 
                 {/* Regular member: Menu with Leave option */}
                 {isJoined && !isAdmin && !isOwner && (
-                  <Menu
-                    visible={menuVisible}
-                    onDismiss={() => setMenuVisible(false)}
-                    anchor={
+                  <View>
+                    <TouchableOpacity onPress={() => setMenuVisible(prev => !prev)} activeOpacity={0.7}>
                       <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.controlButtonBlur}>
                         <IconButton
                           icon="menu"
                           iconColor={theme.colors.onSurface}
                           size={24}
-                          onPress={() => setMenuVisible(true)}
                         />
                       </BlurView>
-                    }
-                  >
-                    <Menu.Item
-                      onPress={() => {
-                        setMenuVisible(false);
-                        handleLeaveClub();
-                      }}
-                      title="Leave Club"
-                      leadingIcon="exit-to-app"
-                    />
-                  </Menu>
+                    </TouchableOpacity>
+
+                    {menuVisible && (
+                      <View style={[styles.customMenu, { backgroundColor: isDark ? 'rgba(30,41,59,0.95)' : 'rgba(255,255,255,0.95)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
+                        <TouchableOpacity
+                          style={styles.customMenuItem}
+                          onPress={() => { setMenuVisible(false); handleLeaveClub(); }}
+                        >
+                          <IconButton icon="exit-to-app" size={18} iconColor={theme.colors.onSurface} style={{ margin: 0 }} />
+                          <Text style={[styles.customMenuText, { color: theme.colors.onSurface }]}>Leave Club</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
                 )}
               </View>
             </View>
@@ -1487,5 +1486,30 @@ const styles = StyleSheet.create({
   },
   subscriberChip: {
     backgroundColor: 'rgba(76, 175, 80, 0.2)',
+  },
+  customMenu: {
+    position: 'absolute',
+    top: 54,
+    right: 0,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+    minWidth: 180,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  customMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    gap: 4,
+  },
+  customMenuText: {
+    fontSize: 15,
+    fontWeight: '500',
   },
 });

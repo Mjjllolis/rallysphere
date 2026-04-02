@@ -53,7 +53,7 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
     const result = await getClubs();
     if (result.success) {
       const userClubs = result.clubs.filter(c =>
-        c.admins.includes(user.uid) || c.members.includes(user.uid)
+        c.admins.includes(user.uid)
       );
       setAvailableClubs(userClubs);
       if (userClubs.length > 0) {
@@ -80,7 +80,8 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
       formData.description.trim().length > 0 &&
       selectedClub !== null &&
       formData.location.trim().length > 0 &&
-      endDate > startDate
+      endDate > startDate &&
+      (!hasWaiver || waiverText.trim().length > 0)
     );
   };
 
@@ -103,6 +104,10 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
     }
     if (endDate <= startDate) {
       Alert.alert('Error', 'End time must be after start time');
+      return false;
+    }
+    if (hasWaiver && !waiverText.trim()) {
+      Alert.alert('Error', 'Waiver text is required when waiver is enabled');
       return false;
     }
     return true;
@@ -308,7 +313,7 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
 
       {hasWaiver && (
         <GlassInput
-          label="Waiver / Terms Text"
+          label="Waiver / Terms Text *"
           value={waiverText}
           onChangeText={setWaiverText}
           placeholder="Enter the waiver or terms that attendees must agree to..."

@@ -678,6 +678,7 @@ export const getClubs = async (userId?: string) => {
         tags: data.tags,
         contactEmail: data.contactEmail,
         socialLinks: data.socialLinks,
+        location: data.location,
         // Stripe Connect fields
         stripeAccountId: data.stripeAccountId,
         stripeAccountStatus: data.stripeAccountStatus,
@@ -731,6 +732,7 @@ export const getClub = async (clubId: string) => {
         tags: data.tags,
         contactEmail: data.contactEmail,
         socialLinks: data.socialLinks,
+        location: data.location,
         // Stripe Connect fields
         stripeAccountId: data.stripeAccountId,
         stripeAccountStatus: data.stripeAccountStatus,
@@ -1058,6 +1060,9 @@ export const updateClub = async (clubId: string, clubData: any) => {
     if (clubData.isPublic !== undefined) {
       updateData.isPublic = clubData.isPublic;
     }
+    if (clubData.location !== undefined) {
+      updateData.location = clubData.location;
+    }
     // Stripe Connect fields
     if (clubData.stripeAccountId !== undefined) {
       updateData.stripeAccountId = clubData.stripeAccountId;
@@ -1121,7 +1126,7 @@ export const createEvent = async (eventData: Omit<Event, 'id' | 'createdAt' | 'u
       locationCoords = await geocodeLocation(eventData.location) || undefined;
     }
 
-    const event = {
+    const eventBase = {
       ...eventData,
       clubLogo,
       ...(locationCoords ? { locationCoords } : {}),
@@ -1131,6 +1136,14 @@ export const createEvent = async (eventData: Omit<Event, 'id' | 'createdAt' | 'u
       waitlist: [],
       likes: []
     };
+
+    // Filter out undefined values (Firestore doesn't support them in addDoc)
+    const event: Record<string, any> = {};
+    for (const [key, value] of Object.entries(eventBase)) {
+      if (value !== undefined) {
+        event[key] = value;
+      }
+    }
 
     const docRef = await addDoc(collection(db, 'events'), event);
 
@@ -3538,9 +3551,9 @@ export const getEventAttendees = async (eventId: string) => {
           const userData = userDoc.exists() ? userDoc.data() : null;
           return {
             userId,
-            displayName: userData?.displayName || userData?.email || 'Unknown',
+            displayName: userData?.displayName || (userData?.profile?.firstName ? `${userData.profile.firstName}${userData?.profile?.lastName ? ` ${userData.profile.lastName}` : ''}` : null) || 'Unknown',
             email: userData?.email || '',
-            photoURL: userData?.photoURL || null,
+            photoURL: userData?.photoURL || userData?.profile?.photoURL || userData?.profile?.avatar || null,
             profileEmoji: userData?.profile?.profileEmoji || null,
             isCheckedIn: checkedInIds.includes(userId),
           };

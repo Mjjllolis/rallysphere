@@ -225,13 +225,14 @@ export default function EditClubScreen() {
         }
       }
 
-      const socialLinks: any = {};
-      if (formData.website.trim()) socialLinks.website = formData.website.trim();
-      if (formData.instagram.trim()) socialLinks.instagram = formData.instagram.trim();
-      if (formData.twitter.trim()) socialLinks.twitter = formData.twitter.trim();
-      if (formData.facebook.trim()) socialLinks.facebook = formData.facebook.trim();
-      if (formData.tiktok.trim()) socialLinks.tiktok = formData.tiktok.trim();
-      if (formData.discord.trim()) socialLinks.discord = formData.discord.trim();
+      const socialLinks: any = {
+        website: formData.website.trim(),
+        instagram: formData.instagram.trim(),
+        twitter: formData.twitter.trim(),
+        facebook: formData.facebook.trim(),
+        tiktok: formData.tiktok.trim(),
+        discord: formData.discord.trim(),
+      };
 
       const location = [
         formData.address.trim(),
@@ -247,13 +248,10 @@ export default function EditClubScreen() {
         category: formData.sport,
         isPublic,
         tags: selectedTags,
-        socialLinks: Object.keys(socialLinks).length > 0 ? socialLinks : undefined,
-        ...(location ? { location } : {}),
+        socialLinks,
+        location,
+        contactEmail: formData.contactEmail.trim(),
       };
-
-      if (formData.contactEmail.trim()) {
-        clubData.contactEmail = formData.contactEmail.trim();
-      }
       if (coverImageUrl) {
         clubData.coverImage = coverImageUrl;
       }

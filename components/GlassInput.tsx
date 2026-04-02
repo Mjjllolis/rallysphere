@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   containerMultiline: {
-    marginBottom: 8,
+    marginBottom: 20,
   },
   label: {
     fontSize: 14,

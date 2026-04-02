@@ -431,7 +431,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: ITEM_HEIGHT,
-    marginTop: -(ITEM_HEIGHT / 2),
+    marginTop: -(ITEM_HEIGHT / 2) - 8,
     borderTopWidth: 1,
     borderBottomWidth: 1,
   },

@@ -530,7 +530,6 @@ export default function RallyCreditRedemptionsScreen() {
                 placeholder="Add details about this reward..."
                 multiline
                 numberOfLines={3}
-                style={{ height: 80 }}
               />
 
               {/* Reward Type Picker */}

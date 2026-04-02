@@ -491,7 +491,7 @@ export default function EditEventScreen() {
                 </View>
                 {showStartDatePicker && (
                   <View style={styles.pickerContainer}>
-                    <DateTimePicker value={startDate} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={onStartDateChange} />
+                    <DateTimePicker value={startDate} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={onStartDateChange} themeVariant={isDark ? 'dark' : 'light'} />
                     {Platform.OS === 'ios' && (
                       <Button mode="contained" onPress={() => setShowStartDatePicker(false)} style={styles.doneButton}>Done</Button>
                     )}
@@ -499,7 +499,7 @@ export default function EditEventScreen() {
                 )}
                 {showStartTimePicker && (
                   <View style={styles.pickerContainer}>
-                    <DateTimePicker value={startDate} mode="time" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={onStartTimeChange} />
+                    <DateTimePicker value={startDate} mode="time" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={onStartTimeChange} themeVariant={isDark ? 'dark' : 'light'} />
                     {Platform.OS === 'ios' && (
                       <Button mode="contained" onPress={() => setShowStartTimePicker(false)} style={styles.doneButton}>Done</Button>
                     )}
@@ -519,7 +519,7 @@ export default function EditEventScreen() {
                 </View>
                 {showEndDatePicker && (
                   <View style={styles.pickerContainer}>
-                    <DateTimePicker value={endDate} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={onEndDateChange} minimumDate={startDate} />
+                    <DateTimePicker value={endDate} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={onEndDateChange} minimumDate={startDate} themeVariant={isDark ? 'dark' : 'light'} />
                     {Platform.OS === 'ios' && (
                       <Button mode="contained" onPress={() => setShowEndDatePicker(false)} style={styles.doneButton}>Done</Button>
                     )}
@@ -527,7 +527,7 @@ export default function EditEventScreen() {
                 )}
                 {showEndTimePicker && (
                   <View style={styles.pickerContainer}>
-                    <DateTimePicker value={endDate} mode="time" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={onEndTimeChange} />
+                    <DateTimePicker value={endDate} mode="time" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={onEndTimeChange} themeVariant={isDark ? 'dark' : 'light'} />
                     {Platform.OS === 'ios' && (
                       <Button mode="contained" onPress={() => setShowEndTimePicker(false)} style={styles.doneButton}>Done</Button>
                     )}

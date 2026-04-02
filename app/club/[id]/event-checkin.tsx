@@ -20,6 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Image as ExpoImage } from 'expo-image';
 import { useAuth, useThemeToggle } from '../../_layout';
 import {
   getClub,
@@ -383,7 +384,15 @@ export default function EventCheckinScreen() {
                             attendee.isCheckedIn && styles.avatarCheckedIn,
                           ]}
                         >
-                          {attendee.profileEmoji ? (
+                          {attendee.photoURL ? (
+                            <ExpoImage
+                              source={{ uri: attendee.photoURL }}
+                              style={styles.avatarImage}
+                              contentFit="cover"
+                              transition={200}
+                              cachePolicy="memory-disk"
+                            />
+                          ) : attendee.profileEmoji ? (
                             <Text style={styles.avatarEmoji}>{attendee.profileEmoji}</Text>
                           ) : (
                             <Text style={[styles.avatarText, { color: theme.colors.onSurface }]}>
@@ -842,6 +851,11 @@ const styles = StyleSheet.create({
   avatarCheckedIn: {
     backgroundColor: 'rgba(16, 185, 129, 0.3)',
   },
+  avatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
   avatarEmoji: {
     fontSize: 24,
   },
@@ -851,21 +865,25 @@ const styles = StyleSheet.create({
   },
   attendeeProfileArea: {
     flex: 1,
+    flexShrink: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
   attendeeInfo: {
     flex: 1,
+    flexShrink: 1,
   },
   attendeeNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    flexShrink: 1,
   },
   attendeeName: {
     fontSize: 16,
     fontWeight: '600',
+    flexShrink: 1,
   },
   waiverBadge: {
     width: 18,
