@@ -4,6 +4,7 @@ import { Platform, Linking, Alert, useColorScheme } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { Provider as PaperProvider, MD3LightTheme, MD3DarkTheme } from 'react-native-paper';
 import { onAuthStateChange, type User } from '../lib/firebase';
+import { initAppCheck } from '../lib/appCheck';
 import * as SecureStore from 'expo-secure-store';
 import * as SplashScreen from 'expo-splash-screen';
 import Constants from 'expo-constants';
@@ -227,6 +228,11 @@ export default function RootLayout() {
     }
     return themePreference === 'dark';
   }, [themePreference, systemColorScheme]);
+
+  // Initialize App Check before any Firebase calls go out.
+  useEffect(() => {
+    initAppCheck();
+  }, []);
 
   // Auth state listener
   useEffect(() => {

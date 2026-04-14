@@ -7,13 +7,24 @@ import {
   getReactNativePersistence,
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signInWithPhoneNumber,
   linkWithPhoneNumber,
+  linkWithCredential,
+  EmailAuthProvider,
+  PhoneAuthProvider,
+  PhoneMultiFactorGenerator,
+  multiFactor,
+  getMultiFactorResolver,
+  sendEmailVerification,
   signOut,
   updateProfile,
   type User as FirebaseUser,
   type Auth,
-  type ConfirmationResult
+  type ConfirmationResult,
+  type MultiFactorResolver,
+  type MultiFactorInfo,
+  type PhoneMultiFactorInfo
 } from 'firebase/auth';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -421,17 +432,29 @@ export interface RallyCreditTransaction {
 }
 
 // --- 3. Firebase Configuration ---
-// Try environment variables first, fall back to Constants
+// Try environment variables first, fall back to Constants.
+// App Check requires the JS SDK to use the platform-native appId so that
+// App Attest (iOS) / Play Integrity (Android) tokens validate against
+// the right app registration on the backend.
 const getFirebaseConfig = () => {
   const extra = Constants.expoConfig?.extra as Extra | undefined;
-  
+
+  const webAppId = process.env.EXPO_PUBLIC_FIREBASE_APP_ID || extra?.EXPO_PUBLIC_APP_ID;
+  const iosAppId = process.env.EXPO_PUBLIC_FIREBASE_APP_ID_IOS;
+  const androidAppId = process.env.EXPO_PUBLIC_FIREBASE_APP_ID_ANDROID;
+
+  const platformAppId =
+    Platform.OS === 'ios' ? (iosAppId || webAppId) :
+    Platform.OS === 'android' ? (androidAppId || webAppId) :
+    webAppId;
+
   const config = {
     apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || extra?.EXPO_PUBLIC_API_KEY,
     authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || extra?.EXPO_PUBLIC_AUTH_DOMAIN,
     projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || extra?.EXPO_PUBLIC_PROJECT_ID,
     storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || extra?.EXPO_PUBLIC_STORAGE_BUCKET,
     messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || extra?.EXPO_PUBLIC_MESSAGING_SENDER_ID,
-    appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || extra?.EXPO_PUBLIC_APP_ID,
+    appId: platformAppId,
     measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID || extra?.EXPO_PUBLIC_MEASUREMENT_ID,
   };
 
@@ -572,13 +595,204 @@ export const createUserProfile = async (
   }
 };
 
-export const signIn = async (email: string, password: string) => {
+export const signUpWithEmail = async (
+  email: string,
+  password: string
+): Promise<{ success: boolean; user?: FirebaseUser; error?: string }> => {
   try {
-    const result = await signInWithEmailAndPassword(auth, email, password);
+    const result = await createUserWithEmailAndPassword(auth, email, password);
+    try {
+      await sendEmailVerification(result.user);
+    } catch {
+      // Non-fatal — verification email can be resent later.
+    }
     return { success: true, user: result.user };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
+};
+
+export const signIn = async (
+  email: string,
+  password: string
+): Promise<{ success: boolean; user?: FirebaseUser; mfaRequired?: boolean; mfaHint?: string; error?: string }> => {
+  try {
+    const result = await signInWithEmailAndPassword(auth, email, password);
+    return { success: true, user: result.user };
+  } catch (error: any) {
+    if (error.code === 'auth/multi-factor-auth-required') {
+      const resolver = getMultiFactorResolver(auth, error);
+      _pendingMfaResolver = resolver;
+      _pendingMfaVerificationId = null;
+      const hint = resolver.hints[0] as PhoneMultiFactorInfo | undefined;
+      return { success: false, mfaRequired: true, mfaHint: hint?.phoneNumber ?? undefined };
+    }
+    return { success: false, error: error.message };
+  }
+};
+
+// --- Multi-Factor Authentication ---
+let _pendingMfaResolver: MultiFactorResolver | null = null;
+let _pendingMfaVerificationId: string | null = null;
+
+export const getMFAFactors = (): MultiFactorInfo[] => {
+  const user = auth.currentUser;
+  if (!user) return [];
+  return multiFactor(user).enrolledFactors;
+};
+
+export const hasMFAEnrolled = (): boolean => getMFAFactors().length > 0;
+
+export const sendVerificationEmail = async (): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const user = auth.currentUser;
+    if (!user) throw new Error('No authenticated user');
+    await sendEmailVerification(user);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+};
+
+// Add email+password credential to an existing (phone-auth) user so they can use password + MFA.
+export const linkEmailPassword = async (
+  email: string,
+  password: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const user = auth.currentUser;
+    if (!user) throw new Error('No authenticated user');
+    const credential = EmailAuthProvider.credential(email, password);
+    await linkWithCredential(user, credential);
+    await sendEmailVerification(auth.currentUser!);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+};
+
+// Start MFA enrollment: send SMS code to phoneNumber as the second factor.
+// Requires: user signed in, email verified (for email+password primary).
+export const startMFAEnrollment = async (
+  phoneNumber: string,
+  recaptchaVerifier: any
+): Promise<{ success: boolean; verificationId?: string; error?: string }> => {
+  try {
+    const user = auth.currentUser;
+    if (!user) throw new Error('No authenticated user');
+    const session = await multiFactor(user).getSession();
+    const provider = new PhoneAuthProvider(auth);
+    const verificationId = await provider.verifyPhoneNumber(
+      { phoneNumber, session },
+      recaptchaVerifier
+    );
+    _pendingMfaVerificationId = verificationId;
+    return { success: true, verificationId };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const confirmMFAEnrollment = async (
+  code: string,
+  displayName: string = 'Personal phone'
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const user = auth.currentUser;
+    if (!user) throw new Error('No authenticated user');
+    const verificationId = _pendingMfaVerificationId;
+    if (!verificationId) throw new Error('No pending enrollment. Send a new code.');
+    const cred = PhoneAuthProvider.credential(verificationId, code);
+    const assertion = PhoneMultiFactorGenerator.assertion(cred);
+    await multiFactor(user).enroll(assertion, displayName);
+    _pendingMfaVerificationId = null;
+    await updateDoc(doc(db, 'users', user.uid), {
+      mfaEnabled: true,
+      updatedAt: serverTimestamp(),
+    });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const getPendingMFAHint = (): { phoneNumber?: string; factorCount: number } | null => {
+  const resolver = _pendingMfaResolver;
+  if (!resolver) return null;
+  const hint = resolver.hints[0] as PhoneMultiFactorInfo | undefined;
+  return { phoneNumber: hint?.phoneNumber ?? undefined, factorCount: resolver.hints.length };
+};
+
+export const sendMFASignInCode = async (
+  recaptchaVerifier: any,
+  hintIndex: number = 0
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const resolver = _pendingMfaResolver;
+    if (!resolver) throw new Error('No pending MFA challenge. Sign in again.');
+    const hint = resolver.hints[hintIndex];
+    if (hint.factorId !== PhoneMultiFactorGenerator.FACTOR_ID) {
+      throw new Error('Only phone MFA is supported.');
+    }
+    const provider = new PhoneAuthProvider(auth);
+    const verificationId = await provider.verifyPhoneNumber(
+      { multiFactorHint: hint, session: resolver.session },
+      recaptchaVerifier
+    );
+    _pendingMfaVerificationId = verificationId;
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const confirmMFASignIn = async (
+  code: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const resolver = _pendingMfaResolver;
+    const verificationId = _pendingMfaVerificationId;
+    if (!resolver || !verificationId) throw new Error('No pending MFA challenge.');
+    const cred = PhoneAuthProvider.credential(verificationId, code);
+    const assertion = PhoneMultiFactorGenerator.assertion(cred);
+    await resolver.resolveSignIn(assertion);
+    _pendingMfaResolver = null;
+    _pendingMfaVerificationId = null;
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const clearPendingMFA = () => {
+  _pendingMfaResolver = null;
+  _pendingMfaVerificationId = null;
+};
+
+export const unenrollMFA = async (
+  factorUid: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const user = auth.currentUser;
+    if (!user) throw new Error('No authenticated user');
+    const mf = multiFactor(user);
+    const factor = mf.enrolledFactors.find((f) => f.uid === factorUid);
+    if (!factor) throw new Error('Factor not found');
+    await mf.unenroll(factor);
+    await updateDoc(doc(db, 'users', user.uid), {
+      mfaEnabled: mf.enrolledFactors.length > 0,
+      updatedAt: serverTimestamp(),
+    });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const isEmailVerified = (): boolean => !!auth.currentUser?.emailVerified;
+
+export const reloadCurrentUser = async (): Promise<void> => {
+  if (auth.currentUser) await auth.currentUser.reload();
 };
 
 export const sendPhoneLinking = async (

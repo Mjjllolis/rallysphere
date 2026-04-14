@@ -13,11 +13,14 @@ import { Text, TextInput, Button, Surface } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { signIn } from '../../lib/firebase';
+import { signUpWithEmail } from '../../lib/firebase';
 
-export default function LoginScreen() {
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export default function SignupEmailScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [confirm, setConfirm] = useState('');
     const [loading, setLoading] = useState(false);
 
     const player = useVideoPlayer(require('../../assets/BGSignIn.mp4'), (player) => {
@@ -36,20 +39,28 @@ export default function LoginScreen() {
         ]).start();
     }, []);
 
-    const handleLogin = async () => {
-        if (!email.trim() || !password.trim()) {
-            Alert.alert('Error', 'Please fill in all fields');
+    const handleSignup = async () => {
+        const e = email.trim();
+        if (!EMAIL_RE.test(e)) {
+            Alert.alert('Invalid Email', 'Please enter a valid email address.');
             return;
         }
+        if (password.length < 8) {
+            Alert.alert('Weak Password', 'Password must be at least 8 characters.');
+            return;
+        }
+        if (password !== confirm) {
+            Alert.alert('Passwords Don’t Match', 'Please re-enter the same password.');
+            return;
+        }
+
         setLoading(true);
         try {
-            const result = await signIn(email.trim(), password);
+            const result = await signUpWithEmail(e, password);
             if (result.success) {
-                router.replace('/');
-            } else if (result.mfaRequired) {
-                router.replace('/(auth)/mfa-challenge');
+                router.replace('/(auth)/profile-setup');
             } else {
-                Alert.alert('Login Failed', result.error || 'Invalid email or password');
+                Alert.alert('Signup Failed', result.error || 'Unable to create account.');
             }
         } finally {
             setLoading(false);
@@ -76,8 +87,8 @@ export default function LoginScreen() {
                 <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
                     <View style={styles.header}>
                         <Text style={styles.title}>RallySphere</Text>
-                        <Text style={styles.subtitle}>Sign In</Text>
-                        <Text style={styles.description}>Welcome back!</Text>
+                        <Text style={styles.subtitle}>Create Account</Text>
+                        <Text style={styles.description}>Sign up with your email address.</Text>
                     </View>
 
                     <Surface style={styles.card} elevation={8}>
@@ -88,6 +99,7 @@ export default function LoginScreen() {
                             mode="outlined"
                             keyboardType="email-address"
                             autoCapitalize="none"
+                            autoComplete="email"
                             style={styles.input}
                             textColor="#1a1a1a"
                             outlineColor="rgba(0,0,0,0.2)"
@@ -100,28 +112,45 @@ export default function LoginScreen() {
                             onChangeText={setPassword}
                             mode="outlined"
                             secureTextEntry
+                            autoComplete="new-password"
                             style={styles.input}
                             textColor="#1a1a1a"
                             outlineColor="rgba(0,0,0,0.2)"
                             activeOutlineColor="#2C5282"
                             theme={{ colors: { onSurfaceVariant: 'rgba(0,0,0,0.5)' } }}
                         />
+                        <TextInput
+                            label="Confirm Password"
+                            value={confirm}
+                            onChangeText={setConfirm}
+                            mode="outlined"
+                            secureTextEntry
+                            autoComplete="new-password"
+                            style={styles.input}
+                            textColor="#1a1a1a"
+                            outlineColor="rgba(0,0,0,0.2)"
+                            activeOutlineColor="#2C5282"
+                            theme={{ colors: { onSurfaceVariant: 'rgba(0,0,0,0.5)' } }}
+                        />
+                        <Text style={styles.hint}>
+                            We’ll send a verification email so you can enable two-factor auth.
+                        </Text>
                         <Button
                             mode="contained"
-                            onPress={handleLogin}
+                            onPress={handleSignup}
                             loading={loading}
                             disabled={loading}
                             style={styles.button}
                             contentStyle={styles.buttonContent}
                             labelStyle={styles.buttonLabel}
                         >
-                            Sign In
+                            Create Account
                         </Button>
                     </Surface>
 
                     <View style={styles.footer}>
                         <TouchableOpacity onPress={() => router.back()}>
-                            <Text style={styles.backText}>Back to Welcome</Text>
+                            <Text style={styles.backText}>Back</Text>
                         </TouchableOpacity>
                     </View>
                 </Animated.View>
@@ -133,12 +162,13 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1 },
     content: { flex: 1, padding: 24, justifyContent: 'center' },
-    header: { alignItems: 'center', marginBottom: 40 },
+    header: { alignItems: 'center', marginBottom: 32 },
     title: { fontSize: 36, fontWeight: 'bold', color: 'white', marginBottom: 8 },
     subtitle: { fontSize: 26, fontWeight: 'bold', color: 'white', marginBottom: 8 },
     description: { fontSize: 16, color: 'rgba(255,255,255,0.8)' },
-    card: { borderRadius: 24, padding: 28, backgroundColor: 'white', gap: 16 },
+    card: { borderRadius: 24, padding: 28, backgroundColor: 'white', gap: 14 },
     input: { backgroundColor: 'white' },
+    hint: { fontSize: 12, color: 'rgba(0,0,0,0.5)', marginTop: -2 },
     button: { marginTop: 4, borderRadius: 12, backgroundColor: '#2C5282' },
     buttonContent: { paddingVertical: 10 },
     buttonLabel: { fontSize: 16, fontWeight: '600' },

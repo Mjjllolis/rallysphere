@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "335059242542",
+    "project_id": "rally-sphere",
+    "storage_bucket": "rally-sphere.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:335059242542:android:1ba9c210d963c7a38599bf",
+        "android_client_info": {
+          "package_name": "com.rallysphere.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLYb2xACUBU8wwEqz2QsN7aAkYGVLaAr0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

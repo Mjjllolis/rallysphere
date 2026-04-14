@@ -27,6 +27,10 @@ export default function WelcomeScreen() {
     router.push('/(auth)/login');
   };
 
+  const handleEmailSignUp = () => {
+    router.push('/(auth)/signup-email');
+  };
+
   return (
     <View style={styles.container}>
       {/* BG video */}
@@ -79,9 +83,15 @@ export default function WelcomeScreen() {
             Get Started
           </Button>
 
-          <TouchableOpacity onPress={handleEmailSignIn} style={styles.emailSignInButton}>
-            <Text style={styles.emailSignInText}>Sign in with Email instead</Text>
-          </TouchableOpacity>
+          <View style={styles.emailRow}>
+            <TouchableOpacity onPress={handleEmailSignUp} style={styles.emailLinkButton}>
+              <Text style={styles.emailLinkText}>Sign up with Email</Text>
+            </TouchableOpacity>
+            <Text style={styles.emailDivider}>·</Text>
+            <TouchableOpacity onPress={handleEmailSignIn} style={styles.emailLinkButton}>
+              <Text style={styles.emailLinkText}>Sign in with Email</Text>
+            </TouchableOpacity>
+          </View>
 
           <Text style={styles.terms}>
             By continuing, you agree to RallySphere's{' '}
@@ -141,15 +151,24 @@ const styles = StyleSheet.create({
   buttonContent: {
     paddingVertical: 4,
   },
-  emailSignInButton: {
-    alignSelf: 'center',
-    paddingVertical: 8,
+  emailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 8,
+    gap: 8,
   },
-  emailSignInText: {
-    color: 'rgba(255,255,255,0.55)',
+  emailLinkButton: {
+    paddingVertical: 8,
+  },
+  emailLinkText: {
+    color: 'rgba(255,255,255,0.65)',
     fontSize: 13,
     textDecorationLine: 'underline',
+  },
+  emailDivider: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 13,
   },
   terms: {
     fontSize: 12,

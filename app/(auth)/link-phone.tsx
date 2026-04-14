@@ -7,6 +7,7 @@ import {
     StatusBar,
     KeyboardAvoidingView,
     Platform,
+    TouchableOpacity,
 } from 'react-native';
 import { Text, TextInput, Button, Surface } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -76,8 +77,8 @@ export default function LinkPhoneScreen() {
                     <View style={styles.header}>
                         <Text style={styles.title}>Add Your Phone</Text>
                         <Text style={styles.description}>
-                            Secure your account by adding a phone number.{'\n'}
-                            You'll use this to sign in going forward.
+                            Optional — add a phone number to enable{'\n'}
+                            phone sign-in and extra account security.
                         </Text>
                     </View>
 
@@ -110,6 +111,14 @@ export default function LinkPhoneScreen() {
                             Send Code
                         </Button>
                     </Surface>
+
+                    <TouchableOpacity
+                        onPress={() => router.replace('/(tabs)/home')}
+                        style={styles.skipButton}
+                        disabled={loading}
+                    >
+                        <Text style={styles.skipText}>Skip for now</Text>
+                    </TouchableOpacity>
                 </Animated.View>
             </KeyboardAvoidingView>
         </SafeAreaView>
@@ -129,4 +138,6 @@ const styles = StyleSheet.create({
     button: { marginTop: 4, borderRadius: 12, backgroundColor: '#2C5282' },
     buttonContent: { paddingVertical: 10 },
     buttonLabel: { fontSize: 16, fontWeight: '600' },
+    skipButton: { alignSelf: 'center', paddingVertical: 16, marginTop: 8 },
+    skipText: { color: 'rgba(255,255,255,0.75)', fontSize: 14, textDecorationLine: 'underline' },
 });

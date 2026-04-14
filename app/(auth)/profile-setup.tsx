@@ -109,7 +109,11 @@ export default function ProfileSetupScreen() {
             });
 
             if (result.success) {
-                router.replace('/(tabs)/home');
+                if (!phone) {
+                    router.replace('/(auth)/link-phone');
+                } else {
+                    router.replace('/(tabs)/home');
+                }
             } else {
                 Alert.alert('Error', result.error || 'Failed to save profile.');
             }

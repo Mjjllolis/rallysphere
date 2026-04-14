@@ -142,6 +142,25 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
                 </BlurView>
               </TouchableOpacity>
 
+              <TouchableOpacity
+                onPress={() => {
+                  onClose();
+                  router.push('/profile/security');
+                }}
+              >
+                <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.settingItem, { borderColor: theme.colors.outline }]}>
+                  <View style={styles.settingContent}>
+                    <View style={styles.settingTextContainer}>
+                      <Text style={[styles.settingTitle, { color: theme.colors.onSurface }]}>Security</Text>
+                      <Text style={[styles.settingDescription, { color: theme.colors.onSurfaceVariant }]}>
+                        Email verification and two-factor auth
+                      </Text>
+                    </View>
+                    <IconButton icon="chevron-right" size={24} iconColor={theme.colors.onSurface} />
+                  </View>
+                </BlurView>
+              </TouchableOpacity>
+
             </View>
 
             {/* General Settings */}

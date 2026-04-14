@@ -25,6 +25,5 @@ export default function Index() {
     if (isLoading || !checked) return null;
     if (!user) return <Redirect href="/(auth)/welcome-simple" />;
     if (!profileComplete) return <Redirect href="/(auth)/profile-setup" />;
-    if (!user.phoneNumber) return <Redirect href="/(auth)/link-phone" />;
     return <Redirect href="/(tabs)/home" />;
 }
