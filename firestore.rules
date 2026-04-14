@@ -20,6 +20,10 @@ service cloud.firestore {
       allow read: if request.auth != null &&
         (request.auth.uid in resource.data.get('clubMembers', []) ||
          request.auth.uid in resource.data.get('members', []));
+      // Owner can always read their own clubs (enables owner-based queries like account deletion).
+      allow read: if request.auth != null &&
+        (request.auth.uid == resource.data.get('clubOwner', '') ||
+         request.auth.uid == resource.data.get('owner', ''));
       // Only authenticated users can create clubs
       allow create: if request.auth != null &&
         (request.auth.uid == request.resource.data.createdBy ||
@@ -32,10 +36,12 @@ service cloud.firestore {
       allow update: if request.auth != null &&
         resource.data.isPublic == true &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clubMembers', 'updatedAt']);
-            // Only admins can delete clubs
+      // Admins OR owner can delete clubs
       allow delete: if request.auth != null &&
         (request.auth.uid in resource.data.get('clubAdmins', []) ||
-         request.auth.uid in resource.data.get('admins', []));
+         request.auth.uid in resource.data.get('admins', []) ||
+         request.auth.uid == resource.data.get('clubOwner', '') ||
+         request.auth.uid == resource.data.get('owner', ''));
     }
     
     // Events rules
@@ -63,9 +69,14 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
         (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
          request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []));
-      // Only event creator and club admins can delete events
+      // Event creator, club admins, or club owner can delete events
       allow delete: if request.auth != null &&
-        (request.auth.uid == resource.data.createdBy);
+        (request.auth.uid == resource.data.createdBy ||
+         (exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
+          (request.auth.uid == get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubOwner', '') ||
+           request.auth.uid == get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('owner', '') ||
+           request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
+           request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []))));
 
       // Waiver signatures subcollection - users can sign their own waiver
       match /waiverSignatures/{signerId} {

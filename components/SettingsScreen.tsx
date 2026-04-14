@@ -145,15 +145,15 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
               <TouchableOpacity
                 onPress={() => {
                   onClose();
-                  router.push('/profile/security');
+                  router.push('/profile/delete-account');
                 }}
               >
                 <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.settingItem, { borderColor: theme.colors.outline }]}>
                   <View style={styles.settingContent}>
                     <View style={styles.settingTextContainer}>
-                      <Text style={[styles.settingTitle, { color: theme.colors.onSurface }]}>Security</Text>
+                      <Text style={[styles.settingTitle, { color: '#B91C1C' }]}>Delete Account</Text>
                       <Text style={[styles.settingDescription, { color: theme.colors.onSurfaceVariant }]}>
-                        Email verification and two-factor auth
+                        Permanently remove your account and all data
                       </Text>
                     </View>
                     <IconButton icon="chevron-right" size={24} iconColor={theme.colors.onSurface} />

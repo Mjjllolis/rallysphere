@@ -14,13 +14,12 @@ import { Text, Button, Surface } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { confirmOTPCode, confirmPhoneLink } from '../../lib/firebase';
+import { confirmOTPCode } from '../../lib/firebase';
 
 const OTP_LENGTH = 6;
 
 export default function VerifyOTPScreen() {
-    const { phone, mode } = useLocalSearchParams<{ phone: string; mode?: string }>();
-    const isLinking = mode === 'link';
+    const { phone } = useLocalSearchParams<{ phone: string }>();
     const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
     const [loading, setLoading] = useState(false);
     const inputs = useRef<(RNTextInput | null)[]>([]);
@@ -75,28 +74,17 @@ export default function VerifyOTPScreen() {
 
         setLoading(true);
         try {
-            if (isLinking) {
-                const result = await confirmPhoneLink(code);
-                if (result.success) {
-                    router.replace('/(tabs)/home');
+            const result = await confirmOTPCode(code);
+            if (result.success) {
+                if (result.isNewUser) {
+                    router.replace('/(auth)/profile-setup');
                 } else {
-                    Alert.alert('Invalid Code', result.error || 'The code you entered is incorrect.');
-                    setOtp(Array(OTP_LENGTH).fill(''));
-                    inputs.current[0]?.focus();
+                    router.replace('/(tabs)/home');
                 }
             } else {
-                const result = await confirmOTPCode(code);
-                if (result.success) {
-                    if (result.isNewUser) {
-                        router.replace('/(auth)/profile-setup');
-                    } else {
-                        router.replace('/(tabs)/home');
-                    }
-                } else {
-                    Alert.alert('Invalid Code', result.error || 'The code you entered is incorrect.');
-                    setOtp(Array(OTP_LENGTH).fill(''));
-                    inputs.current[0]?.focus();
-                }
+                Alert.alert('Invalid Code', result.error || 'The code you entered is incorrect.');
+                setOtp(Array(OTP_LENGTH).fill(''));
+                inputs.current[0]?.focus();
             }
         } finally {
             setLoading(false);

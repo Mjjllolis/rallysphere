@@ -6,25 +6,12 @@ import {
   getAuth,
   getReactNativePersistence,
   onAuthStateChanged,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   signInWithPhoneNumber,
-  linkWithPhoneNumber,
-  linkWithCredential,
-  EmailAuthProvider,
-  PhoneAuthProvider,
-  PhoneMultiFactorGenerator,
-  multiFactor,
-  getMultiFactorResolver,
-  sendEmailVerification,
   signOut,
   updateProfile,
   type User as FirebaseUser,
   type Auth,
-  type ConfirmationResult,
-  type MultiFactorResolver,
-  type MultiFactorInfo,
-  type PhoneMultiFactorInfo
+  type ConfirmationResult
 } from 'firebase/auth';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -595,238 +582,67 @@ export const createUserProfile = async (
   }
 };
 
-export const signUpWithEmail = async (
-  email: string,
-  password: string
-): Promise<{ success: boolean; user?: FirebaseUser; error?: string }> => {
-  try {
-    const result = await createUserWithEmailAndPassword(auth, email, password);
-    try {
-      await sendEmailVerification(result.user);
-    } catch {
-      // Non-fatal — verification email can be resent later.
-    }
-    return { success: true, user: result.user };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-};
+// --- Account deletion ---
 
-export const signIn = async (
-  email: string,
-  password: string
-): Promise<{ success: boolean; user?: FirebaseUser; mfaRequired?: boolean; mfaHint?: string; error?: string }> => {
-  try {
-    const result = await signInWithEmailAndPassword(auth, email, password);
-    return { success: true, user: result.user };
-  } catch (error: any) {
-    if (error.code === 'auth/multi-factor-auth-required') {
-      const resolver = getMultiFactorResolver(auth, error);
-      _pendingMfaResolver = resolver;
-      _pendingMfaVerificationId = null;
-      const hint = resolver.hints[0] as PhoneMultiFactorInfo | undefined;
-      return { success: false, mfaRequired: true, mfaHint: hint?.phoneNumber ?? undefined };
-    }
-    return { success: false, error: error.message };
-  }
-};
-
-// --- Multi-Factor Authentication ---
-let _pendingMfaResolver: MultiFactorResolver | null = null;
-let _pendingMfaVerificationId: string | null = null;
-
-export const getMFAFactors = (): MultiFactorInfo[] => {
+// Returns clubs where the current user is the owner. Used to warn the
+// user before they delete their account (those clubs will be nuked too).
+export const getOwnedClubs = async (): Promise<Array<{ id: string; name: string }>> => {
   const user = auth.currentUser;
   if (!user) return [];
-  return multiFactor(user).enrolledFactors;
+  const q = query(collection(db, 'clubs'), where('clubOwner', '==', user.uid));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => {
+    const data = d.data() as any;
+    return { id: d.id, name: data.clubName || data.name || 'Untitled club' };
+  });
 };
 
-export const hasMFAEnrolled = (): boolean => getMFAFactors().length > 0;
-
-export const sendVerificationEmail = async (): Promise<{ success: boolean; error?: string }> => {
+// Irreversibly delete the current user's account. Cascades to:
+//   - clubs where user is the owner (and events under those clubs)
+//   - the user's Firestore profile doc
+//   - the Firebase Auth user
+// Orphaned orders / tickets / memberships remain in their collections.
+export const deleteAccount = async (): Promise<{ success: boolean; error?: string }> => {
   try {
     const user = auth.currentUser;
     if (!user) throw new Error('No authenticated user');
-    await sendEmailVerification(user);
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-};
+    const uid = user.uid;
 
-// Add email+password credential to an existing (phone-auth) user so they can use password + MFA.
-export const linkEmailPassword = async (
-  email: string,
-  password: string
-): Promise<{ success: boolean; error?: string }> => {
-  try {
-    const user = auth.currentUser;
-    if (!user) throw new Error('No authenticated user');
-    const credential = EmailAuthProvider.credential(email, password);
-    await linkWithCredential(user, credential);
-    await sendEmailVerification(auth.currentUser!);
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-};
-
-// Start MFA enrollment: send SMS code to phoneNumber as the second factor.
-// Requires: user signed in, email verified (for email+password primary).
-export const startMFAEnrollment = async (
-  phoneNumber: string,
-  recaptchaVerifier: any
-): Promise<{ success: boolean; verificationId?: string; error?: string }> => {
-  try {
-    const user = auth.currentUser;
-    if (!user) throw new Error('No authenticated user');
-    const session = await multiFactor(user).getSession();
-    const provider = new PhoneAuthProvider(auth);
-    const verificationId = await provider.verifyPhoneNumber(
-      { phoneNumber, session },
-      recaptchaVerifier
+    // 1. Find owned clubs + their events.
+    const ownedClubsSnap = await getDocs(
+      query(collection(db, 'clubs'), where('clubOwner', '==', uid))
     );
-    _pendingMfaVerificationId = verificationId;
-    return { success: true, verificationId };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-};
+    const ownedClubIds = ownedClubsSnap.docs.map((d) => d.id);
 
-export const confirmMFAEnrollment = async (
-  code: string,
-  displayName: string = 'Personal phone'
-): Promise<{ success: boolean; error?: string }> => {
-  try {
-    const user = auth.currentUser;
-    if (!user) throw new Error('No authenticated user');
-    const verificationId = _pendingMfaVerificationId;
-    if (!verificationId) throw new Error('No pending enrollment. Send a new code.');
-    const cred = PhoneAuthProvider.credential(verificationId, code);
-    const assertion = PhoneMultiFactorGenerator.assertion(cred);
-    await multiFactor(user).enroll(assertion, displayName);
-    _pendingMfaVerificationId = null;
-    await updateDoc(doc(db, 'users', user.uid), {
-      mfaEnabled: true,
-      updatedAt: serverTimestamp(),
-    });
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-};
-
-export const getPendingMFAHint = (): { phoneNumber?: string; factorCount: number } | null => {
-  const resolver = _pendingMfaResolver;
-  if (!resolver) return null;
-  const hint = resolver.hints[0] as PhoneMultiFactorInfo | undefined;
-  return { phoneNumber: hint?.phoneNumber ?? undefined, factorCount: resolver.hints.length };
-};
-
-export const sendMFASignInCode = async (
-  recaptchaVerifier: any,
-  hintIndex: number = 0
-): Promise<{ success: boolean; error?: string }> => {
-  try {
-    const resolver = _pendingMfaResolver;
-    if (!resolver) throw new Error('No pending MFA challenge. Sign in again.');
-    const hint = resolver.hints[hintIndex];
-    if (hint.factorId !== PhoneMultiFactorGenerator.FACTOR_ID) {
-      throw new Error('Only phone MFA is supported.');
+    // 2. Delete events under each owned club.
+    for (const clubId of ownedClubIds) {
+      const eventsSnap = await getDocs(
+        query(collection(db, 'events'), where('clubId', '==', clubId))
+      );
+      for (const ev of eventsSnap.docs) {
+        await deleteDoc(ev.ref);
+      }
     }
-    const provider = new PhoneAuthProvider(auth);
-    const verificationId = await provider.verifyPhoneNumber(
-      { multiFactorHint: hint, session: resolver.session },
-      recaptchaVerifier
-    );
-    _pendingMfaVerificationId = verificationId;
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-};
 
-export const confirmMFASignIn = async (
-  code: string
-): Promise<{ success: boolean; error?: string }> => {
-  try {
-    const resolver = _pendingMfaResolver;
-    const verificationId = _pendingMfaVerificationId;
-    if (!resolver || !verificationId) throw new Error('No pending MFA challenge.');
-    const cred = PhoneAuthProvider.credential(verificationId, code);
-    const assertion = PhoneMultiFactorGenerator.assertion(cred);
-    await resolver.resolveSignIn(assertion);
-    _pendingMfaResolver = null;
-    _pendingMfaVerificationId = null;
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-};
-
-export const clearPendingMFA = () => {
-  _pendingMfaResolver = null;
-  _pendingMfaVerificationId = null;
-};
-
-export const unenrollMFA = async (
-  factorUid: string
-): Promise<{ success: boolean; error?: string }> => {
-  try {
-    const user = auth.currentUser;
-    if (!user) throw new Error('No authenticated user');
-    const mf = multiFactor(user);
-    const factor = mf.enrolledFactors.find((f) => f.uid === factorUid);
-    if (!factor) throw new Error('Factor not found');
-    await mf.unenroll(factor);
-    await updateDoc(doc(db, 'users', user.uid), {
-      mfaEnabled: mf.enrolledFactors.length > 0,
-      updatedAt: serverTimestamp(),
-    });
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-};
-
-export const isEmailVerified = (): boolean => !!auth.currentUser?.emailVerified;
-
-export const reloadCurrentUser = async (): Promise<void> => {
-  if (auth.currentUser) await auth.currentUser.reload();
-};
-
-export const sendPhoneLinking = async (
-  phoneNumber: string,
-  recaptchaVerifier: any
-): Promise<{ success: boolean; error?: string }> => {
-  try {
-    const user = auth.currentUser;
-    if (!user) throw new Error('No authenticated user');
-    const confirmation = await linkWithPhoneNumber(user, phoneNumber, recaptchaVerifier);
-    setPendingConfirmation(confirmation);
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-};
-
-export const confirmPhoneLink = async (
-  otp: string
-): Promise<{ success: boolean; error?: string }> => {
-  try {
-    const confirmation = getPendingConfirmation();
-    if (!confirmation) throw new Error('No pending verification. Please request a new code.');
-    const result = await confirmation.confirm(otp);
-    clearPendingConfirmation();
-    // Save phone number into Firestore profile
-    if (result.user.phoneNumber) {
-      await updateDoc(doc(db, 'users', result.user.uid), {
-        'profile.phone': result.user.phoneNumber,
-        updatedAt: serverTimestamp()
-      });
+    // 3. Delete the club docs themselves.
+    for (const club of ownedClubsSnap.docs) {
+      await deleteDoc(club.ref);
     }
+
+    // 4. Delete the user's profile doc.
+    try {
+      await deleteDoc(doc(db, 'users', uid));
+    } catch {
+      // Best-effort — continue to auth deletion even if profile doc was already gone.
+    }
+
+    // 5. Delete the Firebase Auth user (last — requires a recent sign-in).
+    await user.delete();
+
     return { success: true };
   } catch (error: any) {
+    // If the user gets auth/requires-recent-login, they need to sign out and
+    // back in, then retry. We surface the raw message so the UI can react.
     return { success: false, error: error.message };
   }
 };
@@ -859,13 +675,15 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
 
 export const updateUserProfile = async (userId: string, profile: Partial<UserProfile>) => {
   try {
-    await updateDoc(doc(db, 'users', userId), {
-      profile,
-      updatedAt: serverTimestamp()
-    });
+    // Use dotted paths so we merge into the existing profile instead of
+    // replacing the whole object and wiping fields we didn't submit.
+    const updates: Record<string, any> = { updatedAt: serverTimestamp() };
+    for (const [key, value] of Object.entries(profile)) {
+      updates[`profile.${key}`] = value;
+    }
+    await updateDoc(doc(db, 'users', userId), updates);
     return { success: true };
   } catch (error: any) {
-    // console.error('Error updating user profile:', error);
     return { success: false, error: error.message };
   }
 };

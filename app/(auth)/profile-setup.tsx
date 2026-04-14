@@ -26,6 +26,7 @@ export default function ProfileSetupScreen() {
     const [email, setEmail] = useState('');
     const [bio, setBio] = useState('');
     const [photoUri, setPhotoUri] = useState<string | null>(null);
+    const [backgroundUri, setBackgroundUri] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
@@ -56,7 +57,24 @@ export default function ProfileSetupScreen() {
         }
     };
 
-    const uploadPhoto = async (uri: string): Promise<string | null> => {
+    const pickBackground = async () => {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('Permission Required', 'Please allow access to your photo library.');
+            return;
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [16, 9],
+            quality: 0.7,
+        });
+        if (!result.canceled && result.assets[0]) {
+            setBackgroundUri(result.assets[0].uri);
+        }
+    };
+
+    const uploadImage = async (uri: string, path: string): Promise<string | null> => {
         try {
             const auth = getAuth();
             const uid = auth.currentUser?.uid;
@@ -65,7 +83,7 @@ export default function ProfileSetupScreen() {
             const response = await fetch(uri);
             const blob = await response.blob();
             const storage = getStorage();
-            const storageRef = ref(storage, `profileImages/${uid}.jpg`);
+            const storageRef = ref(storage, path);
             await uploadBytes(storageRef, blob);
             return await getDownloadURL(storageRef);
         } catch {
@@ -87,16 +105,22 @@ export default function ProfileSetupScreen() {
 
         const auth = getAuth();
         const phone = auth.currentUser?.phoneNumber || '';
+        const uid = auth.currentUser?.uid;
 
         setLoading(true);
         try {
             let photoURL: string | undefined;
-            if (photoUri) {
-                setUploadingPhoto(true);
-                const url = await uploadPhoto(photoUri);
-                setUploadingPhoto(false);
+            let backgroundImage: string | undefined;
+            if (photoUri || backgroundUri) setUploadingPhoto(true);
+            if (photoUri && uid) {
+                const url = await uploadImage(photoUri, `users/avatars/${uid}_avatar.jpg`);
                 if (url) photoURL = url;
             }
+            if (backgroundUri && uid) {
+                const url = await uploadImage(backgroundUri, `users/backgrounds/${uid}_background.jpg`);
+                if (url) backgroundImage = url;
+            }
+            setUploadingPhoto(false);
 
             const result = await createUserProfile({
                 firstName: firstName.trim(),
@@ -105,18 +129,17 @@ export default function ProfileSetupScreen() {
                 phone,
                 bio: bio.trim() || undefined,
                 photoURL,
+                avatar: photoURL,
+                backgroundImage,
                 displayName: `${firstName.trim()} ${lastName.trim()}`,
             });
 
-            if (result.success) {
-                if (!phone) {
-                    router.replace('/(auth)/link-phone');
-                } else {
-                    router.replace('/(tabs)/home');
-                }
-            } else {
+            if (!result.success) {
                 Alert.alert('Error', result.error || 'Failed to save profile.');
+                return;
             }
+
+            router.replace('/(tabs)/home');
         } finally {
             setLoading(false);
             setUploadingPhoto(false);
@@ -142,6 +165,23 @@ export default function ProfileSetupScreen() {
                             <Text style={styles.title}>Set Up Profile</Text>
                             <Text style={styles.description}>Tell us a bit about yourself.</Text>
                         </View>
+
+                        {/* Background Picker */}
+                        <TouchableOpacity style={styles.backgroundContainer} onPress={pickBackground} activeOpacity={0.85}>
+                            {backgroundUri ? (
+                                <Image source={{ uri: backgroundUri }} style={styles.backgroundImage} />
+                            ) : (
+                                <View style={styles.backgroundPlaceholder}>
+                                    <Text style={styles.backgroundIcon}>🖼️</Text>
+                                    <Text style={styles.backgroundLabel}>Add Background (optional)</Text>
+                                </View>
+                            )}
+                            {backgroundUri && (
+                                <View style={styles.backgroundEditBadge}>
+                                    <Text style={styles.avatarEditText}>Change</Text>
+                                </View>
+                            )}
+                        </TouchableOpacity>
 
                         {/* Avatar Picker */}
                         <TouchableOpacity style={styles.avatarContainer} onPress={pickPhoto}>
@@ -276,4 +316,36 @@ const styles = StyleSheet.create({
     button: { marginTop: 4, borderRadius: 12, backgroundColor: '#2C5282' },
     buttonContent: { paddingVertical: 10 },
     buttonLabel: { fontSize: 16, fontWeight: '600' },
+    backgroundContainer: {
+        height: 140,
+        borderRadius: 16,
+        overflow: 'hidden',
+        marginBottom: 16,
+        position: 'relative',
+    },
+    backgroundImage: { width: '100%', height: '100%' },
+    backgroundPlaceholder: {
+        flex: 1,
+        backgroundColor: 'rgba(255,255,255,0.15)',
+        borderWidth: 2,
+        borderColor: 'rgba(255,255,255,0.4)',
+        borderStyle: 'dashed',
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+    },
+    backgroundIcon: { fontSize: 28 },
+    backgroundLabel: { color: 'white', fontSize: 13, fontWeight: '600' },
+    backgroundEditBadge: {
+        position: 'absolute',
+        bottom: 10,
+        right: 10,
+        backgroundColor: '#2C5282',
+        borderRadius: 10,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderWidth: 2,
+        borderColor: 'white',
+    },
 });

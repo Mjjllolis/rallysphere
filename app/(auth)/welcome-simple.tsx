@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Image, Platform, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Image, Platform } from 'react-native';
 import { Text, Button, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -21,14 +21,6 @@ export default function WelcomeScreen() {
 
   const handleSignIn = () => {
     router.push({ pathname: '/(auth)/phone-auth', params: { mode: 'signin' } });
-  };
-
-  const handleEmailSignIn = () => {
-    router.push('/(auth)/login');
-  };
-
-  const handleEmailSignUp = () => {
-    router.push('/(auth)/signup-email');
   };
 
   return (
@@ -82,16 +74,6 @@ export default function WelcomeScreen() {
           >
             Get Started
           </Button>
-
-          <View style={styles.emailRow}>
-            <TouchableOpacity onPress={handleEmailSignUp} style={styles.emailLinkButton}>
-              <Text style={styles.emailLinkText}>Sign up with Email</Text>
-            </TouchableOpacity>
-            <Text style={styles.emailDivider}>·</Text>
-            <TouchableOpacity onPress={handleEmailSignIn} style={styles.emailLinkButton}>
-              <Text style={styles.emailLinkText}>Sign in with Email</Text>
-            </TouchableOpacity>
-          </View>
 
           <Text style={styles.terms}>
             By continuing, you agree to RallySphere's{' '}
@@ -150,25 +132,6 @@ const styles = StyleSheet.create({
   },
   buttonContent: {
     paddingVertical: 4,
-  },
-  emailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-    gap: 8,
-  },
-  emailLinkButton: {
-    paddingVertical: 8,
-  },
-  emailLinkText: {
-    color: 'rgba(255,255,255,0.65)',
-    fontSize: 13,
-    textDecorationLine: 'underline',
-  },
-  emailDivider: {
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: 13,
   },
   terms: {
     fontSize: 12,
