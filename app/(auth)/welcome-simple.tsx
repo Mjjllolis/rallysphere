@@ -19,11 +19,11 @@ export default function WelcomeScreen() {
     router.push({ pathname: '/(auth)/phone-auth', params: { mode: 'signup' } });
   };
 
-  const handleSignIn = () => {
+  const handleAlreadyHaveAccount = () => {
     router.push({ pathname: '/(auth)/phone-auth', params: { mode: 'signin' } });
   };
 
-  const handleEmailSignIn = () => {
+  const handleEmailLogin = () => {
     router.push('/(auth)/login');
   };
 
@@ -43,6 +43,11 @@ export default function WelcomeScreen() {
         style={StyleSheet.absoluteFill}
       />
 
+      {/* Dev Email Login Link - Top Right */}
+      <TouchableOpacity onPress={handleEmailLogin} style={styles.emailLoginDevButton}>
+        <Text style={styles.emailLoginDevText}>Email (dev)</Text>
+      </TouchableOpacity>
+
       <SafeAreaView style={styles.safeArea}>
         {/* Top Logo + Title */}
         <View style={styles.header}>
@@ -59,16 +64,6 @@ export default function WelcomeScreen() {
         {/* Footer Actions */}
         <View style={styles.footer}>
           <Button
-            mode="outlined"
-            onPress={handleSignIn}
-            style={styles.signInButton}
-            contentStyle={styles.buttonContent}
-            textColor="#FFFFFF"
-          >
-            Sign In
-          </Button>
-
-          <Button
             mode="contained"
             onPress={handleGetStarted}
             style={styles.getStartedButton}
@@ -79,8 +74,8 @@ export default function WelcomeScreen() {
             Get Started
           </Button>
 
-          <TouchableOpacity onPress={handleEmailSignIn} style={styles.emailSignInButton}>
-            <Text style={styles.emailSignInText}>Sign in with Email instead</Text>
+          <TouchableOpacity onPress={handleAlreadyHaveAccount} style={styles.alreadyHaveAccountButton}>
+            <Text style={styles.alreadyHaveAccountText}>Already have an account?</Text>
           </TouchableOpacity>
 
           <Text style={styles.terms}>
@@ -102,6 +97,18 @@ const styles = StyleSheet.create({
   },
   video: {
     opacity: 1,
+  },
+  emailLoginDevButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 20,
+    right: 20,
+    zIndex: 10,
+    padding: 8,
+  },
+  emailLoginDevText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 12,
+    textDecorationLine: 'underline',
   },
   safeArea: {
     flex: 1,
@@ -128,27 +135,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 40,
   },
-  signInButton: {
-    marginBottom: 16,
-    borderRadius: 12,
-    borderColor: '#FFFFFF',
-    borderWidth: 2,
-  },
   getStartedButton: {
-    marginBottom: 16,
-    borderRadius: 12,
+    marginBottom: 20,
+    borderRadius: 30,
   },
   buttonContent: {
-    paddingVertical: 4,
+    paddingVertical: 8,
   },
-  emailSignInButton: {
+  alreadyHaveAccountButton: {
     alignSelf: 'center',
     paddingVertical: 8,
-    marginBottom: 8,
+    marginBottom: 16,
   },
-  emailSignInText: {
-    color: 'rgba(255,255,255,0.55)',
-    fontSize: 13,
+  alreadyHaveAccountText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 14,
     textDecorationLine: 'underline',
   },
   terms: {

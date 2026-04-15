@@ -557,11 +557,29 @@ export const createUserProfile = async (
   try {
     const firebaseUser = auth.currentUser;
     if (!firebaseUser) throw new Error('No authenticated user');
-    await setDoc(doc(db, 'users', firebaseUser.uid), {
-      profile,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
+
+    // Check if user document already exists
+    const userDocRef = doc(db, 'users', firebaseUser.uid);
+    const userDoc = await getDoc(userDocRef);
+
+    if (userDoc.exists()) {
+      // Document exists - merge profile fields to preserve existing data like photoURL, bio
+      const existingProfile = userDoc.data()?.profile || {};
+      const mergedProfile = { ...existingProfile, ...profile };
+
+      await updateDoc(userDocRef, {
+        profile: mergedProfile,
+        updatedAt: serverTimestamp()
+      });
+    } else {
+      // New user - create the document with createdAt
+      await setDoc(userDocRef, {
+        profile,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    }
+
     await updateProfile(firebaseUser, {
       displayName: `${profile.firstName} ${profile.lastName}`,
       photoURL: profile.photoURL || null
