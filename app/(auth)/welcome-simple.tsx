@@ -1,14 +1,12 @@
 import React from 'react';
-import { View, StyleSheet, Image, Platform } from 'react-native';
-import { Text, Button, useTheme } from 'react-native-paper';
+import { View, StyleSheet, Image, Platform, TouchableOpacity } from 'react-native';
+import { Text, Button } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function WelcomeScreen() {
-  const theme = useTheme();
-
   const player = useVideoPlayer(require('../../assets/bgWelcome.mp4'), (player) => {
     player.loop = true;
     player.muted = true;
@@ -19,8 +17,12 @@ export default function WelcomeScreen() {
     router.push({ pathname: '/(auth)/phone-auth', params: { mode: 'signup' } });
   };
 
-  const handleSignIn = () => {
+  const handleAlreadyHaveAccount = () => {
     router.push({ pathname: '/(auth)/phone-auth', params: { mode: 'signin' } });
+  };
+
+  const handleEmailLogin = () => {
+    router.push('/(auth)/login');
   };
 
   return (
@@ -39,6 +41,11 @@ export default function WelcomeScreen() {
         style={StyleSheet.absoluteFill}
       />
 
+      {/* Dev Email Login Link - Top Right */}
+      <TouchableOpacity onPress={handleEmailLogin} style={styles.emailLoginDevButton}>
+        <Text style={styles.emailLoginDevText}>Email (dev)</Text>
+      </TouchableOpacity>
+
       <SafeAreaView style={styles.safeArea}>
         {/* Top Logo + Title */}
         <View style={styles.header}>
@@ -55,16 +62,6 @@ export default function WelcomeScreen() {
         {/* Footer Actions */}
         <View style={styles.footer}>
           <Button
-            mode="outlined"
-            onPress={handleSignIn}
-            style={styles.signInButton}
-            contentStyle={styles.buttonContent}
-            textColor="#FFFFFF"
-          >
-            Sign In
-          </Button>
-
-          <Button
             mode="contained"
             onPress={handleGetStarted}
             style={styles.getStartedButton}
@@ -74,6 +71,10 @@ export default function WelcomeScreen() {
           >
             Get Started
           </Button>
+
+          <TouchableOpacity onPress={handleAlreadyHaveAccount} style={styles.alreadyHaveAccountButton}>
+            <Text style={styles.alreadyHaveAccountText}>Already have an account?</Text>
+          </TouchableOpacity>
 
           <Text style={styles.terms}>
             By continuing, you agree to RallySphere's{' '}
@@ -94,6 +95,18 @@ const styles = StyleSheet.create({
   },
   video: {
     opacity: 1,
+  },
+  emailLoginDevButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 20,
+    right: 20,
+    zIndex: 10,
+    padding: 8,
+  },
+  emailLoginDevText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 12,
+    textDecorationLine: 'underline',
   },
   safeArea: {
     flex: 1,
@@ -120,18 +133,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 40,
   },
-  signInButton: {
-    marginBottom: 16,
-    borderRadius: 12,
-    borderColor: '#FFFFFF',
-    borderWidth: 2,
-  },
   getStartedButton: {
-    marginBottom: 16,
-    borderRadius: 12,
+    marginBottom: 20,
+    borderRadius: 30,
   },
   buttonContent: {
-    paddingVertical: 4,
+    paddingVertical: 8,
+  },
+  alreadyHaveAccountButton: {
+    alignSelf: 'center',
+    paddingVertical: 8,
+    marginBottom: 16,
+  },
+  alreadyHaveAccountText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 14,
+    textDecorationLine: 'underline',
   },
   terms: {
     fontSize: 12,
