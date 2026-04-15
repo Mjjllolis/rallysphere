@@ -198,7 +198,7 @@ export default function PhoneAuthScreen() {
     return (
         <SafeAreaView style={styles.containerOriginal}>
             <StatusBar barStyle="light-content" />
-            <LinearGradient colors={['#2C5282', '#1A365D']} style={StyleSheet.absoluteFill} />
+            <LinearGradient colors={['#6366f1', '#8b5cf6', '#1a1a2e']} style={StyleSheet.absoluteFill} />
 
             {/* Button for testing (skips verification) */}
             <TouchableOpacity onPress={handleDevBypass} style={styles.devBypassButton}>

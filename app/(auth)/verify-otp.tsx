@@ -98,7 +98,7 @@ export default function VerifyOTPScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <StatusBar barStyle="light-content" />
-            <LinearGradient colors={['#2C5282', '#1A365D']} style={StyleSheet.absoluteFill} />
+            <LinearGradient colors={['#8b5cf6', '#6366f1', '#1a1a2e']} style={StyleSheet.absoluteFill} />
 
             <KeyboardAvoidingView
                 style={styles.content}
@@ -179,10 +179,10 @@ const styles = StyleSheet.create({
         backgroundColor: '#f8f8f8',
     },
     otpBoxFilled: {
-        borderColor: '#2C5282',
-        backgroundColor: '#EBF4FF',
+        borderColor: '#8b5cf6',
+        backgroundColor: '#EDE9FE',
     },
-    button: { borderRadius: 12, backgroundColor: '#2C5282' },
+    button: { borderRadius: 12, backgroundColor: '#8b5cf6' },
     buttonContent: { paddingVertical: 10 },
     buttonLabel: { fontSize: 16, fontWeight: '600' },
     footer: { alignItems: 'center', marginTop: 24 },

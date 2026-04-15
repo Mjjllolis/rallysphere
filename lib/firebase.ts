@@ -568,6 +568,11 @@ export const createUserProfile = async (
     const firebaseUser = auth.currentUser;
     if (!firebaseUser) throw new Error('No authenticated user');
 
+    // Filter out undefined values - Firestore doesn't accept them
+    const cleanProfile = Object.fromEntries(
+      Object.entries(profile).filter(([_, v]) => v !== undefined)
+    ) as UserProfile;
+
     // Check if user document already exists
     const userDocRef = doc(db, 'users', firebaseUser.uid);
     const userDoc = await getDoc(userDocRef);
@@ -575,7 +580,7 @@ export const createUserProfile = async (
     if (userDoc.exists()) {
       // Document exists - merge profile fields to preserve existing data like photoURL, bio
       const existingProfile = userDoc.data()?.profile || {};
-      const mergedProfile = { ...existingProfile, ...profile };
+      const mergedProfile = { ...existingProfile, ...cleanProfile };
 
       await updateDoc(userDocRef, {
         profile: mergedProfile,
@@ -584,7 +589,7 @@ export const createUserProfile = async (
     } else {
       // New user - create the document with createdAt
       await setDoc(userDocRef, {
-        profile,
+        profile: cleanProfile,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
