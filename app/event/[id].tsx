@@ -17,7 +17,7 @@ import { router, useLocalSearchParams, Stack, useFocusEffect } from 'expo-router
 import { useAuth, useThemeToggle } from '../_layout';
 import { getEventById, joinEvent, getUserRallyCredits, getClub, getUserProfile, storeWaiverSignature, getWaiverSignature, deleteEvent } from '../../lib/firebase';
 import type { Club } from '../../lib/firebase';
-import { leaveEventWithRefund } from '../../lib/stripe';
+import { leaveEventWithRefund } from '../../lib/finix';
 import type { Event, UserRallyCredits, UserProfile } from '../../lib/firebase';
 import BackButton from '../../components/BackButton';
 import PaymentSheet from '../../components/PaymentSheet';

@@ -666,14 +666,14 @@ export default function CreateEventScreen() {
                 style={styles.input}
                 placeholder="Free"
                 left={<TextInput.Icon icon="currency-usd" />}
-                disabled={!club?.stripeOnboardingComplete}
+                disabled={!club?.finixOnboardingComplete && !club?.finixMerchantAccountActive}
               />
-              {!club?.stripeOnboardingComplete && (
+              {!club?.finixOnboardingComplete && !club?.finixMerchantAccountActive && (
                 <View style={[styles.warningBox, isDark && styles.warningBoxDark]}>
                   <IconButton icon="alert-circle" size={20} iconColor="#F59E0B" />
                   <View style={{ flex: 1 }}>
                     <Text variant="bodyMedium" style={{ color: '#F59E0B', fontWeight: 'bold' }}>
-                      Connect Stripe to accept payments
+                      Connect payouts to accept payments
                     </Text>
                     <Text variant="bodySmall" style={{ color: isDark ? 'rgba(255,255,255,0.7)' : theme.colors.onSurfaceVariant, marginTop: 4 }}>
                       Set up payouts in club settings to create paid events

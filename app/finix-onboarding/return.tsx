@@ -1,16 +1,17 @@
-// app/stripe-connect/return.tsx - Payout account setup return handler
+// app/finix-onboarding/return.tsx — Hosted onboarding return handler
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Text, Button, ActivityIndicator, useTheme, Card } from 'react-native-paper';
 import { router, useLocalSearchParams } from 'expo-router';
-import { getSubMerchantStatus } from '../../lib/stripe';
+import { getSubMerchantStatus } from '../../lib/finix';
 import { updateClub, getClub } from '../../lib/firebase';
 
-export default function StripeConnectReturn() {
+export default function FinixOnboardingReturn() {
   const theme = useTheme();
-  const { clubId } = useLocalSearchParams();
+  const { clubId, identityId } = useLocalSearchParams();
   const [loading, setLoading] = useState(true);
   const [success, setSuccess] = useState(false);
+  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -21,50 +22,48 @@ export default function StripeConnectReturn() {
 
   const verifyOnboarding = async () => {
     try {
-      // Get club to find stripe account ID
       const clubResult = await getClub(clubId as string);
-
       if (!clubResult.success || !clubResult.club) {
         setError('Club not found');
         setLoading(false);
-        // Redirect back to club after 2 seconds
         setTimeout(() => handleContinue(), 2000);
         return;
       }
 
       const club = clubResult.club;
-
-      if (!club.braintreeMerchantAccountId) {
-        setError('No payout account found for this club');
+      const lookupIdentityId = (identityId as string) || club.finixIdentityId;
+      if (!lookupIdentityId && !club.finixMerchantId) {
+        setError('No payout application found for this club');
         setLoading(false);
-        // Redirect back to club after 2 seconds
         setTimeout(() => handleContinue(), 2000);
         return;
       }
 
-      // Check if account is active
-      const statusResult = await getSubMerchantStatus(club.braintreeMerchantAccountId);
+      const statusResult = await getSubMerchantStatus({
+        identityId: lookupIdentityId,
+        merchantId: club.finixMerchantId,
+        clubId: club.id,
+      });
 
-      if (statusResult.success && statusResult.status === 'active') {
-        // Update club status in Firestore
+      if (statusResult.success && statusResult.isComplete) {
         await updateClub(clubId as string, {
-          braintreeMerchantAccountActive: true,
-          braintreeMerchantAccountStatus: 'active',
+          finixMerchantId: statusResult.merchantId || club.finixMerchantId,
+          finixMerchantAccountActive: true,
+          finixOnboardingComplete: true,
+          finixOnboardingStatus: 'APPROVED',
         });
-
         setSuccess(true);
-        // Redirect to club after 3 seconds on success (give user time to read success message)
         setTimeout(() => handleContinue(), 3000);
+      } else if (statusResult.success) {
+        setPending(true);
+        setTimeout(() => handleContinue(), 3500);
       } else {
-        setError('Onboarding not complete. Please finish the setup process.');
-        // Redirect back to club after 2 seconds
-        setTimeout(() => handleContinue(), 2000);
+        setError(statusResult.error || 'Could not verify onboarding status');
+        setTimeout(() => handleContinue(), 2500);
       }
     } catch (err: any) {
-      // console.error('Error verifying onboarding:', err);
       setError(err.message || 'Failed to verify onboarding status');
-      // Redirect back to club after 2 seconds
-      setTimeout(() => handleContinue(), 2000);
+      setTimeout(() => handleContinue(), 2500);
     } finally {
       setLoading(false);
     }
@@ -96,22 +95,44 @@ export default function StripeConnectReturn() {
               <Text variant="bodySmall" style={[styles.subtitle, { opacity: 0.6, fontStyle: 'italic' }]}>
                 Returning to club page...
               </Text>
-              <Button
-                mode="contained"
-                onPress={handleContinue}
-                style={styles.button}
-              >
+              <Button mode="contained" onPress={handleContinue} style={styles.button}>
                 Go to Club Now
+              </Button>
+            </>
+          ) : pending ? (
+            <>
+              <View style={styles.infoIcon}>
+                <Text style={{ fontSize: 64 }}>⏳</Text>
+              </View>
+              <Text variant="headlineSmall" style={styles.title}>
+                Application Submitted
+              </Text>
+              <Text variant="bodyMedium" style={styles.subtitle}>
+                Finix is reviewing your application. You'll be able to accept payments once it's approved (usually 1–2 business days).
+              </Text>
+              <Button mode="contained" onPress={handleContinue} style={styles.button}>
+                Return to Club
+              </Button>
+            </>
+          ) : error ? (
+            <>
+              <View style={styles.errorIcon}>
+                <Text style={{ fontSize: 64 }}>✕</Text>
+              </View>
+              <Text variant="titleLarge" style={styles.title}>Setup Issue</Text>
+              <Text variant="bodyMedium" style={styles.subtitle}>{error}</Text>
+              <Button mode="contained" onPress={handleContinue} style={styles.button}>
+                Return to Club
               </Button>
             </>
           ) : (
             <>
               <ActivityIndicator size="large" color={theme.colors.primary} />
               <Text variant="titleLarge" style={styles.title}>
-                Please wait for connection...
+                Verifying your account...
               </Text>
               <Text variant="bodyMedium" style={styles.subtitle}>
-                Returning to club page
+                This only takes a moment.
               </Text>
             </>
           )}
@@ -122,45 +143,13 @@ export default function StripeConnectReturn() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: 20,
-  },
-  card: {
-    padding: 20,
-  },
-  content: {
-    alignItems: 'center',
-    gap: 16,
-  },
-  successIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(244, 67, 54, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  title: {
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  subtitle: {
-    textAlign: 'center',
-    opacity: 0.8,
-    marginBottom: 16,
-  },
-  button: {
-    minWidth: 200,
-  },
+  container: { flex: 1, justifyContent: 'center', padding: 20 },
+  card: { padding: 20 },
+  content: { alignItems: 'center', gap: 16 },
+  successIcon: { width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(76, 175, 80, 0.1)', justifyContent: 'center', alignItems: 'center' },
+  errorIcon: { width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(244, 67, 54, 0.1)', justifyContent: 'center', alignItems: 'center' },
+  infoIcon: { width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(33, 150, 243, 0.1)', justifyContent: 'center', alignItems: 'center' },
+  title: { fontWeight: 'bold', textAlign: 'center', marginTop: 8 },
+  subtitle: { textAlign: 'center', opacity: 0.8, marginBottom: 16 },
+  button: { minWidth: 200 },
 });

@@ -1,8 +1,13 @@
-import React, { useState, useRef } from 'react';
-import { View, StyleSheet, Alert, Platform } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, StyleSheet, Alert } from 'react-native';
 import { Modal, Portal, Text, Button, Divider, useTheme, ActivityIndicator } from 'react-native-paper';
 import { WebView } from 'react-native-webview';
-import { getBraintreeClientToken, createEventTransaction } from '../lib/stripe';
+import {
+  getFinixTokenizationContext,
+  buildFinixTokenizeUrl,
+  createEventTransaction,
+  type FinixTokenizationContext,
+} from '../lib/finix';
 
 interface PaymentModalProps {
   visible: boolean;
@@ -28,60 +33,6 @@ function calcBreakdown(ticketPrice: number) {
   };
 }
 
-function buildDropInHtml(clientToken: string, totalAmount: string): string {
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1">
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: transparent; padding: 0; }
-    #dropin-container { margin-bottom: 0; }
-    .error { color: #DC2626; padding: 8px 0; font-size: 14px; display: none; }
-    .loading { text-align: center; padding: 20px; color: #64748B; font-size: 14px; }
-  </style>
-</head>
-<body>
-  <div id="dropin-container"></div>
-  <div id="error" class="error"></div>
-  <div id="loading" class="loading">Loading payment form...</div>
-  <script src="https://js.braintreegateway.com/web/dropin/1.42.0/js/dropin.min.js"></script>
-  <script>
-    var totalAmount = '${totalAmount}';
-    braintree.dropin.create({
-      authorization: '${clientToken}',
-      container: '#dropin-container',
-      card: { cardholderName: { required: false } }
-    }, function(createErr, dropinInstance) {
-      document.getElementById('loading').style.display = 'none';
-      if (createErr) {
-        document.getElementById('error').style.display = 'block';
-        document.getElementById('error').textContent = createErr.message;
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ready', ready: false, error: createErr.message }));
-        return;
-      }
-      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ready', ready: true }));
-      window._dropinInstance = dropinInstance;
-    });
-
-    window.requestNonce = function() {
-      if (!window._dropinInstance) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', message: 'Payment form not ready' }));
-        return;
-      }
-      window._dropinInstance.requestPaymentMethod(function(err, payload) {
-        if (err) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', message: err.message }));
-          return;
-        }
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'nonce', nonce: payload.nonce }));
-      });
-    };
-  </script>
-</body>
-</html>`;
-}
-
 export default function PaymentModal({
   visible,
   onDismiss,
@@ -93,29 +44,30 @@ export default function PaymentModal({
 }: PaymentModalProps) {
   const theme = useTheme();
   const webViewRef = useRef<any>(null);
-  const [clientToken, setClientToken] = useState<string | null>(null);
-  const [dropInReady, setDropInReady] = useState(false);
+  const [context, setContext] = useState<FinixTokenizationContext | null>(null);
+  const [formReady, setFormReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'ach' | 'apple_pay' | 'google_pay'>('card');
 
   const breakdown = calcBreakdown(ticketPrice);
 
-  React.useEffect(() => {
-    if (visible && !clientToken) {
+  useEffect(() => {
+    if (visible && !context) {
       initPayment();
     }
     if (!visible) {
-      setClientToken(null);
-      setDropInReady(false);
+      setContext(null);
+      setFormReady(false);
     }
   }, [visible]);
 
   const initPayment = async () => {
     setInitializing(true);
     try {
-      const result = await getBraintreeClientToken();
-      if (result.success && result.clientToken) {
-        setClientToken(result.clientToken);
+      const result = await getFinixTokenizationContext();
+      if (result.success && result.context) {
+        setContext(result.context);
       } else {
         Alert.alert('Error', result.error || 'Failed to initialize payment');
         onDismiss();
@@ -131,36 +83,40 @@ export default function PaymentModal({
   const handleMessage = async (event: any) => {
     try {
       const msg = JSON.parse(event.nativeEvent.data);
-
       if (msg.type === 'ready') {
-        setDropInReady(msg.ready);
-        if (!msg.ready) {
-          Alert.alert('Error', msg.error || 'Failed to load payment form');
-        }
-      } else if (msg.type === 'nonce') {
-        await processPaymentWithNonce(msg.nonce);
+        setFormReady(!!msg.ready);
+        if (!msg.ready) Alert.alert('Error', msg.error || 'Failed to load payment form');
+      } else if (msg.type === 'tab') {
+        setPaymentMethod(msg.paymentMethod || 'card');
+      } else if (msg.type === 'token') {
+        await processPayment(msg.tokenId, msg.paymentMethod || 'card', msg.fraudSessionId);
       } else if (msg.type === 'error') {
         setLoading(false);
         Alert.alert('Payment Error', msg.message || 'An error occurred');
       }
-    } catch (e) {
+    } catch {
       // ignore parse errors
     }
   };
 
-  const processPaymentWithNonce = async (nonce: string) => {
+  const processPayment = async (tokenId: string, method: string, fraudSessionId?: string) => {
     try {
       const result = await createEventTransaction({
-        paymentMethodNonce: nonce,
+        tokenId,
+        fraudSessionId,
+        paymentMethod: method as any,
         eventId,
         ticketPrice,
-        currency: currency.toLowerCase(),
+        currency,
       });
 
       if (result.success) {
+        const isAch = method === 'ach';
         Alert.alert(
-          'Payment Successful!',
-          'You have successfully joined the event. Your ticket has been confirmed.',
+          isAch ? 'ACH Payment Submitted' : 'Payment Successful!',
+          isAch
+            ? 'Your ACH payment has been submitted. It may take 3–5 business days to clear. You will receive a confirmation email.'
+            : 'You have successfully joined the event. Your ticket has been confirmed.',
           [{ text: 'OK', onPress: () => { onSuccess(); onDismiss(); } }]
         );
       } else {
@@ -174,13 +130,23 @@ export default function PaymentModal({
   };
 
   const handlePay = () => {
-    if (!dropInReady) {
+    if (!formReady) {
       Alert.alert('Error', 'Payment form is not ready yet');
       return;
     }
     setLoading(true);
-    webViewRef.current?.injectJavaScript('window.requestNonce(); true;');
+    webViewRef.current?.injectJavaScript('window.__submit && window.__submit(); true;');
   };
+
+  const tokenizeUrl = context
+    ? buildFinixTokenizeUrl({
+        context,
+        amount: breakdown.totalAmount,
+        ach: true,
+        wallets: true,
+        external: true,
+      })
+    : null;
 
   return (
     <Portal>
@@ -197,7 +163,6 @@ export default function PaymentModal({
 
         <Divider style={styles.divider} />
 
-        {/* Price Breakdown */}
         <View style={styles.breakdown}>
           <Text variant="titleMedium" style={styles.breakdownTitle}>Price Breakdown</Text>
           <View style={styles.breakdownRow}>
@@ -222,8 +187,7 @@ export default function PaymentModal({
 
         <Divider style={styles.divider} />
 
-        {/* Payment Form */}
-        <Text variant="titleMedium" style={styles.cardTitle}>Card Details</Text>
+        <Text variant="titleMedium" style={styles.cardTitle}>Payment Method</Text>
 
         {initializing ? (
           <View style={styles.loadingContainer}>
@@ -232,20 +196,19 @@ export default function PaymentModal({
               Initializing payment...
             </Text>
           </View>
-        ) : clientToken ? (
+        ) : tokenizeUrl ? (
           <WebView
             ref={webViewRef}
-            source={{ html: buildDropInHtml(clientToken, breakdown.totalAmount.toFixed(2)) }}
+            source={{ uri: tokenizeUrl }}
             style={styles.webView}
             onMessage={handleMessage}
             javaScriptEnabled
-            scrollEnabled={false}
+            scrollEnabled
             originWhitelist={['*']}
             mixedContentMode="always"
           />
         ) : null}
 
-        {/* Actions */}
         <View style={styles.actions}>
           <Button mode="outlined" onPress={onDismiss} disabled={loading} style={styles.button}>
             Cancel
@@ -254,15 +217,15 @@ export default function PaymentModal({
             mode="contained"
             onPress={handlePay}
             loading={loading}
-            disabled={loading || !dropInReady}
+            disabled={loading || !formReady}
             style={styles.button}
           >
-            Pay ${breakdown.totalAmount.toFixed(2)}
+            {paymentMethod === 'ach' ? `Authorize & Pay $${breakdown.totalAmount.toFixed(2)}` : `Pay $${breakdown.totalAmount.toFixed(2)}`}
           </Button>
         </View>
 
         <Text variant="bodySmall" style={styles.secureNote}>
-          🔒 Secure payment powered by Braintree
+          🔒 Secure payment powered by Finix
         </Text>
       </Modal>
     </Portal>
@@ -287,7 +250,7 @@ const styles = StyleSheet.create({
   clubReceives: { textAlign: 'right', opacity: 0.6, marginTop: 4, fontStyle: 'italic' },
   cardTitle: { fontWeight: 'bold', marginBottom: 8 },
   loadingContainer: { alignItems: 'center', paddingVertical: 20 },
-  webView: { height: 220, marginBottom: 16 },
+  webView: { height: 360, marginBottom: 16 },
   actions: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   button: { flex: 1 },
   secureNote: { textAlign: 'center', opacity: 0.6 },

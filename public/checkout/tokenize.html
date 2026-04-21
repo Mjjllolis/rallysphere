@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1" />
+  <title>Checkout</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: transparent; color: #0F172A; }
+    body { padding: 12px 4px; font-size: 14px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid #E2E8F0; padding-bottom: 8px; }
+    .tab { flex: 1; text-align: center; padding: 10px; border-radius: 8px 8px 0 0; cursor: pointer; font-weight: 600; color: #64748B; }
+    .tab.active { color: #0F172A; border-bottom: 2px solid #0F172A; }
+    .pane { display: none; }
+    .pane.active { display: block; }
+    #card-form, #ach-form { min-height: 180px; }
+    .wallet-row { display: flex; gap: 8px; margin-bottom: 12px; }
+    .ach-auth { background: #F1F5F9; border-radius: 8px; padding: 12px; margin-top: 12px; font-size: 12px; line-height: 1.4; color: #475569; }
+    .ach-auth strong { display: block; margin-bottom: 6px; color: #0F172A; }
+    .error { display: none; margin-top: 12px; padding: 10px; background: #FEF2F2; border-radius: 8px; color: #DC2626; font-size: 13px; }
+    .loading { text-align: center; padding: 24px; color: #64748B; font-size: 13px; }
+    button.submit {
+      margin-top: 16px; width: 100%; padding: 14px; border: none; border-radius: 12px;
+      background: #0F172A; color: white; font-size: 15px; font-weight: 700; cursor: pointer;
+    }
+    button.submit:disabled { opacity: 0.5; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div id="loading" class="loading">Loading payment form…</div>
+
+  <div id="app" style="display: none;">
+    <div class="tabs" id="tabs">
+      <div class="tab active" data-tab="card">Card</div>
+      <div class="tab" data-tab="ach" id="tab-ach" style="display:none;">Bank (ACH)</div>
+    </div>
+
+    <div class="wallet-row" id="wallets" style="display: none;">
+      <div id="apple-pay-button" style="flex: 1;"></div>
+      <div id="google-pay-button" style="flex: 1;"></div>
+    </div>
+
+    <div id="pane-card" class="pane active">
+      <div id="card-form"></div>
+      <button class="submit" id="btn-submit-card" disabled>Continue</button>
+    </div>
+
+    <div id="pane-ach" class="pane">
+      <div id="ach-form"></div>
+      <div class="ach-auth" id="ach-auth-text">
+        <strong>ACH Authorization</strong>
+        By clicking Continue, I authorize RallySphere to debit my bank account for the amount shown above.
+        I understand this is a one-time ACH debit and may only revoke this authorization by contacting RallySphere
+        at <span id="support-email">support@rallysphere.com</span> at least 3 business days before the scheduled debit.
+      </div>
+      <button class="submit" id="btn-submit-ach" disabled>Continue</button>
+    </div>
+
+    <div id="error" class="error"></div>
+  </div>
+
+  <script src="https://js.finix.com/v/1/finix.js"></script>
+  <script>
+    (function () {
+      const params = new URLSearchParams(location.search);
+      const env = params.get('env') || 'sandbox';
+      const appId = params.get('appId') || '';
+      const ach = params.get('ach') === 'true';
+      const wallets = params.get('wallets') === 'true';
+      const external = params.get('external') === 'true';
+      const supportEmail = params.get('supportEmail') || 'support@rallysphere.com';
+      const amount = params.get('amount') || '';
+
+      document.getElementById('support-email').textContent = supportEmail;
+
+      if (external) {
+        // Hide in-form submit buttons — parent sheet will trigger submit.
+        document.getElementById('btn-submit-card').style.display = 'none';
+        document.getElementById('btn-submit-ach').style.display = 'none';
+      }
+
+      function postToNative(payload) {
+        try {
+          if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+            window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+          } else {
+            // Fallback for web/debug
+            window.parent && window.parent.postMessage(JSON.stringify(payload), '*');
+          }
+        } catch (e) { /* ignore */ }
+      }
+
+      function showError(msg) {
+        const el = document.getElementById('error');
+        el.textContent = msg || 'Something went wrong';
+        el.style.display = 'block';
+      }
+
+      function clearError() {
+        const el = document.getElementById('error');
+        el.style.display = 'none';
+      }
+
+      function getFraudSessionId() {
+        try {
+          if (window.Finix && typeof window.Finix.Fingerprint === 'function') {
+            return window.Finix.Fingerprint();
+          }
+          if (window.Finix && window.Finix.fraud_session_id) {
+            return window.Finix.fraud_session_id();
+          }
+        } catch (e) { /* ignore */ }
+        return null;
+      }
+
+      if (!window.Finix) {
+        document.getElementById('loading').textContent = 'Failed to load Finix payment SDK.';
+        postToNative({ type: 'ready', ready: false, error: 'Finix SDK unavailable' });
+        return;
+      }
+      if (!appId) {
+        document.getElementById('loading').textContent = 'Missing application id.';
+        postToNative({ type: 'ready', ready: false, error: 'Missing appId' });
+        return;
+      }
+
+      const commonOptions = {
+        applicationId: appId,
+        environment: env,
+        showAddress: true,
+        requiredFields: ['postal_code'],
+        styles: {
+          default: { color: '#0F172A', fontSize: '15px' },
+          success: { color: '#10B981' },
+          error:   { color: '#DC2626' },
+        },
+      };
+
+      // --- Card form ---
+      let cardForm = null;
+      try {
+        cardForm = window.Finix.CardTokenForm('#card-form', {
+          ...commonOptions,
+          onLoad: () => {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('app').style.display = 'block';
+            document.getElementById('btn-submit-card').disabled = false;
+            postToNative({ type: 'ready', ready: true });
+          },
+          onUpdate: (state, binInfo, formHasErrors) => {
+            document.getElementById('btn-submit-card').disabled = !!formHasErrors;
+          },
+        });
+      } catch (err) {
+        showError('Unable to load card form: ' + (err.message || err));
+        postToNative({ type: 'ready', ready: false, error: err.message || String(err) });
+        return;
+      }
+
+      // --- ACH form ---
+      let achForm = null;
+      if (ach) {
+        document.getElementById('tab-ach').style.display = 'block';
+        try {
+          achForm = window.Finix.BankAccountTokenForm('#ach-form', {
+            ...commonOptions,
+            onUpdate: (state, metadata, formHasErrors) => {
+              document.getElementById('btn-submit-ach').disabled = !!formHasErrors;
+            },
+          });
+        } catch (err) {
+          // Non-fatal — still allow card
+          console.warn('ACH form init failed:', err);
+        }
+      }
+
+      // --- Wallets (Apple Pay / Google Pay) ---
+      if (wallets) {
+        document.getElementById('wallets').style.display = 'flex';
+        // Finix auto-renders wallet buttons when supported. If not, buttons stay hidden.
+        try {
+          if (window.Finix.ApplePay && window.Finix.ApplePay.canMakePayments && window.Finix.ApplePay.canMakePayments()) {
+            window.Finix.ApplePay.mount('#apple-pay-button', {
+              ...commonOptions,
+              amount: amount,
+              onSuccess: function (res) {
+                postToNative({
+                  type: 'token',
+                  tokenId: res?.data?.id || res?.id,
+                  paymentMethod: 'apple_pay',
+                  fraudSessionId: getFraudSessionId(),
+                });
+              },
+              onError: function (err) { showError(err.message || 'Apple Pay failed'); },
+            });
+          }
+        } catch (e) { /* ignore — wallet optional */ }
+
+        try {
+          if (window.Finix.GooglePay && window.Finix.GooglePay.isReadyToPay) {
+            window.Finix.GooglePay.mount('#google-pay-button', {
+              ...commonOptions,
+              amount: amount,
+              onSuccess: function (res) {
+                postToNative({
+                  type: 'token',
+                  tokenId: res?.data?.id || res?.id,
+                  paymentMethod: 'google_pay',
+                  fraudSessionId: getFraudSessionId(),
+                });
+              },
+              onError: function (err) { showError(err.message || 'Google Pay failed'); },
+            });
+          }
+        } catch (e) { /* ignore */ }
+      }
+
+      // --- Tab switching ---
+      document.querySelectorAll('.tab').forEach(function (t) {
+        t.addEventListener('click', function () {
+          document.querySelectorAll('.tab').forEach((x) => x.classList.remove('active'));
+          document.querySelectorAll('.pane').forEach((x) => x.classList.remove('active'));
+          t.classList.add('active');
+          const paneId = 'pane-' + t.getAttribute('data-tab');
+          document.getElementById(paneId).classList.add('active');
+          clearError();
+        });
+      });
+
+      // --- Submit card ---
+      document.getElementById('btn-submit-card').addEventListener('click', function () {
+        if (!cardForm) return;
+        clearError();
+        this.disabled = true;
+        cardForm.submit(env, appId, function (err, res) {
+          if (err) {
+            showError(err.message || 'Card tokenization failed');
+            document.getElementById('btn-submit-card').disabled = false;
+            postToNative({ type: 'error', message: err.message || 'Card tokenization failed' });
+            return;
+          }
+          postToNative({
+            type: 'token',
+            tokenId: res?.data?.id,
+            paymentMethod: 'card',
+            fraudSessionId: getFraudSessionId(),
+          });
+        });
+      });
+
+      // --- External submit trigger ---
+      // Parent WebView calls window.__submit() to tokenize the active tab.
+      window.__submit = function () {
+        const activeTab = document.querySelector('.tab.active');
+        const which = activeTab ? activeTab.getAttribute('data-tab') : 'card';
+        if (which === 'ach' && achForm) {
+          clearError();
+          achForm.submit(env, appId, function (err, res) {
+            if (err) {
+              showError(err.message || 'Bank account tokenization failed');
+              postToNative({ type: 'error', message: err.message || 'ACH tokenization failed' });
+              return;
+            }
+            postToNative({
+              type: 'token',
+              tokenId: res?.data?.id,
+              paymentMethod: 'ach',
+              fraudSessionId: getFraudSessionId(),
+            });
+          });
+          return;
+        }
+        if (cardForm) {
+          clearError();
+          cardForm.submit(env, appId, function (err, res) {
+            if (err) {
+              showError(err.message || 'Card tokenization failed');
+              postToNative({ type: 'error', message: err.message || 'Card tokenization failed' });
+              return;
+            }
+            postToNative({
+              type: 'token',
+              tokenId: res?.data?.id,
+              paymentMethod: 'card',
+              fraudSessionId: getFraudSessionId(),
+            });
+          });
+        }
+      };
+
+      // Broadcast which tab is currently active so parent can update button label
+      // (e.g. "Pay $X" vs "Authorize & Pay").
+      function broadcastTab() {
+        const activeTab = document.querySelector('.tab.active');
+        const which = activeTab ? activeTab.getAttribute('data-tab') : 'card';
+        postToNative({ type: 'tab', paymentMethod: which === 'ach' ? 'ach' : 'card' });
+      }
+      document.querySelectorAll('.tab').forEach(function (t) {
+        t.addEventListener('click', broadcastTab);
+      });
+
+      // --- Submit ACH ---
+      const btnAch = document.getElementById('btn-submit-ach');
+      if (btnAch) {
+        btnAch.addEventListener('click', function () {
+          if (!achForm) return;
+          clearError();
+          this.disabled = true;
+          achForm.submit(env, appId, function (err, res) {
+            if (err) {
+              showError(err.message || 'Bank account tokenization failed');
+              btnAch.disabled = false;
+              postToNative({ type: 'error', message: err.message || 'ACH tokenization failed' });
+              return;
+            }
+            postToNative({
+              type: 'token',
+              tokenId: res?.data?.id,
+              paymentMethod: 'ach',
+              fraudSessionId: getFraudSessionId(),
+            });
+          });
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

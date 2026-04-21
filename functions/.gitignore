@@ -13,8 +13,10 @@ node_modules/
 # Firebase config
 .runtimeconfig.json
 
-# Uncomment this if you'd like to ignore the environment config file
-# .env
+# Environment config (secrets) — never commit
+.env
+.env.local
+.env.*.local
 
 # Log files
 npm-debug.log

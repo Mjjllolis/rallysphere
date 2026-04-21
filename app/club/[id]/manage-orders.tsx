@@ -30,7 +30,7 @@ import {
   updateStoreOrderStatus,
   getClub,
 } from '../../../lib/firebase';
-import { refundStoreOrder } from '../../../lib/stripe';
+import { refundStoreOrder } from '../../../lib/finix';
 import type { StoreOrder } from '../../../lib/firebase';
 
 const getStatusColor = (status: StoreOrder['status'], theme: any) => {

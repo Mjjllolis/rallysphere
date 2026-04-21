@@ -1,4 +1,4 @@
-// app/club/[id]/payouts.tsx - Stripe Connect Payouts Management
+// app/club/[id]/payouts.tsx — Finix Payouts Management
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
 import { Text, IconButton, useTheme } from 'react-native-paper';
@@ -9,7 +9,7 @@ import { router, useLocalSearchParams, Stack } from 'expo-router';
 import { useAuth, useThemeToggle } from '../../_layout';
 import { getClub } from '../../../lib/firebase';
 import type { Club } from '../../../lib/firebase';
-import StripeConnectSetup from '../../../components/StripeConnectSetup';
+import FinixPayoutsSetup from '../../../components/FinixPayoutsSetup';
 
 export default function ClubPayoutsScreen() {
   const theme = useTheme();
@@ -134,7 +134,7 @@ export default function ClubPayoutsScreen() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={true}
         >
-          <StripeConnectSetup
+          <FinixPayoutsSetup
             club={club}
             isAdmin={isAdmin}
             onStatusChange={loadClubData}

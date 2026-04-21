@@ -1,5 +1,4 @@
-// lib/stripe.ts — Braintree payment service for RallySphere
-// File kept as stripe.ts to avoid import changes throughout the app.
+// lib/finix.ts — Finix payment service for RallySphere
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from './firebase';
 import { getAuth } from 'firebase/auth';
@@ -44,26 +43,62 @@ export interface RefundResult {
   error?: string;
 }
 
+export interface FinixTokenizationContext {
+  applicationId: string;
+  environment: 'sandbox' | 'live';
+}
+
+const DEFAULT_TOKENIZE_URL = 'https://rally-sphere.web.app/checkout/tokenize.html';
+
+/**
+ * Build the URL to load in the checkout WebView. The page hosts the Finix
+ * Tokenization Form(s) for card + ACH + wallets; it postMessages a token back
+ * to the RN host on success.
+ */
+export function buildFinixTokenizeUrl(opts: {
+  context: FinixTokenizationContext;
+  amount?: number;
+  ach?: boolean;
+  wallets?: boolean;
+  external?: boolean;
+  supportEmail?: string;
+  overrideBaseUrl?: string;
+}): string {
+  const base = opts.overrideBaseUrl || process.env.EXPO_PUBLIC_FINIX_CHECKOUT_URL || DEFAULT_TOKENIZE_URL;
+  const p = new URLSearchParams();
+  p.set('env', opts.context.environment);
+  p.set('appId', opts.context.applicationId);
+  if (opts.amount != null) p.set('amount', opts.amount.toFixed(2));
+  if (opts.ach) p.set('ach', 'true');
+  if (opts.wallets) p.set('wallets', 'true');
+  if (opts.external) p.set('external', 'true');
+  if (opts.supportEmail) p.set('supportEmail', opts.supportEmail);
+  return `${base}?${p.toString()}`;
+}
+
 // ============================================================================
-// GET BRAINTREE CLIENT TOKEN
-// Call this before showing the payment UI to initialize Braintree Drop-in.
+// GET FINIX TOKENIZATION CONTEXT
+// Frontend calls before loading the Tokenization Form to learn Application ID
+// + environment. No per-payment server round-trip — tokenization happens fully
+// client-side.
 // ============================================================================
 
-export const getBraintreeClientToken = async (): Promise<{ success: boolean; clientToken?: string; error?: string }> => {
+export const getFinixTokenizationContext = async (): Promise<{
+  success: boolean;
+  context?: FinixTokenizationContext;
+  error?: string;
+}> => {
   try {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
+    if (!auth.currentUser) {
       return { success: false, error: 'You must be logged in to make a payment' };
     }
-
-    const fn = httpsCallable(functions, 'getBraintreeClientToken');
+    const fn = httpsCallable(functions, 'getFinixTokenizationContext');
     const result = await fn({});
     const data = result.data as any;
-
-    if (data.clientToken) {
-      return { success: true, clientToken: data.clientToken };
+    if (data?.applicationId && data?.environment) {
+      return { success: true, context: { applicationId: data.applicationId, environment: data.environment } };
     }
-    return { success: false, error: 'Failed to get payment token' };
+    return { success: false, error: 'Failed to get Finix tokenization context' };
   } catch (error: any) {
     return { success: false, error: error.message || 'Failed to initialize payment' };
   }
@@ -71,11 +106,13 @@ export const getBraintreeClientToken = async (): Promise<{ success: boolean; cli
 
 // ============================================================================
 // CREATE EVENT TICKET TRANSACTION
-// Called after the Braintree Drop-in returns a nonce.
 // ============================================================================
 
 export interface CreateEventTransactionParams {
-  paymentMethodNonce: string;
+  tokenId: string;
+  fraudSessionId?: string;
+  paymentMethod?: 'card' | 'ach' | 'apple_pay' | 'google_pay';
+  idempotencyKey?: string;
   eventId: string;
   ticketPrice: number;
   currency?: string;
@@ -91,6 +128,7 @@ export interface CreateEventTransactionParams {
 export interface CreateEventTransactionResult {
   success: boolean;
   transactionId?: string;
+  state?: string;
   breakdown?: PaymentBreakdown;
   error?: string;
 }
@@ -99,17 +137,18 @@ export const createEventTransaction = async (
   params: CreateEventTransactionParams
 ): Promise<CreateEventTransactionResult> => {
   try {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
+    if (!auth.currentUser) {
       return { success: false, error: 'You must be logged in to purchase tickets' };
     }
-
     const fn = httpsCallable(functions, 'createEventTransaction');
     const result = await fn({
-      paymentMethodNonce: params.paymentMethodNonce,
+      tokenId: params.tokenId,
+      fraudSessionId: params.fraudSessionId,
+      paymentMethod: params.paymentMethod || 'card',
+      idempotencyKey: params.idempotencyKey,
       eventId: params.eventId,
       ticketPrice: params.ticketPrice,
-      currency: params.currency || 'usd',
+      currency: params.currency || 'USD',
       discountApplied: params.discountApplied,
       originalPrice: params.originalPrice,
       discountAmount: params.discountAmount,
@@ -120,6 +159,7 @@ export const createEventTransaction = async (
       return {
         success: true,
         transactionId: data.transactionId,
+        state: data.state,
         breakdown: data.breakdown,
       };
     }
@@ -131,11 +171,13 @@ export const createEventTransaction = async (
 
 // ============================================================================
 // CREATE STORE TRANSACTION
-// Called after the Braintree Drop-in returns a nonce.
 // ============================================================================
 
 export interface CreateStoreTransactionParams {
-  paymentMethodNonce: string;
+  tokenId: string;
+  fraudSessionId?: string;
+  paymentMethod?: 'card' | 'ach' | 'apple_pay' | 'google_pay';
+  idempotencyKey?: string;
   itemId: string;
   quantity: number;
   selectedVariants: { [key: string]: string };
@@ -161,6 +203,7 @@ export interface CreateStoreTransactionParams {
 export interface CreateStoreTransactionResult {
   success: boolean;
   transactionId?: string;
+  state?: string;
   breakdown?: StoreBreakdown;
   error?: string;
 }
@@ -169,14 +212,15 @@ export const createStoreTransaction = async (
   params: CreateStoreTransactionParams
 ): Promise<CreateStoreTransactionResult> => {
   try {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
+    if (!auth.currentUser) {
       return { success: false, error: 'You must be logged in to purchase' };
     }
-
     const fn = httpsCallable(functions, 'createStoreTransaction');
     const result = await fn({
-      paymentMethodNonce: params.paymentMethodNonce,
+      tokenId: params.tokenId,
+      fraudSessionId: params.fraudSessionId,
+      paymentMethod: params.paymentMethod || 'card',
+      idempotencyKey: params.idempotencyKey,
       itemId: params.itemId,
       quantity: params.quantity,
       selectedVariants: params.selectedVariants,
@@ -190,6 +234,7 @@ export const createStoreTransaction = async (
       return {
         success: true,
         transactionId: data.transactionId,
+        state: data.state,
         breakdown: data.breakdown,
       };
     }
@@ -205,15 +250,12 @@ export const createStoreTransaction = async (
 
 export const leaveEventWithRefund = async (eventId: string): Promise<LeaveEventResult> => {
   try {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
+    if (!auth.currentUser) {
       return { success: false, error: 'You must be logged in to leave events' };
     }
-
     const fn = httpsCallable(functions, 'leaveEventWithRefund');
     const result = await fn({ eventId });
     const data = result.data as any;
-
     return {
       success: true,
       refundProcessed: data.refundProcessed,
@@ -232,20 +274,13 @@ export const leaveEventWithRefund = async (eventId: string): Promise<LeaveEventR
 
 export const refundTicketOrder = async (orderId: string, clubId: string): Promise<RefundResult> => {
   try {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
+    if (!auth.currentUser) {
       return { success: false, error: 'You must be logged in to process refunds' };
     }
-
     const fn = httpsCallable(functions, 'refundTicketOrder');
     const result = await fn({ orderId, clubId });
     const data = result.data as any;
-
-    return {
-      success: true,
-      refundId: data.refundId,
-      refundAmount: data.refundAmount,
-    };
+    return { success: true, refundId: data.refundId, refundAmount: data.refundAmount };
   } catch (error: any) {
     const errorMessage = error.details?.message || error.message || 'Failed to process refund';
     return { success: false, error: errorMessage };
@@ -254,20 +289,13 @@ export const refundTicketOrder = async (orderId: string, clubId: string): Promis
 
 export const refundStoreOrder = async (orderId: string, clubId: string): Promise<RefundResult> => {
   try {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
+    if (!auth.currentUser) {
       return { success: false, error: 'You must be logged in to process refunds' };
     }
-
     const fn = httpsCallable(functions, 'refundStoreOrder');
     const result = await fn({ orderId, clubId });
     const data = result.data as any;
-
-    return {
-      success: true,
-      refundId: data.refundId,
-      refundAmount: data.refundAmount,
-    };
+    return { success: true, refundId: data.refundId, refundAmount: data.refundAmount };
   } catch (error: any) {
     const errorMessage = error.details?.message || error.message || 'Failed to process refund';
     return { success: false, error: errorMessage };
@@ -275,66 +303,72 @@ export const refundStoreOrder = async (orderId: string, clubId: string): Promise
 };
 
 // ============================================================================
-// SUB-MERCHANT ACCOUNT (Club Payouts)
+// SUB-MERCHANT ACCOUNT (Club Payouts) — Finix Hosted Onboarding
 // ============================================================================
 
-export interface SubMerchantIndividual {
-  firstName: string;
-  lastName: string;
-  phone?: string;
-  dateOfBirth?: string; // YYYY-MM-DD
-  ssn?: string;         // last 4 digits or full SSN (required for production)
-  address?: {
-    streetAddress: string;
-    locality: string;  // city
-    region: string;    // state
-    postalCode: string;
-  };
+export interface StartOnboardingResult {
+  success: boolean;
+  identityId?: string;
+  merchantId?: string;
+  onboardingFormId?: string;
+  onboardingUrl?: string | null;
+  status?: string;
+  error?: string;
 }
 
-export interface SubMerchantFunding {
-  accountNumber: string;
-  routingNumber: string;
-}
-
+/**
+ * Starts (or resumes) hosted onboarding for a club. Returns a URL the club
+ * admin should open to complete KYC on Finix's hosted form. Finix redirects
+ * to the deep link `rallysphere://finix-onboarding/return?clubId=...` on
+ * completion.
+ */
 export const createSubMerchantAccount = async (
   clubId: string,
   email: string,
   clubName: string,
-  individual?: SubMerchantIndividual,
-  funding?: SubMerchantFunding
-) => {
+  returnUrl?: string
+): Promise<StartOnboardingResult> => {
   try {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
+    if (!auth.currentUser) {
       return { success: false, error: 'You must be logged in' };
     }
-
     const fn = httpsCallable(functions, 'createSubMerchantAccount');
-    const result = await fn({ clubId, email, clubName, individual, funding });
+    const result = await fn({ clubId, email, clubName, returnUrl });
     const data = result.data as any;
-
     return {
       success: true,
-      merchantAccountId: data.merchantAccountId,
+      identityId: data.identityId,
+      merchantId: data.merchantId,
+      onboardingFormId: data.onboardingFormId,
+      onboardingUrl: data.onboardingUrl,
       status: data.status,
     };
   } catch (error: any) {
-    return { success: false, error: error.message || 'Failed to create merchant account' };
+    return { success: false, error: error.message || 'Failed to start onboarding' };
   }
 };
 
-export const getSubMerchantStatus = async (merchantAccountId: string) => {
+export interface SubMerchantStatusResult {
+  success: boolean;
+  status?: string;
+  isComplete?: boolean;
+  processingEnabled?: boolean;
+  settlementEnabled?: boolean;
+  merchantId?: string;
+  identityId?: string;
+  error?: string;
+}
+
+export const getSubMerchantStatus = async (
+  args: { identityId?: string; merchantId?: string; clubId?: string }
+): Promise<SubMerchantStatusResult> => {
   try {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
+    if (!auth.currentUser) {
       return { success: false, error: 'You must be logged in' };
     }
-
     const fn = httpsCallable(functions, 'getSubMerchantStatus');
-    const result = await fn({ merchantAccountId });
+    const result = await fn(args);
     const data = result.data as any;
-
     return { success: true, ...data };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -342,14 +376,97 @@ export const getSubMerchantStatus = async (merchantAccountId: string) => {
 };
 
 // ============================================================================
-// LEGACY ALIASES
-// These names are used in older screens — keep them pointing to the new fns.
+// SUBSCRIPTIONS (Finix)
 // ============================================================================
 
-/** @deprecated Use createSubMerchantAccount */
-export const createStripeConnectAccount = async (clubId: string, email: string, clubName: string) =>
-  createSubMerchantAccount(clubId, email, clubName);
+export interface CreateSubscriptionParams {
+  tokenId: string;
+  idempotencyKey?: string;
+}
 
-/** @deprecated Use getSubMerchantStatus */
-export const checkStripeAccountStatus = async (merchantAccountId: string) =>
-  getSubMerchantStatus(merchantAccountId);
+export const createProSubscription = async (
+  clubId: string,
+  userId: string,
+  clubName: string,
+  params: CreateSubscriptionParams
+): Promise<{ success: boolean; subscriptionId?: string; error?: string }> => {
+  try {
+    const fn = httpsCallable(functions, 'createProSubscription');
+    const result = await fn({
+      clubId, userId, clubName,
+      tokenId: params.tokenId,
+      idempotencyKey: params.idempotencyKey,
+    });
+    const data = result.data as any;
+    return { success: true, subscriptionId: data.subscriptionId };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const cancelProSubscription = async (
+  subscriptionId: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const fn = httpsCallable(functions, 'cancelProSubscription');
+    await fn({ subscriptionId });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const createUserProSubscription = async (
+  userId: string,
+  params: CreateSubscriptionParams
+): Promise<{ success: boolean; subscriptionId?: string; error?: string }> => {
+  try {
+    const fn = httpsCallable(functions, 'createUserProSubscription');
+    const result = await fn({ userId, tokenId: params.tokenId, idempotencyKey: params.idempotencyKey });
+    const data = result.data as any;
+    return { success: true, subscriptionId: data.subscriptionId };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const cancelUserProSubscription = async (
+  subscriptionId: string,
+  userId: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const fn = httpsCallable(functions, 'cancelUserProSubscription');
+    await fn({ subscriptionId, userId });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const createClubSubscription = async (
+  clubId: string,
+  userId: string,
+  params: CreateSubscriptionParams
+): Promise<{ success: boolean; subscriptionId?: string; error?: string }> => {
+  try {
+    const fn = httpsCallable(functions, 'createClubSubscription');
+    const result = await fn({ clubId, userId, tokenId: params.tokenId, idempotencyKey: params.idempotencyKey });
+    const data = result.data as any;
+    return { success: true, subscriptionId: data.subscriptionId };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const cancelClubSubscription = async (
+  subscriptionId: string,
+  userId: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const fn = httpsCallable(functions, 'cancelClubSubscription');
+    await fn({ subscriptionId, userId });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+};

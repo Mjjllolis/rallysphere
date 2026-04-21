@@ -11,6 +11,11 @@
         "source": "**",
         "destination": "/index.html"
       }
+    ],
+    "predeploy": [
+      "mkdir -p dist/checkout && cp public/checkout/tokenize.html dist/checkout/tokenize.html",
+      "if [ -f public/fees.html ]; then cp public/fees.html dist/fees.html; fi",
+      "if [ -f public/.well-known/apple-developer-merchantid-domain-association ]; then mkdir -p dist/.well-known && cp public/.well-known/apple-developer-merchantid-domain-association dist/.well-known/apple-developer-merchantid-domain-association; fi"
     ]
   },
   "functions": [

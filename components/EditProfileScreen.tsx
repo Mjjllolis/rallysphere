@@ -46,6 +46,7 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
+    email: '',
     bio: '',
     instagram: '',
     location: '',
@@ -68,6 +69,7 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
       setFormData({
         firstName: userProfile.firstName || '',
         lastName: userProfile.lastName || '',
+        email: userProfile.email || '',
         bio: userProfile.bio || '',
         instagram: userProfile.instagram || '',
         location: userProfile.location || '',
@@ -166,11 +168,18 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
   const handleSave = async () => {
     if (!user) return;
 
+    const emailTrimmed = formData.email.trim();
+    if (emailTrimmed && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed)) {
+      Alert.alert('Invalid email', 'Please enter a valid email address.');
+      return;
+    }
+
     setLoading(true);
     try {
       const updatedProfile: Partial<UserProfile> = {
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
+        email: emailTrimmed,
         bio: formData.bio.trim(),
         instagram: formData.instagram.trim().replace('@', ''), // Remove @ if user added it
         location: formData.location.trim(),
@@ -386,6 +395,16 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
                     value={formData.lastName}
                     onChangeText={(value) => updateFormData('lastName', value)}
                     placeholder="Enter last name"
+                  />
+
+                  <GlassInput
+                    label="Email"
+                    value={formData.email}
+                    onChangeText={(value) => updateFormData('email', value.trim())}
+                    placeholder="you@example.com"
+                    icon="email"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
                   />
 
                   <GlassInput

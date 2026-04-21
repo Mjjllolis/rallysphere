@@ -141,10 +141,18 @@ export interface Club {
   // Location
   location?: string;
   locationCoords?: { latitude: number; longitude: number };
-  // Stripe Connect for payouts
-  stripeAccountId?: string;
-  stripeAccountStatus?: 'pending' | 'active' | 'disabled';
-  stripeOnboardingComplete?: boolean;
+  // Finix payouts (hosted onboarding)
+  finixIdentityId?: string;
+  finixMerchantId?: string;
+  finixOnboardingFormId?: string;
+  finixOnboardingUrl?: string;
+  finixOnboardingComplete?: boolean;
+  finixOnboardingDeclined?: boolean;
+  finixOnboardingStatus?: 'PENDING' | 'APPROVED' | 'DECLINED';
+  finixOnboardingStartedAt?: Timestamp;
+  finixMerchantAccountActive?: boolean;
+  finixEnrollmentId?: string;
+  subscriptionStatus?: 'active' | 'canceled' | 'past_due';
   // Pro subscription
   isPro?: boolean;
   proSubscriptionId?: string;
@@ -800,16 +808,24 @@ export const getClubs = async (userId?: string) => {
         contactEmail: data.contactEmail,
         socialLinks: data.socialLinks,
         location: data.location,
-        // Stripe Connect fields
-        stripeAccountId: data.stripeAccountId,
-        stripeAccountStatus: data.stripeAccountStatus,
-        stripeOnboardingComplete: data.stripeOnboardingComplete,
+        // Finix payouts (hosted onboarding)
+        finixIdentityId: data.finixIdentityId,
+        finixMerchantId: data.finixMerchantId,
+        finixOnboardingFormId: data.finixOnboardingFormId,
+        finixOnboardingUrl: data.finixOnboardingUrl,
+        finixOnboardingComplete: data.finixOnboardingComplete,
+        finixOnboardingDeclined: data.finixOnboardingDeclined,
+        finixOnboardingStatus: data.finixOnboardingStatus,
+        finixOnboardingStartedAt: data.finixOnboardingStartedAt,
+        finixMerchantAccountActive: data.finixMerchantAccountActive,
+        finixEnrollmentId: data.finixEnrollmentId,
+        subscriptionStatus: data.subscriptionStatus,
         // Pro subscription
         isPro: data.isPro
       };
       clubs.push(club);
     });
-    
+
     // Sort in JavaScript instead of Firestore
     clubs.sort((a, b) => {
       const dateA = a.updatedAt?.toDate ? a.updatedAt.toDate() : new Date(a.updatedAt);
@@ -854,10 +870,18 @@ export const getClub = async (clubId: string) => {
         contactEmail: data.contactEmail,
         socialLinks: data.socialLinks,
         location: data.location,
-        // Stripe Connect fields
-        stripeAccountId: data.stripeAccountId,
-        stripeAccountStatus: data.stripeAccountStatus,
-        stripeOnboardingComplete: data.stripeOnboardingComplete,
+        // Finix payouts (hosted onboarding)
+        finixIdentityId: data.finixIdentityId,
+        finixMerchantId: data.finixMerchantId,
+        finixOnboardingFormId: data.finixOnboardingFormId,
+        finixOnboardingUrl: data.finixOnboardingUrl,
+        finixOnboardingComplete: data.finixOnboardingComplete,
+        finixOnboardingDeclined: data.finixOnboardingDeclined,
+        finixOnboardingStatus: data.finixOnboardingStatus,
+        finixOnboardingStartedAt: data.finixOnboardingStartedAt,
+        finixMerchantAccountActive: data.finixMerchantAccountActive,
+        finixEnrollmentId: data.finixEnrollmentId,
+        subscriptionStatus: data.subscriptionStatus,
         // Pro subscription
         isPro: data.isPro
       };
@@ -1184,15 +1208,33 @@ export const updateClub = async (clubId: string, clubData: any) => {
     if (clubData.location !== undefined) {
       updateData.location = clubData.location;
     }
-    // Stripe Connect fields
-    if (clubData.stripeAccountId !== undefined) {
-      updateData.stripeAccountId = clubData.stripeAccountId;
+    // Finix payouts (hosted onboarding)
+    if (clubData.finixIdentityId !== undefined) {
+      updateData.finixIdentityId = clubData.finixIdentityId;
     }
-    if (clubData.stripeAccountStatus !== undefined) {
-      updateData.stripeAccountStatus = clubData.stripeAccountStatus;
+    if (clubData.finixMerchantId !== undefined) {
+      updateData.finixMerchantId = clubData.finixMerchantId;
     }
-    if (clubData.stripeOnboardingComplete !== undefined) {
-      updateData.stripeOnboardingComplete = clubData.stripeOnboardingComplete;
+    if (clubData.finixOnboardingFormId !== undefined) {
+      updateData.finixOnboardingFormId = clubData.finixOnboardingFormId;
+    }
+    if (clubData.finixOnboardingUrl !== undefined) {
+      updateData.finixOnboardingUrl = clubData.finixOnboardingUrl;
+    }
+    if (clubData.finixOnboardingComplete !== undefined) {
+      updateData.finixOnboardingComplete = clubData.finixOnboardingComplete;
+    }
+    if (clubData.finixOnboardingDeclined !== undefined) {
+      updateData.finixOnboardingDeclined = clubData.finixOnboardingDeclined;
+    }
+    if (clubData.finixOnboardingStatus !== undefined) {
+      updateData.finixOnboardingStatus = clubData.finixOnboardingStatus;
+    }
+    if (clubData.finixMerchantAccountActive !== undefined) {
+      updateData.finixMerchantAccountActive = clubData.finixMerchantAccountActive;
+    }
+    if (clubData.finixEnrollmentId !== undefined) {
+      updateData.finixEnrollmentId = clubData.finixEnrollmentId;
     }
 
     await updateDoc(doc(db, 'clubs', clubId), updateData);
@@ -1904,10 +1946,19 @@ export const subscribeToClubs = (userId: string, callback: (clubs: Club[]) => vo
           tags: data.tags,
           contactEmail: data.contactEmail,
           socialLinks: data.socialLinks,
-          // Stripe Connect fields
-          stripeAccountId: data.stripeAccountId,
-          stripeAccountStatus: data.stripeAccountStatus,
-          stripeOnboardingComplete: data.stripeOnboardingComplete
+          // Finix payouts (hosted onboarding)
+          finixIdentityId: data.finixIdentityId,
+          finixMerchantId: data.finixMerchantId,
+          finixOnboardingFormId: data.finixOnboardingFormId,
+          finixOnboardingUrl: data.finixOnboardingUrl,
+          finixOnboardingComplete: data.finixOnboardingComplete,
+          finixOnboardingDeclined: data.finixOnboardingDeclined,
+          finixOnboardingStatus: data.finixOnboardingStatus,
+          finixOnboardingStartedAt: data.finixOnboardingStartedAt,
+          finixMerchantAccountActive: data.finixMerchantAccountActive,
+          finixEnrollmentId: data.finixEnrollmentId,
+          subscriptionStatus: data.subscriptionStatus,
+          subscribers: data.subscribers || []
         };
         clubs.push(club);
       });

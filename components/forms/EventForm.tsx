@@ -127,8 +127,8 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
       }
 
       // Calculate ticket price - ensure it's 0 if empty or Stripe not set up
-      const hasStripe = selectedClub?.stripeOnboardingComplete === true;
-      const ticketPriceValue = hasStripe && formData.ticketPrice ? parseFloat(formData.ticketPrice) : 0;
+      const hasPayouts = !!(selectedClub?.finixOnboardingComplete || selectedClub?.finixMerchantAccountActive);
+      const ticketPriceValue = hasPayouts && formData.ticketPrice ? parseFloat(formData.ticketPrice) : 0;
 
       // Calculate max attendees - default to 999 if blank
       const maxAttendeesValue = formData.maxAttendees && formData.maxAttendees.trim() !== ''
@@ -264,20 +264,20 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
 
       <GlassInput
         label="Ticket Price"
-        value={selectedClub?.stripeOnboardingComplete ? formData.ticketPrice : 'Free'}
+        value={(selectedClub?.finixOnboardingComplete || selectedClub?.finixMerchantAccountActive) ? formData.ticketPrice : 'Free'}
         onChangeText={(value) => updateFormData('ticketPrice', value)}
         placeholder="Free"
         keyboardType="decimal-pad"
         icon="currency-usd"
-        editable={selectedClub?.stripeOnboardingComplete === true}
-        style={!selectedClub?.stripeOnboardingComplete && styles.disabledInput}
+        editable={(selectedClub?.finixOnboardingComplete || selectedClub?.finixMerchantAccountActive) === true}
+        style={!(selectedClub?.finixOnboardingComplete || selectedClub?.finixMerchantAccountActive) && styles.disabledInput}
       />
 
-      {selectedClub && !selectedClub.stripeOnboardingComplete && (
+      {selectedClub && !selectedClub.finixOnboardingComplete && !selectedClub.finixMerchantAccountActive && (
         <View style={styles.warningBox}>
           <Text style={styles.warningIcon}>⚠️</Text>
           <View style={styles.warningContent}>
-            <Text style={styles.warningTitle}>Connect Stripe to accept payments</Text>
+            <Text style={styles.warningTitle}>Connect payouts to accept payments</Text>
             <Text style={[styles.warningText, { color: theme.colors.onSurfaceVariant }]}>
               Set up payouts in club settings to create paid events
             </Text>

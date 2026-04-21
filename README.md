@@ -3,10 +3,127 @@
 A React Native application built with Expo for event management and community engagement.
 
 ## Table of Contents
+- [Finix Migration](#finix-migration)
 - [Setup](#setup)
 - [Environment Variables](#environment-variables)
 - [Security](#security)
 - [Development](#development)
+
+---
+
+## Finix Migration
+
+RallySphere is migrating payments from Braintree to **Finix** (decision locked 2026-04-21). Full plan lives at `~/.claude/plans/woolly-doodling-falcon.md`. Sandbox certification is tracked against the checklist from Mary Bassek (Finix Customer Delivery Manager).
+
+### Locked-in architecture decisions
+
+| Area | Decision |
+|---|---|
+| Sub-merchant onboarding | Finix **Hosted Onboarding Forms** (Persona selfie + Gov ID) |
+| Card tokenization | **WebView + Finix Tokenization Form** hosted on Firebase Hosting at `/checkout/tokenize.html` |
+| Buyer fees | **Supplemental Fee** — keep 10% + $0.29 passed to buyer |
+| Cutover strategy | **Full rip-and-replace** of Braintree |
+| ACH | **Included at launch** with NACHA authorization language |
+| Apple Pay / Google Pay | **Included at launch** via Tokenization Form wallet buttons |
+| Subscriptions | **Port to Finix now** (Rally Pro + club tiers) |
+| Existing clubs | **Wipe Braintree merchant data** — one-time Firestore script, re-onboard all |
+
+### Implementation todo (execute in order)
+
+#### Backend — Cloud Functions (`functions/src/index.ts`)
+- [ ] Remove `braintree` from `functions/package.json`; add `uuid` + Finix Node SDK (or `axios`)
+- [ ] Add Finix env vars: `FINIX_ENVIRONMENT`, `FINIX_USERNAME`, `FINIX_PASSWORD`, `FINIX_APPLICATION_ID`, `FINIX_PLATFORM_MERCHANT_ID`, `FINIX_WEBHOOK_SECRET` (sandbox + `_LIVE` variants)
+- [ ] Replace `getBraintreeClientToken` with `getFinixTokenizationContext` (returns applicationId + environment)
+- [ ] Rewrite `createEventTransaction` → `POST /transfers` with idempotency key, fee split, AVS zip, fraud_session_id tag
+- [ ] Rewrite `createStoreTransaction` → same pattern
+- [ ] Rewrite `createSubMerchantAccount` → creates Finix identity + returns hosted onboarding URL
+- [ ] Rewrite `getSubMerchantStatus` → `GET /merchants/{id}`
+- [ ] Rewrite `leaveEventWithRefund`, `refundTicketOrder`, `refundStoreOrder` → `POST /transfers/{id}/reversals`
+- [ ] Rewrite subscription functions (`createProSubscription`, `createUserProSubscription`, `createClubSubscription` + cancels) → Finix `subscription_schedules` + enrollments
+- [ ] Replace `braintreeWebhook` with `finixWebhook`: HMAC signature verification, handle `underwriting.*`, `dispute.*`, `transfer.succeeded/failed`, `subscription_schedule_enrollment.*`; idempotency via `webhookEvents` collection
+- [ ] Update all Firestore writes: `provider: "braintree"` → `provider: "finix"`
+
+#### Frontend — `lib/finix.ts` (renamed from `lib/stripe.ts`)
+- [ ] Rename `lib/stripe.ts` → `lib/finix.ts`
+- [ ] Delete `lib/stripe-web-stub.js`
+- [ ] Swap `paymentMethodNonce: string` → `tokenId: string`; add `fraudSessionId?: string`
+- [ ] Remove `@deprecated createStripeConnectAccount` and `checkStripeAccountStatus` aliases
+- [ ] Update all imports: `'../lib/stripe'` → `'../lib/finix'` (in `PaymentSheet`, `StorePaymentSheet`, `PaymentModal`, `StripeConnectSetup`, `stripe-connect/*.tsx`)
+
+#### Frontend — Tokenization Form (Firebase Hosting)
+- [ ] Create `public/checkout/tokenize.html` — loads `js.finix.com/v/1/finix.js`, instantiates `Finix.CardTokenForm` + `Finix.BankAccountTokenForm`, AVS with `postal_code` required, Apple Pay + Google Pay options
+- [ ] Add `public/checkout/*` to `firebase.json` hosting config
+- [ ] Deploy Firebase Hosting
+- [ ] Update `components/PaymentSheet.tsx` — replace `buildDropInHtml` with WebView loading hosted URL, handle `token` + `fraudSessionId` postMessage
+- [ ] Update `components/StorePaymentSheet.tsx` — same swap
+- [ ] Update `components/PaymentModal.tsx` — same swap
+
+#### Frontend — Onboarding
+- [ ] Rename `components/StripeConnectSetup.tsx` → `components/FinixPayoutsSetup.tsx`
+- [ ] Add ToS + fee disclosure checkboxes before "Continue to Finix" button
+- [ ] Open hosted onboarding URL via `expo-web-browser`
+- [ ] Rename `app/stripe-connect/` → `app/finix-onboarding/` (updates `return.tsx` and `refresh.tsx`)
+- [ ] Deep link: `rallysphere://finix-onboarding/return?clubId=...&identityId=...`
+
+#### Frontend — ACH
+- [ ] New component `components/AchAuthorizationBlock.tsx` with NACHA authorization + confirmation language
+- [ ] Render inside `PaymentSheet` + `StorePaymentSheet` when ACH tab selected
+- [ ] Update `app/payment-success.tsx` to show "3–5 business day clearing" notice when `paymentMethod === 'ach'`
+- [ ] New sandbox-only dev screen `app/dev/finix-ach-test.tsx` for simulated returns
+
+#### Frontend — Apple Pay / Google Pay
+- [ ] Register Apple Pay merchant ID `merchant.com.rallysphere.payments` in Apple Developer Portal
+- [ ] Add `com.apple.developer.in-app-payments` entitlement via `app.json` or `ios/` config
+- [ ] Host `/.well-known/apple-developer-merchantid-domain-association` via Firebase Hosting
+- [ ] Register domain with Finix in their dashboard
+- [ ] Pass `applePay` + `googlePay` options to Tokenization Form
+
+#### Data migration
+- [ ] Write `scripts/wipe-braintree-merchant-data.ts` with `--dry-run` and `--apply` flags
+- [ ] Dry-run against production Firestore; review log
+- [ ] Apply to wipe `braintreeMerchantAccountId`, `braintreeAccountStatus`, `braintreeOnboardingComplete` from `clubs/*`; initialize `finixMerchantId: null`, `finixIdentityId: null`, `finixOnboardingComplete: false`
+- [ ] Email subscribed users asking them to re-subscribe on Finix (Braintree subs stop at cutover)
+
+#### Cleanup
+- [ ] Remove Stripe key-rotation section from this README
+- [ ] Remove Stripe Connect Setup section from this README
+- [ ] Update `.env` example in README: remove `STRIPE_*` and `BRAINTREE_*`, add `FINIX_*`
+- [ ] Audit `check-club.js` and `fix-data.js` for stale `braintree*` field references
+
+### Sandbox certification checklist (Mary's email)
+
+Verify each before requesting Finix to check the sandbox:
+
+- [ ] **Onboarding process confirmed**: Hosted Onboarding Forms
+- [ ] **Successful transaction**: Finix test card `4000000000000002` → `transfer.succeeded` webhook → `payments` doc `status: "succeeded"`
+- [ ] **Failed transaction**: Decline card `4000000000000036` → `transfer.failed` webhook → `payments` doc `status: "failed"`
+- [ ] **Successful refund**: Admin refund → reversal in Finix dashboard → `ticketOrders` doc `status: "refunded"`
+- [ ] **AVS in Payment Instrument**: zip code (`postal_code`) present on tokenized instrument
+- [ ] **Idempotency**: retry same callable with same `idempotencyKey` → single transfer, no double charge
+- [ ] **Fraud Session ID**: emitted by Tokenization Form, forwarded, attached to `/transfers` as tag
+- [ ] **Finix Tokenization Form**: form origin is `js.finix.com/v/1/finix.js`
+- [ ] **Webhooks listening**: disputes + merchant onboarding minimum; confirm `webhookEvents` Firestore docs on test fires
+- [ ] **ACH authorization language**: visible before ACH submit, matches NACHA-approved copy
+- [ ] **ACH confirmation language**: shown on post-submit screen
+- [ ] **ACH returns/reversals tested**: test routing `110000000` + return test → order flips to `failed`
+
+### Post-cert (production launch)
+
+- [ ] Swap sandbox env vars → live (`FINIX_*_LIVE`)
+- [ ] Update `public/checkout/tokenize.html` to use production Finix application id
+- [ ] Register Apple Pay domain with Finix production
+- [ ] Flip `FINIX_ENVIRONMENT=live`
+- [ ] Redeploy Functions + Hosting
+- [ ] Test $1 live transaction end-to-end
+
+### Open items (user input needed)
+
+- [ ] Finix sandbox credentials (username, password, application id, platform merchant id, webhook secret) from Mary
+- [ ] Support email for ACH authorization language (e.g. `support@rallysphere.com`)
+- [ ] Apple Pay merchant ID name (suggested `merchant.com.rallysphere.payments`)
+- [ ] Exact fee disclosure wording for onboarding form
+
+---
 
 ## Setup
 

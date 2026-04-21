@@ -1,10 +1,10 @@
-// app/stripe-connect/refresh.tsx - Stripe Connect onboarding refresh handler
-import React, { useEffect } from 'react';
+// app/finix-onboarding/refresh.tsx — Hosted onboarding "link expired" handler
+import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text, Button, useTheme, Card } from 'react-native-paper';
 import { router, useLocalSearchParams } from 'expo-router';
 
-export default function StripeConnectRefresh() {
+export default function FinixOnboardingRefresh() {
   const theme = useTheme();
   const { clubId } = useLocalSearchParams();
 
@@ -27,8 +27,8 @@ export default function StripeConnectRefresh() {
             Setup Link Expired
           </Text>
           <Text variant="bodyMedium" style={styles.subtitle}>
-            Your Stripe Connect onboarding link has expired. Please return to your club page and click
-            "Continue Setup" to get a new link.
+            Your Finix onboarding link has expired. Please return to your club page and tap
+            "Resume Setup" to get a new link.
           </Text>
           <Button
             mode="contained"

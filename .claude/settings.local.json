@@ -119,7 +119,12 @@
       "Bash(pod update:*)",
       "Skill(update-config)",
       "Bash(python3:*)",
-      "Bash(pip3 install:*)"
+      "Bash(pip3 install:*)",
+      "Bash(xcode-select -p)",
+      "Bash(sudo xcodebuild *)",
+      "Read(//Library/Developer/CoreSimulator/Volumes/**)",
+      "Read(//Library/Developer/CoreSimulator/Profiles/**)",
+      "Bash(launchctl list *)"
     ],
     "deny": [],
     "ask": []

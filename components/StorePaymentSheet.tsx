@@ -10,8 +10,13 @@ import { getUserRallyCredits, getClubRallyRedemptions, spendRallyCredits } from 
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { getBraintreeClientToken, createStoreTransaction } from '../lib/stripe';
-import type { StoreBreakdown } from '../lib/stripe';
+import {
+  getFinixTokenizationContext,
+  buildFinixTokenizeUrl,
+  createStoreTransaction,
+  type FinixTokenizationContext,
+  type StoreBreakdown,
+} from '../lib/finix';
 import { useThemeToggle } from '../app/_layout';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -28,56 +33,6 @@ interface StorePaymentSheetProps {
   userId: string;
 }
 
-function buildDropInHtml(clientToken: string): string {
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1">
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: transparent; padding: 8px 0; }
-    .loading { text-align: center; padding: 16px; color: #64748B; font-size: 13px; }
-    .error { color: #DC2626; padding: 8px 0; font-size: 13px; display: none; }
-  </style>
-</head>
-<body>
-  <div id="dropin-container"></div>
-  <div id="error" class="error"></div>
-  <div id="loading" class="loading">Loading payment form...</div>
-  <script src="https://js.braintreegateway.com/web/dropin/1.42.0/js/dropin.min.js"></script>
-  <script>
-    braintree.dropin.create({
-      authorization: '${clientToken}',
-      container: '#dropin-container',
-      card: { cardholderName: { required: false } }
-    }, function(createErr, dropinInstance) {
-      document.getElementById('loading').style.display = 'none';
-      if (createErr) {
-        document.getElementById('error').style.display = 'block';
-        document.getElementById('error').textContent = createErr.message;
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ready', ready: false, error: createErr.message }));
-        return;
-      }
-      window._dropinInstance = dropinInstance;
-      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ready', ready: true }));
-    });
-    window.requestNonce = function() {
-      if (!window._dropinInstance) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', message: 'Payment form not ready' }));
-        return;
-      }
-      window._dropinInstance.requestPaymentMethod(function(err, payload) {
-        if (err) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', message: err.message }));
-          return;
-        }
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'nonce', nonce: payload.nonce }));
-      });
-    };
-  </script>
-</body>
-</html>`;
-}
 
 export default function StorePaymentSheet({
   visible,
@@ -103,9 +58,10 @@ export default function StorePaymentSheet({
   const [processing, setProcessing] = useState(false);
 
   const [serverBreakdown, setServerBreakdown] = useState<StoreBreakdown | null>(null);
-  const [clientToken, setClientToken] = useState<string | null>(null);
-  const [dropInReady, setDropInReady] = useState(false);
+  const [finixContext, setFinixContext] = useState<FinixTokenizationContext | null>(null);
+  const [formReady, setFormReady] = useState(false);
   const [initializingPayment, setInitializingPayment] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'ach' | 'apple_pay' | 'google_pay'>('card');
 
   useEffect(() => {
     if (visible) {
@@ -116,8 +72,8 @@ export default function StorePaymentSheet({
     } else {
       Animated.timing(slideAnim, { toValue: SCREEN_HEIGHT, duration: 250, useNativeDriver: true }).start();
       setServerBreakdown(null);
-      setClientToken(null);
-      setDropInReady(false);
+      setFinixContext(null);
+      setFormReady(false);
       setSelectedReward(null);
     }
   }, [visible]);
@@ -131,10 +87,12 @@ export default function StorePaymentSheet({
   const initPayment = async () => {
     setInitializingPayment(true);
     try {
-      const result = await getBraintreeClientToken();
-      if (result.success && result.clientToken) {
-        setClientToken(result.clientToken);
+      const result = await getFinixTokenizationContext();
+      if (result.success && result.context) {
+        setFinixContext(result.context);
         await calculateBreakdown();
+      } else {
+        Alert.alert('Error', result.error || 'Failed to initialize payment');
       }
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to initialize payment');
@@ -240,10 +198,12 @@ export default function StorePaymentSheet({
     try {
       const msg = JSON.parse(event_.nativeEvent.data);
       if (msg.type === 'ready') {
-        setDropInReady(msg.ready);
+        setFormReady(!!msg.ready);
         if (!msg.ready) Alert.alert('Error', msg.error || 'Failed to load payment form');
-      } else if (msg.type === 'nonce') {
-        await processPaymentWithNonce(msg.nonce);
+      } else if (msg.type === 'tab') {
+        setPaymentMethod(msg.paymentMethod || 'card');
+      } else if (msg.type === 'token') {
+        await processPaymentWithToken(msg.tokenId, msg.paymentMethod || 'card', msg.fraudSessionId);
       } else if (msg.type === 'error') {
         setProcessing(false);
         Alert.alert('Payment Error', msg.message || 'An error occurred');
@@ -251,10 +211,12 @@ export default function StorePaymentSheet({
     } catch (e) { /* ignore */ }
   };
 
-  const processPaymentWithNonce = async (nonce: string) => {
+  const processPaymentWithToken = async (tokenId: string, method: string, fraudSessionId?: string) => {
     try {
       const result = await createStoreTransaction({
-        paymentMethodNonce: nonce,
+        tokenId,
+        fraudSessionId,
+        paymentMethod: method as any,
         itemId: item.id,
         quantity,
         selectedVariants,
@@ -284,7 +246,13 @@ export default function StorePaymentSheet({
           await spendRallyCredits(userId, item.clubId, selectedReward.creditsRequired,
             selectedReward.id, `Store discount: ${item.name}`).catch(() => {});
         }
-        Alert.alert('Purchase Successful!', 'Your order has been placed successfully.');
+        const isAch = method === 'ach';
+        Alert.alert(
+          isAch ? 'ACH Payment Submitted' : 'Purchase Successful!',
+          isAch
+            ? 'Your ACH payment has been submitted. It may take 3–5 business days to clear. We\'ll ship your order once funds settle.'
+            : 'Your order has been placed successfully.'
+        );
         onSuccess();
         onDismiss();
       } else {
@@ -303,17 +271,17 @@ export default function StorePaymentSheet({
 
     if (total === 0) {
       setProcessing(true);
-      processPaymentWithNonce('free_nonce');
+      processPaymentWithToken('free_token', 'card');
       return;
     }
 
-    if (!dropInReady) {
+    if (!formReady) {
       Alert.alert('Please Wait', 'Payment is still being prepared. Please try again in a moment.');
       return;
     }
 
     setProcessing(true);
-    webViewRef.current?.injectJavaScript('window.requestNonce(); true;');
+    webViewRef.current?.injectJavaScript('window.__submit && window.__submit(); true;');
   };
 
   if (!visible) return null;
@@ -512,11 +480,11 @@ export default function StorePaymentSheet({
                 </View>
               </View>
 
-              {/* Braintree Drop-in */}
+              {/* Finix Tokenization Form */}
               {totals.total > 0 && (
                 <View style={styles.section}>
                   <Text style={[styles.sectionTitle, { color: theme.colors.onSurfaceVariant }]}>PAYMENT METHOD</Text>
-                  {initializingPayment || !clientToken ? (
+                  {initializingPayment || !finixContext ? (
                     <View style={{ alignItems: 'center', paddingVertical: 16 }}>
                       <ActivityIndicator size="small" color={theme.colors.primary} />
                       <Text style={{ marginTop: 8, color: theme.colors.onSurfaceVariant, fontSize: 13 }}>
@@ -526,11 +494,19 @@ export default function StorePaymentSheet({
                   ) : (
                     <WebView
                       ref={webViewRef}
-                      source={{ html: buildDropInHtml(clientToken) }}
+                      source={{
+                        uri: buildFinixTokenizeUrl({
+                          context: finixContext,
+                          amount: totals.total,
+                          ach: true,
+                          wallets: true,
+                          external: true,
+                        }),
+                      }}
                       style={styles.webView}
                       onMessage={handleWebViewMessage}
                       javaScriptEnabled
-                      scrollEnabled={false}
+                      scrollEnabled
                       originWhitelist={['*']}
                       mixedContentMode="always"
                     />
@@ -544,24 +520,28 @@ export default function StorePaymentSheet({
               <TouchableOpacity
                 style={styles.purchaseButton}
                 onPress={handlePurchase}
-                disabled={processing || initializingPayment || (totals.total > 0 && !dropInReady)}
+                disabled={processing || initializingPayment || (totals.total > 0 && !formReady)}
                 activeOpacity={0.8}
               >
                 <LinearGradient
                   colors={['#EF4444', '#DC2626']}
-                  style={[styles.purchaseButtonGradient, (initializingPayment || (totals.total > 0 && !dropInReady)) && { opacity: 0.6 }]}
+                  style={[styles.purchaseButtonGradient, (initializingPayment || (totals.total > 0 && !formReady)) && { opacity: 0.6 }]}
                 >
                   {processing || initializingPayment ? (
                     <ActivityIndicator color="white" />
                   ) : (
                     <Text style={styles.purchaseButtonText}>
-                      {totals.total === 0 ? 'Confirm (Free)' : `Pay $${totals.total.toFixed(2)}`}
+                      {totals.total === 0
+                        ? 'Confirm (Free)'
+                        : paymentMethod === 'ach'
+                          ? `Authorize & Pay $${totals.total.toFixed(2)}`
+                          : `Pay $${totals.total.toFixed(2)}`}
                     </Text>
                   )}
                 </LinearGradient>
               </TouchableOpacity>
               <Text style={{ textAlign: 'center', color: theme.colors.onSurfaceVariant, fontSize: 11, marginTop: 8 }}>
-                🔒 Secure payment via Braintree
+                🔒 Secure payment via Finix
               </Text>
             </View>
           </BlurView>
@@ -619,7 +599,7 @@ const styles = StyleSheet.create({
   breakdownValue: { fontSize: 14, fontWeight: '500' },
   totalLabel: { fontSize: 16, fontWeight: 'bold' },
   totalValue: { fontSize: 18, fontWeight: 'bold', color: '#EF4444' },
-  webView: { height: 220, marginTop: 8 },
+  webView: { height: 380, marginTop: 8 },
   footer: { padding: 20, borderTopWidth: 1 },
   purchaseButton: { borderRadius: 14, overflow: 'hidden' },
   purchaseButtonGradient: { paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },

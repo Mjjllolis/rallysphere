@@ -569,7 +569,7 @@ export default function EditEventScreen() {
                 style={styles.input}
                 placeholder="Free"
                 left={<TextInput.Icon icon="currency-usd" />}
-                disabled={!club?.stripeOnboardingComplete}
+                disabled={!club?.finixOnboardingComplete && !club?.finixMerchantAccountActive}
               />
 
               <TextInput
