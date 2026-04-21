@@ -34,9 +34,15 @@ yarn-error.*
 .env
 .env.test
 .env.production
+.env.bak
 functions/.env
 functions/.env.test
 functions/.env.production
+functions/.env.bak
+
+# Any backup files anywhere (never commit snapshots of secrets)
+*.bak
+*.bak2
 
 # typescript
 *.tsbuildinfo
