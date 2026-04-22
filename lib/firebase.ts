@@ -151,6 +151,9 @@ export interface Club {
   finixOnboardingStartedAt?: Timestamp;
   finixMerchantAccountActive?: boolean;
   finixEnrollmentId?: string;
+  finixTosAcceptedAt?: Timestamp;
+  finixFeesAcceptedAt?: Timestamp;
+  finixAcceptedByUid?: string;
   subscriptionStatus?: 'active' | 'canceled' | 'past_due';
   // Pro subscription
   isPro?: boolean;

@@ -137,6 +137,7 @@ export default function ClubPayoutsScreen() {
           <FinixPayoutsSetup
             club={club}
             isAdmin={isAdmin}
+            acceptedByUid={user?.uid}
             onStatusChange={loadClubData}
           />
         </ScrollView>

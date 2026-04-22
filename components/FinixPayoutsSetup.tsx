@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Alert, Linking, Pressable } from 'react-native';
 import { Card, Button, Text, useTheme, Chip, Divider, Checkbox } from 'react-native-paper';
+import { Timestamp } from 'firebase/firestore';
 import { createSubMerchantAccount, getSubMerchantStatus } from '../lib/finix';
 import { updateClub } from '../lib/firebase';
 import type { Club } from '../lib/firebase';
@@ -8,16 +9,17 @@ import type { Club } from '../lib/firebase';
 interface FinixPayoutsSetupProps {
   club: Club;
   isAdmin: boolean;
+  acceptedByUid?: string;
   onStatusChange?: () => void;
 }
 
-export default function FinixPayoutsSetup({ club, isAdmin, onStatusChange }: FinixPayoutsSetupProps) {
+export default function FinixPayoutsSetup({ club, isAdmin, acceptedByUid, onStatusChange }: FinixPayoutsSetupProps) {
   const theme = useTheme();
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(false);
   const [accountStatus, setAccountStatus] = useState<any>(null);
-  const [tosAccepted, setTosAccepted] = useState(false);
-  const [feesAccepted, setFeesAccepted] = useState(false);
+  const [tosAccepted, setTosAccepted] = useState(!!club.finixTosAcceptedAt);
+  const [feesAccepted, setFeesAccepted] = useState(!!club.finixFeesAcceptedAt);
 
   useEffect(() => {
     if (club.finixMerchantId || club.finixIdentityId) {
@@ -60,13 +62,23 @@ export default function FinixPayoutsSetup({ club, isAdmin, onStatusChange }: Fin
       Alert.alert('Permission Denied', 'Only club admins can set up payouts.');
       return;
     }
-    if (!tosAccepted || !feesAccepted) {
+    const hasStartedOnboarding = !!club.finixIdentityId;
+    if (!hasStartedOnboarding && (!tosAccepted || !feesAccepted)) {
       Alert.alert('Accept Terms', 'Please review and accept the Terms of Service and fee schedule before continuing.');
       return;
     }
 
     setLoading(true);
     try {
+      if (!club.finixTosAcceptedAt || !club.finixFeesAcceptedAt) {
+        const now = Timestamp.now();
+        await updateClub(club.id, {
+          finixTosAcceptedAt: now,
+          finixFeesAcceptedAt: now,
+          finixAcceptedByUid: acceptedByUid ?? null,
+        });
+      }
+
       const result = await createSubMerchantAccount(
         club.id,
         club.contactEmail || '',
@@ -98,7 +110,10 @@ export default function FinixPayoutsSetup({ club, isAdmin, onStatusChange }: Fin
     if (club.finixOnboardingDeclined) {
       return <Chip icon="close-circle" mode="outlined" textStyle={{ color: theme.colors.error }}>Declined</Chip>;
     }
-    return <Chip icon="clock" mode="outlined" textStyle={{ color: theme.colors.primary }}>Pending Approval</Chip>;
+    if (club.finixMerchantId) {
+      return <Chip icon="clock" mode="outlined" textStyle={{ color: theme.colors.primary }}>Pending Approval</Chip>;
+    }
+    return <Chip icon="file-document-edit-outline" mode="outlined" textStyle={{ color: theme.colors.primary }}>Pending Submission</Chip>;
   };
 
   const getStatusDetails = () => {
@@ -139,10 +154,19 @@ export default function FinixPayoutsSetup({ club, isAdmin, onStatusChange }: Fin
         <Text variant="bodyMedium" style={styles.description}>
           {isActive
             ? 'Your club is ready to receive payments! Users can purchase tickets to your paid events.'
-            : hasStarted
+            : club.finixMerchantId
             ? 'Your payout application is pending approval. You will be able to receive payments once Finix approves it (usually within 1–2 business days).'
+            : hasStarted
+            ? "You've started setup but haven't submitted your application to Finix yet. Tap Resume Setup to finish the form."
             : 'Set up your payout account to receive revenue from paid events. KYC verification is handled securely by Finix.'}
         </Text>
+
+        {hasStarted && !isActive && club.finixTosAcceptedAt && (
+          <Text variant="bodySmall" style={[styles.description, { color: theme.colors.onSurfaceVariant, fontStyle: 'italic' }]}>
+            You agreed to the Terms and fee schedule on{' '}
+            {club.finixTosAcceptedAt.toDate().toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}.
+          </Text>
+        )}
 
         {hasStarted && accountStatus && getStatusDetails()}
 
