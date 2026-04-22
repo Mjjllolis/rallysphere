@@ -216,7 +216,7 @@ export default function ClubDetailScreen() {
       const data = result.data as any;
 
       if (data.url) {
-        // Open Stripe checkout in browser
+        // Open checkout in browser
         Linking.openURL(data.url);
       } else {
         Alert.alert('Error', 'Failed to start subscription process');

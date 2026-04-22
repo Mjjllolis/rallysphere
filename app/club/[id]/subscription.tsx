@@ -58,7 +58,7 @@ export default function ClubSubscriptionScreen() {
     try {
       const result = await createProSubscription(clubId, user.uid);
       if (result.success && result.sessionUrl) {
-        // Open Stripe Checkout in browser
+        // Open checkout in browser
         await Linking.openURL(result.sessionUrl);
       } else {
         Alert.alert('Error', result.error || 'Failed to create subscription');

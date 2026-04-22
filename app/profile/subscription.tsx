@@ -56,7 +56,7 @@ export default function UserSubscriptionScreen() {
     try {
       const result = await createUserProSubscription(user.uid, user.email || '');
       if (result.success && result.sessionUrl) {
-        // Open Stripe Checkout in browser
+        // Open checkout in browser
         await Linking.openURL(result.sessionUrl);
       } else {
         Alert.alert('Error', result.error || 'Failed to create subscription');

@@ -97,14 +97,14 @@ Organizers acknowledge and agree that RallySphere is not a party to any transact
  
 7. Payments, Fees & Billing
 
-Transactions processed through the Platform are powered by Stripe and other approved third-party payment processors. By using the Platform, you agree to be bound by Stripe’s terms and policies in addition to these Terms.
+Transactions processed through the Platform are powered by Finix and other approved third-party payment processors. By using the Platform, you agree to be bound by Finix’s terms and policies in addition to these Terms.
 
 • Transaction Fees: RallySphere charges a transaction fee on each booking, merchandise purchase, or other paid activity conducted through the Platform. The applicable fee is disclosed at the point of transaction and is automatically deducted before funds are remitted to the Organizer.
 • Billing Authorization: By submitting payment information, you authorize RallySphere and its payment processors to charge your designated payment method for all amounts due, including applicable fees, taxes, and charges.
 • Service Fees: RallySphere’s Service Fees are non-refundable, except in cases of proven duplicate charges or confirmed Platform error.
 • Currency: All transactions are processed in U.S. Dollars (USD) unless otherwise indicated.
 • Future Payment Methods: RallySphere may, at its discretion, enable additional payment options, including digital wallets and cryptocurrencies, at a later stage.
-Users acknowledge that RallySphere does not hold funds on behalf of Organizers. Funds are disbursed directly to Organizers via Stripe, subject to Stripe’s timelines, policies, and account verification requirements. RallySphere is not responsible for delays, holds, or reversals imposed by payment processors.
+Users acknowledge that RallySphere does not hold funds on behalf of Organizers. Funds are disbursed directly to Organizers via Finix, subject to Finix’s timelines, policies, and account verification requirements. RallySphere is not responsible for delays, holds, or reversals imposed by payment processors.
 
 8. Refunds & Cancellations
 
@@ -173,7 +173,7 @@ By using AI features, Users expressly agree to these limitations and disclaimers
 Your use of the Platform is also governed by RallySphere’s Privacy Policy, which is incorporated into these Terms by reference. The Privacy Policy explains how RallySphere collects, uses, and protects User data.
 
 • Collection: RallySphere collects personal data (such as account information, event participation, and analytics) as described in the Privacy Policy.
-• Payments: Payment information is processed by Stripe and is not stored directly by RallySphere.
+• Payments: Payment information is processed by Finix and is not stored directly by RallySphere.
 • Consent: By using the Platform, Users consent to RallySphere’s collection and use of personal data consistent with the Privacy Policy.
 • Security: While RallySphere implements reasonable safeguards to protect data, no system is entirely secure. Users accept the risk of data transmission over the internet.
 • Compliance: Users are responsible for ensuring compliance with applicable privacy laws in their jurisdiction. RallySphere currently serves the U.S. market but may expand globally in the future.
@@ -185,7 +185,7 @@ The Platform may contain links to third-party websites or services, and may inte
 
 • No Control: RallySphere does not control and is not responsible for the availability, accuracy, or content of third-party websites or services.
 • User Responsibility: Accessing third-party sites or services is at your own risk and subject to the terms and policies of those providers.
-• Integrations: Features such as payments (via Stripe), app-store subscriptions, or analytics may require Users to accept additional third-party terms. RallySphere is not liable for failures or misconduct by such third parties.
+• Integrations: Features such as payments (via Finix), app-store subscriptions, or analytics may require Users to accept additional third-party terms. RallySphere is not liable for failures or misconduct by such third parties.
 16. Disclaimers of Warranties
 
 The Platform and all services are provided “as is” and “as available,” without warranties of any kind, whether express, implied, or statutory.
@@ -314,7 +314,7 @@ We collect the following categories of information that you provide directly:
 
 • Account Information: Name, email address, username, password, player profile details, and club or group profile data.
 • Event Information: Event listings, RSVPs, attendance records, and communications related to events.
-• Payment Information: Billing details necessary to process transactions, which are securely handled by Stripe and other payment processors. RallySphere does not store credit card or bank account numbers.
+• Payment Information: Billing details necessary to process transactions, which are securely handled by Finix and other payment processors. RallySphere does not store credit card or bank account numbers.
 • AI Analytics Data: Video content, performance metrics, and training data processed through our AI features.
 • Gamification Data: RallyCredits, XP points, achievements, and engagement history.
 • Communications: Messages you send to RallySphere or to other Users through the Platform.
@@ -337,7 +337,7 @@ This information is used for Platform functionality, security, fraud detection, 
 
 We may collect information about you from third-party sources, including:
 
-• Payment Processors: Transaction confirmations, billing details, and fraud prevention data provided by Stripe or similar providers.
+• Payment Processors: Transaction confirmations, billing details, and fraud prevention data provided by Finix or similar providers.
 • Event Organizers: Organizers may provide participant details, including names and contact information, to facilitate event management.
 • Social or App Integrations: If you choose to link third-party accounts (such as Apple or Google), RallySphere may receive information permitted by those providers.
 All information obtained from third parties will be treated in accordance with this Privacy Policy.
@@ -349,7 +349,7 @@ RallySphere processes Personal Data for the following purposes:
 
 • To create, maintain, and secure User accounts.
 • To facilitate event creation, RSVPs, and participation.
-• To process payments and disbursements through Stripe.
+• To process payments and disbursements through Finix.
 • To operate gamification features, including RallyCredits and XP tracking.
 • To provide AI-powered tools for partner matching, video analytics, and performance tracking.
 • To improve the functionality and security of the Platform.
@@ -368,12 +368,12 @@ Certain features of the Platform rely on AI-based technologies.
  
 9. Payment Processing
 
-Payments made through the Platform are handled exclusively by Stripe and other authorized payment processors.
+Payments made through the Platform are handled exclusively by Finix and other authorized payment processors.
 
 • Sensitive Data: RallySphere does not collect or store full credit card numbers, banking details, or security codes.
 • Processing Role: Payment processors act as independent controllers or processors of your financial data under their own privacy policies.
 • Fraud & Compliance: RallySphere may receive limited payment-related information (e.g., confirmation of successful transactions, failure notices, or fraud alerts) to maintain transaction integrity and regulatory compliance.
-Users should review Stripe’s Privacy Policy for details on how payment data is handled.
+Users should review Finix’s Privacy Policy for details on how payment data is handled.
 
  
 10. Cookies & Tracking Technologies
@@ -393,7 +393,7 @@ A separate Cookie Policy is published with further details.
 We may share your Personal Data in the following limited circumstances:
 
 • With Event Organizers: When you register for or attend an event, relevant details (such as your name, RSVP status, and contact information) may be shared with the Organizer for event management purposes.
-• With Service Providers: We engage third-party vendors, including Stripe for payments, hosting providers, analytics platforms, and customer support tools, who process data on our behalf under contractual confidentiality and security obligations.
+• With Service Providers: We engage third-party vendors, including Finix for payments, hosting providers, analytics platforms, and customer support tools, who process data on our behalf under contractual confidentiality and security obligations.
 • With Affiliates and Business Partners: We may share data with affiliated entities or trusted partners in connection with Platform functionality and promotional activities, subject to consent where required by law.
 • For Legal Compliance: We may disclose data if required by law, legal process, or government request, or to protect the rights, property, or safety of RallySphere, our Users, or others.
 We do not sell Personal Data for monetary consideration.
@@ -585,7 +585,7 @@ We use cookies and similar technologies to:
 
 Some cookies on our Platform are placed by trusted third-party partners, including:
 
-• Payment Processors (Stripe) – to facilitate secure transactions.
+• Payment Processors (Finix) – to facilitate secure transactions.
 • Analytics Providers (e.g., Google Analytics) – to monitor usage and performance.
 • Advertising Networks – to deliver targeted ads and measure campaign effectiveness.
 Third-party cookies are subject to the privacy policies of those providers.

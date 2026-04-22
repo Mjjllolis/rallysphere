@@ -93,7 +93,6 @@ export interface UserProfile {
   proSubscriptionStatus?: 'active' | 'canceled' | 'past_due';
   proSubscriptionStartDate?: Timestamp;
   proSubscriptionEndDate?: Timestamp;
-  stripeCustomerId?: string;
 }
 
 export interface ShippingAddress {
@@ -165,8 +164,6 @@ export interface ProSubscription {
   id: string;
   clubId: string;
   clubName: string;
-  stripeCustomerId: string;
-  stripeSubscriptionId: string;
   status: 'active' | 'canceled' | 'past_due' | 'incomplete' | 'trialing';
   priceId: string;
   currentPeriodStart: Timestamp;
@@ -181,8 +178,6 @@ export interface UserProSubscription {
   id: string;
   userId: string;
   userEmail: string;
-  stripeCustomerId: string;
-  stripeSubscriptionId: string;
   status: 'active' | 'canceled' | 'past_due' | 'incomplete' | 'trialing';
   priceId: string;
   currentPeriodStart: Timestamp;
@@ -246,8 +241,6 @@ export interface ClubSubscription {
   userId: string;
   userName: string;
   userEmail: string;
-  stripeSubscriptionId: string;
-  stripeCustomerId: string;
   pricePerMonth: number;
   platformFee: number; // 10% of pricePerMonth
   clubAmount: number; // 90% of pricePerMonth
@@ -289,7 +282,7 @@ export interface StoreItem {
   category: string;  // e.g., "Merch", "Equipment", "Snacks", "Etc"
   images: string[];  // URLs to Firebase Storage
   price: number;
-  taxRate?: number;  // deprecated - tax now calculated via Stripe Tax
+  taxRate?: number;  // deprecated
   adminFeeRate: number;  // percentage for admin fee
   transactionFeeRate?: number;  // deprecated - removed from UI
   shippingCost: number | null;  // null if pickup only
@@ -327,7 +320,6 @@ export interface StoreOrder {
   shippingAddress?: ShippingAddress;
   status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'picked_up' | 'cancelled' | 'refunded';
   paymentIntentId: string;
-  stripeSessionId?: string;
   rallyCreditsUsed?: number;  // RallyCredits applied to this order
   discountAmount?: number;  // Dollar amount discounted from RallyCredits
   createdAt: Timestamp;
@@ -372,7 +364,6 @@ export interface TicketOrder {
   currency: string;
   status: 'confirmed' | 'checked_in' | 'cancelled' | 'refunded';
   paymentIntentId: string;
-  stripeSessionId?: string;
   transferredToClub: boolean;
   checkedInAt?: Timestamp;
   createdAt: Timestamp;
@@ -3773,7 +3764,7 @@ export const createProSubscription = async (clubId: string, userId: string) => {
       return { success: false, error: 'Club already has active Pro subscription' };
     }
 
-    // Call Firebase Function to create Stripe checkout session
+    // Call Firebase Function to create checkout session
     const createSubscription = httpsCallable(functions, 'createProSubscription');
     const result = await createSubscription({
       clubId,
@@ -3858,7 +3849,7 @@ export const getProSubscription = async (clubId: string) => {
 // Create User Pro subscription checkout session
 export const createUserProSubscription = async (userId: string, userEmail: string) => {
   try {
-    // Call Firebase Function to create Stripe checkout session
+    // Call Firebase Function to create checkout session
     const createSubscription = httpsCallable(functions, 'createUserProSubscription');
     const result = await createSubscription({
       userId,

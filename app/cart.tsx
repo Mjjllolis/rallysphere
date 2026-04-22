@@ -42,7 +42,7 @@ export default function CartScreen() {
       }
     });
 
-    // Tax is calculated at checkout via Stripe Tax
+    // Tax is calculated at checkout
     const total = itemsTotal + shipping;
 
     return { itemsTotal, shipping, tax: 0, total };

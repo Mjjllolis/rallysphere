@@ -126,7 +126,7 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
         coverImageUrl = await uploadImage(coverImage, imagePath) || undefined;
       }
 
-      // Calculate ticket price - ensure it's 0 if empty or Stripe not set up
+      // Calculate ticket price - ensure it's 0 if empty or payouts not set up
       const hasPayouts = !!(selectedClub?.finixOnboardingComplete || selectedClub?.finixMerchantAccountActive);
       const ticketPriceValue = hasPayouts && formData.ticketPrice ? parseFloat(formData.ticketPrice) : 0;
 
