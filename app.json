@@ -21,7 +21,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.rallysphere.app",
-      "buildNumber": "39",
+      "buildNumber": "40",
       "icon": {
         "light": "./assets/Logo.png",
         "dark": "./assets/Logo-dark.png"
