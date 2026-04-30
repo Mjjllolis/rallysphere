@@ -10,6 +10,8 @@ import {
   TextInput as RNTextInput,
   RefreshControl,
   Image,
+  Keyboard,
+  Pressable,
 } from 'react-native';
 import {
   Text,
@@ -385,16 +387,22 @@ export default function ManageCreditsScreen() {
           onDismiss={() => setModalVisible(false)}
           contentContainerStyle={styles.modalContent}
         >
-          <View style={[styles.modalBlur, { backgroundColor: isDark ? 'rgba(20, 20, 20, 0.98)' : 'rgba(255, 255, 255, 0.98)' }]}>
-            {/* Header */}
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalHeaderText, { color: theme.colors.onSurface }]}>
-                {action === 'add' ? 'Add Credits' : action === 'remove' ? 'Remove Credits' : 'Set Credits'}
-              </Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <IconButton icon="close" iconColor={theme.colors.onSurface} size={24} style={{ margin: 0 }} />
-              </TouchableOpacity>
-            </View>
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1 }}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+          >
+            <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss}>
+              <View style={[styles.modalBlur, { backgroundColor: isDark ? 'rgba(20, 20, 20, 0.98)' : 'rgba(255, 255, 255, 0.98)' }]}>
+                {/* Header */}
+                <View style={styles.modalHeader}>
+                <Text style={[styles.modalHeaderText, { color: theme.colors.onSurface }]}>
+                  {action === 'add' ? 'Add Credits' : action === 'remove' ? 'Remove Credits' : 'Set Credits'}
+                </Text>
+                <TouchableOpacity onPress={() => setModalVisible(false)}>
+                  <IconButton icon="close" iconColor={theme.colors.onSurface} size={24} style={{ margin: 0 }} />
+                </TouchableOpacity>
+              </View>
 
             {selectedMember && (
               <View style={styles.modalBody}>
@@ -492,7 +500,9 @@ export default function ManageCreditsScreen() {
                 </LinearGradient>
               </TouchableOpacity>
             </View>
-          </View>
+              </View>
+            </Pressable>
+          </ScrollView>
         </Modal>
       </Portal>
     </View>

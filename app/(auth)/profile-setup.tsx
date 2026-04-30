@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
     View,
     StyleSheet,
@@ -9,10 +9,12 @@ import {
     Platform,
     TextInput as RNTextInput,
     Dimensions,
+    Keyboard,
+    InteractionManager,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useNavigation } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getAuth } from 'firebase/auth';
 import { createUserProfile, logout } from '../../lib/firebase';
@@ -21,13 +23,19 @@ import Animated, {
     useAnimatedStyle,
     withSpring,
     withTiming,
-    FadeIn,
+    withSequence,
+    withDelay,
+    runOnJS,
+    Easing,
 } from 'react-native-reanimated';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+// Celebration effects imports
+import * as Haptics from 'expo-haptics';           // Haptic feedback control
+import ConfettiCannon from 'react-native-confetti-cannon';  // Confetti rain control
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const STEPS = {
     NAME: 0,
@@ -36,7 +44,21 @@ const STEPS = {
     COMPLETE: 3,
 };
 
+// ============================================
+// CELEBRATION ANIMATION TIMING CONTROLS (OPTIMIZED)
+// ============================================
+const EMOJI_BOUNCE_DAMPING = 8;        // Bounce stiffness (higher = less overshoot, smoother)
+const EMOJI_BOUNCE_STIFFNESS = 100;    // Bounce speed
+const CONFETTI_PIECE_COUNT = 80;       // Reduced for performance (was 200 across 3 cannons)
+const HAPTIC_RUMBLE_COUNT = 2;         // Reduced haptic pulses
+const HAPTIC_RUMBLE_INTERVAL = 150;    // Slower interval
+
+// Pre-computed confetti colors (avoid recreating array)
+const CONFETTI_COLORS = ['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD'];
+
 export default function ProfileSetupScreen() {
+    const navigation = useNavigation();
+
     const [currentStep, setCurrentStep] = useState(STEPS.NAME);
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
@@ -48,13 +70,125 @@ export default function ProfileSetupScreen() {
 
     const slideX = useSharedValue(0);
 
-    const handleNext = () => {
+    // Disable back swipe gesture to prevent accidental dismissal
+    useEffect(() => {
+        navigation.setOptions({
+            gestureEnabled: false,
+        });
+    }, [navigation]);
+
+    // ============================================
+    // CELEBRATION ANIMATION STATE
+    // Animation sequence:
+    // 1. Emoji appears centered full screen (content hidden)
+    // 2. Emoji bounces twice, each bounce triggers confetti burst
+    // 3. Emoji moves down to final position above button
+    // 4. Content fades in
+    // ============================================
+    const confettiRef = useRef<ConfettiCannon>(null);
+    const [showConfetti, setShowConfetti] = useState(false);
+    const [confettiKey, setConfettiKey] = useState(0);
+
+    // Input refs for smooth keyboard navigation
+    const lastNameRef = useRef<RNTextInput>(null);
+    const emailRef = useRef<RNTextInput>(null);
+
+    // Emoji position: 0 = centered on screen, positive = moved down to final spot
+    const emojiTranslateY = useSharedValue(0);
+    const emojiScale = useSharedValue(0);
+
+    // Content visibility: 0 = hidden, 1 = visible
+    const contentOpacity = useSharedValue(0);
+
+    // ============================================
+    // ANIMATION HELPER FUNCTION
+    // ============================================
+
+    // Show content after emoji settles
+    const showContent = useCallback(() => {
+        contentOpacity.value = withTiming(1, { duration: 400 });
+    }, []);
+
+    // ============================================
+    // MAIN CELEBRATION SEQUENCE
+    // ============================================
+    const triggerCelebration = useCallback(() => {
+        // Reset animation values
+        emojiTranslateY.value = 0;
+        emojiScale.value = 0.8;  // Start from 0.8 to reduce blur from aggressive scaling
+        contentOpacity.value = 0;
+
+        // Show confetti container (stays visible throughout)
+        setShowConfetti(true);
+        setConfettiKey(prev => prev + 1);
+
+        // Step 1: Emoji scales up more subtly to reduce blur
+        emojiScale.value = withSpring(1, { damping: 10, stiffness: 150 });
+
+        // Step 2: Very subtle bounce up, then settle back to CENTER (stays there)
+        emojiTranslateY.value = withSequence(
+            // Wait for scale-in, then VERY SUBTLE bounce up
+            withDelay(250, withSpring(-8, { damping: 12, stiffness: 250 })),
+            // Smooth settle back to 0 (centered) - FINAL position
+            withTiming(0, { duration: 200, easing: Easing.out(Easing.cubic) })
+        );
+
+        // Haptic feedback on bounce peak
+        setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 280);
+
+        // Show content after emoji settles
+        setTimeout(() => {
+            showContent();
+        }, 700);
+
+        // Hide confetti after it fades out
+        setTimeout(() => {
+            setShowConfetti(false);
+        }, 4000);
+
+    }, [showContent]);
+
+    // ============================================
+    // CELEBRATION TRIGGER - Fires EVERY time "All Set" page is shown
+    // ============================================
+    useEffect(() => {
+        let timer: ReturnType<typeof setTimeout> | null = null;
+
+        if (currentStep === STEPS.COMPLETE) {
+            timer = setTimeout(triggerCelebration, 100);
+        } else {
+            // Reset all animation state when leaving
+            setShowConfetti(false);
+            contentOpacity.value = 0;
+            emojiScale.value = 0;
+            emojiTranslateY.value = 0;
+        }
+
+        return () => {
+            if (timer) clearTimeout(timer);
+        };
+    }, [currentStep, triggerCelebration]);
+
+    // Animated style for emoji (centered then moves down)
+    const emojiAnimatedStyle = useAnimatedStyle(() => ({
+        transform: [
+            { translateY: emojiTranslateY.value },
+            { scale: emojiScale.value },
+        ],
+    }));
+
+    // Animated style for content (fades in after emoji settles)
+    const contentAnimatedStyle = useAnimatedStyle(() => ({
+        opacity: contentOpacity.value,
+    }));
+
+    const handleNext = useCallback(() => {
         if (currentStep === STEPS.NAME) {
             if (!firstName.trim() || !lastName.trim()) {
                 Alert.alert('Required', 'Please enter your first and last name.');
                 return;
             }
-            slideX.value = withSpring(-width);
+            slideX.value = withTiming(-width, { duration: 300, easing: Easing.out(Easing.cubic) });
             setCurrentStep(STEPS.EMAIL);
         } else if (currentStep === STEPS.EMAIL) {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -62,12 +196,16 @@ export default function ProfileSetupScreen() {
                 Alert.alert('Invalid Email', 'Please enter a valid email address.');
                 return;
             }
-            slideX.value = withSpring(-width * 2);
-            setCurrentStep(STEPS.LOCATION);
+            // Smooth keyboard dismiss with animation delay
+            Keyboard.dismiss();
+            setTimeout(() => {
+                slideX.value = withTiming(-width * 2, { duration: 300, easing: Easing.out(Easing.cubic) });
+                setCurrentStep(STEPS.LOCATION);
+            }, 100);
         } else if (currentStep === STEPS.LOCATION) {
             handleLocationPermission();
         }
-    };
+    }, [currentStep, firstName, lastName, email]);
 
     const pickBackground = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -160,7 +298,7 @@ export default function ProfileSetupScreen() {
                 return;
             }
 
-            slideX.value = withSpring(-width * 3);
+            slideX.value = withTiming(-width * 3, { duration: 300, easing: Easing.out(Easing.cubic) });
             setCurrentStep(STEPS.COMPLETE);
         } catch (error) {
             Alert.alert('Error', 'Failed to save profile.');
@@ -172,17 +310,18 @@ export default function ProfileSetupScreen() {
         await saveProfile(false);
     };
 
-    const handleBack = () => {
+    const handleBack = useCallback(() => {
+        Keyboard.dismiss();  // Dismiss keyboard on back navigation
         if (currentStep === STEPS.EMAIL) {
-            slideX.value = withSpring(0);
+            slideX.value = withTiming(0, { duration: 300, easing: Easing.out(Easing.cubic) });
             setCurrentStep(STEPS.NAME);
         } else if (currentStep === STEPS.LOCATION) {
-            slideX.value = withSpring(-width);
+            slideX.value = withTiming(-width, { duration: 300, easing: Easing.out(Easing.cubic) });
             setCurrentStep(STEPS.EMAIL);
         }
-    };
+    }, [currentStep]);
 
-    const handleNotYou = async () => {
+    const handleNotYou = useCallback(async () => {
         Alert.alert(
             'Sign Out',
             'Do you want to sign out and return to the welcome screen?',
@@ -198,7 +337,7 @@ export default function ProfileSetupScreen() {
                 }
             ]
         );
-    };
+    }, []);
 
     const containerStyle = useAnimatedStyle(() => ({
         transform: [{ translateX: slideX.value }],
@@ -229,7 +368,7 @@ export default function ProfileSetupScreen() {
             {currentStep === STEPS.COMPLETE && (
                 <TouchableOpacity
                     onPress={() => {
-                        slideX.value = withSpring(-width * 2);
+                        slideX.value = withTiming(-width * 2, { duration: 300, easing: Easing.out(Easing.cubic) });
                         setCurrentStep(STEPS.LOCATION);
                     }}
                     style={styles.notYouButton}
@@ -250,6 +389,7 @@ export default function ProfileSetupScreen() {
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
             >
                 <Animated.View style={[styles.stepsContainer, containerStyle]}>
                     {/* Step 1: Name */}
@@ -266,13 +406,22 @@ export default function ProfileSetupScreen() {
                                     placeholderTextColor="rgba(255,255,255,0.4)"
                                     style={styles.input}
                                     autoFocus
+                                    returnKeyType="next"
+                                    onSubmitEditing={() => lastNameRef.current?.focus()}
+                                    autoCorrect={false}
+                                    autoComplete="name-given"
                                 />
                                 <RNTextInput
+                                    ref={lastNameRef}
                                     value={lastName}
                                     onChangeText={setLastName}
                                     placeholder="Last name"
                                     placeholderTextColor="rgba(255,255,255,0.4)"
                                     style={styles.input}
+                                    returnKeyType="done"
+                                    onSubmitEditing={handleNext}
+                                    autoCorrect={false}
+                                    autoComplete="name-family"
                                 />
                             </View>
 
@@ -303,6 +452,7 @@ export default function ProfileSetupScreen() {
                                 <View style={styles.emailInputContainer}>
                                     <Text style={styles.emailIcon}>📧</Text>
                                     <RNTextInput
+                                        ref={emailRef}
                                         value={email}
                                         onChangeText={setEmail}
                                         placeholder="your.email@example.com"
@@ -311,6 +461,10 @@ export default function ProfileSetupScreen() {
                                         keyboardType="email-address"
                                         autoCapitalize="none"
                                         autoFocus
+                                        returnKeyType="done"
+                                        onSubmitEditing={handleNext}
+                                        autoCorrect={false}
+                                        autoComplete="email"
                                     />
                                 </View>
                             </View>
@@ -377,24 +531,23 @@ export default function ProfileSetupScreen() {
                         </View>
                     </View>
 
-                    {/* Step 4: Complete */}
                     <View style={styles.step}>
-                        <View style={styles.completeContent}>
-                            <Animated.View entering={FadeIn.duration(600)}>
-                                <Text style={styles.completeEmoji}>🎉</Text>
-                                <Text style={styles.completeTitle}>All Set!</Text>
-                                <Text style={styles.completeSubtitle}>
-                                    Welcome to RallySphere, {firstName}!
-                                </Text>
-                                <Text style={styles.completeMessage}>
-                                    Get ready to discover amazing cycling events and connect with riders in your community.
-                                </Text>
-                            </Animated.View>
+                        {/* Emoji - Starts centered, moves down after bouncing */}
+                        <Animated.View style={[styles.celebrationEmojiContainer, emojiAnimatedStyle]}>
+                            <Text style={styles.celebrationEmoji}>🎉</Text>
+                        </Animated.View>
 
-                            <Animated.View
-                                entering={FadeIn.duration(800).delay(400)}
-                                style={styles.completeButtonContainer}
-                            >
+                        {/* Content - Fades in after emoji settles */}
+                        <Animated.View style={[styles.completeContent, contentAnimatedStyle]}>
+                            <Text style={styles.completeTitle}>All Set!</Text>
+                            <Text style={styles.completeSubtitle}>
+                                Welcome to RallySphere, {firstName}!
+                            </Text>
+                            <Text style={styles.completeMessage}>
+                                Get ready to discover amazing events in your community.
+                            </Text>
+
+                            <View style={styles.completeButtonContainer}>
                                 <TouchableOpacity
                                     onPress={() => router.replace('/(tabs)/home')}
                                     style={styles.button}
@@ -409,8 +562,24 @@ export default function ProfileSetupScreen() {
                                         <Text style={styles.buttonText}>Let's Go! 🚀</Text>
                                     </LinearGradient>
                                 </TouchableOpacity>
-                            </Animated.View>
-                        </View>
+                            </View>
+                        </Animated.View>
+
+                        {showConfetti && (
+                            <View style={styles.confettiContainer} pointerEvents="none">
+                                <ConfettiCannon
+                                    key={confettiKey}
+                                    ref={confettiRef}
+                                    count={50}                         // Smaller burst per bounce
+                                    origin={{ x: width / 2, y: height * 0.7 }}  // Centered behind emoji
+                                    explosionSpeed={700}               // Wide horizontal spread to fall off edges
+                                    fallSpeed={2500}                   // Faster fall
+                                    fadeOut={true}
+                                    autoStart={true}
+                                    colors={CONFETTI_COLORS}
+                                />
+                            </View>
+                        )}
                     </View>
                 </Animated.View>
             </KeyboardAvoidingView>
@@ -418,13 +587,13 @@ export default function ProfileSetupScreen() {
     );
 }
 
-function ProgressDot({ active, completed }: { active: boolean; completed: boolean }) {
+const ProgressDot = React.memo(({ active, completed }: { active: boolean; completed: boolean }) => {
     const scale = useSharedValue(active ? 1.2 : 1);
     const opacity = useSharedValue(completed || active ? 1 : 0.3);
 
     useEffect(() => {
-        scale.value = withSpring(active ? 1.2 : 1);
-        opacity.value = withTiming(completed || active ? 1 : 0.3, { duration: 300 });
+        scale.value = withSpring(active ? 1.2 : 1, { damping: 15, stiffness: 150 });
+        opacity.value = withTiming(completed || active ? 1 : 0.3, { duration: 250 });
     }, [active, completed]);
 
     const animatedStyle = useAnimatedStyle(() => ({
@@ -435,16 +604,16 @@ function ProgressDot({ active, completed }: { active: boolean; completed: boolea
     return (
         <Animated.View style={[styles.progressDot, completed && styles.progressDotCompleted, animatedStyle]} />
     );
-}
+});
 
-function FeatureItem({ icon, text }: { icon: string; text: string }) {
+const FeatureItem = React.memo(({ icon, text }: { icon: string; text: string }) => {
     return (
         <View style={styles.featureItem}>
             <Text style={styles.featureIcon}>{icon}</Text>
             <Text style={styles.featureText}>{text}</Text>
         </View>
     );
-}
+});
 
 const styles = StyleSheet.create({
     container: {
@@ -692,19 +861,42 @@ const styles = StyleSheet.create({
         textDecorationLine: 'underline',
         textAlign: 'center',
     },
+    // Content that fades in after emoji animation
     completeContent: {
+        position: 'absolute',
+        bottom: 120,                      // Position above safe area
+        left: 24,
+        right: 24,
         alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: 24,
-        gap: 32,
+        gap: 16,
     },
     completeButtonContainer: {
         width: '100%',
+        marginTop: 16,
     },
-    completeEmoji: {
-        fontSize: 80,
+    // Emoji container - starts centered, animates down
+    celebrationEmojiContainer: {
+        position: 'absolute',
+        top: '25%',                       // Raised to fill white space
+        left: 0,
+        right: 0,
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 10,
+    },
+    celebrationEmoji: {
+        fontSize: 120,                    // Big for maximum impact
         textAlign: 'center',
-        marginBottom: 24,
+    },
+    // Container for confetti bursts
+    confettiContainer: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: height ,        // Extend well below screen so confetti falls off
+        overflow: 'visible', 
+        zIndex: 5, 
     },
     completeTitle: {
         fontSize: 42,
