@@ -1,5 +1,5 @@
 // app/club/[id]/manage-credits.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -10,6 +10,10 @@ import {
   TextInput as RNTextInput,
   RefreshControl,
   Image,
+  Platform,
+  Keyboard,
+  TouchableWithoutFeedback,
+  Animated,
 } from 'react-native';
 import {
   Text,
@@ -63,11 +67,46 @@ export default function ManageCreditsScreen() {
   const [reason, setReason] = useState('');
   const [processing, setProcessing] = useState(false);
 
+  // Keyboard animation
+  const modalTranslateY = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     if (clubId && user) {
       loadData();
     }
   }, [clubId, user]);
+
+  // Keyboard listeners - raise entire modal when keyboard appears
+  useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        const keyboardHeight = e.endCoordinates.height;
+        const translateValue = -keyboardHeight * 0.5;
+        Animated.timing(modalTranslateY, {
+          toValue: translateValue,
+          duration: Platform.OS === 'ios' ? 250 : 200,
+          useNativeDriver: true,
+        }).start();
+      }
+    );
+
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        Animated.timing(modalTranslateY, {
+          toValue: 0,
+          duration: Platform.OS === 'ios' ? 250 : 200,
+          useNativeDriver: true,
+        }).start();
+      }
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
+  }, [modalTranslateY]);
 
   const loadData = async () => {
     try {
@@ -382,117 +421,189 @@ export default function ManageCreditsScreen() {
       <Portal>
         <Modal
           visible={modalVisible}
-          onDismiss={() => setModalVisible(false)}
+          onDismiss={() => {
+            Keyboard.dismiss();
+            setModalVisible(false);
+          }}
           contentContainerStyle={styles.modalContent}
         >
-          <View style={[styles.modalBlur, { backgroundColor: isDark ? 'rgba(20, 20, 20, 0.98)' : 'rgba(255, 255, 255, 0.98)' }]}>
-            {/* Header */}
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalHeaderText, { color: theme.colors.onSurface }]}>
-                {action === 'add' ? 'Add Credits' : action === 'remove' ? 'Remove Credits' : 'Set Credits'}
-              </Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <IconButton icon="close" iconColor={theme.colors.onSurface} size={24} style={{ margin: 0 }} />
-              </TouchableOpacity>
-            </View>
-
-            {selectedMember && (
-              <View style={styles.modalBody}>
-                {/* Member Info */}
-                <View style={styles.modalMemberInfo}>
-                  <Text style={[styles.modalMemberName, { color: theme.colors.onSurface }]}>{selectedMember.profile.displayName}</Text>
-                  <Text style={[styles.modalCurrentCredits, { color: theme.colors.onSurfaceVariant }]}>
-                    Current: {selectedMember.credits} credits
+          <Animated.View
+            style={[
+              styles.modalAnimatedContainer,
+              {
+                transform: [{ translateY: modalTranslateY }],
+              },
+            ]}
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View
+                style={[styles.modalContainer, { backgroundColor: isDark ? 'rgba(20, 20, 20, 0.98)' : 'rgba(255, 255, 255, 0.98)' }]}
+                accessibilityViewIsModal={true}
+                accessibilityLabel={`${action === 'add' ? 'Add' : action === 'remove' ? 'Remove' : 'Set'} credits modal`}
+              >
+                {/* Header */}
+                <View style={styles.modalHeader}>
+                  <Text style={[styles.modalHeaderText, { color: theme.colors.onSurface }]}>
+                    {action === 'add' ? 'Add Credits' : action === 'remove' ? 'Remove Credits' : 'Set Credits'}
                   </Text>
-                </View>
-
-                <View style={[styles.modalDivider, { backgroundColor: theme.colors.outline }]} />
-
-                {/* Amount Input */}
-                <View style={styles.inputContainer}>
-                  <Text style={[styles.inputLabel, { color: theme.colors.onSurfaceVariant }]}>Amount</Text>
-                  <TextInput
-                    mode="outlined"
-                    value={amount}
-                    onChangeText={setAmount}
-                    keyboardType="number-pad"
-                    placeholder="Enter amount"
-                    style={styles.input}
-                    theme={{
-                      colors: {
-                        primary: '#60A5FA',
-                        text: '#ffffff',
-                        placeholder: 'rgba(255,255,255,0.5)',
-                        background: 'rgba(255,255,255,0.05)',
-                      },
+                  <TouchableOpacity
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setModalVisible(false);
                     }}
-                  />
+                    accessible={true}
+                    accessibilityLabel="Close modal"
+                    accessibilityRole="button"
+                    accessibilityHint="Closes the credits adjustment dialog"
+                  >
+                    <IconButton icon="close" iconColor={theme.colors.onSurface} size={24} style={{ margin: 0 }} />
+                  </TouchableOpacity>
                 </View>
 
-                {/* Reason Input */}
-                <View style={styles.inputContainer}>
-                  <Text style={[styles.inputLabel, { color: theme.colors.onSurfaceVariant }]}>Reason</Text>
-                  <TextInput
-                    mode="outlined"
-                    value={reason}
-                    onChangeText={setReason}
-                    placeholder="e.g., Bonus for event participation"
-                    multiline
-                    numberOfLines={3}
-                    style={[styles.input, { height: 80 }]}
-                    theme={{
-                      colors: {
-                        primary: '#60A5FA',
-                        text: '#ffffff',
-                        placeholder: 'rgba(255,255,255,0.5)',
-                        background: 'rgba(255,255,255,0.05)',
-                      },
-                    }}
-                  />
-                </View>
+                {/* Fixed Content - No Scrolling */}
+                {selectedMember && (
+                  <View style={styles.modalBody}>
+                      {/* Member Info */}
+                      <View style={styles.modalMemberInfo}>
+                        <Text
+                          style={[styles.modalMemberName, { color: theme.colors.onSurface }]}
+                          accessibilityRole="header"
+                        >
+                          {selectedMember.profile.displayName}
+                        </Text>
+                        <Text
+                          style={[styles.modalCurrentCredits, { color: theme.colors.onSurfaceVariant }]}
+                          accessibilityLabel={`Current balance: ${selectedMember.credits} credits`}
+                        >
+                          Current: {selectedMember.credits} credits
+                        </Text>
+                      </View>
 
-                {action === 'set' && amount && (
-                  <View style={styles.previewBox}>
-                    <Ionicons name="information-circle" size={20} color="#60A5FA" />
-                    <Text style={[styles.previewText, { color: theme.colors.onSurfaceVariant }]}>
-                      Will set credits to {amount} ({parseInt(amount) - selectedMember.credits >= 0 ? '+' : ''}
-                      {parseInt(amount) - selectedMember.credits})
-                    </Text>
-                  </View>
-                )}
-              </View>
-            )}
+                      <View style={[styles.modalDivider, { backgroundColor: theme.colors.outline }]} />
 
-            {/* Footer */}
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                onPress={() => setModalVisible(false)}
-                disabled={processing}
-                style={[styles.modalCancelButton, { borderColor: theme.colors.outline }]}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.modalCancelText, { color: theme.colors.onSurfaceVariant }]}>Cancel</Text>
-              </TouchableOpacity>
+                      {/* Amount Input */}
+                      <View style={styles.inputContainer}>
+                        <Text
+                          style={[styles.inputLabel, { color: theme.colors.onSurfaceVariant }]}
+                          accessibilityRole="text"
+                        >
+                          Amount
+                        </Text>
+                        <TextInput
+                          mode="outlined"
+                          value={amount}
+                          onChangeText={setAmount}
+                          keyboardType="number-pad"
+                          placeholder="Enter amount"
+                          returnKeyType="done"
+                          accessible={true}
+                          accessibilityLabel="Credit amount"
+                          accessibilityHint={`Enter the number of credits to ${action}`}
+                          style={styles.input}
+                          theme={{
+                            colors: {
+                              primary: '#60A5FA',
+                              text: '#ffffff',
+                              placeholder: 'rgba(255,255,255,0.5)',
+                              background: 'rgba(255,255,255,0.05)',
+                            },
+                          }}
+                        />
+                      </View>
 
-              <TouchableOpacity
-                onPress={handleSubmit}
-                disabled={processing}
-                style={styles.modalSubmitButton}
-                activeOpacity={0.7}
-              >
-                <LinearGradient
-                  colors={action === 'add' ? ['#22C55E', '#16A34A'] : action === 'remove' ? ['#EF4444', '#DC2626'] : ['#60A5FA', '#3B82F6']}
-                  style={styles.modalSubmitButtonGradient}
-                >
-                  {processing ? (
-                    <ActivityIndicator color="white" size="small" />
-                  ) : (
-                    <Text style={styles.modalSubmitText}>Confirm</Text>
+                      {/* Reason Input */}
+                      <View style={styles.inputContainer}>
+                        <Text
+                          style={[styles.inputLabel, { color: theme.colors.onSurfaceVariant }]}
+                          accessibilityRole="text"
+                        >
+                          Reason
+                        </Text>
+                        <TextInput
+                          mode="outlined"
+                          value={reason}
+                          onChangeText={setReason}
+                          placeholder="e.g., Bonus for event participation"
+                          multiline
+                          numberOfLines={3}
+                          returnKeyType="done"
+                          accessible={true}
+                          accessibilityLabel="Reason for credit adjustment"
+                          accessibilityHint="Enter the reason for this credit change"
+                          style={[styles.input, styles.textAreaInput]}
+                          theme={{
+                            colors: {
+                              primary: '#60A5FA',
+                              text: '#ffffff',
+                              placeholder: 'rgba(255,255,255,0.5)',
+                              background: 'rgba(255,255,255,0.05)',
+                            },
+                          }}
+                        />
+                      </View>
+
+                      {action === 'set' && amount && (
+                        <View
+                          style={styles.previewBox}
+                          accessible={true}
+                          accessibilityRole="text"
+                          accessibilityLabel={`Preview: Will set credits to ${amount}, ${parseInt(amount) - selectedMember.credits >= 0 ? 'adding' : 'removing'} ${Math.abs(parseInt(amount) - selectedMember.credits)} credits`}
+                        >
+                          <Ionicons name="information-circle" size={20} color="#60A5FA" />
+                          <Text style={[styles.previewText, { color: theme.colors.onSurfaceVariant }]}>
+                            Will set credits to {amount} ({parseInt(amount) - selectedMember.credits >= 0 ? '+' : ''}
+                            {parseInt(amount) - selectedMember.credits})
+                          </Text>
+                        </View>
+                      )}
+                    </View>
                   )}
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          </View>
+
+                {/* Fixed Footer */}
+                <View style={styles.modalFooter}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setModalVisible(false);
+                    }}
+                    disabled={processing}
+                    style={[styles.modalCancelButton, { borderColor: theme.colors.outline }]}
+                    activeOpacity={0.7}
+                    accessible={true}
+                    accessibilityLabel="Cancel"
+                    accessibilityRole="button"
+                    accessibilityHint="Cancels credit adjustment and closes dialog"
+                    accessibilityState={{ disabled: processing }}
+                  >
+                    <Text style={[styles.modalCancelText, { color: theme.colors.onSurfaceVariant }]}>Cancel</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleSubmit}
+                    disabled={processing}
+                    style={styles.modalSubmitButton}
+                    activeOpacity={0.7}
+                    accessible={true}
+                    accessibilityLabel={`Confirm ${action} credits`}
+                    accessibilityRole="button"
+                    accessibilityHint={`Confirms the ${action} of ${amount || '0'} credits for ${selectedMember?.profile.displayName}`}
+                    accessibilityState={{ disabled: processing }}
+                  >
+                    <LinearGradient
+                      colors={action === 'add' ? ['#22C55E', '#16A34A'] : action === 'remove' ? ['#EF4444', '#DC2626'] : ['#60A5FA', '#3B82F6']}
+                      style={styles.modalSubmitButtonGradient}
+                    >
+                      {processing ? (
+                        <ActivityIndicator color="white" size="small" accessibilityLabel="Processing request" />
+                      ) : (
+                        <Text style={styles.modalSubmitText}>Confirm</Text>
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </Animated.View>
         </Modal>
       </Portal>
     </View>
@@ -684,17 +795,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  // Modal container styles
   modalContent: {
     margin: 20,
     borderRadius: 20,
     maxWidth: 500,
     alignSelf: 'center',
     width: '90%',
-    overflow: 'hidden',
   },
-  modalBlur: {
+  modalAnimatedContainer: {
+    width: '100%',
+  },
+  modalContainer: {
+    width: '100%',
     borderRadius: 20,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -703,10 +823,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   modalHeaderText: {
     fontSize: 22,
     fontWeight: '700',
+  },
+  modalScrollView: {
+    maxHeight: 400,
+  },
+  modalScrollContent: {
+    paddingBottom: 20,
   },
   modalBody: {
     padding: 24,
@@ -737,6 +865,11 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  textAreaInput: {
+    minHeight: 100,
+    maxHeight: 120,
+    textAlignVertical: 'top',
   },
   previewBox: {
     flexDirection: 'row',

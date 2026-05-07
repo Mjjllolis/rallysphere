@@ -5,6 +5,7 @@ import { IconButton, useTheme } from 'react-native-paper';
 import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import { useThemeToggle } from '../app/_layout';
+import ImageCropScreen from './ImageCropScreen';
 
 interface GlassImageCardProps {
   imageUri: string | null;
@@ -12,6 +13,8 @@ interface GlassImageCardProps {
   onColorsExtracted?: (colors: string[], imageUri?: string) => void;
   aspectRatio?: [number, number];
   placeholder?: string;
+  enableCrop?: boolean;
+  cropAspectRatio?: [number, number];
 }
 
 // Predefined beautiful gradient themes
@@ -32,17 +35,24 @@ export default function GlassImageCard({
   onColorsExtracted,
   aspectRatio = [16, 9],
   placeholder = 'Tap to add image',
+  enableCrop = true,
+  cropAspectRatio = [4, 5],
 }: GlassImageCardProps) {
   const theme = useTheme();
   const { isDark } = useThemeToggle();
   const [themeIndex, setThemeIndex] = useState(0);
   const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null);
+  const [cropScreenVisible, setCropScreenVisible] = useState(false);
+  const [pendingImageUri, setPendingImageUri] = useState<string | null>(null);
 
-  // Dynamic height based on actual image aspect ratio
+  // Card dimensions - use crop aspect ratio when cropping is enabled
   const CARD_WIDTH = 350; // Approximate card width after padding
-  const cardHeight = imageAspectRatio
-    ? (CARD_WIDTH / imageAspectRatio) + 4 // Add 4px to account for border/rounding
-    : CARD_WIDTH * 1.4; // Default 5:7 ratio when no image
+  const cropRatio = cropAspectRatio[0] / cropAspectRatio[1]; // 4:5 = 0.8
+  const cardHeight = enableCrop
+    ? (CARD_WIDTH / cropRatio) + 4 // Fixed 4:5 ratio when cropping
+    : imageAspectRatio
+      ? (CARD_WIDTH / imageAspectRatio) + 4
+      : CARD_WIDTH * 1.25; // Default 4:5 ratio
 
   useEffect(() => {
     if (imageUri) {
@@ -82,7 +92,14 @@ export default function GlassImageCard({
       });
 
       if (!result.canceled && result.assets && result.assets[0]) {
-        onImageSelected(result.assets[0].uri);
+        if (enableCrop) {
+          // Show crop screen
+          setPendingImageUri(result.assets[0].uri);
+          setCropScreenVisible(true);
+        } else {
+          // Directly use selected image
+          onImageSelected(result.assets[0].uri);
+        }
       }
     } catch (error) {
       // console.error('Image picker error:', error);
@@ -90,8 +107,43 @@ export default function GlassImageCard({
     }
   };
 
+  const handleCropComplete = (croppedUri: string) => {
+    setCropScreenVisible(false);
+    setPendingImageUri(null);
+    onImageSelected(croppedUri);
+  };
+
+  const handleCropCancel = () => {
+    setCropScreenVisible(false);
+    setPendingImageUri(null);
+  };
+
+  const handleChangeImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: 'images',
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        setPendingImageUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to pick image');
+    }
+  };
+
   return (
     <View style={styles.container}>
+      <ImageCropScreen
+        visible={cropScreenVisible}
+        imageUri={pendingImageUri}
+        aspectRatio={cropAspectRatio}
+        onCropComplete={handleCropComplete}
+        onChangeImage={handleChangeImage}
+        onCancel={handleCropCancel}
+      />
       <TouchableOpacity onPress={pickImage} activeOpacity={0.8}>
         <View style={styles.cardWrapper}>
           {isDark ? (
@@ -112,7 +164,9 @@ export default function GlassImageCard({
                       <IconButton icon="camera-plus" size={48} iconColor={theme.colors.onSurface} />
                     </View>
                     <Text style={[styles.placeholderText, { color: theme.colors.onSurface }]}>{placeholder}</Text>
-                    <Text style={[styles.placeholderHint, { color: theme.colors.onSurfaceVariant }]}>Image will adapt to size</Text>
+                    <Text style={[styles.placeholderHint, { color: theme.colors.onSurfaceVariant }]}>
+                      {enableCrop ? `Image will be cropped to ${cropAspectRatio[0]}:${cropAspectRatio[1]}` : 'Image will adapt to size'}
+                    </Text>
                   </View>
                 )}
               </View>
@@ -135,7 +189,9 @@ export default function GlassImageCard({
                       <IconButton icon="camera-plus" size={48} iconColor={theme.colors.onSurfaceVariant} />
                     </View>
                     <Text style={[styles.placeholderText, { color: theme.colors.onSurface }]}>{placeholder}</Text>
-                    <Text style={[styles.placeholderHint, { color: theme.colors.onSurfaceVariant }]}>Image will adapt to size</Text>
+                    <Text style={[styles.placeholderHint, { color: theme.colors.onSurfaceVariant }]}>
+                      {enableCrop ? `Image will be cropped to ${cropAspectRatio[0]}:${cropAspectRatio[1]}` : 'Image will adapt to size'}
+                    </Text>
                   </View>
                 )}
               </View>
