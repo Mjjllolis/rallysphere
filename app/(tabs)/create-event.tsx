@@ -32,7 +32,8 @@ export default function CreateEventScreen() {
   const params = useLocalSearchParams();
   const initialClubId = params.clubId as string;
 
-  const inputTheme = isDark ? { colors: { background: theme.colors.elevation.level2 } } : undefined;
+  const inputSurface = isDark ? '#101826' : theme.colors.surface;
+  const inputTheme = { colors: { background: inputSurface, surface: inputSurface } };
   const [loading, setLoading] = useState(false);
   const [clubId, setClubId] = useState<string>(initialClubId || '');
   const [club, setClub] = useState<Club | null>(null);
@@ -339,7 +340,7 @@ export default function CreateEventScreen() {
 
         <View style={styles.content}>
           {/* Club Selection */}
-          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: inputSurface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -385,7 +386,7 @@ export default function CreateEventScreen() {
           </Card>
 
           {/* Cover Image Section */}
-          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: inputSurface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -414,7 +415,7 @@ export default function CreateEventScreen() {
           </Card>
 
           {/* Basic Information */}
-          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: inputSurface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -501,7 +502,7 @@ export default function CreateEventScreen() {
           </Card>
 
           {/* Date and Time */}
-          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: inputSurface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -538,6 +539,8 @@ export default function CreateEventScreen() {
                       display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                       onChange={onStartDateChange}
                       minimumDate={new Date()}
+                      themeVariant={isDark ? 'dark' : 'light'}
+                      textColor={theme.colors.onSurface}
                     />
                     {Platform.OS === 'ios' && (
                       <Button
@@ -557,6 +560,8 @@ export default function CreateEventScreen() {
                       mode="time"
                       display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                       onChange={onStartTimeChange}
+                      themeVariant={isDark ? 'dark' : 'light'}
+                      textColor={theme.colors.onSurface}
                     />
                     {Platform.OS === 'ios' && (
                       <Button
@@ -599,6 +604,8 @@ export default function CreateEventScreen() {
                       display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                       onChange={onEndDateChange}
                       minimumDate={startDate}
+                      themeVariant={isDark ? 'dark' : 'light'}
+                      textColor={theme.colors.onSurface}
                     />
                     {Platform.OS === 'ios' && (
                       <Button
@@ -618,6 +625,8 @@ export default function CreateEventScreen() {
                       mode="time"
                       display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                       onChange={onEndTimeChange}
+                      themeVariant={isDark ? 'dark' : 'light'}
+                      textColor={theme.colors.onSurface}
                     />
                     {Platform.OS === 'ios' && (
                       <Button
@@ -635,7 +644,7 @@ export default function CreateEventScreen() {
           </Card>
 
           {/* Additional Options */}
-          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: inputSurface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>

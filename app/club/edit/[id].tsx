@@ -41,7 +41,8 @@ export default function EditClubScreen() {
   const { id } = useLocalSearchParams();
   const clubId = id as string;
 
-  const inputTheme = isDark ? { colors: { background: theme.colors.elevation.level2 } } : undefined;
+  const inputSurface = isDark ? '#101826' : theme.colors.surface;
+  const inputTheme = { colors: { background: inputSurface, surface: inputSurface } };
 
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -340,7 +341,7 @@ export default function EditClubScreen() {
 
         <View style={styles.content}>
           {/* Cover Image Section */}
-          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: inputSurface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -369,7 +370,7 @@ export default function EditClubScreen() {
           </Card>
 
           {/* Logo Section */}
-          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: inputSurface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -399,7 +400,7 @@ export default function EditClubScreen() {
           </Card>
 
           {/* Basic Information */}
-          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: inputSurface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -433,7 +434,7 @@ export default function EditClubScreen() {
 
               <Text variant="bodyLarge" style={styles.fieldLabel}>Category *</Text>
               <TouchableOpacity
-                style={[styles.categorySelector, { borderColor: theme.colors.outlineVariant, backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]}
+                style={[styles.categorySelector, { borderColor: theme.colors.outlineVariant, backgroundColor: inputSurface }]}
                 onPress={() => setShowSportsMenu(true)}
               >
                 <Text style={[styles.categorySelectorText, { color: formData.sport ? theme.colors.onSurface : theme.colors.onSurfaceVariant }]}>
@@ -458,7 +459,7 @@ export default function EditClubScreen() {
           </Card>
 
           {/* Location */}
-          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: inputSurface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -524,7 +525,7 @@ export default function EditClubScreen() {
           </Card>
 
           {/* Social Links */}
-          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: inputSurface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -613,7 +614,7 @@ export default function EditClubScreen() {
           </Card>
 
           {/* Settings */}
-          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: inputSurface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -624,7 +625,7 @@ export default function EditClubScreen() {
 
               <Text variant="bodyLarge" style={styles.fieldLabel}>Club Type</Text>
               <TouchableOpacity
-                style={[styles.categorySelector, { borderColor: theme.colors.outlineVariant, backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]}
+                style={[styles.categorySelector, { borderColor: theme.colors.outlineVariant, backgroundColor: inputSurface }]}
                 onPress={() => setShowTagsMenu(true)}
               >
                 <Text style={[styles.categorySelectorText, { color: selectedTags.length > 0 ? theme.colors.onSurface : theme.colors.onSurfaceVariant }]}>
@@ -670,7 +671,7 @@ export default function EditClubScreen() {
           activeOpacity={1}
           onPress={() => setShowSportsMenu(false)}
         >
-          <View style={[styles.modalContent, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]}>
+          <View style={[styles.modalContent, { backgroundColor: inputSurface }]}>
             <View style={styles.modalHeader}>
               <Text variant="titleMedium" style={[styles.modalTitle, { color: theme.colors.onSurface }]}>Select Category</Text>
               <IconButton icon="close" size={20} onPress={() => setShowSportsMenu(false)} />
@@ -719,7 +720,7 @@ export default function EditClubScreen() {
           activeOpacity={1}
           onPress={() => setShowTagsMenu(false)}
         >
-          <View style={[styles.modalContent, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]}>
+          <View style={[styles.modalContent, { backgroundColor: inputSurface }]}>
             <View style={styles.modalHeader}>
               <Text variant="titleMedium" style={[styles.modalTitle, { color: theme.colors.onSurface }]}>Select Club Type(s)</Text>
               <IconButton icon="close" size={20} onPress={() => setShowTagsMenu(false)} />

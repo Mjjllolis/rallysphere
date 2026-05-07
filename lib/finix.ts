@@ -62,6 +62,7 @@ export function buildFinixTokenizeUrl(opts: {
   wallets?: boolean;
   external?: boolean;
   supportEmail?: string;
+  theme?: 'dark' | 'light';
   overrideBaseUrl?: string;
 }): string {
   const base = opts.overrideBaseUrl || process.env.EXPO_PUBLIC_FINIX_CHECKOUT_URL || DEFAULT_TOKENIZE_URL;
@@ -73,6 +74,7 @@ export function buildFinixTokenizeUrl(opts: {
   if (opts.wallets) p.set('wallets', 'true');
   if (opts.external) p.set('external', 'true');
   if (opts.supportEmail) p.set('supportEmail', opts.supportEmail);
+  if (opts.theme) p.set('theme', opts.theme);
   return `${base}?${p.toString()}`;
 }
 

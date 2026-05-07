@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View, StyleSheet, Alert, Platform, TouchableOpacity,
-  Animated, Dimensions, ScrollView, Modal,
+  Animated, Dimensions, ScrollView, Modal, KeyboardAvoidingView,
 } from 'react-native';
 import { Button, Text, ActivityIndicator, useTheme, Divider, IconButton } from 'react-native-paper';
 import { WebView } from 'react-native-webview';
@@ -38,6 +38,23 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
   const [initializingPayment, setInitializingPayment] = useState(false);
   const [feeBreakdown, setFeeBreakdown] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'ach' | 'apple_pay' | 'google_pay'>('card');
+  const [diagLog, setDiagLog] = useState<string[]>([]);
+  const [webViewHeight, setWebViewHeight] = useState<number>(480);
+
+  // Stable URL — recomputed only when the inputs that actually matter change.
+  // Including Date.now() inline would re-mount the WebView on every render and
+  // restart page load before the Finix SDK could finish executing.
+  const tokenizeUrl = useMemo(() => {
+    if (!finixContext) return null;
+    return buildFinixTokenizeUrl({
+      context: finixContext,
+      amount: feeBreakdown?.totalAmount,
+      ach: true,
+      wallets: true,
+      external: true,
+      theme: isDark ? 'dark' : 'light',
+    }) + `&_=${Date.now()}`;
+  }, [finixContext, feeBreakdown?.totalAmount, isDark]);
 
   // Rally Credits discount state
   const [showDiscounts, setShowDiscounts] = useState(false);
@@ -194,9 +211,24 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
   const handleWebViewMessage = async (event_: any) => {
     try {
       const msg = JSON.parse(event_.nativeEvent.data);
+      if (msg.type === 'diag') {
+        const { type, stage, t, ...rest } = msg;
+        const extras = Object.keys(rest).length ? ' ' + JSON.stringify(rest) : '';
+        const line = `[${new Date(t).toISOString().slice(11, 19)}] ${stage}${extras}`;
+        console.log('[Finix WebView]', msg);
+        setDiagLog((prev) => [...prev.slice(-19), line]);
+        return;
+      }
+      if (msg.type === 'content-height' && typeof msg.height === 'number') {
+        const next = Math.max(120, Math.min(900, Math.ceil(msg.height) + 8));
+        setWebViewHeight((prev) => (Math.abs(prev - next) > 4 ? next : prev));
+        return;
+      }
       if (msg.type === 'ready') {
         setFormReady(!!msg.ready);
-        if (!msg.ready) Alert.alert('Error', msg.error || 'Failed to load payment form');
+        if (!msg.ready) {
+          setDiagLog((prev) => [...prev.slice(-19), `[ready=false] ${msg.error || 'unknown'}`]);
+        }
       } else if (msg.type === 'tab') {
         setPaymentMethod(msg.paymentMethod || 'card');
       } else if (msg.type === 'token') {
@@ -315,6 +347,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
       <Animated.View
         style={[styles.sheet, { backgroundColor: theme.colors.surface, transform: [{ translateY: slideAnim }] }]}
       >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }} keyboardVerticalOffset={0}>
         {/* Handle */}
         <View style={styles.handleContainer}>
           <View style={[styles.handle, { backgroundColor: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)' }]} />
@@ -327,7 +360,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
           <Text style={[styles.closeIcon, { color: theme.colors.onSurfaceVariant }]}>✕</Text>
         </TouchableOpacity>
 
-        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <View style={styles.content}>
             <Text variant="headlineSmall" style={styles.title}>Complete Purchase</Text>
 
@@ -480,25 +513,36 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
                       Initializing payment...
                     </Text>
                   </View>
-                ) : finixContext ? (
-                  <WebView
-                    ref={webViewRef}
-                    source={{
-                      uri: buildFinixTokenizeUrl({
-                        context: finixContext,
-                        amount: feeBreakdown?.totalAmount,
-                        ach: true,
-                        wallets: true,
-                        external: true,
-                      }),
-                    }}
-                    style={styles.webView}
-                    onMessage={handleWebViewMessage}
-                    javaScriptEnabled
-                    scrollEnabled
-                    originWhitelist={['*']}
-                    mixedContentMode="always"
-                  />
+                ) : finixContext && tokenizeUrl ? (
+                  <>
+                    <WebView
+                      ref={webViewRef}
+                      source={{ uri: tokenizeUrl }}
+                      style={[styles.webView, { height: webViewHeight }]}
+                      containerStyle={{ backgroundColor: 'transparent' }}
+                      onMessage={handleWebViewMessage}
+                      javaScriptEnabled
+                      scrollEnabled={false}
+                      nestedScrollEnabled={false}
+                      originWhitelist={['*']}
+                      mixedContentMode="always"
+                      cacheEnabled={false}
+                      incognito
+                      backgroundColor="transparent"
+                      keyboardDisplayRequiresUserAction={false}
+                      hideKeyboardAccessoryView={false}
+                    />
+                    {!formReady && diagLog.length > 0 && (
+                      <View style={[styles.diagPanel, { backgroundColor: isDark ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }]}>
+                        <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 4, fontWeight: 'bold' }}>
+                          Diagnostics (form not ready)
+                        </Text>
+                        {diagLog.map((l, i) => (
+                          <Text key={i} variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 11 }}>{l}</Text>
+                        ))}
+                      </View>
+                    )}
+                  </>
                 ) : null}
               </View>
             )}
@@ -529,6 +573,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
             </TouchableOpacity>
           </View>
         </ScrollView>
+        </KeyboardAvoidingView>
       </Animated.View>
     </Modal>
   );
@@ -586,7 +631,8 @@ const styles = StyleSheet.create({
   creditsBadgeIcon: { fontSize: 12 },
   creditsBadgeText: { fontSize: 13, fontWeight: '700', color: '#F59E0B' },
   loadingContainer: { alignItems: 'center', paddingVertical: 20 },
-  webView: { height: 380, marginBottom: 16 },
+  webView: { marginBottom: 8, backgroundColor: 'transparent' },
+  diagPanel: { padding: 10, borderRadius: 8, borderWidth: 1, marginBottom: 16 },
   continueButton: { borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginBottom: 16 },
   continueButtonText: { color: '#fff', fontSize: 17, fontWeight: '700' },
   continueButtonSubtext: { color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 4 },

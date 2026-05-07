@@ -48,6 +48,12 @@ export default function FinixPayoutsSetup({ club, isAdmin, acceptedByUid, onStat
           });
           onStatusChange?.();
           Alert.alert('Success!', 'Your payout account is now active and ready to receive payments!');
+        } else if (result.merchantId && !club.finixMerchantId) {
+          await updateClub(club.id, {
+            finixMerchantId: result.merchantId,
+            finixOnboardingStatus: 'PENDING',
+          });
+          onStatusChange?.();
         }
       }
     } catch (error) {
@@ -110,10 +116,10 @@ export default function FinixPayoutsSetup({ club, isAdmin, acceptedByUid, onStat
     if (club.finixOnboardingDeclined) {
       return <Chip icon="close-circle" mode="outlined" textStyle={{ color: theme.colors.error }}>Declined</Chip>;
     }
-    if (club.finixMerchantId) {
+    if (club.finixMerchantId || accountStatus?.merchantId) {
       return <Chip icon="clock" mode="outlined" textStyle={{ color: theme.colors.primary }}>Pending Approval</Chip>;
     }
-    return <Chip icon="file-document-edit-outline" mode="outlined" textStyle={{ color: theme.colors.primary }}>Pending Submission</Chip>;
+    return <Chip icon="file-document-edit-outline" mode="outlined" textStyle={{ color: theme.colors.primary }}>Draft In Process</Chip>;
   };
 
   const getStatusDetails = () => {
@@ -137,7 +143,7 @@ export default function FinixPayoutsSetup({ club, isAdmin, acceptedByUid, onStat
     );
   };
 
-  const isConnected = !!club.finixMerchantId;
+  const isConnected = !!club.finixMerchantId || !!accountStatus?.merchantId;
   const isActive = !!club.finixMerchantAccountActive || !!club.finixOnboardingComplete;
   const hasStarted = !!club.finixIdentityId;
 
@@ -154,7 +160,7 @@ export default function FinixPayoutsSetup({ club, isAdmin, acceptedByUid, onStat
         <Text variant="bodyMedium" style={styles.description}>
           {isActive
             ? 'Your club is ready to receive payments! Users can purchase tickets to your paid events.'
-            : club.finixMerchantId
+            : isConnected
             ? 'Your payout application is pending approval. You will be able to receive payments once Finix approves it (usually within 1–2 business days).'
             : hasStarted
             ? "You've started setup but haven't submitted your application to Finix yet. Tap Resume Setup to finish the form."
@@ -229,7 +235,7 @@ export default function FinixPayoutsSetup({ club, isAdmin, acceptedByUid, onStat
             </Button>
           )}
 
-          {hasStarted && !isActive && (
+          {hasStarted && !isConnected && !isActive && (
             <Button
               mode="contained"
               onPress={handleSetupPayouts}

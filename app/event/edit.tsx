@@ -58,7 +58,8 @@ export default function EditEventScreen() {
   const [coverImage, setCoverImage] = useState<string | null>(null);
   const [originalCoverImage, setOriginalCoverImage] = useState<string | null>(null);
 
-  const inputTheme = isDark ? { colors: { background: theme.colors.elevation.level2 } } : undefined;
+  const inputSurface = isDark ? '#101826' : theme.colors.surface;
+  const inputTheme = { colors: { background: inputSurface, surface: inputSurface } };
 
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date(Date.now() + 2 * 60 * 60 * 1000));
@@ -341,7 +342,7 @@ export default function EditEventScreen() {
         <View style={styles.content}>
           {/* Club Info (read-only) */}
           {club && (
-            <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
+            <Card style={[styles.formCard, { backgroundColor: inputSurface }]} mode="elevated">
               <Card.Content style={styles.cardContent}>
                 <View style={styles.sectionHeader}>
                   <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -355,7 +356,7 @@ export default function EditEventScreen() {
           )}
 
           {/* Cover Image */}
-          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: inputSurface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -383,7 +384,7 @@ export default function EditEventScreen() {
           </Card>
 
           {/* Basic Information */}
-          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: inputSurface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -470,7 +471,7 @@ export default function EditEventScreen() {
           </Card>
 
           {/* Date and Time */}
-          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: inputSurface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
@@ -491,7 +492,7 @@ export default function EditEventScreen() {
                 </View>
                 {showStartDatePicker && (
                   <View style={styles.pickerContainer}>
-                    <DateTimePicker value={startDate} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={onStartDateChange} themeVariant={isDark ? 'dark' : 'light'} />
+                    <DateTimePicker value={startDate} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={onStartDateChange} themeVariant={isDark ? 'dark' : 'light'} textColor={theme.colors.onSurface} />
                     {Platform.OS === 'ios' && (
                       <Button mode="contained" onPress={() => setShowStartDatePicker(false)} style={styles.doneButton}>Done</Button>
                     )}
@@ -499,7 +500,7 @@ export default function EditEventScreen() {
                 )}
                 {showStartTimePicker && (
                   <View style={styles.pickerContainer}>
-                    <DateTimePicker value={startDate} mode="time" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={onStartTimeChange} themeVariant={isDark ? 'dark' : 'light'} />
+                    <DateTimePicker value={startDate} mode="time" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={onStartTimeChange} themeVariant={isDark ? 'dark' : 'light'} textColor={theme.colors.onSurface} />
                     {Platform.OS === 'ios' && (
                       <Button mode="contained" onPress={() => setShowStartTimePicker(false)} style={styles.doneButton}>Done</Button>
                     )}
@@ -519,7 +520,7 @@ export default function EditEventScreen() {
                 </View>
                 {showEndDatePicker && (
                   <View style={styles.pickerContainer}>
-                    <DateTimePicker value={endDate} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={onEndDateChange} minimumDate={startDate} themeVariant={isDark ? 'dark' : 'light'} />
+                    <DateTimePicker value={endDate} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={onEndDateChange} minimumDate={startDate} themeVariant={isDark ? 'dark' : 'light'} textColor={theme.colors.onSurface} />
                     {Platform.OS === 'ios' && (
                       <Button mode="contained" onPress={() => setShowEndDatePicker(false)} style={styles.doneButton}>Done</Button>
                     )}
@@ -527,7 +528,7 @@ export default function EditEventScreen() {
                 )}
                 {showEndTimePicker && (
                   <View style={styles.pickerContainer}>
-                    <DateTimePicker value={endDate} mode="time" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={onEndTimeChange} themeVariant={isDark ? 'dark' : 'light'} />
+                    <DateTimePicker value={endDate} mode="time" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={onEndTimeChange} themeVariant={isDark ? 'dark' : 'light'} textColor={theme.colors.onSurface} />
                     {Platform.OS === 'ios' && (
                       <Button mode="contained" onPress={() => setShowEndTimePicker(false)} style={styles.doneButton}>Done</Button>
                     )}
@@ -538,7 +539,7 @@ export default function EditEventScreen() {
           </Card>
 
           {/* Additional Options */}
-          <Card style={[styles.formCard, { backgroundColor: isDark ? theme.colors.elevation.level2 : theme.colors.surface }]} mode="elevated">
+          <Card style={[styles.formCard, { backgroundColor: inputSurface }]} mode="elevated">
             <Card.Content style={styles.cardContent}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>

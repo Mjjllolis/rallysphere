@@ -124,7 +124,11 @@
       "Bash(sudo xcodebuild *)",
       "Read(//Library/Developer/CoreSimulator/Volumes/**)",
       "Read(//Library/Developer/CoreSimulator/Profiles/**)",
-      "Bash(launchctl list *)"
+      "Bash(launchctl list *)",
+      "Bash(eas --version)",
+      "Bash(java -version)",
+      "Bash(npm list *)",
+      "Bash(/usr/libexec/java_home -V)"
     ],
     "deny": [],
     "ask": []

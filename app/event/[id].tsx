@@ -11,7 +11,7 @@ import {
   useTheme
 } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { router, useLocalSearchParams, Stack, useFocusEffect } from 'expo-router';
 import { useAuth, useThemeToggle } from '../_layout';
@@ -30,6 +30,7 @@ export default function EventDetailScreen() {
   const theme = useTheme();
   const { isDark } = useThemeToggle();
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams();
   const eventId = id as string;
 
@@ -1463,24 +1464,23 @@ export default function EventDetailScreen() {
           onPress={isAttending || isWaitlisted ? handleLeaveEvent : handleJoinEvent}
           disabled={actionLoading || (!isAttending && !isWaitlisted && !!isFull)}
           activeOpacity={0.8}
-          style={styles.floatingButtonWrapper}
+          style={[styles.floatingButtonWrapper, { bottom: insets.bottom + 16 }]}
         >
           <LinearGradient
             colors={isAttending || isWaitlisted
-              ? (isDark ? ['rgba(255,255,255,0.15)', 'rgba(255,255,255,0.08)'] : ['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.05)'])
-              : (isDark ? ['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.15)'] : ['rgba(0,0,0,0.15)', 'rgba(0,0,0,0.1)'])}
+              ? [theme.colors.errorContainer, theme.colors.error]
+              : [theme.colors.primary, theme.colors.secondary]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={[
               styles.floatingButton,
-              (isAttending || isWaitlisted) && [styles.floatingButtonOutlined, { borderColor: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)' }],
               (actionLoading || (!isAttending && !isWaitlisted && !!isFull)) && styles.floatingButtonDisabled
             ]}
           >
             {actionLoading ? (
-              <ActivityIndicator color={theme.colors.onSurface} size="small" />
+              <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
-              <Text style={[styles.floatingButtonText, { color: theme.colors.onSurface }]}>
+              <Text style={[styles.floatingButtonText, { color: '#FFFFFF' }]}>
                 {isWaitlisted
                   ? 'Leave Waitlist'
                   : isAttending
@@ -1488,7 +1488,7 @@ export default function EventDetailScreen() {
                   : isFull
                   ? 'Event Full'
                   : event.ticketPrice && event.ticketPrice > 0
-                  ? `Buy Ticket - $${event.ticketPrice.toFixed(2)} + fees`
+                  ? `Buy Ticket — $${event.ticketPrice.toFixed(2)} + fees`
                   : 'Join Event'}
               </Text>
             )}
@@ -1523,7 +1523,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 120,
+    paddingBottom: 160,
   },
   loadingContainer: {
     flex: 1,
@@ -1857,7 +1857,7 @@ const styles = StyleSheet.create({
   },
   floatingButtonWrapper: {
     position: 'absolute',
-    bottom: 32,
+    left: 20,
     right: 20,
     zIndex: 100,
     shadowColor: '#000',
@@ -1867,22 +1867,20 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   floatingButton: {
-    paddingVertical: 16,
+    paddingVertical: 18,
     paddingHorizontal: 28,
     borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  floatingButtonOutlined: {
-    borderWidth: 1.5,
-  },
   floatingButtonDisabled: {
     opacity: 0.5,
   },
   floatingButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 17,
+    fontWeight: '700',
     textAlign: 'center',
+    letterSpacing: 0.3,
   },
   waiverModalOverlay: {
     flex: 1,

@@ -6,30 +6,45 @@
   <title>Checkout</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: transparent; color: #0F172A; }
-    body { padding: 12px 4px; font-size: 14px; }
-    .tabs { display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid #E2E8F0; padding-bottom: 8px; }
-    .tab { flex: 1; text-align: center; padding: 10px; border-radius: 8px 8px 0 0; cursor: pointer; font-weight: 600; color: #64748B; }
-    .tab.active { color: #0F172A; border-bottom: 2px solid #0F172A; }
+    html, body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: transparent; }
+    body { padding: 4px; font-size: 14px; color: #0F172A; }
+    body.dark { color: #FFFFFF; }
+
+    .tabs { display: flex; gap: 8px; margin-bottom: 14px; border-bottom: 1px solid #E2E8F0; padding-bottom: 6px; }
+    body.dark .tabs { border-bottom-color: rgba(255,255,255,0.12); }
+    .tab { flex: 1; text-align: center; padding: 10px; border-radius: 8px 8px 0 0; cursor: pointer; font-weight: 600; color: #64748B; font-size: 14px; }
+    .tab.active { color: #0F172A; border-bottom: 2px solid #0F172A; margin-bottom: -7px; padding-bottom: 8px; }
+    body.dark .tab { color: rgba(255,255,255,0.55); }
+    body.dark .tab.active { color: #FFFFFF; border-bottom-color: #60A5FA; }
+
     .pane { display: none; }
     .pane.active { display: block; }
     #card-form, #ach-form { min-height: 180px; }
+
     .wallet-row { display: flex; gap: 8px; margin-bottom: 12px; }
+
     .ach-auth { background: #F1F5F9; border-radius: 8px; padding: 12px; margin-top: 12px; font-size: 12px; line-height: 1.4; color: #475569; }
+    body.dark .ach-auth { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.7); }
     .ach-auth strong { display: block; margin-bottom: 6px; color: #0F172A; }
+    body.dark .ach-auth strong { color: #FFFFFF; }
+
     .error { display: none; margin-top: 12px; padding: 10px; background: #FEF2F2; border-radius: 8px; color: #DC2626; font-size: 13px; }
+    body.dark .error { background: rgba(239,68,68,0.12); color: #FCA5A5; }
+
     .loading { text-align: center; padding: 24px; color: #64748B; font-size: 13px; }
+    body.dark .loading { color: rgba(255,255,255,0.5); }
+
     button.submit {
       margin-top: 16px; width: 100%; padding: 14px; border: none; border-radius: 12px;
       background: #0F172A; color: white; font-size: 15px; font-weight: 700; cursor: pointer;
     }
+    body.dark button.submit { background: #60A5FA; color: #0B1220; }
     button.submit:disabled { opacity: 0.5; cursor: not-allowed; }
   </style>
 </head>
 <body>
-  <div id="loading" class="loading">Loading payment form…</div>
-
-  <div id="app" style="display: none;">
+  <div id="app">
+    <div id="loading" class="loading">Loading payment form…</div>
     <div class="tabs" id="tabs">
       <div class="tab active" data-tab="card">Card</div>
       <div class="tab" data-tab="ach" id="tab-ach" style="display:none;">Bank (ACH)</div>
@@ -59,9 +74,45 @@
     <div id="error" class="error"></div>
   </div>
 
-  <script src="https://js.finix.com/v/1/finix.js"></script>
+  <script>
+    // ---- Diagnostic harness (must run before Finix SDK loads) ----
+    (function setupDiag() {
+      function diag(stage, extra) {
+        try {
+          const payload = { type: 'diag', stage: stage, t: Date.now() };
+          if (extra) Object.assign(payload, extra);
+          if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+            window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+          }
+        } catch (e) { /* noop */ }
+      }
+      window.__diag = diag;
+      diag('html-parsed');
+      window.addEventListener('error', function (e) {
+        diag('window-error', { message: String(e.message || ''), source: String(e.filename || ''), lineno: e.lineno, colno: e.colno });
+      });
+      window.addEventListener('unhandledrejection', function (e) {
+        diag('unhandled-rejection', { reason: String(e.reason && (e.reason.message || e.reason) || '') });
+      });
+      var _origConsoleError = console.error;
+      console.error = function () {
+        try {
+          var parts = [];
+          for (var i = 0; i < arguments.length; i++) {
+            var a = arguments[i];
+            parts.push(typeof a === 'string' ? a : (a && a.message ? a.message : String(a)));
+          }
+          diag('console-error', { message: parts.join(' ') });
+        } catch (e) { /* noop */ }
+        _origConsoleError.apply(console, arguments);
+      };
+    })();
+  </script>
+  <script src="https://js.finix.com/v/1/finix.js" onerror="window.__diag && window.__diag('finix-sdk-script-error')" onload="window.__diag && window.__diag('finix-sdk-script-loaded')"></script>
   <script>
     (function () {
+      const diag = window.__diag || function () {};
+      diag('iife-start');
       const params = new URLSearchParams(location.search);
       const env = params.get('env') || 'sandbox';
       const appId = params.get('appId') || '';
@@ -70,6 +121,10 @@
       const external = params.get('external') === 'true';
       const supportEmail = params.get('supportEmail') || 'support@rallysphere.com';
       const amount = params.get('amount') || '';
+      const theme = params.get('theme') === 'dark' ? 'dark' : 'light';
+      const isDark = theme === 'dark';
+      if (isDark) document.body.classList.add('dark');
+      diag('params-parsed', { env: env, hasAppId: !!appId, ach: ach, wallets: wallets, external: external, theme: theme });
 
       document.getElementById('support-email').textContent = supportEmail;
 
@@ -114,11 +169,14 @@
       }
 
       if (!window.Finix) {
+        diag('finix-missing');
         document.getElementById('loading').textContent = 'Failed to load Finix payment SDK.';
         postToNative({ type: 'ready', ready: false, error: 'Finix SDK unavailable' });
         return;
       }
+      diag('finix-detected', { hasCardForm: typeof window.Finix.CardTokenForm === 'function' });
       if (!appId) {
+        diag('appId-missing');
         document.getElementById('loading').textContent = 'Missing application id.';
         postToNative({ type: 'ready', ready: false, error: 'Missing appId' });
         return;
@@ -130,39 +188,80 @@
         showAddress: true,
         requiredFields: ['postal_code'],
         styles: {
-          default: { color: '#0F172A', fontSize: '15px' },
+          default: {
+            color: isDark ? '#FFFFFF' : '#0F172A',
+            fontSize: '15px',
+            border: isDark ? '1px solid rgba(255,255,255,0.18)' : '1px solid #E2E8F0',
+            borderRadius: '10px',
+            padding: '12px',
+            backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#FFFFFF',
+            boxShadow: 'none',
+          },
           success: { color: '#10B981' },
-          error:   { color: '#DC2626' },
+          error:   { color: isDark ? '#FCA5A5' : '#DC2626' },
         },
       };
 
       // --- Card form ---
       let cardForm = null;
+      let cardFormLoaded = false;
       try {
-        cardForm = window.Finix.CardTokenForm('#card-form', {
+        diag('card-form-creating');
+        cardForm = window.Finix.CardTokenForm('card-form', {
           ...commonOptions,
           onLoad: () => {
+            cardFormLoaded = true;
+            diag('card-form-onload');
             document.getElementById('loading').style.display = 'none';
-            document.getElementById('app').style.display = 'block';
             document.getElementById('btn-submit-card').disabled = false;
             postToNative({ type: 'ready', ready: true });
           },
           onUpdate: (state, binInfo, formHasErrors) => {
+            if (!cardFormLoaded) {
+              cardFormLoaded = true;
+              diag('card-form-firstupdate-as-ready');
+              document.getElementById('loading').style.display = 'none';
+              postToNative({ type: 'ready', ready: true });
+            }
             document.getElementById('btn-submit-card').disabled = !!formHasErrors;
           },
         });
+        diag('card-form-created');
       } catch (err) {
+        diag('card-form-throw', { message: err && (err.message || String(err)) });
         showError('Unable to load card form: ' + (err.message || err));
         postToNative({ type: 'ready', ready: false, error: err.message || String(err) });
         return;
       }
+
+      // Fallback: if Finix never fires onLoad within 5s, reveal the form anyway and report.
+      setTimeout(function () {
+        if (!cardFormLoaded) {
+          const cf = document.getElementById('card-form');
+          const iframe = cf ? cf.querySelector('iframe') : null;
+          diag('card-form-onload-timeout-5s', {
+            iframeInDom: !!iframe,
+            iframeSrc: iframe ? (iframe.src || iframe.getAttribute('src') || '') : '',
+            iframeContentDocAccessible: (function () {
+              try { return !!(iframe && iframe.contentDocument); } catch (e) { return 'cross-origin-blocked'; }
+            })(),
+            cardDivHtmlLen: cf ? cf.innerHTML.length : 0,
+            cardDivChildren: cf ? cf.children.length : 0,
+            documentReadyState: document.readyState,
+            origin: location.origin,
+            href: location.href.length,
+          });
+          document.getElementById('loading').style.display = 'none';
+          postToNative({ type: 'ready', ready: false, error: 'Card form did not signal ready within 5s' });
+        }
+      }, 5000);
 
       // --- ACH form ---
       let achForm = null;
       if (ach) {
         document.getElementById('tab-ach').style.display = 'block';
         try {
-          achForm = window.Finix.BankAccountTokenForm('#ach-form', {
+          achForm = window.Finix.BankTokenForm('ach-form', {
             ...commonOptions,
             onUpdate: (state, metadata, formHasErrors) => {
               document.getElementById('btn-submit-ach').disabled = !!formHasErrors;
@@ -180,7 +279,7 @@
         // Finix auto-renders wallet buttons when supported. If not, buttons stay hidden.
         try {
           if (window.Finix.ApplePay && window.Finix.ApplePay.canMakePayments && window.Finix.ApplePay.canMakePayments()) {
-            window.Finix.ApplePay.mount('#apple-pay-button', {
+            window.Finix.ApplePay.mount('apple-pay-button', {
               ...commonOptions,
               amount: amount,
               onSuccess: function (res) {
@@ -198,7 +297,7 @@
 
         try {
           if (window.Finix.GooglePay && window.Finix.GooglePay.isReadyToPay) {
-            window.Finix.GooglePay.mount('#google-pay-button', {
+            window.Finix.GooglePay.mount('google-pay-button', {
               ...commonOptions,
               amount: amount,
               onSuccess: function (res) {
@@ -287,6 +386,29 @@
           });
         }
       };
+
+      // Broadcast content height so the parent can size the WebView to fit and
+      // avoid nested scrolling. Uses ResizeObserver if available, falls back to
+      // a polling approach.
+      var lastReportedHeight = 0;
+      function reportHeight() {
+        var h = Math.max(
+          document.documentElement.scrollHeight,
+          document.body.scrollHeight
+        );
+        if (h !== lastReportedHeight) {
+          lastReportedHeight = h;
+          postToNative({ type: 'content-height', height: h });
+        }
+      }
+      if (typeof ResizeObserver !== 'undefined') {
+        var ro = new ResizeObserver(reportHeight);
+        ro.observe(document.body);
+      }
+      setInterval(reportHeight, 500);
+      window.addEventListener('load', reportHeight);
+      setTimeout(reportHeight, 100);
+      setTimeout(reportHeight, 1000);
 
       // Broadcast which tab is currently active so parent can update button label
       // (e.g. "Pay $X" vs "Authorize & Pay").
