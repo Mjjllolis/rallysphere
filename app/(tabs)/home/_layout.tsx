@@ -18,22 +18,22 @@ export default function HomeLayout() {
   const insets = useSafeAreaInsets();
 
   const topSpacing = insets.top + 4;
-  const bottomTabHeight = 80;
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
 
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor="transparent" translucent />
 
       {/* All feeds mounted simultaneously - hidden when not active */}
-      <View style={[styles.feedWrapper, { paddingBottom: bottomTabHeight }, activeTab === 'RallyFeed' ? styles.visible : styles.hidden]}>
+      <View style={[styles.feedWrapper, activeTab === 'RallyFeed' ? styles.visible : styles.hidden]}>
         <HomeFeed feedType="editors-pick" isActive={activeTab === 'RallyFeed'} />
       </View>
 
-      <View style={[styles.feedWrapper, { paddingBottom: bottomTabHeight }, activeTab === 'Local' ? styles.visible : styles.hidden]}>
+      <View style={[styles.feedWrapper, activeTab === 'Local' ? styles.visible : styles.hidden]}>
         <LocalFeed isActive={activeTab === 'Local'} radiusMiles={radiusMiles} />
       </View>
 
-      <View style={[styles.feedWrapper, { paddingBottom: bottomTabHeight }, activeTab === 'Saved' ? styles.visible : styles.hidden]}>
+      <View style={[styles.feedWrapper, activeTab === 'Saved' ? styles.visible : styles.hidden]}>
         <SavedFeed isActive={activeTab === 'Saved'} />
       </View>
 

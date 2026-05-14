@@ -468,7 +468,7 @@ export default function EventSwipeCard({
       )}
 
       {/* Event Info at Bottom */}
-      <View style={styles.bottomContent}>
+      <View style={[styles.bottomContent, { paddingBottom: Math.max(insets.bottom, 8) + 76 }]}>
         <View style={styles.eventInfo}>
           <Text variant="titleLarge" style={[styles.title, { color: theme.colors.onSurface }]} numberOfLines={1}>
             {event.title}
@@ -893,8 +893,8 @@ const styles = StyleSheet.create({
     width: '88%',
     position: 'absolute',
     alignSelf: 'center',
-    top: '22%',
-    bottom: '36%',
+    top: '18%',
+    bottom: '42%',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -933,7 +933,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: 24,
-    paddingBottom: 28,
     paddingTop: 8,
   },
   eventInfo: {

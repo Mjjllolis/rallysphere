@@ -3,19 +3,18 @@ import React, { useState, useEffect, useRef } from "react";
 import { Tabs } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTheme } from "react-native-paper";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { StyleSheet, Animated, View, Pressable } from "react-native";
+import { BlurView } from "expo-blur";
+import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import CreateScreen from "../../components/CreateScreen";
-import { Image, StyleSheet, Animated, View, Dimensions } from "react-native";
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const TAB_COUNT = 6;
-const TAB_WIDTH = SCREEN_WIDTH / TAB_COUNT;
-
-// Animated tab icon component
+// animated tab icon
 const AnimatedTabIcon = ({ name, color, focused, size = 28 }: any) => {
-  const scaleAnim = useRef(new Animated.Value(focused ? 1.1 : 1)).current;
+  const scale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    Animated.spring(scaleAnim, {
+    Animated.spring(scale, {
       toValue: focused ? 1.15 : 1,
       friction: 3,
       tension: 40,
@@ -24,194 +23,168 @@ const AnimatedTabIcon = ({ name, color, focused, size = 28 }: any) => {
   }, [focused]);
 
   return (
-    <Animated.View style={{
-      transform: [{ scale: scaleAnim }],
-      width: size,
-      height: size,
-      justifyContent: 'center',
-      alignItems: 'center',
-    }}>
+    <Animated.View style={{ transform: [{ scale }] }}>
       <MaterialCommunityIcons name={name} size={size} color={color} />
     </Animated.View>
   );
 };
 
-// Animated image icon component
-const AnimatedImageIcon = ({ source, color, focused }: any) => {
-  const scaleAnim = useRef(new Animated.Value(focused ? 1.1 : 1)).current;
+// floating glass tab bar
+const GlassTabBar = ({
+  state,
+  descriptors,
+  navigation,
+  onCreatePress,
+}: BottomTabBarProps & { onCreatePress: () => void }) => {
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  const isDark = theme.dark;
 
-  useEffect(() => {
-    Animated.spring(scaleAnim, {
-      toValue: focused ? 1.15 : 1,
-      friction: 3,
-      tension: 40,
-      useNativeDriver: true,
-    }).start();
-  }, [focused]);
+  // Filter to only visible tabs (those with icons)
+  const visibleRoutes = state.routes.filter((route) => {
+    const { options } = descriptors[route.key];
+    return options.tabBarIcon && (options as any).href !== null;
+  });
 
   return (
-    <Animated.View style={{
-      transform: [{ scale: scaleAnim }],
-      width: 28,
-      height: 28,
-      justifyContent: 'center',
-      alignItems: 'center',
-    }}>
-      <Image
-        source={source}
-        style={{
-          width: 28,
-          height: 28,
-          tintColor: color,
-          opacity: focused ? 1 : 0.7,
-        }}
-        resizeMode="contain"
+    <View style={[styles.container, { bottom: Math.max(insets.bottom, 8) }]}>
+      {/* Glass Effect */}
+      <BlurView
+        intensity={60}
+        tint={isDark ? "dark" : "light"}
+        style={StyleSheet.absoluteFill}
       />
-    </Animated.View>
+      <View
+        style={[
+          StyleSheet.absoluteFill,
+          { backgroundColor: isDark ? "rgba(30,30,30,0.25)" : "rgba(255,255,255,0.25)" },
+        ]}
+      />
+
+      {/* Tab Icons */}
+      <View style={styles.tabs}>
+        {visibleRoutes.map((route) => {
+          const { options } = descriptors[route.key];
+          const index = state.routes.findIndex((r) => r.key === route.key);
+          const isFocused = state.index === index;
+
+          const handlePress = () => {
+            if (route.name === "create") {
+              onCreatePress();
+              return;
+            }
+            if (!isFocused) {
+              navigation.navigate(route.name);
+            }
+          };
+
+          return (
+            <Pressable key={route.key} onPress={handlePress} style={styles.tab}>
+              {options.tabBarIcon?.({
+                focused: isFocused,
+                color: isFocused ? theme.colors.onSurface : theme.colors.onSurfaceDisabled,
+                size: 28,
+              })}
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
   );
 };
 
+// tab layout
 export default function TabLayout() {
-  const theme = useTheme();
   const [isModalVisible, setIsModalVisible] = useState(false);
-
-  const openModal = () => setIsModalVisible(true);
-  const closeModal = () => setIsModalVisible(false);
 
   return (
     <>
-      <View style={{ position: 'relative', flex: 1 }}>
+      <View style={{ flex: 1 }}>
         <Tabs
-          screenOptions={{
-            tabBarActiveTintColor: theme.colors.onSurface,
-            tabBarInactiveTintColor: theme.colors.onSurfaceDisabled,
-            tabBarStyle: {
-              backgroundColor: theme.colors.background,
-              borderTopColor: 'transparent',
-              borderTopWidth: 0,
-              height: 80,
-              paddingBottom: 30,
-              paddingTop: 2,
-              paddingLeft: 0,
-              paddingRight: 0,
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom: 0,
-            },
-          tabBarItemStyle: {
-            width: TAB_WIDTH,
-            justifyContent: 'center',
-            alignItems: 'center',
-            paddingHorizontal: 0,
-            marginHorizontal: 0,
-            height: '100%',
-          },
-          tabBarIconStyle: {
-            marginTop: 0,
-            marginBottom: 0,
-            marginLeft: 0,
-            marginRight: 0,
-          },
-          tabBarLabelStyle: {
-            display: 'none',
-          },
-          tabBarShowLabel: false,
-          headerShown: false,
-        }}
-      >
-        <Tabs.Screen
-          name="home"
-          options={{
-            title: "Home",
-            tabBarIcon: ({ color, focused }) => (
-              <AnimatedTabIcon name="home" color={color} focused={focused} />
-            ),
-          }}
-        />
+          tabBar={(props) => (
+            <GlassTabBar {...props} onCreatePress={() => setIsModalVisible(true)} />
+          )}
+          screenOptions={{ headerShown: false }}
+        >
+          {/* Visible Tabs */}
+          <Tabs.Screen
+            name="home"
+            options={{
+              tabBarIcon: ({ color, focused }) => (
+                <AnimatedTabIcon name="home" color={color} focused={focused} />
+              ),
+            }}
+          />
+          <Tabs.Screen
+            name="events"
+            options={{
+              tabBarIcon: ({ color, focused }) => (
+                <AnimatedTabIcon name="calendar-month" color={color} focused={focused} />
+              ),
+            }}
+          />
+          <Tabs.Screen
+            name="create"
+            options={{
+              tabBarIcon: ({ color, focused }) => (
+                <AnimatedTabIcon name="plus" color={color} focused={focused} size={32} />
+              ),
+            }}
+          />
+          <Tabs.Screen
+            name="store"
+            options={{
+              tabBarIcon: ({ color, focused }) => (
+                <AnimatedTabIcon name="shopping" color={color} focused={focused} />
+              ),
+            }}
+          />
+          <Tabs.Screen
+            name="profile"
+            options={{
+              tabBarIcon: ({ color, focused }) => (
+                <AnimatedTabIcon name="account" color={color} focused={focused} />
+              ),
+            }}
+          />
 
-        <Tabs.Screen
-          name="events"
-          options={{
-            title: "Events",
-            tabBarIcon: ({ color, focused }) => (
-              <AnimatedTabIcon name="calendar-month" color={color} focused={focused} />
-            ),
-          }}
-        />
-
-        <Tabs.Screen
-          name="store"
-          options={{
-            title: "Store",
-            tabBarIcon: ({ color, focused }) => (
-              <AnimatedTabIcon name="shopping" color={color} focused={focused} />
-            ),
-          }}
-        />
-
-        <Tabs.Screen
-          name="clubs"
-          options={{
-            title: "Clubs",
-            tabBarIcon: ({ color, focused}) => (
-              <AnimatedTabIcon name="account-group" color={color} focused={focused} />
-            ),
-          }}
-        />
-
-        {/* ✅ Custom Create Button */}
-        <Tabs.Screen
-          name="create"
-          options={{
-            title: "Create",
-            tabBarIcon: ({ color, focused }) => (
-              <AnimatedTabIcon name="plus" color={color} focused={focused} size={32} />
-            ),
-          }}
-          listeners={{
-            tabPress: (e) => {
-              e.preventDefault(); // 🧱 stops navigation
-              openModal(); // 🎉 opens bottom modal
-            },
-          }}
-        />
-
-        <Tabs.Screen
-          name="profile"
-          options={{
-            title: "Profile",
-            tabBarIcon: ({ color, focused }) => (
-              <AnimatedTabIcon name="account" color={color} focused={focused} />
-            ),
-          }}
-        />
-
-        <Tabs.Screen
-          name="create-club"
-          options={{
-            href: null,
-          }}
-        />
-
-        <Tabs.Screen
-          name="create-event"
-          options={{
-            href: null,
-          }}
-        />
-
-        <Tabs.Screen
-          name="event-detail"
-          options={{
-            href: null,
-          }}
-        />
-
-      </Tabs>
+          {/* Hidden Screens */}
+          <Tabs.Screen name="clubs" options={{ href: null }} />
+          <Tabs.Screen name="create-club" options={{ href: null }} />
+          <Tabs.Screen name="create-event" options={{ href: null }} />
+          <Tabs.Screen name="event-detail" options={{ href: null }} />
+        </Tabs>
       </View>
 
-      <CreateScreen visible={isModalVisible} onClose={closeModal} />
+      <CreateScreen visible={isModalVisible} onClose={() => setIsModalVisible(false)} />
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    height: 64,
+    borderRadius: 32,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  tabs: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-evenly",
+  },
+  tab: {
+    flex: 1,
+    height: 64,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
