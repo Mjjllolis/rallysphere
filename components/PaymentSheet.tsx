@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { Button, Text, ActivityIndicator, useTheme, Divider, IconButton } from 'react-native-paper';
 import { WebView } from 'react-native-webview';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Event, RallyCreditRedemption, UserRallyCredits } from '../lib/firebase';
 import { db, auth, getClubRallyRedemptions, getUserRallyCredits, spendRallyCredits } from '../lib/firebase';
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
@@ -29,6 +30,7 @@ interface PaymentSheetProps {
 export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: PaymentSheetProps) {
   const theme = useTheme();
   const { isDark } = useThemeToggle();
+  const insets = useSafeAreaInsets();
   const webViewRef = useRef<any>(null);
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
@@ -40,6 +42,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'ach' | 'apple_pay' | 'google_pay'>('card');
   const [diagLog, setDiagLog] = useState<string[]>([]);
   const [webViewHeight, setWebViewHeight] = useState<number>(480);
+  const [step, setStep] = useState<'summary' | 'payment'>('summary');
 
   // Stable URL — recomputed only when the inputs that actually matter change.
   // Including Date.now() inline would re-mount the WebView on every render and
@@ -72,6 +75,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
       loadDiscounts();
       setSelectedDiscount(null);
       setShowDiscounts(false);
+      setStep('summary');
       initPayment();
     } else {
       Animated.timing(slideAnim, {
@@ -220,7 +224,8 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
         return;
       }
       if (msg.type === 'content-height' && typeof msg.height === 'number') {
-        const next = Math.max(120, Math.min(900, Math.ceil(msg.height) + 8));
+        const next = Math.max(120, Math.ceil(msg.height) + 16);
+        console.log('[Finix WebView] content-height', { reported: msg.height, applied: next });
         setWebViewHeight((prev) => (Math.abs(prev - next) > 4 ? next : prev));
         return;
       }
@@ -341,6 +346,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
   const { ticketPrice: discountedTicketPrice, discount: discountAmount, isFree } = calculateDiscountedPrice();
 
   return (
+    <>
     <Modal visible={visible} onRequestClose={onDismiss} transparent animationType="none" statusBarTranslucent>
       <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onDismiss} />
 
@@ -360,10 +366,9 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
           <Text style={[styles.closeIcon, { color: theme.colors.onSurfaceVariant }]}>✕</Text>
         </TouchableOpacity>
 
-        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+        <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 + insets.bottom }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <View style={styles.content}>
             <Text variant="headlineSmall" style={styles.title}>Complete Purchase</Text>
-
             {/* Event Info */}
             <View style={styles.eventInfo}>
               <Text variant="labelMedium" style={styles.sectionLabel}>EVENT</Text>
@@ -502,56 +507,11 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
               )}
             </View>
 
-            {/* Finix Tokenization Form */}
-            {!isFree && (
-              <View>
-                <Text variant="labelMedium" style={styles.sectionLabel}>PAYMENT METHOD</Text>
-                {initializingPayment ? (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="small" color={theme.colors.primary} />
-                    <Text variant="bodySmall" style={{ marginTop: 8, color: theme.colors.onSurfaceVariant }}>
-                      Initializing payment...
-                    </Text>
-                  </View>
-                ) : finixContext && tokenizeUrl ? (
-                  <>
-                    <WebView
-                      ref={webViewRef}
-                      source={{ uri: tokenizeUrl }}
-                      style={[styles.webView, { height: webViewHeight }]}
-                      containerStyle={{ backgroundColor: 'transparent' }}
-                      onMessage={handleWebViewMessage}
-                      javaScriptEnabled
-                      scrollEnabled={false}
-                      nestedScrollEnabled={false}
-                      originWhitelist={['*']}
-                      mixedContentMode="always"
-                      cacheEnabled={false}
-                      incognito
-                      backgroundColor="transparent"
-                      keyboardDisplayRequiresUserAction={false}
-                      hideKeyboardAccessoryView={false}
-                    />
-                    {!formReady && diagLog.length > 0 && (
-                      <View style={[styles.diagPanel, { backgroundColor: isDark ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }]}>
-                        <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 4, fontWeight: 'bold' }}>
-                          Diagnostics (form not ready)
-                        </Text>
-                        {diagLog.map((l, i) => (
-                          <Text key={i} variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 11 }}>{l}</Text>
-                        ))}
-                      </View>
-                    )}
-                  </>
-                ) : null}
-              </View>
-            )}
-
-            {/* Pay Button */}
+            {/* Summary step bottom button: Continue or Claim Free */}
             <TouchableOpacity
-              style={[styles.continueButton, { backgroundColor: isFree ? '#10B981' : theme.colors.primary, opacity: (loading || (!isFree && !formReady)) ? 0.7 : 1 }]}
-              onPress={handlePay}
-              disabled={loading || (!isFree && !formReady)}
+              style={[styles.continueButton, { backgroundColor: isFree ? '#10B981' : theme.colors.primary, opacity: (loading || (!isFree && !feeBreakdown)) ? 0.7 : 1 }]}
+              onPress={isFree ? handlePay : () => setStep('payment')}
+              disabled={loading || (!isFree && !feeBreakdown)}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
@@ -560,13 +520,10 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
                   <Text style={styles.continueButtonText}>
                     {isFree
                       ? 'Claim Free Ticket'
-                      : paymentMethod === 'ach'
-                        ? `Authorize & Pay ${feeBreakdown ? formatPrice(feeBreakdown.totalAmount, event.currency) : formatPrice(discountedTicketPrice, event.currency)}`
-                        : `Pay ${feeBreakdown ? formatPrice(feeBreakdown.totalAmount, event.currency) : formatPrice(discountedTicketPrice, event.currency)}`
-                    }
+                      : `Continue to Payment — ${feeBreakdown ? formatPrice(feeBreakdown.totalAmount, event.currency) : formatPrice(discountedTicketPrice, event.currency)}`}
                   </Text>
                   <Text style={styles.continueButtonSubtext}>
-                    {isFree ? `Using ${selectedDiscount?.creditsRequired} Rally Credits` : '🔒 Secure payment via Finix'}
+                    {isFree ? `Using ${selectedDiscount?.creditsRequired} Rally Credits` : 'Next: enter card or bank details'}
                   </Text>
                 </>
               )}
@@ -576,6 +533,106 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
         </KeyboardAvoidingView>
       </Animated.View>
     </Modal>
+
+    {/* Payment popup — slides up over the summary sheet */}
+    <Modal
+      visible={visible && step === 'payment'}
+      onRequestClose={() => setStep('summary')}
+      transparent
+      animationType="slide"
+      statusBarTranslucent
+    >
+      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setStep('summary')} />
+      <View style={[styles.sheet, { backgroundColor: theme.colors.surface, height: '92%' }]}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }} keyboardVerticalOffset={0}>
+          <View style={styles.handleContainer}>
+            <View style={[styles.handle, { backgroundColor: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)' }]} />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.closeButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
+            onPress={() => setStep('summary')}
+          >
+            <Text style={[styles.closeIcon, { color: theme.colors.onSurfaceVariant }]}>✕</Text>
+          </TouchableOpacity>
+
+          <View style={[styles.content, { paddingBottom: 0, paddingTop: 4 }]}>
+            <View style={styles.stepHeader}>
+              <TouchableOpacity onPress={() => setStep('summary')} style={styles.backButton} activeOpacity={0.7}>
+                <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>← Back</Text>
+              </TouchableOpacity>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text variant="titleMedium" style={{ fontWeight: 'bold' }} numberOfLines={1}>{event.title}</Text>
+                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                  Total: {feeBreakdown ? formatPrice(feeBreakdown.totalAmount, event.currency) : formatPrice(event.ticketPrice || 0, event.currency)}
+                </Text>
+              </View>
+            </View>
+            <Text variant="labelMedium" style={[styles.sectionLabel, { marginBottom: 4 }]}>PAYMENT METHOD</Text>
+          </View>
+
+          {!isFree && finixContext && tokenizeUrl ? (
+            <WebView
+              ref={webViewRef}
+              source={{ uri: tokenizeUrl }}
+              style={{ flex: 1, backgroundColor: 'transparent', marginHorizontal: 20 }}
+              containerStyle={{ backgroundColor: 'transparent', flex: 1 }}
+              onMessage={handleWebViewMessage}
+              javaScriptEnabled
+              scrollEnabled
+              showsVerticalScrollIndicator
+              originWhitelist={['*']}
+              mixedContentMode="always"
+              cacheEnabled={false}
+              incognito
+              backgroundColor="transparent"
+              keyboardDisplayRequiresUserAction={false}
+              hideKeyboardAccessoryView={false}
+            />
+          ) : (
+            <View style={[styles.loadingContainer, { flex: 1, justifyContent: 'center' }]}>
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+              <Text variant="bodySmall" style={{ marginTop: 8, color: theme.colors.onSurfaceVariant }}>
+                Initializing payment...
+              </Text>
+            </View>
+          )}
+
+          {!formReady && diagLog.length > 0 && (
+            <View style={[styles.diagPanel, { marginHorizontal: 20, backgroundColor: isDark ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }]}>
+              <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 4, fontWeight: 'bold' }}>
+                Diagnostics (form not ready)
+              </Text>
+              {diagLog.map((l, i) => (
+                <Text key={i} variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 11 }}>{l}</Text>
+              ))}
+            </View>
+          )}
+
+          <View style={[styles.content, { paddingBottom: insets.bottom + 16, paddingTop: 12 }]}>
+            <TouchableOpacity
+              style={[styles.continueButton, { marginBottom: 0, backgroundColor: theme.colors.primary, opacity: (loading || !formReady) ? 0.7 : 1 }]}
+              onPress={handlePay}
+              disabled={loading || !formReady}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Text style={styles.continueButtonText}>
+                    {paymentMethod === 'ach'
+                      ? `Authorize & Pay ${feeBreakdown ? formatPrice(feeBreakdown.totalAmount, event.currency) : formatPrice(discountedTicketPrice, event.currency)}`
+                      : `Pay ${feeBreakdown ? formatPrice(feeBreakdown.totalAmount, event.currency) : formatPrice(discountedTicketPrice, event.currency)}`}
+                  </Text>
+                  <Text style={styles.continueButtonSubtext}>🔒 Secure payment via Finix</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
+    </>
   );
 }
 
@@ -632,6 +689,9 @@ const styles = StyleSheet.create({
   creditsBadgeText: { fontSize: 13, fontWeight: '700', color: '#F59E0B' },
   loadingContainer: { alignItems: 'center', paddingVertical: 20 },
   webView: { marginBottom: 8, backgroundColor: 'transparent' },
+  stepHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, marginTop: 4 },
+  backButton: { paddingVertical: 6, paddingHorizontal: 8, borderRadius: 8 },
+  backButtonText: { fontSize: 15, fontWeight: '600' },
   diagPanel: { padding: 10, borderRadius: 8, borderWidth: 1, marginBottom: 16 },
   continueButton: { borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginBottom: 16 },
   continueButtonText: { color: '#fff', fontSize: 17, fontWeight: '700' },

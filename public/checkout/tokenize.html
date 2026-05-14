@@ -323,6 +323,8 @@
           const paneId = 'pane-' + t.getAttribute('data-tab');
           document.getElementById(paneId).classList.add('active');
           clearError();
+          // Tab switch can change content height significantly — force-report.
+          setTimeout(function () { reportHeight(true); }, 30);
         });
       });
 
@@ -387,28 +389,40 @@
         }
       };
 
-      // Broadcast content height so the parent can size the WebView to fit and
-      // avoid nested scrolling. Uses ResizeObserver if available, falls back to
-      // a polling approach.
+      // Broadcast content height so the parent can size the WebView to fit
+      // and avoid nested scrolling. We send heights aggressively while the
+      // form is still settling (first few seconds) and then ONLY when the
+      // height changes by a meaningful amount, so that incidental relayouts
+      // (focus events, etc.) don't keep resetting the parent's scroll.
       var lastReportedHeight = 0;
-      function reportHeight() {
+      var settled = false;
+      function reportHeight(force) {
         var h = Math.max(
           document.documentElement.scrollHeight,
           document.body.scrollHeight
         );
-        if (h !== lastReportedHeight) {
+        var DEADBAND = settled ? 40 : 4;
+        if (force || Math.abs(h - lastReportedHeight) >= DEADBAND) {
           lastReportedHeight = h;
           postToNative({ type: 'content-height', height: h });
         }
       }
       if (typeof ResizeObserver !== 'undefined') {
-        var ro = new ResizeObserver(reportHeight);
+        var ro = new ResizeObserver(function () { reportHeight(false); });
         ro.observe(document.body);
       }
-      setInterval(reportHeight, 500);
-      window.addEventListener('load', reportHeight);
-      setTimeout(reportHeight, 100);
-      setTimeout(reportHeight, 1000);
+      var settleInterval = setInterval(function () { reportHeight(false); }, 500);
+      window.addEventListener('load', function () { reportHeight(true); });
+      setTimeout(function () { reportHeight(true); }, 100);
+      setTimeout(function () { reportHeight(true); }, 1000);
+      // After 3s, stop the interval poll — at this point the form is loaded
+      // and the only legitimate height change is a tab switch (Card↔ACH),
+      // which we report explicitly below.
+      setTimeout(function () {
+        settled = true;
+        clearInterval(settleInterval);
+        reportHeight(true);
+      }, 3000);
 
       // Broadcast which tab is currently active so parent can update button label
       // (e.g. "Pay $X" vs "Authorize & Pay").
