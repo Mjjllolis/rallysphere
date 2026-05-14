@@ -1,6 +1,6 @@
 // app/event/[id].tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Linking, Dimensions, TouchableOpacity, ActivityIndicator, Modal, Animated, TextInput, PanResponder, Pressable, Platform, RefreshControl } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Linking, Dimensions, TouchableOpacity, ActivityIndicator, Modal, Animated, TextInput, Pressable, Platform, RefreshControl, KeyboardAvoidingView } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import {
   Text,
@@ -112,42 +112,6 @@ export default function EventDetailScreen() {
       waiverAgreementOpacity.setValue(0.4);
     }
   }, [waiverScrolledToBottom]);
-
-  // PanResponder for drag-to-dismiss on waiver modal
-  // PanResponder handles touch gestures (like dragging) on the modal handle
-  const waiverPanResponder = useRef(
-    PanResponder.create({
-      // Always capture the touch event when user starts touching
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Only respond to downward drags (dy = delta y, positive = down)
-        return gestureState.dy > 5;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        // Update animation value as user drags
-        // Only allow dragging down (positive dy), not up
-        if (gestureState.dy > 0) {
-          waiverSheetAnim.setValue(gestureState.dy);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        // When user releases their finger, decide whether to dismiss or snap back
-        // gestureState.dy = total distance dragged (px)
-        // gestureState.vy = velocity (speed) of the drag
-        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
-          dismissWaiverModal(); // User dragged far enough, dismiss the modal
-        } else {
-          // User didn't drag far enough, snap the modal back to its original position
-          Animated.spring(waiverSheetAnim, {
-            toValue: 0,
-            useNativeDriver: true,
-            tension: 65, // How stiff the spring is (higher = faster)
-            friction: 11, // Resistance (higher = less bouncy)
-          }).start();
-        }
-      },
-    })
-  ).current;
 
   useEffect(() => {
     if (eventId) {
@@ -1230,7 +1194,7 @@ export default function EventDetailScreen() {
         </Animated.View>
       </Modal>
 
-      {/* Waiver Modal */}
+      {/* Waiver Modal - Full Page with Keyboard Awareness */}
       <Modal
         visible={waiverModalVisible}
         transparent
@@ -1247,213 +1211,211 @@ export default function EventDetailScreen() {
             }),
           }
         ]}>
-          {/* Tap outside to dismiss */}
-          <Pressable style={styles.waiverModalBackdrop} onPress={dismissWaiverModal} />
-
           <Animated.View style={[
-            styles.waiverModalContent,
-            { backgroundColor: theme.dark ? '#1C1C1E' : '#FFFFFF' },
+            styles.waiverFullPageContent,
+            { backgroundColor: theme.dark ? '#000000' : '#FFFFFF' },
             { transform: [{ translateY: waiverSheetAnim }] }
           ]}>
-            {/* Draggable handle area */}
-            <View {...waiverPanResponder.panHandlers} style={styles.waiverHandleArea}>
-              <View style={[
-                styles.waiverModalHandle,
-                { backgroundColor: theme.dark ? 'rgba(255,255,255,0.3)' : '#E5E7EB' }
-              ]} />
-            </View>
-
-            <View style={styles.waiverModalHeader}>
-              <IconButton
-                icon="file-document-outline"
-                size={28}
-                iconColor={theme.dark ? '#60A5FA' : '#1B365D'}
-              />
-              <Text style={[
-                styles.waiverModalTitle,
-                { color: theme.dark ? '#FFFFFF' : '#1B365D' }
-              ]}>Event Waiver</Text>
-            </View>
-
-            <Text style={[
-              styles.waiverModalSubtitle,
-              { color: theme.dark ? 'rgba(255,255,255,0.7)' : '#6B7280' }
-            ]}>
-              Please read and agree to the following terms before joining this event
-            </Text>
-
-            <ScrollView
-              style={[
-                styles.waiverTextContainer,
-                { backgroundColor: theme.dark ? 'rgba(255,255,255,0.05)' : '#F9FAFB' }
-              ]}
-              showsVerticalScrollIndicator
-              persistentScrollbar
-              nestedScrollEnabled
-              onScroll={handleWaiverScroll}
-              scrollEventThrottle={16}
-              onContentSizeChange={(contentWidth, contentHeight) => {
-                // If content fits without scrolling (5 lines or less), auto-unlock agreement
-                // maxHeight is 250, padding is 32 (16 top + 16 bottom)
-                if (contentHeight <= 250 - 32 && !waiverScrolledToBottom) {
-                  setWaiverScrolledToBottom(true);
-                }
-              }}
+            <KeyboardAvoidingView
+              style={styles.waiverKeyboardAvoid}
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              keyboardVerticalOffset={0}
             >
-              <Text style={[
-                styles.waiverText,
-                { color: theme.dark ? 'rgba(255,255,255,0.9)' : '#374151' }
-              ]}>{event?.waiverText}</Text>
-            </ScrollView>
+              <SafeAreaView style={styles.waiverSafeArea}>
+                {/* Header with close button */}
+                <View style={styles.waiverFullPageHeader}>
+                  <TouchableOpacity
+                    style={styles.waiverCloseButton}
+                    onPress={dismissWaiverModal}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <IconButton icon="close" size={24} iconColor={theme.dark ? '#FFFFFF' : '#374151'} style={{ margin: 0 }} />
+                  </TouchableOpacity>
+                  <View style={styles.waiverHeaderCenter}>
+                    <IconButton icon="file-document-outline" size={28} iconColor={theme.dark ? '#60A5FA' : '#1B365D'} style={{ margin: 0 }} />
+                    <Text style={[styles.waiverModalTitle, { color: theme.dark ? '#FFFFFF' : '#1B365D' }]}>Event Waiver</Text>
+                  </View>
+                  <View style={styles.waiverHeaderSpacer} />
+                </View>
 
-            <Animated.Text style={[
-              styles.waiverScrollHint,
-              {
-                color: theme.dark ? 'rgba(255,255,255,0.5)' : '#9CA3AF',
-                opacity: waiverHintOpacity,
-              }
-            ]}>
-              ↓ Scroll to read entire waiver
-            </Animated.Text>
-
-            <Animated.View style={[
-              styles.waiverAgreementSection,
-              {
-                backgroundColor: theme.dark ? 'rgba(255,255,255,0.05)' : '#F9FAFB',
-                borderColor: theme.dark ? 'rgba(255,255,255,0.1)' : '#E5E7EB',
-                opacity: waiverAgreementOpacity,
-              }
-            ]}>
-              <TouchableOpacity
-                style={[
-                  styles.waiverCheckboxRow,
-                  {
-                    backgroundColor: theme.dark ? 'rgba(255,255,255,0.08)' : '#F3F4F6',
-                    borderColor: waiverAgreed
-                      ? (theme.dark ? '#60A5FA' : '#1B365D')
-                      : (theme.dark ? 'rgba(255,255,255,0.2)' : '#D1D5DB'),
-                  }
-                ]}
-                onPress={() => waiverScrolledToBottom && setWaiverAgreed(!waiverAgreed)}
-                activeOpacity={waiverScrolledToBottom ? 0.7 : 1}
-                disabled={!waiverScrolledToBottom}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: waiverAgreed, disabled: !waiverScrolledToBottom }}
-                accessibilityLabel="I have read and agree to the terms above"
-              >
-                <IconButton
-                  icon={waiverAgreed ? "checkbox-marked" : "checkbox-blank-outline"}
-                  size={24}
-                  iconColor={waiverAgreed
-                    ? (theme.dark ? '#60A5FA' : '#1B365D')
-                    : (theme.dark ? 'rgba(255,255,255,0.5)' : '#9CA3AF')}
-                  style={{ margin: 0 }}
-                />
                 <Text style={[
-                  styles.waiverCheckboxText,
-                  { color: theme.dark ? '#FFFFFF' : '#374151' }
-                ]}>
-                  I have read and agree to the terms above
-                </Text>
-              </TouchableOpacity>
-
-              <View style={styles.waiverInitialsRow}>
-                <Text style={[
-                  styles.waiverInitialsLabel,
+                  styles.waiverModalSubtitle,
                   { color: theme.dark ? 'rgba(255,255,255,0.7)' : '#6B7280' }
                 ]}>
-                  Sign with your initials
+                  Please read and agree to the following terms before joining this event
                 </Text>
-                <TextInput
+
+                {/* Scrollable waiver text */}
+                <ScrollView
                   style={[
-                    styles.waiverInitialsInput,
-                    {
-                      backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : '#FFFFFF',
-                      borderColor: waiverInitials.length > 0
-                        ? (theme.dark ? '#60A5FA' : '#1B365D')
-                        : (theme.dark ? 'rgba(255,255,255,0.2)' : '#D1D5DB'),
-                      color: theme.dark ? '#FFFFFF' : '#1B365D',
-                    }
+                    styles.waiverFullPageTextContainer,
+                    { backgroundColor: theme.dark ? 'rgba(255,255,255,0.05)' : '#F9FAFB' }
                   ]}
-                  value={waiverInitials}
-                  onChangeText={(text) => waiverScrolledToBottom && setWaiverInitials(text)}
-                  editable={waiverScrolledToBottom}
-                  placeholder="AB"
-                  placeholderTextColor={theme.dark ? 'rgba(255,255,255,0.3)' : '#9CA3AF'}
-                  autoCapitalize="characters"
-                  maxLength={4}
-                />
-              </View>
-            </Animated.View>
-
-            <View style={styles.waiverButtonRow}>
-              <TouchableOpacity
-                style={[
-                  styles.waiverCancelButton,
-                  { backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }
-                ]}
-                onPress={dismissWaiverModal}
-              >
-                <Text style={[
-                  styles.waiverCancelButtonText,
-                  { color: theme.dark ? 'rgba(255,255,255,0.8)' : '#6B7280' }
-                ]}>Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.waiverConfirmButton,
-                  {
-                    backgroundColor: (waiverAgreed && waiverInitials.length > 0)
-                      ? (theme.dark ? '#60A5FA' : '#1B365D')
-                      : (theme.dark ? 'rgba(255,255,255,0.1)' : '#D1D5DB'),
-                  }
-                ]}
-                onPress={async () => {
-                  // IMPORTANT: Store waiver signature BEFORE joining the event
-                  // This ensures we have proof of agreement in the database
-                  if (event && user) {
-                    const signResult = await storeWaiverSignature(
-                      event.id,
-                      user.uid,
-                      waiverInitials
-                    );
-                    if (!signResult.success) {
-                      // If signature storage fails, stop here and don't join the event
-                      Alert.alert('Error', 'Failed to record waiver signature. Please try again.');
-                      return;
+                  contentContainerStyle={styles.waiverFullPageTextContent}
+                  showsVerticalScrollIndicator
+                  persistentScrollbar
+                  onScroll={handleWaiverScroll}
+                  scrollEventThrottle={16}
+                  keyboardShouldPersistTaps="handled"
+                  onContentSizeChange={(contentWidth, contentHeight) => {
+                    const containerHeight = Dimensions.get('window').height * 0.35;
+                    if (contentHeight <= containerHeight && !waiverScrolledToBottom) {
+                      setWaiverScrolledToBottom(true);
                     }
-                  }
+                  }}
+                >
+                  <Text style={[
+                    styles.waiverText,
+                    { color: theme.dark ? 'rgba(255,255,255,0.9)' : '#374151' }
+                  ]}>{event?.waiverText}</Text>
+                </ScrollView>
 
-                  // Signature stored successfully, now dismiss the modal with animation
-                  Animated.timing(waiverSheetAnim, {
-                    toValue: Dimensions.get('window').height, // Slide down off-screen
-                    duration: 250,
-                    useNativeDriver: true,
-                  }).start(() => {
-                    // After animation completes, reset all waiver-related state
-                    setWaiverModalVisible(false);
-                    setWaiverInitials('');
-                    setWaiverAgreed(false);
-                    setWaiverScrolledToBottom(false);
-                    // Finally, proceed with joining the event (payment or free join)
-                    proceedWithJoin();
-                  });
-                }}
-                disabled={!waiverAgreed || waiverInitials.length === 0}
-              >
-                <Text style={[
-                  styles.waiverConfirmButtonText,
+                <Animated.Text style={[
+                  styles.waiverScrollHint,
                   {
-                    color: (waiverAgreed && waiverInitials.length > 0)
-                      ? '#FFFFFF'
-                      : (theme.dark ? 'rgba(255,255,255,0.4)' : '#9CA3AF'),
+                    color: theme.dark ? 'rgba(255,255,255,0.5)' : '#9CA3AF',
+                    opacity: waiverHintOpacity,
                   }
                 ]}>
-                  Continue
-                </Text>
-              </TouchableOpacity>
-            </View>
+                  ↓ Scroll to read entire waiver
+                </Animated.Text>
+
+                {/* Agreement section */}
+                <Animated.View style={[
+                  styles.waiverAgreementSection,
+                  {
+                    backgroundColor: theme.dark ? 'rgba(255,255,255,0.05)' : '#F9FAFB',
+                    borderColor: theme.dark ? 'rgba(255,255,255,0.1)' : '#E5E7EB',
+                    opacity: waiverAgreementOpacity,
+                  }
+                ]}>
+                  <TouchableOpacity
+                    style={[
+                      styles.waiverCheckboxRow,
+                      {
+                        backgroundColor: theme.dark ? 'rgba(255,255,255,0.08)' : '#F3F4F6',
+                        borderColor: waiverAgreed
+                          ? (theme.dark ? '#60A5FA' : '#1B365D')
+                          : (theme.dark ? 'rgba(255,255,255,0.2)' : '#D1D5DB'),
+                      }
+                    ]}
+                    onPress={() => waiverScrolledToBottom && setWaiverAgreed(!waiverAgreed)}
+                    activeOpacity={waiverScrolledToBottom ? 0.7 : 1}
+                    disabled={!waiverScrolledToBottom}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: waiverAgreed, disabled: !waiverScrolledToBottom }}
+                    accessibilityLabel="I have read and agree to the terms above"
+                  >
+                    <IconButton
+                      icon={waiverAgreed ? "checkbox-marked" : "checkbox-blank-outline"}
+                      size={24}
+                      iconColor={waiverAgreed
+                        ? (theme.dark ? '#60A5FA' : '#1B365D')
+                        : (theme.dark ? 'rgba(255,255,255,0.5)' : '#9CA3AF')}
+                      style={{ margin: 0 }}
+                    />
+                    <Text style={[
+                      styles.waiverCheckboxText,
+                      { color: theme.dark ? '#FFFFFF' : '#374151' }
+                    ]}>
+                      I have read and agree to the terms above
+                    </Text>
+                  </TouchableOpacity>
+
+                  <View style={styles.waiverInitialsRow}>
+                    <Text style={[
+                      styles.waiverInitialsLabel,
+                      { color: theme.dark ? 'rgba(255,255,255,0.7)' : '#6B7280' }
+                    ]}>
+                      Sign with your initials
+                    </Text>
+                    <TextInput
+                      style={[
+                        styles.waiverInitialsInput,
+                        {
+                          backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : '#FFFFFF',
+                          borderColor: waiverInitials.length > 0
+                            ? (theme.dark ? '#60A5FA' : '#1B365D')
+                            : (theme.dark ? 'rgba(255,255,255,0.2)' : '#D1D5DB'),
+                          color: theme.dark ? '#FFFFFF' : '#1B365D',
+                        }
+                      ]}
+                      value={waiverInitials}
+                      onChangeText={(text) => waiverScrolledToBottom && setWaiverInitials(text)}
+                      editable={waiverScrolledToBottom}
+                      placeholder="AB"
+                      placeholderTextColor={theme.dark ? 'rgba(255,255,255,0.3)' : '#9CA3AF'}
+                      autoCapitalize="characters"
+                      maxLength={4}
+                    />
+                  </View>
+                </Animated.View>
+
+                {/* Bottom buttons */}
+                <View style={styles.waiverButtonRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.waiverCancelButton,
+                      { backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : '#F3F4F6' }
+                    ]}
+                    onPress={dismissWaiverModal}
+                  >
+                    <Text style={[
+                      styles.waiverCancelButtonText,
+                      { color: theme.dark ? 'rgba(255,255,255,0.8)' : '#6B7280' }
+                    ]}>Cancel</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.waiverConfirmButton,
+                      {
+                        backgroundColor: (waiverAgreed && waiverInitials.length > 0)
+                          ? (theme.dark ? '#60A5FA' : '#1B365D')
+                          : (theme.dark ? 'rgba(255,255,255,0.1)' : '#D1D5DB'),
+                      }
+                    ]}
+                    onPress={async () => {
+                      if (event && user) {
+                        const signResult = await storeWaiverSignature(
+                          event.id,
+                          user.uid,
+                          waiverInitials
+                        );
+                        if (!signResult.success) {
+                          Alert.alert('Error', 'Failed to record waiver signature. Please try again.');
+                          return;
+                        }
+                      }
+
+                      Animated.timing(waiverSheetAnim, {
+                        toValue: Dimensions.get('window').height,
+                        duration: 250,
+                        useNativeDriver: true,
+                      }).start(() => {
+                        setWaiverModalVisible(false);
+                        setWaiverInitials('');
+                        setWaiverAgreed(false);
+                        setWaiverScrolledToBottom(false);
+                        proceedWithJoin();
+                      });
+                    }}
+                    disabled={!waiverAgreed || waiverInitials.length === 0}
+                  >
+                    <Text style={[
+                      styles.waiverConfirmButtonText,
+                      {
+                        color: (waiverAgreed && waiverInitials.length > 0)
+                          ? '#FFFFFF'
+                          : (theme.dark ? 'rgba(255,255,255,0.4)' : '#9CA3AF'),
+                      }
+                    ]}>
+                      Continue
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </SafeAreaView>
+            </KeyboardAvoidingView>
           </Animated.View>
         </Animated.View>
       </Modal>
@@ -1885,35 +1847,39 @@ const styles = StyleSheet.create({
   waiverModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'flex-end',
   },
-  waiverModalBackdrop: {
+  waiverFullPageContent: {
     flex: 1,
-  },
-  waiverModalContent: {
-    backgroundColor: '#fff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-    maxHeight: '80%',
   },
-  waiverHandleArea: {
-    paddingTop: 12,
-    paddingBottom: 8,
-    alignItems: 'center',
+  waiverKeyboardAvoid: {
+    flex: 1,
   },
-  waiverModalHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 2,
-    marginBottom: 12,
+  waiverSafeArea: {
+    flex: 1,
   },
-  waiverModalHeader: {
+  waiverFullPageHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+  },
+  waiverCloseButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  waiverHeaderCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  waiverHeaderSpacer: {
+    width: 44,
   },
   waiverModalTitle: {
     fontSize: 22,
@@ -1925,14 +1891,17 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginBottom: 16,
     lineHeight: 20,
+    paddingHorizontal: 24,
   },
-  waiverTextContainer: {
-    backgroundColor: '#F9FAFB',
+  waiverFullPageTextContainer: {
+    flex: 1,
+    marginHorizontal: 24,
     borderRadius: 12,
-    padding: 16,
-    minHeight: 110, // At least 5 lines (5 * 22 lineHeight)
-    maxHeight: 250,
     marginBottom: 8,
+    maxHeight: '40%',
+  },
+  waiverFullPageTextContent: {
+    padding: 16,
   },
   waiverText: {
     fontSize: 14,
@@ -1942,7 +1911,7 @@ const styles = StyleSheet.create({
   waiverScrollHint: {
     fontSize: 13,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
     fontStyle: 'italic',
   },
   waiverAgreementSection: {
@@ -1950,6 +1919,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 16,
     marginBottom: 20,
+    marginHorizontal: 24,
   },
   waiverCheckboxRow: {
     flexDirection: 'row',
@@ -1988,6 +1958,9 @@ const styles = StyleSheet.create({
   waiverButtonRow: {
     flexDirection: 'row',
     gap: 12,
+    marginTop: 'auto',
+    paddingHorizontal: 24,
+    paddingBottom: 16,
   },
   waiverCancelButton: {
     flex: 1,
