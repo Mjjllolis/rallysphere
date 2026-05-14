@@ -1,6 +1,6 @@
 // app/event/[id].tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Linking, Dimensions, TouchableOpacity, ActivityIndicator, Modal, Animated, TextInput, Pressable, Platform, RefreshControl, KeyboardAvoidingView } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Linking, Dimensions, TouchableOpacity, ActivityIndicator, Modal, Animated, TextInput, Pressable, Platform, RefreshControl, Keyboard } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import {
   Text,
@@ -11,7 +11,7 @@ import {
   useTheme
 } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { router, useLocalSearchParams, Stack, useFocusEffect } from 'expo-router';
 import { useAuth, useThemeToggle } from '../_layout';
@@ -63,10 +63,13 @@ export default function EventDetailScreen() {
   const waiverHintOpacity = useRef(new Animated.Value(1)).current;
   const waiverAgreementOpacity = useRef(new Animated.Value(0.4)).current;
   const signedWaiverSheetAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
+  const keyboardHeight = useRef(new Animated.Value(0)).current;
   const cachedPdfUri = useRef<string | null>(null);
 
   // Dismiss waiver modal with slide-down animation
   const dismissWaiverModal = () => {
+    Keyboard.dismiss();
+    keyboardHeight.setValue(0);
     Animated.timing(waiverSheetAnim, {
       toValue: Dimensions.get('window').height,
       duration: 250,
@@ -209,6 +212,37 @@ export default function EventDetailScreen() {
       waiverSheetAnim.setValue(Dimensions.get('window').height);
     }
   }, [waiverModalVisible]);
+
+  // Smooth keyboard animation for waiver modal
+  useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        Animated.spring(keyboardHeight, {
+          toValue: e.endCoordinates.height,
+          useNativeDriver: false,
+          damping: 100,
+          stiffness: 400,
+        }).start();
+      }
+    );
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        Animated.spring(keyboardHeight, {
+          toValue: 0,
+          useNativeDriver: false,
+          damping: 100,
+          stiffness: 400,
+        }).start();
+      }
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
+  }, []);
 
   // Animate signed waiver sheet slide up/down
   useEffect(() => {
@@ -1207,14 +1241,12 @@ export default function EventDetailScreen() {
             { backgroundColor: theme.dark ? '#000000' : '#FFFFFF' },
             { transform: [{ translateY: waiverSheetAnim }] }
           ]}>
-            <KeyboardAvoidingView
-              style={styles.waiverKeyboardAvoid}
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              keyboardVerticalOffset={0}
+            <Animated.View
+              style={[styles.waiverKeyboardAvoid, { paddingBottom: keyboardHeight }]}
             >
-              <SafeAreaView style={styles.waiverSafeArea}>
+              <View style={styles.waiverSafeArea}>
                 {/* Header with close button */}
-                <View style={styles.waiverFullPageHeader}>
+                <View style={[styles.waiverFullPageHeader, { paddingTop: insets.top + 16 }]}>
                   <TouchableOpacity
                     style={styles.waiverCloseButton}
                     onPress={dismissWaiverModal}
@@ -1405,8 +1437,8 @@ export default function EventDetailScreen() {
                     </Text>
                   </TouchableOpacity>
                 </View>
-              </SafeAreaView>
-            </KeyboardAvoidingView>
+              </View>
+            </Animated.View>
           </Animated.View>
         </Animated.View>
       </Modal>
