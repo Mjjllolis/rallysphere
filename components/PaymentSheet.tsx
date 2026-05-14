@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View, StyleSheet, Alert, Platform, TouchableOpacity,
-  Animated, Dimensions, ScrollView, Modal, KeyboardAvoidingView,
+  Animated, Dimensions, ScrollView, Modal, KeyboardAvoidingView, Image, Easing,
 } from 'react-native';
 import { Button, Text, ActivityIndicator, useTheme, Divider, IconButton } from 'react-native-paper';
 import { WebView } from 'react-native-webview';
@@ -15,10 +15,15 @@ import {
   getFinixTokenizationContext,
   buildFinixTokenizeUrl,
   createEventTransaction,
+  listSavedPaymentInstruments,
   type FinixTokenizationContext,
+  type SavedPaymentInstrument,
 } from '../lib/finix';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const SLIDE_DURATION = 280;
+const SUMMARY_HEIGHT = Math.round(SCREEN_HEIGHT * 0.5);
+const PAYMENT_HEIGHT = Math.round(SCREEN_HEIGHT * 0.92);
 
 interface PaymentSheetProps {
   visible: boolean;
@@ -33,6 +38,9 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
   const insets = useSafeAreaInsets();
   const webViewRef = useRef<any>(null);
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const slideX = useRef(new Animated.Value(0)).current;
+  const sheetHeight = useRef(new Animated.Value(SUMMARY_HEIGHT)).current;
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
 
   const [loading, setLoading] = useState(false);
   const [finixContext, setFinixContext] = useState<FinixTokenizationContext | null>(null);
@@ -44,9 +52,12 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
   const [webViewHeight, setWebViewHeight] = useState<number>(480);
   const [step, setStep] = useState<'summary' | 'payment'>('summary');
 
-  // Stable URL — recomputed only when the inputs that actually matter change.
-  // Including Date.now() inline would re-mount the WebView on every render and
-  // restart page load before the Finix SDK could finish executing.
+  // Saved payment methods state
+  const [savedInstruments, setSavedInstruments] = useState<SavedPaymentInstrument[]>([]);
+  const [selectedSavedPiId, setSelectedSavedPiId] = useState<string | null>(null);
+  const [useNewCard, setUseNewCard] = useState(false);
+  const [saveNewCard, setSaveNewCard] = useState(false);
+
   const tokenizeUrl = useMemo(() => {
     if (!finixContext) return null;
     return buildFinixTokenizeUrl({
@@ -68,19 +79,52 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
 
   useEffect(() => {
     if (visible) {
-      Animated.spring(slideAnim, {
-        toValue: 0, useNativeDriver: true, tension: 50, friction: 8,
-      }).start();
+      slideX.setValue(0);
+      sheetHeight.setValue(SUMMARY_HEIGHT);
+      // Reset to off-screen BEFORE starting the open animation. Without this,
+      // a previously interrupted close (Modal unmounted mid-animation) can leave
+      // slideAnim partway up — causing the next open to animate from ~0 to 0,
+      // which looks like an instant jump.
+      slideAnim.setValue(SCREEN_HEIGHT);
+      backdropOpacity.setValue(0);
+      setStep('summary');
+      // Smooth ease-out slide-up + backdrop fade to match the horizontal swipe.
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: SLIDE_DURATION,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(backdropOpacity, {
+          toValue: 1,
+          duration: SLIDE_DURATION,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
       loadFeeBreakdown(event.ticketPrice);
       loadDiscounts();
+      loadSavedInstruments();
       setSelectedDiscount(null);
       setShowDiscounts(false);
-      setStep('summary');
+      setSaveNewCard(false);
       initPayment();
     } else {
-      Animated.timing(slideAnim, {
-        toValue: SCREEN_HEIGHT, duration: 250, useNativeDriver: true,
-      }).start();
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: SCREEN_HEIGHT,
+          duration: SLIDE_DURATION,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(backdropOpacity, {
+          toValue: 0,
+          duration: SLIDE_DURATION,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
       setFinixContext(null);
       setFormReady(false);
     }
@@ -106,6 +150,27 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
       Alert.alert('Error', e.message || 'Failed to initialize payment');
     } finally {
       setInitializingPayment(false);
+    }
+  };
+
+  const loadSavedInstruments = async () => {
+    try {
+      const result = await listSavedPaymentInstruments();
+      if (result.success && result.instruments) {
+        setSavedInstruments(result.instruments);
+        const defaultPi = result.instruments.find((i) => i.isDefault) || result.instruments[0];
+        setSelectedSavedPiId(defaultPi ? defaultPi.piId : null);
+        // If user has saved cards, default to using one of them, not the form
+        setUseNewCard(result.instruments.length === 0);
+      } else {
+        setSavedInstruments([]);
+        setSelectedSavedPiId(null);
+        setUseNewCard(true);
+      }
+    } catch {
+      setSavedInstruments([]);
+      setSelectedSavedPiId(null);
+      setUseNewCard(true);
     }
   };
 
@@ -212,6 +277,45 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
     setShowDiscounts(false);
   };
 
+  const goToPayment = () => {
+    setStep('payment');
+    Animated.parallel([
+      Animated.timing(slideX, {
+        toValue: -SCREEN_WIDTH,
+        duration: SLIDE_DURATION,
+        useNativeDriver: true,
+      }),
+      Animated.timing(sheetHeight, {
+        toValue: PAYMENT_HEIGHT,
+        duration: SLIDE_DURATION,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  };
+
+  const goToSummary = () => {
+    Animated.parallel([
+      Animated.timing(slideX, {
+        toValue: 0,
+        duration: SLIDE_DURATION,
+        useNativeDriver: true,
+      }),
+      Animated.timing(sheetHeight, {
+        toValue: SUMMARY_HEIGHT,
+        duration: SLIDE_DURATION,
+        useNativeDriver: false,
+      }),
+    ]).start(() => setStep('summary'));
+  };
+
+  const handleRequestClose = () => {
+    if (step === 'payment') {
+      goToSummary();
+    } else {
+      onDismiss();
+    }
+  };
+
   const handleWebViewMessage = async (event_: any) => {
     try {
       const msg = JSON.parse(event_.nativeEvent.data);
@@ -237,7 +341,9 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
       } else if (msg.type === 'tab') {
         setPaymentMethod(msg.paymentMethod || 'card');
       } else if (msg.type === 'token') {
-        await processPayment(msg.tokenId, msg.paymentMethod || 'card', msg.fraudSessionId);
+        await processPayment(msg.tokenId, msg.paymentMethod || 'card', msg.fraudSessionId, {
+          savePaymentMethod: saveNewCard && (msg.paymentMethod || 'card') === 'card',
+        });
       } else if (msg.type === 'error') {
         setLoading(false);
         Alert.alert('Payment Error', msg.message || 'An error occurred');
@@ -245,7 +351,12 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
     } catch (e) { /* ignore */ }
   };
 
-  const processPayment = async (tokenId: string, method: string, fraudSessionId?: string) => {
+  const processPayment = async (
+    tokenId: string | null,
+    method: string,
+    fraudSessionId?: string,
+    opts?: { savedPaymentInstrumentId?: string; savePaymentMethod?: boolean }
+  ) => {
     const { ticketPrice: discountedTicketPrice, discount: discountAmount, isFree } = calculateDiscountedPrice();
     const userId = auth.currentUser?.uid;
 
@@ -278,7 +389,9 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
       }
 
       const result = await createEventTransaction({
-        tokenId,
+        tokenId: tokenId || undefined,
+        savedPaymentInstrumentId: opts?.savedPaymentInstrumentId,
+        savePaymentMethod: opts?.savePaymentMethod,
         fraudSessionId,
         paymentMethod: method as any,
         eventId: event.id,
@@ -328,12 +441,34 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
       return;
     }
 
+    // Saved-card path — skip tokenization entirely
+    if (!useNewCard && selectedSavedPiId) {
+      setLoading(true);
+      processPayment(null, 'card', undefined, { savedPaymentInstrumentId: selectedSavedPiId });
+      return;
+    }
+
     if (!formReady) {
       Alert.alert('Error', 'Payment form is not ready yet. Please wait a moment.');
       return;
     }
     setLoading(true);
     webViewRef.current?.injectJavaScript('window.__submit && window.__submit(); true;');
+  };
+
+  const formatBrand = (brand: string | null): string => {
+    if (!brand) return 'Card';
+    const map: Record<string, string> = {
+      visa: 'Visa',
+      mastercard: 'Mastercard',
+      amex: 'American Express',
+      'american express': 'American Express',
+      discover: 'Discover',
+      diners: 'Diners Club',
+      jcb: 'JCB',
+      unionpay: 'UnionPay',
+    };
+    return map[brand.toLowerCase()] || brand.charAt(0).toUpperCase() + brand.slice(1);
   };
 
   const formatPrice = (price: number, currency: string = 'USD') => {
@@ -346,304 +481,411 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
   const { ticketPrice: discountedTicketPrice, discount: discountAmount, isFree } = calculateDiscountedPrice();
 
   return (
-    <>
-    <Modal visible={visible} onRequestClose={onDismiss} transparent animationType="none" statusBarTranslucent>
-      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onDismiss} />
-
-      <Animated.View
-        style={[styles.sheet, { backgroundColor: theme.colors.surface, transform: [{ translateY: slideAnim }] }]}
-      >
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }} keyboardVerticalOffset={0}>
-        {/* Handle */}
-        <View style={styles.handleContainer}>
-          <View style={[styles.handle, { backgroundColor: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)' }]} />
-        </View>
-
-        <TouchableOpacity
-          style={[styles.closeButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
-          onPress={onDismiss}
-        >
-          <Text style={[styles.closeIcon, { color: theme.colors.onSurfaceVariant }]}>✕</Text>
-        </TouchableOpacity>
-
-        <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 + insets.bottom }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-          <View style={styles.content}>
-            <Text variant="headlineSmall" style={styles.title}>Complete Purchase</Text>
-            {/* Event Info */}
-            <View style={styles.eventInfo}>
-              <Text variant="labelMedium" style={styles.sectionLabel}>EVENT</Text>
-              <Text variant="titleLarge" style={styles.eventTitle}>{event.title}</Text>
-              <Text variant="labelMedium" style={[styles.sectionLabel, { marginTop: 16 }]}>ORGANIZER</Text>
-              <Text variant="bodyLarge">{event.clubName}</Text>
-            </View>
-
-            {/* Rally Credits Discounts */}
-            {eventRedemptions.length > 0 && (
-              <View style={styles.discountSection}>
-                <Text variant="labelMedium" style={styles.sectionLabel}>RALLY CREDITS REWARDS</Text>
-
-                {selectedDiscount ? (
-                  <View style={styles.appliedDiscount}>
-                    <LinearGradient
-                      colors={['rgba(255, 215, 0, 0.15)', 'rgba(255, 165, 0, 0.1)']}
-                      style={styles.appliedDiscountGradient}
-                    >
-                      <View style={[styles.appliedDiscountContent, { backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.7)' }]}>
-                        <View style={styles.appliedDiscountLeft}>
-                          <Text style={styles.appliedDiscountIcon}>⭐</Text>
-                          <View>
-                            <Text style={styles.appliedDiscountName}>{selectedDiscount.name}</Text>
-                            <Text style={[styles.appliedDiscountValue, { color: theme.colors.onSurfaceVariant }]}>
-                              {getDiscountDescription(selectedDiscount)} • {selectedDiscount.creditsRequired} credits
-                            </Text>
-                          </View>
-                        </View>
-                        <TouchableOpacity onPress={() => setSelectedDiscount(null)} style={styles.removeDiscountButton}>
-                          <IconButton icon="close" size={18} iconColor="#F59E0B" style={{ margin: 0 }} />
-                        </TouchableOpacity>
-                      </View>
-                    </LinearGradient>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.showDiscountsButton}
-                    onPress={() => setShowDiscounts(!showDiscounts)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.showDiscountsContent}>
-                      <Text style={styles.showDiscountsIcon}>⭐</Text>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.showDiscountsText}>Apply Rally Credits Reward</Text>
-                        <Text style={[styles.showDiscountsSubtext, { color: theme.colors.onSurfaceVariant }]}>
-                          You have {userCredits?.availableCredits || 0} credits available
-                        </Text>
-                      </View>
-                      <IconButton icon={showDiscounts ? 'chevron-up' : 'chevron-down'} size={24} iconColor="#F59E0B" style={{ margin: 0 }} />
-                    </View>
-                  </TouchableOpacity>
-                )}
-
-                {showDiscounts && !selectedDiscount && (
-                  <View style={[styles.discountsList, { borderColor: theme.colors.outline }]}>
-                    {loadingDiscounts ? (
-                      <ActivityIndicator size="small" color="#F59E0B" style={{ padding: 20 }} />
-                    ) : (
-                      eventRedemptions.map((redemption) => {
-                        const canAfford = canAffordDiscount(redemption);
-                        return (
-                          <TouchableOpacity
-                            key={redemption.id}
-                            style={[styles.discountItem, { borderBottomColor: theme.colors.outline }, !canAfford && styles.discountItemDisabled]}
-                            onPress={() => handleApplyDiscount(redemption)}
-                            disabled={!canAfford}
-                            activeOpacity={0.7}
-                          >
-                            <View style={styles.discountItemContent}>
-                              <View style={styles.discountItemLeft}>
-                                <Text style={{ fontSize: 20, marginRight: 12, opacity: canAfford ? 1 : 0.5 }}>
-                                  {redemption.type === 'event_free_admission' ? '🎟️' : '🏷️'}
-                                </Text>
-                                <View style={{ flex: 1 }}>
-                                  <Text style={[styles.discountItemName, { color: theme.colors.onSurface, opacity: canAfford ? 1 : 0.5 }]}>
-                                    {redemption.name}
-                                  </Text>
-                                  <Text style={[styles.discountItemValue, { opacity: canAfford ? 1 : 0.5 }]}>
-                                    {getDiscountDescription(redemption)}
-                                  </Text>
-                                </View>
-                              </View>
-                              <View style={[styles.creditsBadge, !canAfford && styles.creditsBadgeDisabled]}>
-                                <Text style={styles.creditsBadgeIcon}>⭐</Text>
-                                <Text style={[styles.creditsBadgeText, !canAfford && { color: '#999' }]}>
-                                  {redemption.creditsRequired}
-                                </Text>
-                              </View>
-                            </View>
-                          </TouchableOpacity>
-                        );
-                      })
-                    )}
-                  </View>
-                )}
-              </View>
-            )}
-
-            {/* Price Breakdown */}
-            <View style={styles.breakdown}>
-              <Text variant="labelMedium" style={styles.sectionLabel}>PAYMENT DETAILS</Text>
-
-              <View style={styles.breakdownRow}>
-                <Text variant="bodyLarge">Ticket Price</Text>
-                <Text variant="bodyLarge">{formatPrice(event.ticketPrice || 0, event.currency)}</Text>
-              </View>
-
-              {selectedDiscount && discountAmount > 0 && (
-                <View style={styles.breakdownRow}>
-                  <Text variant="bodyMedium" style={{ color: '#10B981' }}>Rally Credits Discount</Text>
-                  <Text variant="bodyMedium" style={{ color: '#10B981' }}>-{formatPrice(discountAmount, event.currency)}</Text>
-                </View>
-              )}
-
-              {feeBreakdown && !isFree && discountedTicketPrice > 0 && (
-                <View style={styles.breakdownRow}>
-                  <Text variant="bodyMedium" style={{ opacity: 0.7 }}>Service Fee (10% + $0.29)</Text>
-                  <Text variant="bodyMedium" style={{ opacity: 0.7 }}>{formatPrice(feeBreakdown.processingFee, event.currency)}</Text>
-                </View>
-              )}
-
-              <Divider style={{ marginVertical: 12 }} />
-
-              <View style={styles.breakdownRow}>
-                <Text variant="titleMedium" style={{ fontWeight: 'bold' }}>Total</Text>
-                <Text variant="titleLarge" style={{ fontWeight: 'bold', color: isFree ? '#10B981' : theme.colors.primary }}>
-                  {isFree ? 'FREE' : feeBreakdown ? formatPrice(feeBreakdown.totalAmount, event.currency) : formatPrice(discountedTicketPrice, event.currency)}
-                </Text>
-              </View>
-
-              {selectedDiscount && (
-                <Text style={{ color: '#F59E0B', fontSize: 13, marginTop: 4 }}>
-                  ⭐ {selectedDiscount.creditsRequired} Rally Credits will be spent
-                </Text>
-              )}
-            </View>
-
-            {/* Summary step bottom button: Continue or Claim Free */}
-            <TouchableOpacity
-              style={[styles.continueButton, { backgroundColor: isFree ? '#10B981' : theme.colors.primary, opacity: (loading || (!isFree && !feeBreakdown)) ? 0.7 : 1 }]}
-              onPress={isFree ? handlePay : () => setStep('payment')}
-              disabled={loading || (!isFree && !feeBreakdown)}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <Text style={styles.continueButtonText}>
-                    {isFree
-                      ? 'Claim Free Ticket'
-                      : `Continue to Payment — ${feeBreakdown ? formatPrice(feeBreakdown.totalAmount, event.currency) : formatPrice(discountedTicketPrice, event.currency)}`}
-                  </Text>
-                  <Text style={styles.continueButtonSubtext}>
-                    {isFree ? `Using ${selectedDiscount?.creditsRequired} Rally Credits` : 'Next: enter card or bank details'}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-        </KeyboardAvoidingView>
+    <Modal visible={visible} onRequestClose={handleRequestClose} transparent animationType="none" statusBarTranslucent>
+      {/* Backdrop fades in/out alongside the slide. Inner pressable handles dismiss-on-tap. */}
+      <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
+        <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={onDismiss} />
       </Animated.View>
-    </Modal>
 
-    {/* Payment popup — slides up over the summary sheet */}
-    <Modal
-      visible={visible && step === 'payment'}
-      onRequestClose={() => setStep('summary')}
-      transparent
-      animationType="slide"
-      statusBarTranslucent
-    >
-      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setStep('summary')} />
-      <View style={[styles.sheet, { backgroundColor: theme.colors.surface, height: '92%' }]}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }} keyboardVerticalOffset={0}>
+      {/* Outer wrapper: native-driven open/close translateY. */}
+      {/* Inner: JS-driven height (layout). Splitting avoids the native/JS driver collision. */}
+      <Animated.View
+        style={[styles.sheetWrapper, { transform: [{ translateY: slideAnim }] }]}
+      >
+        <Animated.View
+          style={[
+            styles.sheet,
+            {
+              backgroundColor: theme.colors.surface,
+              height: sheetHeight,
+            },
+          ]}
+        >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={0}
+        >
+          {/* Handle */}
           <View style={styles.handleContainer}>
             <View style={[styles.handle, { backgroundColor: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)' }]} />
           </View>
 
+          {/* Close button — closes the whole sheet on either step */}
           <TouchableOpacity
             style={[styles.closeButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
-            onPress={() => setStep('summary')}
+            onPress={onDismiss}
           >
             <Text style={[styles.closeIcon, { color: theme.colors.onSurfaceVariant }]}>✕</Text>
           </TouchableOpacity>
 
-          <View style={[styles.content, { paddingBottom: 0, paddingTop: 4 }]}>
-            <View style={styles.stepHeader}>
-              <TouchableOpacity onPress={() => setStep('summary')} style={styles.backButton} activeOpacity={0.7}>
-                <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>← Back</Text>
-              </TouchableOpacity>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text variant="titleMedium" style={{ fontWeight: 'bold' }} numberOfLines={1}>{event.title}</Text>
-                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                  Total: {feeBreakdown ? formatPrice(feeBreakdown.totalAmount, event.currency) : formatPrice(event.ticketPrice || 0, event.currency)}
-                </Text>
-              </View>
-            </View>
-            <Text variant="labelMedium" style={[styles.sectionLabel, { marginBottom: 4 }]}>PAYMENT METHOD</Text>
-          </View>
-
-          {!isFree && finixContext && tokenizeUrl ? (
-            <WebView
-              ref={webViewRef}
-              source={{ uri: tokenizeUrl }}
-              style={{ flex: 1, backgroundColor: 'transparent', marginHorizontal: 20 }}
-              containerStyle={{ backgroundColor: 'transparent', flex: 1 }}
-              onMessage={handleWebViewMessage}
-              javaScriptEnabled
-              scrollEnabled
-              showsVerticalScrollIndicator
-              originWhitelist={['*']}
-              mixedContentMode="always"
-              cacheEnabled={false}
-              incognito
-              backgroundColor="transparent"
-              keyboardDisplayRequiresUserAction={false}
-              hideKeyboardAccessoryView={false}
-            />
-          ) : (
-            <View style={[styles.loadingContainer, { flex: 1, justifyContent: 'center' }]}>
-              <ActivityIndicator size="small" color={theme.colors.primary} />
-              <Text variant="bodySmall" style={{ marginTop: 8, color: theme.colors.onSurfaceVariant }}>
-                Initializing payment...
-              </Text>
-            </View>
-          )}
-
-          {!formReady && diagLog.length > 0 && (
-            <View style={[styles.diagPanel, { marginHorizontal: 20, backgroundColor: isDark ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }]}>
-              <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 4, fontWeight: 'bold' }}>
-                Diagnostics (form not ready)
-              </Text>
-              {diagLog.map((l, i) => (
-                <Text key={i} variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 11 }}>{l}</Text>
-              ))}
-            </View>
-          )}
-
-          <View style={[styles.content, { paddingBottom: insets.bottom + 16, paddingTop: 12 }]}>
-            <TouchableOpacity
-              style={[styles.continueButton, { marginBottom: 0, backgroundColor: theme.colors.primary, opacity: (loading || !formReady) ? 0.7 : 1 }]}
-              onPress={handlePay}
-              disabled={loading || !formReady}
+          {/* Sliding panes container — clips overflow so only one pane shows at a time */}
+          <View style={{ flex: 1, overflow: 'hidden' }}>
+            <Animated.View
+              style={{
+                flexDirection: 'row',
+                width: SCREEN_WIDTH * 2,
+                flex: 1,
+                transform: [{ translateX: slideX }],
+              }}
             >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <Text style={styles.continueButtonText}>
-                    {paymentMethod === 'ach'
-                      ? `Authorize & Pay ${feeBreakdown ? formatPrice(feeBreakdown.totalAmount, event.currency) : formatPrice(discountedTicketPrice, event.currency)}`
-                      : `Pay ${feeBreakdown ? formatPrice(feeBreakdown.totalAmount, event.currency) : formatPrice(discountedTicketPrice, event.currency)}`}
-                  </Text>
-                  <Text style={styles.continueButtonSubtext}>🔒 Secure payment via Finix</Text>
-                </>
-              )}
-            </TouchableOpacity>
+              {/* ============ PANE 1: SUMMARY ============ */}
+              <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
+                <ScrollView
+                  style={styles.scrollView}
+                  contentContainerStyle={[styles.scrollContent, { paddingBottom: 16 }]}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="on-drag"
+                >
+                  <View style={styles.content}>
+                    <Text variant="headlineSmall" style={styles.title}>Complete Purchase</Text>
+
+                    {/* Event Info */}
+                    <View style={styles.eventInfo}>
+                      <Text variant="labelMedium" style={styles.sectionLabel}>EVENT</Text>
+                      <Text variant="titleLarge" style={styles.eventTitle}>{event.title}</Text>
+                      <Text variant="labelMedium" style={[styles.sectionLabel, { marginTop: 16 }]}>ORGANIZER</Text>
+                      <Text variant="bodyLarge">{event.clubName}</Text>
+                    </View>
+
+                    {/* Rally Credits Discounts */}
+                    {eventRedemptions.length > 0 && (
+                      <View style={styles.discountSection}>
+                        <Text variant="labelMedium" style={styles.sectionLabel}>RALLY CREDITS REWARDS</Text>
+
+                        {selectedDiscount ? (
+                          <View style={styles.appliedDiscount}>
+                            <LinearGradient
+                              colors={['rgba(255, 215, 0, 0.15)', 'rgba(255, 165, 0, 0.1)']}
+                              style={styles.appliedDiscountGradient}
+                            >
+                              <View style={[styles.appliedDiscountContent, { backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.7)' }]}>
+                                <View style={styles.appliedDiscountLeft}>
+                                  <Text style={styles.appliedDiscountIcon}>⭐</Text>
+                                  <View>
+                                    <Text style={styles.appliedDiscountName}>{selectedDiscount.name}</Text>
+                                    <Text style={[styles.appliedDiscountValue, { color: theme.colors.onSurfaceVariant }]}>
+                                      {getDiscountDescription(selectedDiscount)} • {selectedDiscount.creditsRequired} credits
+                                    </Text>
+                                  </View>
+                                </View>
+                                <TouchableOpacity onPress={() => setSelectedDiscount(null)} style={styles.removeDiscountButton}>
+                                  <IconButton icon="close" size={18} iconColor="#F59E0B" style={{ margin: 0 }} />
+                                </TouchableOpacity>
+                              </View>
+                            </LinearGradient>
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            style={styles.showDiscountsButton}
+                            onPress={() => setShowDiscounts(!showDiscounts)}
+                            activeOpacity={0.7}
+                          >
+                            <View style={styles.showDiscountsContent}>
+                              <Text style={styles.showDiscountsIcon}>⭐</Text>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.showDiscountsText}>Apply Rally Credits Reward</Text>
+                                <Text style={[styles.showDiscountsSubtext, { color: theme.colors.onSurfaceVariant }]}>
+                                  You have {userCredits?.availableCredits || 0} credits available
+                                </Text>
+                              </View>
+                              <IconButton icon={showDiscounts ? 'chevron-up' : 'chevron-down'} size={24} iconColor="#F59E0B" style={{ margin: 0 }} />
+                            </View>
+                          </TouchableOpacity>
+                        )}
+
+                        {showDiscounts && !selectedDiscount && (
+                          <View style={[styles.discountsList, { borderColor: theme.colors.outline }]}>
+                            {loadingDiscounts ? (
+                              <ActivityIndicator size="small" color="#F59E0B" style={{ padding: 20 }} />
+                            ) : (
+                              eventRedemptions.map((redemption) => {
+                                const canAfford = canAffordDiscount(redemption);
+                                return (
+                                  <TouchableOpacity
+                                    key={redemption.id}
+                                    style={[styles.discountItem, { borderBottomColor: theme.colors.outline }, !canAfford && styles.discountItemDisabled]}
+                                    onPress={() => handleApplyDiscount(redemption)}
+                                    disabled={!canAfford}
+                                    activeOpacity={0.7}
+                                  >
+                                    <View style={styles.discountItemContent}>
+                                      <View style={styles.discountItemLeft}>
+                                        <Text style={{ fontSize: 20, marginRight: 12, opacity: canAfford ? 1 : 0.5 }}>
+                                          {redemption.type === 'event_free_admission' ? '🎟️' : '🏷️'}
+                                        </Text>
+                                        <View style={{ flex: 1 }}>
+                                          <Text style={[styles.discountItemName, { color: theme.colors.onSurface, opacity: canAfford ? 1 : 0.5 }]}>
+                                            {redemption.name}
+                                          </Text>
+                                          <Text style={[styles.discountItemValue, { opacity: canAfford ? 1 : 0.5 }]}>
+                                            {getDiscountDescription(redemption)}
+                                          </Text>
+                                        </View>
+                                      </View>
+                                      <View style={[styles.creditsBadge, !canAfford && styles.creditsBadgeDisabled]}>
+                                        <Text style={styles.creditsBadgeIcon}>⭐</Text>
+                                        <Text style={[styles.creditsBadgeText, !canAfford && { color: '#999' }]}>
+                                          {redemption.creditsRequired}
+                                        </Text>
+                                      </View>
+                                    </View>
+                                  </TouchableOpacity>
+                                );
+                              })
+                            )}
+                          </View>
+                        )}
+                      </View>
+                    )}
+
+                    {/* Price Breakdown */}
+                    <View style={styles.breakdown}>
+                      <Text variant="labelMedium" style={styles.sectionLabel}>PAYMENT DETAILS</Text>
+
+                      <View style={styles.breakdownRow}>
+                        <Text variant="bodyLarge">Ticket Price</Text>
+                        <Text variant="bodyLarge">{formatPrice(event.ticketPrice || 0, event.currency)}</Text>
+                      </View>
+
+                      {selectedDiscount && discountAmount > 0 && (
+                        <View style={styles.breakdownRow}>
+                          <Text variant="bodyMedium" style={{ color: '#10B981' }}>Rally Credits Discount</Text>
+                          <Text variant="bodyMedium" style={{ color: '#10B981' }}>-{formatPrice(discountAmount, event.currency)}</Text>
+                        </View>
+                      )}
+
+                      {feeBreakdown && !isFree && discountedTicketPrice > 0 && (
+                        <View style={styles.breakdownRow}>
+                          <Text variant="bodyMedium" style={{ opacity: 0.7 }}>Service Fee (10% + $0.29)</Text>
+                          <Text variant="bodyMedium" style={{ opacity: 0.7 }}>{formatPrice(feeBreakdown.processingFee, event.currency)}</Text>
+                        </View>
+                      )}
+
+                      <Divider style={{ marginVertical: 12 }} />
+
+                      <View style={styles.breakdownRow}>
+                        <Text variant="titleMedium" style={{ fontWeight: 'bold' }}>Total</Text>
+                        <Text variant="titleLarge" style={{ fontWeight: 'bold', color: isFree ? '#10B981' : theme.colors.primary }}>
+                          {isFree ? 'FREE' : feeBreakdown ? formatPrice(feeBreakdown.totalAmount, event.currency) : formatPrice(discountedTicketPrice, event.currency)}
+                        </Text>
+                      </View>
+
+                      {selectedDiscount && (
+                        <Text style={{ color: '#F59E0B', fontSize: 13, marginTop: 4 }}>
+                          ⭐ {selectedDiscount.creditsRequired} Rally Credits will be spent
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                </ScrollView>
+
+                {/* Fixed footer — Continue / Claim Free button pinned to the bottom of the sheet */}
+                <View style={[styles.content, { paddingBottom: insets.bottom + 16, paddingTop: 8 }]}>
+                  <TouchableOpacity
+                    style={[styles.continueButton, { marginBottom: 0, backgroundColor: isFree ? '#10B981' : theme.colors.primary, opacity: (loading || (!isFree && !feeBreakdown)) ? 0.7 : 1 }]}
+                    onPress={isFree ? handlePay : goToPayment}
+                    disabled={loading || (!isFree && !feeBreakdown)}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <>
+                        <Text style={styles.continueButtonText}>
+                          {isFree
+                            ? 'Claim Free Ticket'
+                            : `Continue to Payment — ${feeBreakdown ? formatPrice(feeBreakdown.totalAmount, event.currency) : formatPrice(discountedTicketPrice, event.currency)}`}
+                        </Text>
+                        <Text style={styles.continueButtonSubtext}>
+                          {isFree ? `Using ${selectedDiscount?.creditsRequired} Rally Credits` : 'Next: enter card or bank details'}
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* ============ PANE 2: PAYMENT ============ */}
+              <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
+                <View style={[styles.content, { paddingBottom: 0, paddingTop: 4 }]}>
+                  <View style={styles.stepHeader}>
+                    <TouchableOpacity onPress={goToSummary} style={styles.backButton} activeOpacity={0.7}>
+                      <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>← Back</Text>
+                    </TouchableOpacity>
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text variant="titleMedium" style={{ fontWeight: 'bold' }} numberOfLines={1}>{event.title}</Text>
+                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                        Total: {feeBreakdown ? formatPrice(feeBreakdown.totalAmount, event.currency) : formatPrice(event.ticketPrice || 0, event.currency)}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text variant="labelMedium" style={[styles.sectionLabel, { marginBottom: 4 }]}>PAYMENT METHOD</Text>
+                </View>
+
+                {/* Body: either saved-card picker or fresh-card WebView */}
+                {!useNewCard && savedInstruments.length > 0 ? (
+                  <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8 }}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    {savedInstruments.map((pi) => {
+                      const selected = selectedSavedPiId === pi.piId;
+                      return (
+                        <TouchableOpacity
+                          key={pi.piId}
+                          onPress={() => setSelectedSavedPiId(pi.piId)}
+                          activeOpacity={0.7}
+                          style={[
+                            styles.savedCardRow,
+                            { borderColor: selected ? theme.colors.primary : theme.colors.outline },
+                          ]}
+                        >
+                          <View style={styles.savedCardLeft}>
+                            <Text style={styles.savedCardBrand}>{formatBrand(pi.brand)}</Text>
+                            <Text style={[styles.savedCardMeta, { color: theme.colors.onSurfaceVariant }]}>
+                              •••• {pi.last4 || '----'}
+                              {pi.expMonth && pi.expYear ? `  ·  ${String(pi.expMonth).padStart(2, '0')}/${String(pi.expYear).slice(-2)}` : ''}
+                              {pi.isDefault ? '  ·  Default' : ''}
+                            </Text>
+                          </View>
+                          <View
+                            style={[
+                              styles.savedCardRadio,
+                              { borderColor: selected ? theme.colors.primary : theme.colors.outline },
+                            ]}
+                          >
+                            {selected && <View style={[styles.savedCardRadioDot, { backgroundColor: theme.colors.primary }]} />}
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                    <TouchableOpacity
+                      onPress={() => setUseNewCard(true)}
+                      activeOpacity={0.7}
+                      style={[styles.useNewCardButton, { borderColor: theme.colors.outline }]}
+                    >
+                      <Text style={[styles.useNewCardText, { color: theme.colors.primary }]}>+ Use new payment</Text>
+                    </TouchableOpacity>
+                  </ScrollView>
+                ) : (
+                  <>
+                    {/* Form area — WebView mounts as soon as tokenizeUrl is ready (modal open).
+                        Overlay covers it with logo + "Initializing form…" until formReady fires. */}
+                    <View style={{ flex: 1, position: 'relative' }}>
+                      {!isFree && finixContext && tokenizeUrl && (
+                        <WebView
+                          ref={webViewRef}
+                          source={{ uri: tokenizeUrl }}
+                          style={{ flex: 1, backgroundColor: 'transparent', marginHorizontal: 20 }}
+                          containerStyle={{ backgroundColor: 'transparent', flex: 1 }}
+                          onMessage={handleWebViewMessage}
+                          javaScriptEnabled
+                          scrollEnabled
+                          showsVerticalScrollIndicator
+                          originWhitelist={['*']}
+                          mixedContentMode="always"
+                          cacheEnabled={false}
+                          incognito
+                          backgroundColor="transparent"
+                          keyboardDisplayRequiresUserAction={false}
+                          hideKeyboardAccessoryView={false}
+                        />
+                      )}
+                      {!formReady && (
+                        <View
+                          style={[
+                            StyleSheet.absoluteFillObject,
+                            styles.formInitOverlay,
+                            { backgroundColor: theme.colors.surface },
+                          ]}
+                        >
+                          <Image
+                            source={require('../assets/Logo.png')}
+                            style={styles.formInitLogo}
+                            resizeMode="contain"
+                          />
+                          <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 16 }}>
+                            Initializing form…
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Save-card opt-in (only for fresh card flow). Wallet/ACH paths can't be saved. */}
+                    {paymentMethod === 'card' && (
+                      <View style={[styles.content, { paddingTop: 0, paddingBottom: 4 }]}>
+                        <TouchableOpacity
+                          onPress={() => setSaveNewCard((v) => !v)}
+                          activeOpacity={0.7}
+                          style={styles.saveCardRow}
+                        >
+                          <View
+                            style={[
+                              styles.saveCardCheckbox,
+                              { borderColor: saveNewCard ? theme.colors.primary : theme.colors.outline, backgroundColor: saveNewCard ? theme.colors.primary : 'transparent' },
+                            ]}
+                          >
+                            {saveNewCard && <Text style={styles.saveCardCheckmark}>✓</Text>}
+                          </View>
+                          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginLeft: 8 }}>
+                            Save this card for next time
+                          </Text>
+                        </TouchableOpacity>
+                        {savedInstruments.length > 0 && (
+                          <TouchableOpacity onPress={() => setUseNewCard(false)} activeOpacity={0.7} style={{ marginTop: 6 }}>
+                            <Text variant="bodySmall" style={{ color: theme.colors.primary }}>← Use a saved card</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    )}
+                  </>
+                )}
+
+                <View style={[styles.content, { paddingBottom: insets.bottom + 16, paddingTop: 12 }]}>
+                  {(() => {
+                    const usingSaved = !useNewCard && !!selectedSavedPiId;
+                    const payDisabled = loading || (!usingSaved && !formReady);
+                    return (
+                  <TouchableOpacity
+                    style={[styles.continueButton, { marginBottom: 0, backgroundColor: theme.colors.primary, opacity: payDisabled ? 0.7 : 1 }]}
+                    onPress={handlePay}
+                    disabled={payDisabled}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.continueButtonText}>
+                        {paymentMethod === 'ach'
+                          ? `Authorize & Pay ${feeBreakdown ? formatPrice(feeBreakdown.totalAmount, event.currency) : formatPrice(discountedTicketPrice, event.currency)}`
+                          : `Pay ${feeBreakdown ? formatPrice(feeBreakdown.totalAmount, event.currency) : formatPrice(discountedTicketPrice, event.currency)}`}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                    );
+                  })()}
+                </View>
+              </View>
+            </Animated.View>
           </View>
         </KeyboardAvoidingView>
-      </View>
+        </Animated.View>
+      </Animated.View>
     </Modal>
-    </>
   );
 }
 
 const styles = StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.85)' },
-  sheet: {
+  sheetWrapper: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    maxHeight: '90%',
     shadowColor: '#000', shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.2, shadowRadius: 8, elevation: 10,
+  },
+  sheet: {
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    overflow: 'hidden',
   },
   handleContainer: { alignItems: 'center', paddingVertical: 12 },
   handle: { width: 40, height: 4, borderRadius: 2 },
@@ -693,7 +935,32 @@ const styles = StyleSheet.create({
   backButton: { paddingVertical: 6, paddingHorizontal: 8, borderRadius: 8 },
   backButtonText: { fontSize: 15, fontWeight: '600' },
   diagPanel: { padding: 10, borderRadius: 8, borderWidth: 1, marginBottom: 16 },
+  formInitOverlay: { alignItems: 'center', justifyContent: 'center' },
+  formInitLogo: { width: 96, height: 96 },
   continueButton: { borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginBottom: 16 },
   continueButtonText: { color: '#fff', fontSize: 17, fontWeight: '700' },
   continueButtonSubtext: { color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 4 },
+  savedCardRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 10,
+  },
+  savedCardLeft: { flex: 1 },
+  savedCardBrand: { fontSize: 15, fontWeight: '600' },
+  savedCardMeta: { fontSize: 12, marginTop: 2 },
+  savedCardRadio: {
+    width: 22, height: 22, borderRadius: 11, borderWidth: 2,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  savedCardRadioDot: { width: 10, height: 10, borderRadius: 5 },
+  useNewCardButton: {
+    borderWidth: 1, borderStyle: 'dashed', borderRadius: 12, padding: 14,
+    alignItems: 'center', marginTop: 4,
+  },
+  useNewCardText: { fontSize: 14, fontWeight: '600' },
+  saveCardRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
+  saveCardCheckbox: {
+    width: 20, height: 20, borderRadius: 4, borderWidth: 2,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  saveCardCheckmark: { color: '#fff', fontSize: 13, fontWeight: 'bold', lineHeight: 14 },
 });

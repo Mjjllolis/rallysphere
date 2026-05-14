@@ -247,6 +247,102 @@ async function createPaymentInstrumentFromToken(
   return pi.id;
 }
 
+interface PaymentInstrumentDetails {
+  brand?: string | null;
+  last4?: string | null;
+  expMonth?: number | null;
+  expYear?: number | null;
+  type?: string | null;
+  fingerprint?: string | null;
+}
+
+async function fetchPaymentInstrumentDetails(piId: string): Promise<PaymentInstrumentDetails> {
+  const pi = await finixGet(`/payment_instruments/${piId}`);
+  return {
+    brand: pi.brand ? String(pi.brand).toLowerCase() : null,
+    last4: pi.last_four ?? null,
+    expMonth: pi.expiration_month ?? null,
+    expYear: pi.expiration_year ?? null,
+    type: pi.instrument_type ?? null,
+    fingerprint: pi.fingerprint ?? null,
+  };
+}
+
+// Resolve the Finix payment_instrument to charge — either an already-saved one
+// (verified to belong to the requesting user) or a freshly tokenized one.
+async function resolvePaymentInstrument(opts: {
+  db: admin.firestore.Firestore;
+  userId: string;
+  buyerIdentityId: string;
+  savedPaymentInstrumentId?: string;
+  tokenId?: string;
+}): Promise<{ paymentInstrumentId: string; usedSaved: boolean }> {
+  if (opts.savedPaymentInstrumentId) {
+    const doc = await opts.db
+      .collection("users").doc(opts.userId)
+      .collection("paymentInstruments").doc(opts.savedPaymentInstrumentId)
+      .get();
+    if (!doc.exists || doc.data()?.disabled) {
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "Saved payment method not found"
+      );
+    }
+    return { paymentInstrumentId: opts.savedPaymentInstrumentId, usedSaved: true };
+  }
+  if (!opts.tokenId) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Either tokenId or savedPaymentInstrumentId is required"
+    );
+  }
+  const piId = await createPaymentInstrumentFromToken(opts.tokenId, opts.buyerIdentityId);
+  return { paymentInstrumentId: piId, usedSaved: false };
+}
+
+// Persist a freshly tokenized payment_instrument to the user's saved cards
+// (only when the user explicitly opted in). De-dupes by Finix fingerprint so
+// re-entering the same card doesn't pile up duplicates.
+async function saveInstrumentForUser(
+  db: admin.firestore.Firestore,
+  userId: string,
+  piId: string,
+  details: PaymentInstrumentDetails
+): Promise<void> {
+  if (details.fingerprint) {
+    const existing = await db
+      .collection("users").doc(userId)
+      .collection("paymentInstruments")
+      .where("fingerprint", "==", details.fingerprint)
+      .limit(1)
+      .get();
+    if (!existing.empty) return;
+  }
+  // Auto-mark the user's first saved card as default so they don't have to.
+  const otherActive = await db
+    .collection("users").doc(userId)
+    .collection("paymentInstruments")
+    .where("disabled", "==", false)
+    .limit(1)
+    .get();
+  const isFirstCard = otherActive.empty;
+  await db
+    .collection("users").doc(userId)
+    .collection("paymentInstruments").doc(piId)
+    .set({
+      piId,
+      brand: details.brand || null,
+      last4: details.last4 || null,
+      expMonth: details.expMonth || null,
+      expYear: details.expYear || null,
+      type: details.type || "PAYMENT_CARD",
+      fingerprint: details.fingerprint || null,
+      isDefault: isFirstCard,
+      disabled: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+}
+
 // ============================================================================
 // GET FINIX TOKENIZATION CONTEXT
 // Frontend calls this before opening the tokenization form to learn which
@@ -299,12 +395,14 @@ export const createEventTransaction = functions.https.onCall(
       discountApplied,
       originalPrice,
       discountAmount,
+      savedPaymentInstrumentId,
+      savePaymentMethod,
     } = data;
 
-    if (!tokenId || !eventId || ticketPrice == null) {
+    if ((!tokenId && !savedPaymentInstrumentId) || !eventId || ticketPrice == null) {
       throw new functions.https.HttpsError(
         "invalid-argument",
-        "Missing required fields: tokenId, eventId, ticketPrice"
+        "Missing required fields: (tokenId or savedPaymentInstrumentId), eventId, ticketPrice"
       );
     }
 
@@ -345,11 +443,13 @@ export const createEventTransaction = functions.https.onCall(
       const totalAmount = ticketPrice + processingFee;
       const clubAmount = ticketPrice;
 
-      // Resolve buyer identity + convert token to payment_instrument
+      // Resolve buyer identity + payment_instrument (either fresh token or saved PI)
       const userDoc = await db.collection("users").doc(userId).get();
       const user = userDoc.exists ? userDoc.data() : null;
       const buyerIdentityId = await ensureBuyerIdentity(db, userId, user);
-      const paymentInstrumentId = await createPaymentInstrumentFromToken(tokenId, buyerIdentityId);
+      const { paymentInstrumentId, usedSaved } = await resolvePaymentInstrument({
+        db, userId, buyerIdentityId, savedPaymentInstrumentId, tokenId,
+      });
 
       // Create Finix transfer (charge)
       const transferBody: any = {
@@ -375,6 +475,17 @@ export const createEventTransaction = functions.https.onCall(
 
       const transactionId = transfer.id;
       console.log(`Finix transfer created: ${transactionId} state=${transfer.state}`);
+
+      // Persist the freshly tokenized PI as a saved card if user opted in.
+      // Skipped when reusing an existing saved PI (it's already saved).
+      if (savePaymentMethod && !usedSaved) {
+        try {
+          const details = await fetchPaymentInstrumentDetails(paymentInstrumentId);
+          await saveInstrumentForUser(db, userId, paymentInstrumentId, details);
+        } catch (e: any) {
+          console.error("Failed to save payment instrument (non-fatal):", e?.message || e);
+        }
+      }
 
       // Add user to event (attendees or waitlist)
       if (eventData?.maxAttendees && (eventData.attendees?.length || 0) >= eventData.maxAttendees) {
@@ -491,12 +602,14 @@ export const createStoreTransaction = functions.https.onCall(
       deliveryMethod,
       shippingAddress,
       rewardDiscount,
+      savedPaymentInstrumentId,
+      savePaymentMethod,
     } = data;
 
-    if (!tokenId || !itemId || !quantity || !deliveryMethod) {
+    if ((!tokenId && !savedPaymentInstrumentId) || !itemId || !quantity || !deliveryMethod) {
       throw new functions.https.HttpsError(
         "invalid-argument",
-        "Missing required fields: tokenId, itemId, quantity, deliveryMethod"
+        "Missing required fields: (tokenId or savedPaymentInstrumentId), itemId, quantity, deliveryMethod"
       );
     }
     if (quantity <= 0) {
@@ -547,7 +660,9 @@ export const createStoreTransaction = functions.https.onCall(
       const userDoc = await db.collection("users").doc(userId).get();
       const user = userDoc.exists ? userDoc.data() : null;
       const buyerIdentityId = await ensureBuyerIdentity(db, userId, user);
-      const paymentInstrumentId = await createPaymentInstrumentFromToken(tokenId, buyerIdentityId);
+      const { paymentInstrumentId, usedSaved } = await resolvePaymentInstrument({
+        db, userId, buyerIdentityId, savedPaymentInstrumentId, tokenId,
+      });
 
       const transferBody: any = {
         merchant: club.finixMerchantId,
@@ -572,6 +687,15 @@ export const createStoreTransaction = functions.https.onCall(
 
       const transactionId = transfer.id;
       console.log(`Finix store transfer created: ${transactionId} state=${transfer.state}`);
+
+      if (savePaymentMethod && !usedSaved) {
+        try {
+          const details = await fetchPaymentInstrumentDetails(paymentInstrumentId);
+          await saveInstrumentForUser(db, userId, paymentInstrumentId, details);
+        } catch (e: any) {
+          console.error("Failed to save payment instrument (non-fatal):", e?.message || e);
+        }
+      }
 
       const orderStatus = transfer.state === "SUCCEEDED" ? "pending" : "pending_payment";
 
@@ -635,6 +759,173 @@ export const createStoreTransaction = functions.https.onCall(
       console.error("Error creating store transaction:", error);
       if (error instanceof functions.https.HttpsError) throw error;
       throw new functions.https.HttpsError("internal", `Payment failed: ${error.message}`);
+    }
+  }
+);
+
+// ============================================================================
+// SAVED PAYMENT METHODS
+// Users can opt to save a tokenized card after a successful charge. Listing
+// reads from Firestore (no Finix round-trip needed). Deleting marks the
+// Firestore doc as disabled so it won't be reusable on future charges.
+// ============================================================================
+
+export const listPaymentInstruments = functions.https.onCall(
+  { enforceAppCheck: false },
+  async (request: any) => {
+    if (!request.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+    try {
+      const db = admin.firestore();
+      const userId = request.auth.uid;
+      const snap = await db
+        .collection("users").doc(userId)
+        .collection("paymentInstruments")
+        .where("disabled", "==", false)
+        .get();
+      const instruments = snap.docs.map((d) => {
+        const v = d.data();
+        return {
+          piId: v.piId || d.id,
+          brand: v.brand || null,
+          last4: v.last4 || null,
+          expMonth: v.expMonth || null,
+          expYear: v.expYear || null,
+          type: v.type || "PAYMENT_CARD",
+          isDefault: !!v.isDefault,
+          createdAt: v.createdAt?.toMillis ? v.createdAt.toMillis() : null,
+        };
+      });
+      // Default first, then newest first
+      instruments.sort((a, b) => {
+        if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1;
+        return (b.createdAt || 0) - (a.createdAt || 0);
+      });
+      return { success: true, instruments };
+    } catch (error: any) {
+      console.error("listPaymentInstruments error:", error);
+      throw new functions.https.HttpsError("internal", error.message || "Failed to list payment methods");
+    }
+  }
+);
+
+export const deletePaymentInstrument = functions.https.onCall(
+  { enforceAppCheck: false },
+  async (request: any) => {
+    if (!request.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+    const { piId } = request.data || {};
+    if (!piId) {
+      throw new functions.https.HttpsError("invalid-argument", "piId is required");
+    }
+    try {
+      const db = admin.firestore();
+      const userId = request.auth.uid;
+      const col = db.collection("users").doc(userId).collection("paymentInstruments");
+      const ref = col.doc(piId);
+      const doc = await ref.get();
+      if (!doc.exists) {
+        throw new functions.https.HttpsError("not-found", "Payment method not found");
+      }
+      const wasDefault = !!doc.data()?.isDefault;
+      // Soft-delete: keep the record so historical receipts can still reference it,
+      // but exclude from list/charge eligibility.
+      await ref.update({
+        disabled: true,
+        isDefault: false,
+        disabledAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      // If we deleted the default card, promote the most recent remaining one.
+      if (wasDefault) {
+        const remaining = await col.where("disabled", "==", false).get();
+        if (!remaining.empty) {
+          const sorted = remaining.docs.sort((a, b) => {
+            const ta = a.data().createdAt?.toMillis ? a.data().createdAt.toMillis() : 0;
+            const tb = b.data().createdAt?.toMillis ? b.data().createdAt.toMillis() : 0;
+            return tb - ta;
+          });
+          await sorted[0].ref.update({ isDefault: true });
+        }
+      }
+      return { success: true };
+    } catch (error: any) {
+      console.error("deletePaymentInstrument error:", error);
+      if (error instanceof functions.https.HttpsError) throw error;
+      throw new functions.https.HttpsError("internal", error.message || "Failed to delete payment method");
+    }
+  }
+);
+
+// Add a new card outside of a checkout flow. Tokenizes the card via the same
+// Finix form, then saves the resulting payment_instrument under the user
+// without creating a transfer.
+export const saveNewPaymentInstrument = functions.https.onCall(
+  { enforceAppCheck: false },
+  async (request: any) => {
+    if (!request.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+    const { tokenId } = request.data || {};
+    if (!tokenId) {
+      throw new functions.https.HttpsError("invalid-argument", "tokenId is required");
+    }
+    try {
+      const db = admin.firestore();
+      const userId = request.auth.uid;
+      const userDoc = await db.collection("users").doc(userId).get();
+      const user = userDoc.exists ? userDoc.data() : null;
+      const buyerIdentityId = await ensureBuyerIdentity(db, userId, user);
+      const piId = await createPaymentInstrumentFromToken(tokenId, buyerIdentityId);
+      const details = await fetchPaymentInstrumentDetails(piId);
+      await saveInstrumentForUser(db, userId, piId, details);
+      return {
+        success: true,
+        instrument: {
+          piId,
+          brand: details.brand || null,
+          last4: details.last4 || null,
+          expMonth: details.expMonth || null,
+          expYear: details.expYear || null,
+          type: details.type || "PAYMENT_CARD",
+        },
+      };
+    } catch (error: any) {
+      console.error("saveNewPaymentInstrument error:", error);
+      if (error instanceof functions.https.HttpsError) throw error;
+      throw new functions.https.HttpsError("internal", error.message || "Failed to save payment method");
+    }
+  }
+);
+
+export const setDefaultPaymentInstrument = functions.https.onCall(
+  { enforceAppCheck: false },
+  async (request: any) => {
+    if (!request.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+    const { piId } = request.data || {};
+    if (!piId) {
+      throw new functions.https.HttpsError("invalid-argument", "piId is required");
+    }
+    try {
+      const db = admin.firestore();
+      const userId = request.auth.uid;
+      const col = db.collection("users").doc(userId).collection("paymentInstruments");
+      const target = await col.doc(piId).get();
+      if (!target.exists || target.data()?.disabled) {
+        throw new functions.https.HttpsError("not-found", "Payment method not found");
+      }
+      const all = await col.where("disabled", "==", false).get();
+      const batch = db.batch();
+      all.docs.forEach((d) => batch.update(d.ref, { isDefault: d.id === piId }));
+      await batch.commit();
+      return { success: true };
+    } catch (error: any) {
+      console.error("setDefaultPaymentInstrument error:", error);
+      if (error instanceof functions.https.HttpsError) throw error;
+      throw new functions.https.HttpsError("internal", error.message || "Failed to set default");
     }
   }
 );

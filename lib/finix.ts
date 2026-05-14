@@ -1,9 +1,10 @@
 // lib/finix.ts — Finix payment service for RallySphere
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { app } from './firebase';
-import { getAuth } from 'firebase/auth';
+// Import the same auth instance that lib/firebase initializes with React Native
+// persistence — calling getAuth(app) here separately would create a fresh
+// instance whose currentUser is null on RN, leading to "unauthenticated" calls.
+import { app, auth } from './firebase';
 
-const auth = getAuth(app);
 const functions = getFunctions(app, 'us-central1');
 
 // ============================================================================
@@ -46,6 +47,17 @@ export interface RefundResult {
 export interface FinixTokenizationContext {
   applicationId: string;
   environment: 'sandbox' | 'live';
+}
+
+export interface SavedPaymentInstrument {
+  piId: string;
+  brand: string | null;       // visa, mastercard, amex, discover, etc.
+  last4: string | null;
+  expMonth: number | null;
+  expYear: number | null;
+  type: string;               // PAYMENT_CARD, BANK_ACCOUNT
+  isDefault: boolean;
+  createdAt: number | null;   // ms epoch
 }
 
 const DEFAULT_TOKENIZE_URL = 'https://rally-sphere.web.app/checkout/tokenize.html';
@@ -111,7 +123,9 @@ export const getFinixTokenizationContext = async (): Promise<{
 // ============================================================================
 
 export interface CreateEventTransactionParams {
-  tokenId: string;
+  tokenId?: string;
+  savedPaymentInstrumentId?: string;
+  savePaymentMethod?: boolean;
   fraudSessionId?: string;
   paymentMethod?: 'card' | 'ach' | 'apple_pay' | 'google_pay';
   idempotencyKey?: string;
@@ -145,6 +159,8 @@ export const createEventTransaction = async (
     const fn = httpsCallable(functions, 'createEventTransaction');
     const result = await fn({
       tokenId: params.tokenId,
+      savedPaymentInstrumentId: params.savedPaymentInstrumentId,
+      savePaymentMethod: params.savePaymentMethod,
       fraudSessionId: params.fraudSessionId,
       paymentMethod: params.paymentMethod || 'card',
       idempotencyKey: params.idempotencyKey,
@@ -176,7 +192,9 @@ export const createEventTransaction = async (
 // ============================================================================
 
 export interface CreateStoreTransactionParams {
-  tokenId: string;
+  tokenId?: string;
+  savedPaymentInstrumentId?: string;
+  savePaymentMethod?: boolean;
   fraudSessionId?: string;
   paymentMethod?: 'card' | 'ach' | 'apple_pay' | 'google_pay';
   idempotencyKey?: string;
@@ -220,6 +238,8 @@ export const createStoreTransaction = async (
     const fn = httpsCallable(functions, 'createStoreTransaction');
     const result = await fn({
       tokenId: params.tokenId,
+      savedPaymentInstrumentId: params.savedPaymentInstrumentId,
+      savePaymentMethod: params.savePaymentMethod,
       fraudSessionId: params.fraudSessionId,
       paymentMethod: params.paymentMethod || 'card',
       idempotencyKey: params.idempotencyKey,
@@ -470,5 +490,76 @@ export const cancelClubSubscription = async (
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
+  }
+};
+
+// ============================================================================
+// SAVED PAYMENT METHODS
+// ============================================================================
+
+export const listSavedPaymentInstruments = async (): Promise<{
+  success: boolean;
+  instruments?: SavedPaymentInstrument[];
+  error?: string;
+}> => {
+  try {
+    if (!auth.currentUser) {
+      return { success: false, error: 'You must be logged in' };
+    }
+    const fn = httpsCallable(functions, 'listPaymentInstruments');
+    const result = await fn({});
+    const data = result.data as any;
+    return { success: true, instruments: data.instruments || [] };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to load payment methods' };
+  }
+};
+
+export const deleteSavedPaymentInstrument = async (
+  piId: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    if (!auth.currentUser) {
+      return { success: false, error: 'You must be logged in' };
+    }
+    const fn = httpsCallable(functions, 'deletePaymentInstrument');
+    await fn({ piId });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to delete payment method' };
+  }
+};
+
+export const saveNewPaymentMethod = async (
+  tokenId: string
+): Promise<{ success: boolean; instrument?: SavedPaymentInstrument; error?: string }> => {
+  try {
+    if (!auth.currentUser) {
+      return { success: false, error: 'You must be logged in' };
+    }
+    const fn = httpsCallable(functions, 'saveNewPaymentInstrument');
+    const result = await fn({ tokenId });
+    const data = result.data as any;
+    if (data?.success && data?.instrument) {
+      return { success: true, instrument: data.instrument };
+    }
+    return { success: false, error: 'Failed to save payment method' };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to save payment method' };
+  }
+};
+
+export const setDefaultSavedPaymentInstrument = async (
+  piId: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    if (!auth.currentUser) {
+      return { success: false, error: 'You must be logged in' };
+    }
+    const fn = httpsCallable(functions, 'setDefaultPaymentInstrument');
+    await fn({ piId });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to set default' };
   }
 };

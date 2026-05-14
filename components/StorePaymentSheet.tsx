@@ -14,8 +14,10 @@ import {
   getFinixTokenizationContext,
   buildFinixTokenizeUrl,
   createStoreTransaction,
+  listSavedPaymentInstruments,
   type FinixTokenizationContext,
   type StoreBreakdown,
+  type SavedPaymentInstrument,
 } from '../lib/finix';
 import { useThemeToggle } from '../app/_layout';
 
@@ -63,11 +65,19 @@ export default function StorePaymentSheet({
   const [initializingPayment, setInitializingPayment] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'ach' | 'apple_pay' | 'google_pay'>('card');
 
+  // Saved payment methods state
+  const [savedInstruments, setSavedInstruments] = useState<SavedPaymentInstrument[]>([]);
+  const [selectedSavedPiId, setSelectedSavedPiId] = useState<string | null>(null);
+  const [useNewCard, setUseNewCard] = useState(false);
+  const [saveNewCard, setSaveNewCard] = useState(false);
+
   useEffect(() => {
     if (visible) {
       Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start();
       loadUserCredits();
       loadStoreRedemptions();
+      loadSavedInstruments();
+      setSaveNewCard(false);
       initPayment();
     } else {
       Animated.timing(slideAnim, { toValue: SCREEN_HEIGHT, duration: 250, useNativeDriver: true }).start();
@@ -83,6 +93,36 @@ export default function StorePaymentSheet({
       calculateBreakdown();
     }
   }, [selectedReward]);
+
+  const loadSavedInstruments = async () => {
+    try {
+      const result = await listSavedPaymentInstruments();
+      if (result.success && result.instruments) {
+        setSavedInstruments(result.instruments);
+        const def = result.instruments.find((i) => i.isDefault) || result.instruments[0];
+        setSelectedSavedPiId(def ? def.piId : null);
+        setUseNewCard(result.instruments.length === 0);
+      } else {
+        setSavedInstruments([]);
+        setSelectedSavedPiId(null);
+        setUseNewCard(true);
+      }
+    } catch {
+      setSavedInstruments([]);
+      setSelectedSavedPiId(null);
+      setUseNewCard(true);
+    }
+  };
+
+  const formatBrand = (brand: string | null): string => {
+    if (!brand) return 'Card';
+    const map: Record<string, string> = {
+      visa: 'Visa', mastercard: 'Mastercard', amex: 'American Express',
+      'american express': 'American Express', discover: 'Discover',
+      diners: 'Diners Club', jcb: 'JCB', unionpay: 'UnionPay',
+    };
+    return map[brand.toLowerCase()] || brand.charAt(0).toUpperCase() + brand.slice(1);
+  };
 
   const initPayment = async () => {
     setInitializingPayment(true);
@@ -203,7 +243,9 @@ export default function StorePaymentSheet({
       } else if (msg.type === 'tab') {
         setPaymentMethod(msg.paymentMethod || 'card');
       } else if (msg.type === 'token') {
-        await processPaymentWithToken(msg.tokenId, msg.paymentMethod || 'card', msg.fraudSessionId);
+        await processPaymentWithToken(msg.tokenId, msg.paymentMethod || 'card', msg.fraudSessionId, {
+          savePaymentMethod: saveNewCard && (msg.paymentMethod || 'card') === 'card',
+        });
       } else if (msg.type === 'error') {
         setProcessing(false);
         Alert.alert('Payment Error', msg.message || 'An error occurred');
@@ -211,10 +253,17 @@ export default function StorePaymentSheet({
     } catch (e) { /* ignore */ }
   };
 
-  const processPaymentWithToken = async (tokenId: string, method: string, fraudSessionId?: string) => {
+  const processPaymentWithToken = async (
+    tokenId: string | null,
+    method: string,
+    fraudSessionId?: string,
+    opts?: { savedPaymentInstrumentId?: string; savePaymentMethod?: boolean }
+  ) => {
     try {
       const result = await createStoreTransaction({
-        tokenId,
+        tokenId: tokenId || undefined,
+        savedPaymentInstrumentId: opts?.savedPaymentInstrumentId,
+        savePaymentMethod: opts?.savePaymentMethod,
         fraudSessionId,
         paymentMethod: method as any,
         itemId: item.id,
@@ -272,6 +321,13 @@ export default function StorePaymentSheet({
     if (total === 0) {
       setProcessing(true);
       processPaymentWithToken('free_token', 'card');
+      return;
+    }
+
+    // Saved-card path — skip tokenization entirely
+    if (!useNewCard && selectedSavedPiId) {
+      setProcessing(true);
+      processPaymentWithToken(null, 'card', undefined, { savedPaymentInstrumentId: selectedSavedPiId });
       return;
     }
 
@@ -480,7 +536,7 @@ export default function StorePaymentSheet({
                 </View>
               </View>
 
-              {/* Finix Tokenization Form */}
+              {/* Finix Tokenization Form (or saved-card picker) */}
               {totals.total > 0 && (
                 <View style={styles.section}>
                   <Text style={[styles.sectionTitle, { color: theme.colors.onSurfaceVariant }]}>PAYMENT METHOD</Text>
@@ -491,25 +547,82 @@ export default function StorePaymentSheet({
                         Initializing payment...
                       </Text>
                     </View>
+                  ) : !useNewCard && savedInstruments.length > 0 ? (
+                    <View>
+                      {savedInstruments.map((pi) => {
+                        const selected = selectedSavedPiId === pi.piId;
+                        return (
+                          <TouchableOpacity
+                            key={pi.piId}
+                            onPress={() => setSelectedSavedPiId(pi.piId)}
+                            activeOpacity={0.7}
+                            style={[styles.savedCardRow, { borderColor: selected ? theme.colors.primary : theme.colors.outline }]}
+                          >
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.savedCardBrand, { color: theme.colors.onSurface }]}>{formatBrand(pi.brand)}</Text>
+                              <Text style={[styles.savedCardMeta, { color: theme.colors.onSurfaceVariant }]}>
+                                •••• {pi.last4 || '----'}
+                                {pi.expMonth && pi.expYear ? `  ·  ${String(pi.expMonth).padStart(2, '0')}/${String(pi.expYear).slice(-2)}` : ''}
+                                {pi.isDefault ? '  ·  Default' : ''}
+                              </Text>
+                            </View>
+                            <View style={[styles.savedCardRadio, { borderColor: selected ? theme.colors.primary : theme.colors.outline }]}>
+                              {selected && <View style={[styles.savedCardRadioDot, { backgroundColor: theme.colors.primary }]} />}
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                      <TouchableOpacity
+                        onPress={() => setUseNewCard(true)}
+                        activeOpacity={0.7}
+                        style={[styles.useNewCardButton, { borderColor: theme.colors.outline }]}
+                      >
+                        <Text style={[styles.useNewCardText, { color: theme.colors.primary }]}>+ Use new payment</Text>
+                      </TouchableOpacity>
+                    </View>
                   ) : (
-                    <WebView
-                      ref={webViewRef}
-                      source={{
-                        uri: buildFinixTokenizeUrl({
-                          context: finixContext,
-                          amount: totals.total,
-                          ach: true,
-                          wallets: true,
-                          external: true,
-                        }),
-                      }}
-                      style={styles.webView}
-                      onMessage={handleWebViewMessage}
-                      javaScriptEnabled
-                      scrollEnabled
-                      originWhitelist={['*']}
-                      mixedContentMode="always"
-                    />
+                    <>
+                      <WebView
+                        ref={webViewRef}
+                        source={{
+                          uri: buildFinixTokenizeUrl({
+                            context: finixContext,
+                            amount: totals.total,
+                            ach: true,
+                            wallets: true,
+                            external: true,
+                          }),
+                        }}
+                        style={styles.webView}
+                        onMessage={handleWebViewMessage}
+                        javaScriptEnabled
+                        scrollEnabled
+                        originWhitelist={['*']}
+                        mixedContentMode="always"
+                      />
+                      {paymentMethod === 'card' && (
+                        <View style={{ marginTop: 8 }}>
+                          <TouchableOpacity onPress={() => setSaveNewCard((v) => !v)} activeOpacity={0.7} style={styles.saveCardRow}>
+                            <View
+                              style={[
+                                styles.saveCardCheckbox,
+                                { borderColor: saveNewCard ? theme.colors.primary : theme.colors.outline, backgroundColor: saveNewCard ? theme.colors.primary : 'transparent' },
+                              ]}
+                            >
+                              {saveNewCard && <Text style={styles.saveCardCheckmark}>✓</Text>}
+                            </View>
+                            <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 13, marginLeft: 8 }}>
+                              Save this card for next time
+                            </Text>
+                          </TouchableOpacity>
+                          {savedInstruments.length > 0 && (
+                            <TouchableOpacity onPress={() => setUseNewCard(false)} activeOpacity={0.7} style={{ marginTop: 6 }}>
+                              <Text style={{ color: theme.colors.primary, fontSize: 13 }}>← Use a saved card</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      )}
+                    </>
                   )}
                 </View>
               )}
@@ -517,15 +630,19 @@ export default function StorePaymentSheet({
 
             {/* Footer */}
             <View style={[styles.footer, { borderTopColor: theme.colors.outline }]}>
+              {(() => {
+                const usingSaved = !useNewCard && !!selectedSavedPiId;
+                const payDisabled = processing || initializingPayment || (totals.total > 0 && !usingSaved && !formReady);
+                return (
               <TouchableOpacity
                 style={styles.purchaseButton}
                 onPress={handlePurchase}
-                disabled={processing || initializingPayment || (totals.total > 0 && !formReady)}
+                disabled={payDisabled}
                 activeOpacity={0.8}
               >
                 <LinearGradient
                   colors={['#EF4444', '#DC2626']}
-                  style={[styles.purchaseButtonGradient, (initializingPayment || (totals.total > 0 && !formReady)) && { opacity: 0.6 }]}
+                  style={[styles.purchaseButtonGradient, payDisabled && { opacity: 0.6 }]}
                 >
                   {processing || initializingPayment ? (
                     <ActivityIndicator color="white" />
@@ -540,9 +657,8 @@ export default function StorePaymentSheet({
                   )}
                 </LinearGradient>
               </TouchableOpacity>
-              <Text style={{ textAlign: 'center', color: theme.colors.onSurfaceVariant, fontSize: 11, marginTop: 8 }}>
-                🔒 Secure payment via Finix
-              </Text>
+                );
+              })()}
             </View>
           </BlurView>
         </Animated.View>
@@ -604,4 +720,26 @@ const styles = StyleSheet.create({
   purchaseButton: { borderRadius: 14, overflow: 'hidden' },
   purchaseButtonGradient: { paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
   purchaseButtonText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  savedCardRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 10,
+  },
+  savedCardBrand: { fontSize: 15, fontWeight: '600' },
+  savedCardMeta: { fontSize: 12, marginTop: 2 },
+  savedCardRadio: {
+    width: 22, height: 22, borderRadius: 11, borderWidth: 2,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  savedCardRadioDot: { width: 10, height: 10, borderRadius: 5 },
+  useNewCardButton: {
+    borderWidth: 1, borderStyle: 'dashed', borderRadius: 12, padding: 14,
+    alignItems: 'center', marginTop: 4,
+  },
+  useNewCardText: { fontSize: 14, fontWeight: '600' },
+  saveCardRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
+  saveCardCheckbox: {
+    width: 20, height: 20, borderRadius: 4, borderWidth: 2,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  saveCardCheckmark: { color: '#fff', fontSize: 13, fontWeight: 'bold', lineHeight: 14 },
 });
