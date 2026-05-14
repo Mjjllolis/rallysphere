@@ -525,7 +525,7 @@ export default function EventDetailScreen() {
       />
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await loadEventData(true); setRefreshing(false); }} tintColor={theme.colors.onSurface} />}>
-        {/* Hero Section with Cover Image and Content */}
+        {/* Hero Section with Cover Image Only */}
         <View style={styles.heroSection}>
           {/* Full Cover Image */}
           <ExpoImage
@@ -534,13 +534,6 @@ export default function EventDetailScreen() {
             contentFit="cover"
             transition={200}
             cachePolicy="memory-disk"
-          />
-
-          {/* Gradient overlay for text readability */}
-          <LinearGradient
-            colors={isDark ? ['transparent', 'transparent', 'rgba(15,15,35,0.6)', 'rgba(15,15,35,0.95)'] : ['transparent', 'transparent', 'rgba(255,255,255,0.6)', 'rgba(255,255,255,0.95)']}
-            locations={[0, 0.5, 0.8, 1]}
-            style={styles.heroUnifiedGradient}
           />
 
           {/* Back Button and Menu - floating at top */}
@@ -601,9 +594,12 @@ export default function EventDetailScreen() {
               </View>
             )}
           </View>
+        </View>
 
-          {/* Event Info Content */}
-          <View style={styles.heroContent}>
+        {/* Content Section */}
+        <View style={styles.content}>
+          {/* Event Info - Now below the image */}
+          <View style={styles.eventInfoSection}>
             {/* Status Badges */}
             <View style={styles.statusBadges}>
               {isAttending && (
@@ -623,7 +619,7 @@ export default function EventDetailScreen() {
               )}
             </View>
 
-            <Text variant="headlineMedium" style={[styles.heroTitle, { color: theme.colors.onSurface }]}>
+            <Text variant="headlineMedium" style={[styles.eventTitle, { color: theme.colors.onSurface }]}>
               {event.title}
             </Text>
 
@@ -650,10 +646,10 @@ export default function EventDetailScreen() {
                   </Text>
                 </View>
               )}
-              <Text variant="titleMedium" style={[styles.heroClubName, { color: theme.colors.onSurfaceVariant }]}>
+              <Text variant="titleMedium" style={[styles.clubName, { color: theme.colors.onSurfaceVariant }]}>
                 by {event.clubName}
               </Text>
-              <IconButton icon="chevron-right" size={18} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0 }} />
+              <IconButton icon="chevron-right" size={18} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0, marginLeft: -8 }} />
             </TouchableOpacity>
 
             {/* Quick Info Row */}
@@ -678,11 +674,6 @@ export default function EventDetailScreen() {
               </View>
             </View>
           </View>
-
-        </View>
-
-        {/* Content Section */}
-        <View style={styles.content}>
           {/* Description */}
           <View style={styles.section}>
             <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
@@ -1493,19 +1484,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   heroSection: {
-    height: 600,
+    height: width * 1.25,
     position: 'relative',
   },
   coverImage: {
     width: '100%',
-    height: 600,
-  },
-  heroGradient: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '100%',
+    height: width * 1.25,
   },
   topControl: {
     position: 'absolute',
@@ -1517,14 +1501,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     zIndex: 10,
-  },
-  heroUnifiedGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 600,
-    zIndex: 1,
   },
   mirroredFooter: {
     position: 'relative',
@@ -1598,20 +1574,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
   },
-  heroContent: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 24,
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    zIndex: 2,
-  },
   statusBadges: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   statusChipAttending: {
     backgroundColor: 'rgba(52, 211, 153, 0.2)',
@@ -1634,14 +1600,10 @@ const styles = StyleSheet.create({
   statusChipTextDark: {
     fontWeight: '600',
   },
-  heroTitle: {
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
   clubHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
     marginBottom: 16,
   },
   clubHeaderLogo: {
@@ -1654,9 +1616,6 @@ const styles = StyleSheet.create({
   clubHeaderLogoPlaceholder: {
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  heroClubName: {
-    flex: 1,
   },
   quickInfo: {
     flexDirection: 'row',
@@ -1674,38 +1633,23 @@ const styles = StyleSheet.create({
   quickInfoText: {
     marginLeft: -8,
   },
-  heroActionButtonWrapper: {
-    width: '100%',
-  },
-  heroActionButton: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#ec4899',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  heroActionButtonOutlined: {
-    borderWidth: 1.5,
-  },
-  heroActionButtonDisabled: {
-    opacity: 0.5,
-  },
-  heroActionButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  heroActionButtonTextOutlined: {
-    color: '#a78bfa',
-  },
   content: {
     flex: 1,
-    paddingTop: 24,
+    paddingTop: 0,
+  },
+  eventInfoSection: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 8,
+    marginBottom: 16,
+  },
+  eventTitle: {
+    fontWeight: 'bold',
+    marginBottom: 12,
+    fontSize: 28,
+  },
+  clubName: {
+    textDecorationLine: 'underline',
   },
   section: {
     paddingHorizontal: 20,
