@@ -1,87 +1,69 @@
-import React, { useState, useEffect } from 'react';
+// app/(tabs)/events/index.tsx — Discover (events + clubs, with cross-search)
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   View,
   ScrollView,
   RefreshControl,
-  Alert,
   TouchableOpacity,
-  Image,
   Dimensions,
 } from 'react-native';
-import { Text, IconButton, Searchbar, useTheme } from 'react-native-paper';
+import { Image as ExpoImage } from 'expo-image';
+import { Text, Searchbar, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
 import { useAuth, useThemeToggle } from '../../_layout';
-import { getEvents, joinEvent, leaveEvent } from '../../../lib/firebase';
-import type { Event } from '../../../lib/firebase';
-import PaymentSheet from '../../../components/PaymentSheet';
-import CreateScreen from '../../../components/CreateScreen';
+import { getEvents, getClubs } from '../../../lib/firebase';
+import type { Event, Club } from '../../../lib/firebase';
 
 const { width } = Dimensions.get('window');
 const FEATURED_CARD_WIDTH = width * 0.75;
 const FEATURED_CARD_HEIGHT = 220;
 
-export default function EventsScreen() {
+type Filter = 'all' | 'events' | 'clubs';
+
+export default function DiscoverScreen() {
   const theme = useTheme();
   const { isDark } = useThemeToggle();
   const { user } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'upcoming' | 'my-events'>('upcoming');
-  const [allEvents, setAllEvents] = useState<Event[]>([]);
-  const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([]);
-  const [myEvents, setMyEvents] = useState<Event[]>([]);
-  const [featuredEvents, setFeaturedEvents] = useState<Event[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [clubs, setClubs] = useState<Club[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [filter, setFilter] = useState<Filter>('all');
 
   useEffect(() => {
-    loadEvents();
+    load();
   }, [user]);
 
-  const loadEvents = async () => {
+  const load = async () => {
     try {
       setLoading(true);
-      const result = await getEvents();
+      const [eventsResult, clubsResult] = await Promise.all([
+        getEvents(),
+        getClubs(),
+      ]);
 
-      if (result.success) {
+      if (eventsResult.success) {
         const now = new Date();
-        const upcoming = result.events.filter((event) => {
-          const eventDate = event.startDate?.toDate
+        const upcoming = eventsResult.events.filter((event: Event) => {
+          const d = event.startDate?.toDate
             ? event.startDate.toDate()
-            : new Date(event.startDate);
-          return eventDate >= now;
+            : new Date(event.startDate as any);
+          return d >= now;
         });
-
-        const userEvents = user
-          ? result.events.filter(
-              (event) =>
-                event.attendees.includes(user.uid) ||
-                event.waitlist.includes(user.uid)
-            )
-          : [];
-
-        // Featured events: upcoming with images, sorted by attendees
-        const featured = upcoming
-          .filter((event) => event.coverImage)
-          .sort((a, b) => b.attendees.length - a.attendees.length)
-          .slice(0, 5);
-
-        setAllEvents(result.events);
-        setUpcomingEvents(upcoming);
-        setMyEvents(userEvents);
-        setFeaturedEvents(featured);
+        setEvents(upcoming);
       }
-    } catch (error) {
-      // console.error('Error loading events:', error);
+      if (clubsResult.success) {
+        setClubs(clubsResult.clubs.filter((c: Club) => c.isPublic !== false));
+      }
+    } catch {
+      // silent
     } finally {
       setLoading(false);
     }
@@ -89,127 +71,71 @@ export default function EventsScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadEvents();
+    await load();
     setRefreshing(false);
   };
 
-  const handleJoinEvent = async (eventId: string) => {
-    if (!user) {
-      Alert.alert('Error', 'Please log in to join events');
-      return;
-    }
+  // ----- filtering -----
+  const q = searchQuery.trim().toLowerCase();
 
-    const event = allEvents.find((e) => e.id === eventId);
-    if (!event) {
-      Alert.alert('Error', 'Event not found');
-      return;
-    }
-
-    if (event.ticketPrice && event.ticketPrice > 0) {
-      setSelectedEvent(event);
-      setPaymentSheetVisible(true);
-      return;
-    }
-
-    setActionLoading(eventId);
-    try {
-      const result = await joinEvent(eventId, user.uid);
-      if (result.success) {
-        Alert.alert(
-          'Success!',
-          result.waitlisted
-            ? 'You have been added to the waitlist!'
-            : 'You have joined the event!'
-        );
-        await loadEvents();
-      } else {
-        Alert.alert('Error', result.error || 'Failed to join event');
-      }
-    } catch (error) {
-      // console.error('Error joining event:', error);
-      Alert.alert('Error', 'An unexpected error occurred');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handlePaymentSuccess = async () => {
-    await loadEvents();
-  };
-
-  const handleLeaveEvent = async (eventId: string) => {
-    if (!user) return;
-
-    Alert.alert('Leave Event', 'Are you sure you want to leave this event?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Leave',
-        style: 'destructive',
-        onPress: async () => {
-          setActionLoading(eventId);
-          try {
-            const result = await leaveEvent(eventId, user.uid);
-            if (result.success) {
-              Alert.alert('Success', 'You have left the event');
-              await loadEvents();
-            } else {
-              Alert.alert('Error', result.error || 'Failed to leave event');
-            }
-          } catch (error) {
-            // console.error('Error leaving event:', error);
-            Alert.alert('Error', 'An unexpected error occurred');
-          } finally {
-            setActionLoading(null);
-          }
-        },
-      },
-    ]);
-  };
-
-  const filterEvents = (events: Event[]) => {
-    if (!searchQuery) return events;
-    const query = searchQuery.toLowerCase();
+  const filteredEvents = useMemo(() => {
+    if (!q) return events;
     return events.filter(
-      (event) =>
-        event.title.toLowerCase().includes(query) ||
-        event.description.toLowerCase().includes(query) ||
-        event.clubName.toLowerCase().includes(query) ||
-        (event.tags && event.tags.some((tag) => tag.toLowerCase().includes(query)))
+      (e) =>
+        e.title?.toLowerCase().includes(q) ||
+        e.description?.toLowerCase().includes(q) ||
+        e.clubName?.toLowerCase().includes(q) ||
+        e.location?.toLowerCase().includes(q) ||
+        (e.tags && e.tags.some((t) => t.toLowerCase().includes(q)))
     );
-  };
+  }, [events, q]);
 
+  const filteredClubs = useMemo(() => {
+    if (!q) return clubs;
+    return clubs.filter(
+      (c) =>
+        c.name?.toLowerCase().includes(q) ||
+        c.description?.toLowerCase().includes(q) ||
+        c.category?.toLowerCase().includes(q)
+    );
+  }, [clubs, q]);
+
+  const featuredEvents = useMemo(
+    () =>
+      [...filteredEvents]
+        .filter((e) => e.coverImage)
+        .sort((a, b) => (b.attendees?.length || 0) - (a.attendees?.length || 0))
+        .slice(0, 5),
+    [filteredEvents]
+  );
+
+  const featuredClubs = useMemo(
+    () =>
+      [...filteredClubs]
+        .filter((c) => c.logo || c.coverImage)
+        .sort((a, b) => (b.members?.length || 0) - (a.members?.length || 0))
+        .slice(0, 5),
+    [filteredClubs]
+  );
+
+  const showEvents = filter === 'all' || filter === 'events';
+  const showClubs = filter === 'all' || filter === 'clubs';
+
+  // ----- formatters -----
   const formatDate = (date: any) => {
     if (!date) return '';
-    const eventDate = date.toDate ? date.toDate() : new Date(date);
-    return eventDate.toLocaleDateString([], {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-    });
+    const d = date.toDate ? date.toDate() : new Date(date);
+    return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
   };
-
   const formatTime = (date: any) => {
     if (!date) return '';
-    const eventDate = date.toDate ? date.toDate() : new Date(date);
-    return eventDate.toLocaleTimeString([], {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
+    const d = date.toDate ? date.toDate() : new Date(date);
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
   };
 
-  const getCurrentEvents = () => {
-    return activeTab === 'upcoming'
-      ? filterEvents(upcomingEvents)
-      : filterEvents(myEvents);
-  };
-
-  const displayEvents = getCurrentEvents();
-
-  const renderFeaturedCard = (event: Event) => {
-    const isAttending = user && event.attendees.includes(user.uid);
-    const isWaitlisted = user && event.waitlist.includes(user.uid);
-
+  // ----- card renderers -----
+  const renderFeaturedEvent = (event: Event) => {
+    const isAttending = !!user && event.attendees?.includes(user.uid);
     return (
       <TouchableOpacity
         key={event.id}
@@ -217,65 +143,51 @@ export default function EventsScreen() {
         onPress={() => router.push(`/event/${event.id}`)}
         activeOpacity={0.9}
       >
-        <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.featuredCardBlur, { borderColor: theme.colors.outline }]}>
-          {/* Event Image */}
+        <BlurView intensity={20} tint={isDark ? 'dark' : 'light'} style={[styles.featuredCardBlur, { borderColor: theme.colors.outline }]}>
           {event.coverImage && (
-            <Image
+            <ExpoImage
               source={{ uri: event.coverImage }}
               style={styles.featuredImage}
-              resizeMode="cover"
+              contentFit="cover"
+              transition={200}
+              cachePolicy="memory-disk"
+              priority="high"
             />
           )}
-
-          {/* Gradient Overlay */}
           <LinearGradient
             colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.9)']}
             style={styles.featuredGradient}
           />
-
-          {/* Content */}
           <View style={styles.featuredContent}>
-            {/* Top badges */}
             <View style={styles.featuredBadges}>
               {isAttending && (
                 <View style={styles.attendingBadge}>
-                  <Text style={styles.attendingBadgeText}>Attending</Text>
+                  <Text style={styles.attendingBadgeText}>Going</Text>
                 </View>
               )}
-              <View style={event.ticketPrice > 0 ? styles.priceBadge : styles.freeBadge}>
+              <View style={(event.ticketPrice || 0) > 0 ? styles.priceBadge : styles.freeBadge}>
                 <Text style={styles.priceBadgeText}>
-                  {event.ticketPrice > 0 ? `$${event.ticketPrice}` : 'Free Admission'}
+                  {(event.ticketPrice || 0) > 0 ? `$${event.ticketPrice}` : 'Free'}
                 </Text>
               </View>
             </View>
-
-            {/* Event Info */}
             <View style={styles.featuredInfo}>
               <Text style={styles.featuredDate}>
                 {formatDate(event.startDate)} • {formatTime(event.startDate)}
               </Text>
-              <Text style={styles.featuredTitle} numberOfLines={2}>
-                {event.title}
-              </Text>
-              <Text style={styles.featuredClub} numberOfLines={1}>
-                by {event.clubName}
-              </Text>
+              <Text style={styles.featuredTitle} numberOfLines={2}>{event.title}</Text>
+              <Text style={styles.featuredClub} numberOfLines={1}>by {event.clubName}</Text>
               <View style={styles.featuredFooter}>
                 <View style={styles.featuredLocation}>
-                  <Ionicons
-                    name={event.isVirtual ? 'globe-outline' : 'location-outline'}
-                    size={14}
-                    color="rgba(255,255,255,0.7)"
-                  />
-                  <Text style={[styles.featuredLocationText]} numberOfLines={1}>
+                  <Ionicons name={event.isVirtual ? 'globe-outline' : 'location-outline'} size={14} color="rgba(255,255,255,0.7)" />
+                  <Text style={styles.featuredLocationText} numberOfLines={1}>
                     {event.isVirtual ? 'Virtual' : event.location}
                   </Text>
                 </View>
                 <View style={styles.featuredAttendees}>
                   <Ionicons name="people-outline" size={14} color="rgba(255,255,255,0.7)" />
                   <Text style={styles.featuredAttendeesText}>
-                    {event.attendees.length}
-                    {event.maxAttendees ? `/${event.maxAttendees}` : ''}
+                    {event.attendees?.length || 0}{event.maxAttendees ? `/${event.maxAttendees}` : ''}
                   </Text>
                 </View>
               </View>
@@ -286,90 +198,121 @@ export default function EventsScreen() {
     );
   };
 
-  const renderEventCard = (event: Event) => {
-    const isAttending = user && event.attendees.includes(user.uid);
-    const isWaitlisted = user && event.waitlist.includes(user.uid);
-    const isUpcoming =
-      event.startDate &&
-      new Date(event.startDate.toDate ? event.startDate.toDate() : event.startDate) >
-        new Date();
+  const renderFeaturedClub = (club: Club) => (
+    <TouchableOpacity
+      key={club.id}
+      style={styles.featuredCard}
+      onPress={() => router.push(`/club/${club.id}`)}
+      activeOpacity={0.9}
+    >
+      <BlurView intensity={20} tint={isDark ? 'dark' : 'light'} style={[styles.featuredCardBlur, { borderColor: theme.colors.outline }]}>
+        {(club.coverImage || club.logo) ? (
+          <ExpoImage
+            source={{ uri: club.coverImage || club.logo }}
+            style={styles.featuredImage}
+            contentFit="cover"
+            transition={200}
+            cachePolicy="memory-disk"
+          />
+        ) : (
+          <LinearGradient colors={['#1B365D', '#60A5FA']} style={styles.featuredImage} />
+        )}
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.9)']}
+          style={styles.featuredGradient}
+        />
+        <View style={styles.featuredContent}>
+          <View style={styles.featuredBadges}>
+            <View style={styles.clubBadge}>
+              <Ionicons name="people" size={12} color="#fff" />
+              <Text style={styles.clubBadgeText}>Club</Text>
+            </View>
+            {club.isPro && (
+              <View style={styles.proBadge}>
+                <Ionicons name="star" size={12} color="#FFD700" />
+                <Text style={styles.proBadgeText}>Pro</Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.featuredInfo}>
+            <Text style={styles.featuredCategory}>{club.category}</Text>
+            <Text style={styles.featuredTitle} numberOfLines={2}>{club.name}</Text>
+            <Text style={styles.featuredClub} numberOfLines={2}>{club.description}</Text>
+            <View style={styles.featuredFooter}>
+              <View style={styles.featuredAttendees}>
+                <Ionicons name="people-outline" size={14} color="rgba(255,255,255,0.7)" />
+                <Text style={styles.featuredAttendeesText}>
+                  {club.members?.length || 0} {club.members?.length === 1 ? 'member' : 'members'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </BlurView>
+    </TouchableOpacity>
+  );
 
+  const renderEventRow = (event: Event) => {
+    const isAttending = !!user && event.attendees?.includes(user.uid);
     return (
       <TouchableOpacity
         key={event.id}
-        style={styles.eventCard}
+        style={styles.row}
         onPress={() => router.push(`/event/${event.id}`)}
         activeOpacity={0.9}
       >
-        <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.eventCardBlur, { borderColor: theme.colors.outline }]}>
-          <View style={styles.eventCardContent}>
-            {/* Left: Event image or date badge */}
+        <BlurView intensity={20} tint={isDark ? 'dark' : 'light'} style={[styles.rowBlur, { borderColor: theme.colors.outline }]}>
+          <View style={styles.rowContent}>
             {event.coverImage ? (
-              <Image
+              <ExpoImage
                 source={{ uri: event.coverImage }}
-                style={styles.eventThumbnail}
-                resizeMode="cover"
+                style={styles.rowImage}
+                contentFit="cover"
+                transition={200}
+                cachePolicy="memory-disk"
               />
             ) : (
-              <View style={styles.eventDateBadge}>
-                <Text style={styles.eventDateMonth}>
-                  {formatDate(event.startDate).split(' ')[1]}
-                </Text>
-                <Text style={[styles.eventDateDay, { color: theme.colors.onSurface }]}>
-                  {formatDate(event.startDate).split(' ')[2]}
-                </Text>
+              <View style={styles.rowImagePlaceholder}>
+                <LinearGradient colors={['#60A5FA', '#1B365D']} style={styles.rowImageGradient}>
+                  <Ionicons name="calendar" size={28} color="#fff" />
+                </LinearGradient>
               </View>
             )}
-
-            {/* Right: Event details */}
-            <View style={styles.eventDetails}>
-              <View style={styles.eventHeader}>
+            <View style={styles.rowDetails}>
+              <View style={styles.rowHeader}>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.eventTitle, { color: theme.colors.onSurface }]} numberOfLines={1}>
-                    {event.title}
-                  </Text>
-                  <Text style={styles.eventClub} numberOfLines={1}>
-                    {event.clubName}
-                  </Text>
+                  <Text style={[styles.rowTitle, { color: theme.colors.onSurface }]} numberOfLines={1}>{event.title}</Text>
+                  <Text style={styles.rowSubtitle} numberOfLines={1}>{event.clubName}</Text>
                 </View>
-
                 {isAttending && (
                   <View style={styles.smallAttendingBadge}>
                     <Text style={styles.smallAttendingText}>Going</Text>
                   </View>
                 )}
               </View>
-
-              <View style={styles.eventMeta}>
-                <View style={styles.eventMetaRow}>
-                  <Ionicons name="time-outline" size={14} color={theme.colors.onSurfaceVariant} />
-                  <Text style={[styles.eventMetaText, { color: theme.colors.onSurfaceVariant }]}>
-                    {formatDate(event.startDate)} • {formatTime(event.startDate)}
+              <View style={styles.rowMeta}>
+                <View style={styles.rowMetaItem}>
+                  <Ionicons name="time-outline" size={13} color={theme.colors.onSurfaceVariant} />
+                  <Text style={[styles.rowMetaText, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
+                    {formatDate(event.startDate)} · {formatTime(event.startDate)}
                   </Text>
                 </View>
-                <View style={styles.eventMetaRow}>
-                  <Ionicons
-                    name={event.isVirtual ? 'globe-outline' : 'location-outline'}
-                    size={14}
-                    color={theme.colors.onSurfaceVariant}
-                  />
-                  <Text style={[styles.eventMetaText, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
+                <View style={styles.rowMetaItem}>
+                  <Ionicons name={event.isVirtual ? 'globe-outline' : 'location-outline'} size={13} color={theme.colors.onSurfaceVariant} />
+                  <Text style={[styles.rowMetaText, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
                     {event.isVirtual ? 'Virtual' : event.location}
                   </Text>
                 </View>
               </View>
-
-              <View style={styles.eventFooter}>
-                <View style={styles.eventAttendeesRow}>
-                  <Ionicons name="people-outline" size={14} color="#60A5FA" />
-                  <Text style={styles.eventAttendeesText}>
-                    {event.attendees.length}
-                    {event.maxAttendees ? `/${event.maxAttendees}` : ''} going
+              <View style={styles.rowFooter}>
+                <View style={styles.rowMetaItem}>
+                  <Ionicons name="people-outline" size={13} color="#60A5FA" />
+                  <Text style={styles.rowAttendeeText}>
+                    {event.attendees?.length || 0}{event.maxAttendees ? `/${event.maxAttendees}` : ''} going
                   </Text>
                 </View>
-
-                <Text style={event.ticketPrice > 0 ? styles.eventPrice : styles.eventFree}>
-                  {event.ticketPrice > 0 ? `$${event.ticketPrice}` : 'Free'}
+                <Text style={(event.ticketPrice || 0) > 0 ? styles.rowPricePaid : styles.rowPriceFree}>
+                  {(event.ticketPrice || 0) > 0 ? `$${event.ticketPrice}` : 'Free'}
                 </Text>
               </View>
             </View>
@@ -379,20 +322,101 @@ export default function EventsScreen() {
     );
   };
 
+  const renderClubRow = (club: Club) => (
+    <TouchableOpacity
+      key={club.id}
+      style={styles.row}
+      onPress={() => router.push(`/club/${club.id}`)}
+      activeOpacity={0.9}
+    >
+      <BlurView intensity={20} tint={isDark ? 'dark' : 'light'} style={[styles.rowBlur, { borderColor: theme.colors.outline }]}>
+        <View style={styles.rowContent}>
+          {(club.logo || club.coverImage) ? (
+            <ExpoImage
+              source={{ uri: club.logo || club.coverImage }}
+              style={styles.rowImage}
+              contentFit="cover"
+              transition={200}
+              cachePolicy="memory-disk"
+            />
+          ) : (
+            <View style={styles.rowImagePlaceholder}>
+              <LinearGradient colors={['#1B365D', '#60A5FA']} style={styles.rowImageGradient}>
+                <Ionicons name="people" size={28} color="#fff" />
+              </LinearGradient>
+            </View>
+          )}
+          <View style={styles.rowDetails}>
+            <View style={styles.rowHeader}>
+              <View style={{ flex: 1 }}>
+                <View style={styles.rowTitleRow}>
+                  <Text style={[styles.rowTitle, { color: theme.colors.onSurface }]} numberOfLines={1}>
+                    {club.name}
+                  </Text>
+                  {club.isPro && (
+                    <Ionicons name="star" size={14} color="#FFD700" style={{ marginLeft: 6 }} />
+                  )}
+                </View>
+                <Text style={styles.rowSubtitle} numberOfLines={1}>{club.category}</Text>
+              </View>
+              <View style={styles.entityTypePill}>
+                <Text style={styles.entityTypePillText}>CLUB</Text>
+              </View>
+            </View>
+            <Text style={[styles.rowDescription, { color: theme.colors.onSurfaceVariant }]} numberOfLines={2}>
+              {club.description}
+            </Text>
+            <View style={styles.rowFooter}>
+              <View style={styles.rowMetaItem}>
+                <Ionicons name="people-outline" size={13} color="#60A5FA" />
+                <Text style={styles.rowAttendeeText}>
+                  {club.members?.length || 0} {club.members?.length === 1 ? 'member' : 'members'}
+                </Text>
+              </View>
+              {!club.isPublic && (
+                <View style={styles.rowMetaItem}>
+                  <Ionicons name="lock-closed-outline" size={12} color={theme.colors.onSurfaceVariant} />
+                  <Text style={[styles.rowMetaText, { color: theme.colors.onSurfaceVariant }]}>Private</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+      </BlurView>
+    </TouchableOpacity>
+  );
+
+  // ----- chip ui -----
+  const Chip = ({ label, value }: { label: string; value: Filter }) => {
+    const active = filter === value;
+    return (
+      <TouchableOpacity
+        onPress={() => setFilter(value)}
+        activeOpacity={0.7}
+        style={[
+          styles.chip,
+          { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline },
+          active && styles.chipActive,
+        ]}
+      >
+        <Text style={[styles.chipText, { color: theme.colors.onSurfaceVariant }, active && styles.chipTextActive]}>
+          {label}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
+  const noResults = q.length > 0
+    && (showEvents ? filteredEvents.length === 0 : true)
+    && (showClubs ? filteredClubs.length === 0 : true);
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Background */}
       <View style={StyleSheet.absoluteFill}>
         <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
       </View>
-
-      {/* Subtle Gradient Overlay */}
       <LinearGradient
-        colors={[
-          'rgba(139, 92, 246, 0.3)',
-          'rgba(96, 165, 250, 0.1)',
-          isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(248, 250, 252, 0)',
-        ]}
+        colors={['rgba(27, 54, 93, 0.3)', 'rgba(96, 165, 250, 0.1)', isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(248, 250, 252, 0)']}
         locations={[0, 0.3, 1]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
@@ -401,499 +425,287 @@ export default function EventsScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Events</Text>
-
-          {/* Tab Switcher with Create Button */}
-          <View style={styles.tabContainer}>
-            <View style={styles.tabsWrapper}>
-              <TouchableOpacity
-                style={[styles.tab, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }, activeTab === 'upcoming' && styles.tabActive]}
-                onPress={() => setActiveTab('upcoming')}
-              >
-                <IconButton
-                  icon={activeTab === 'upcoming' ? 'calendar' : 'calendar-outline'}
-                  iconColor={activeTab === 'upcoming' ? '#fff' : theme.colors.onSurfaceVariant}
-                  size={18}
-                  style={{ margin: 0 }}
-                />
-                <Text
-                  style={[
-                    styles.tabText,
-                    { color: theme.colors.onSurfaceVariant },
-                    activeTab === 'upcoming' && styles.tabTextActive,
-                  ]}
-                >
-                  Upcoming
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.tab, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }, activeTab === 'my-events' && styles.tabActive]}
-                onPress={() => setActiveTab('my-events')}
-              >
-                <IconButton
-                  icon={activeTab === 'my-events' ? 'ticket' : 'ticket-outline'}
-                  iconColor={activeTab === 'my-events' ? '#fff' : theme.colors.onSurfaceVariant}
-                  size={18}
-                  style={{ margin: 0 }}
-                />
-                <Text
-                  style={[
-                    styles.tabText,
-                    { color: theme.colors.onSurfaceVariant },
-                    activeTab === 'my-events' && styles.tabTextActive,
-                  ]}
-                >
-                  My Events
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Create Button */}
-            <TouchableOpacity
-              onPress={() => setCreateModalVisible(true)}
-              activeOpacity={0.7}
-            >
-              <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.createButton, { borderColor: theme.colors.outline }]}>
-                <IconButton
-                  icon="plus"
-                  iconColor="#60A5FA"
-                  size={18}
-                  style={{ margin: 0 }}
-                />
-              </BlurView>
-            </TouchableOpacity>
-          </View>
+          <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Discover</Text>
+          <Text style={[styles.headerSubtitle, { color: theme.colors.onSurfaceVariant }]}>
+            Events, clubs, and what's happening around you
+          </Text>
         </View>
 
-        {/* Search Bar */}
+        {/* Search */}
         <View style={styles.searchContainer}>
-          <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.searchBarContainer, { borderColor: theme.colors.outline }]}>
+          <BlurView intensity={20} tint={isDark ? 'dark' : 'light'} style={[styles.searchBarContainer, { borderColor: theme.colors.outline }]}>
             <Searchbar
-              placeholder="Search events..."
+              placeholder="Search events and clubs"
               onChangeText={setSearchQuery}
               value={searchQuery}
               style={styles.searchBar}
+              inputStyle={{ fontSize: 14 }}
               iconColor={theme.colors.onSurfaceVariant}
-              placeholderTextColor={theme.colors.onSurfaceDisabled}
-              inputStyle={{ color: theme.colors.onSurface }}
+              placeholderTextColor={theme.colors.onSurfaceVariant}
             />
           </BlurView>
         </View>
 
+        {/* Filter chips */}
+        <View style={styles.chipsRow}>
+          <Chip label="All" value="all" />
+          <Chip label="Events" value="events" />
+          <Chip label="Clubs" value="clubs" />
+        </View>
+
         <ScrollView
-          style={styles.scrollView}
+          style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={theme.colors.onSurface}
-            />
-          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
+          showsVerticalScrollIndicator={false}
         >
-          {/* Featured Carousel - Only show on Upcoming tab */}
-          {activeTab === 'upcoming' && featuredEvents.length > 0 && (
-            <View style={styles.featuredSection}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Featured Events</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.featuredCarousel}
-                decelerationRate="fast"
-                snapToInterval={FEATURED_CARD_WIDTH + 16}
-                snapToAlignment="start"
-              >
-                {featuredEvents.map((event) => renderFeaturedCard(event))}
-              </ScrollView>
+          {loading && events.length === 0 && clubs.length === 0 ? (
+            <View style={styles.loadingState}>
+              <Text style={{ color: theme.colors.onSurfaceVariant }}>Loading…</Text>
             </View>
-          )}
-
-          {/* Events List */}
-          <View style={styles.eventsSection}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
-              {activeTab === 'upcoming' ? 'All Events' : 'Your Events'}
-            </Text>
-
-            {displayEvents.length > 0 ? (
-              displayEvents.map((event) => renderEventCard(event))
-            ) : (
-              <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.emptyCard, { borderColor: theme.colors.outline }]}>
-                <View style={styles.emptyContent}>
-                  <IconButton
-                    icon="calendar-blank-outline"
-                    size={64}
-                    iconColor={theme.colors.onSurfaceDisabled}
-                  />
-                  <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>No events found</Text>
-                  <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
-                    {activeTab === 'my-events'
-                      ? 'Join some events to see them here!'
-                      : searchQuery
-                      ? 'Try adjusting your search'
-                      : 'Check back later for new events'}
-                  </Text>
+          ) : noResults ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="search-outline" size={48} color={theme.colors.onSurfaceVariant} />
+              <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>No matches</Text>
+              <Text style={[styles.emptySubtitle, { color: theme.colors.onSurfaceVariant }]}>
+                Nothing found for "{searchQuery}". Try a different word or change the filter.
+              </Text>
+            </View>
+          ) : (
+            <>
+              {/* Featured Events (only when not searching) */}
+              {!q && showEvents && featuredEvents.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Featured Events</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.horizontalContent}
+                  >
+                    {featuredEvents.map(renderFeaturedEvent)}
+                  </ScrollView>
                 </View>
-              </BlurView>
-            )}
-          </View>
+              )}
+
+              {/* Featured Clubs (only when not searching) */}
+              {!q && showClubs && featuredClubs.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Featured Clubs</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.horizontalContent}
+                  >
+                    {featuredClubs.map(renderFeaturedClub)}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* Events list */}
+              {showEvents && filteredEvents.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
+                    {q ? `Events (${filteredEvents.length})` : 'All Events'}
+                  </Text>
+                  <View style={styles.listContainer}>
+                    {filteredEvents.map(renderEventRow)}
+                  </View>
+                </View>
+              )}
+
+              {/* Clubs list */}
+              {showClubs && filteredClubs.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
+                    {q ? `Clubs (${filteredClubs.length})` : 'All Clubs'}
+                  </Text>
+                  <View style={styles.listContainer}>
+                    {filteredClubs.map(renderClubRow)}
+                  </View>
+                </View>
+              )}
+
+              {/* Section-empty hints (filter exclude case) */}
+              {!q && showEvents && filteredEvents.length === 0 && (
+                <View style={styles.sectionEmpty}>
+                  <Text style={{ color: theme.colors.onSurfaceVariant }}>No upcoming events yet.</Text>
+                </View>
+              )}
+              {!q && showClubs && filteredClubs.length === 0 && (
+                <View style={styles.sectionEmpty}>
+                  <Text style={{ color: theme.colors.onSurfaceVariant }}>No clubs yet.</Text>
+                </View>
+              )}
+            </>
+          )}
         </ScrollView>
       </SafeAreaView>
-
-      {selectedEvent && (
-        <PaymentSheet
-          visible={paymentSheetVisible}
-          event={selectedEvent}
-          onDismiss={() => {
-            setPaymentSheetVisible(false);
-            setSelectedEvent(null);
-          }}
-          onSuccess={handlePaymentSuccess}
-        />
-      )}
-
-      <CreateScreen
-        visible={createModalVisible}
-        onClose={() => {
-          setCreateModalVisible(false);
-          loadEvents();
-        }}
-        initialType="Event"
-      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  blackBackground: {
-    flex: 1,
-  },
-  safeArea: {
-    flex: 1,
-  },
+  container: { flex: 1 },
+  blackBackground: { flex: 1 },
+  safeArea: { flex: 1 },
+
   header: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
+    paddingTop: 8,
+    paddingBottom: 12,
   },
-  headerTitle: {
-    fontSize: 32,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'center',
-  },
-  tabsWrapper: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 8,
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    gap: 6,
-  },
-  tabActive: {
-    backgroundColor: '#8B5CF6',
-    borderColor: '#8B5CF6',
-  },
-  tabText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  tabTextActive: {
-    color: '#ffffff',
-  },
-  createButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    overflow: 'hidden',
-    borderWidth: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  searchContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-  },
+  headerTitle: { fontSize: 32, fontWeight: '800' },
+  headerSubtitle: { fontSize: 13, marginTop: 4 },
+
+  searchContainer: { paddingHorizontal: 16, paddingBottom: 12 },
   searchBarContainer: {
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
   },
-  searchBar: {
-    backgroundColor: 'transparent',
-    elevation: 0,
+  searchBar: { backgroundColor: 'transparent', elevation: 0 },
+
+  chipsRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 8,
   },
-  scrollView: {
+  chip: {
     flex: 1,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  scrollContent: {
-    paddingBottom: 100,
+  chipActive: {
+    backgroundColor: '#60A5FA',
+    borderColor: '#60A5FA',
   },
-  featuredSection: {
-    marginBottom: 24,
-  },
+  chipText: { fontSize: 14, fontWeight: '600' },
+  chipTextActive: { color: '#fff' },
+
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 100 },
+
+  section: { marginBottom: 24 },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
-    marginBottom: 16,
-    marginLeft: 16,
+    paddingHorizontal: 16,
+    marginBottom: 12,
   },
-  featuredCarousel: {
-    paddingLeft: 16,
-    paddingRight: 16,
-    gap: 16,
-  },
+  sectionEmpty: { paddingHorizontal: 16, paddingVertical: 16 },
+
+  listContainer: { paddingHorizontal: 16, gap: 10 },
+
+  loadingState: { paddingVertical: 60, alignItems: 'center' },
+  emptyState: { paddingVertical: 80, alignItems: 'center', paddingHorizontal: 32 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', marginTop: 12 },
+  emptySubtitle: { fontSize: 13, marginTop: 6, textAlign: 'center' },
+
+  // Featured (horizontal) cards
+  horizontalContent: { paddingHorizontal: 16, gap: 12 },
   featuredCard: {
     width: FEATURED_CARD_WIDTH,
     height: FEATURED_CARD_HEIGHT,
     borderRadius: 16,
     overflow: 'hidden',
   },
-  featuredCardBlur: {
-    flex: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    position: 'relative',
-  },
-  featuredImage: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-  },
-  featuredGradient: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-  },
-  featuredContent: {
-    flex: 1,
-    padding: 16,
-    justifyContent: 'space-between',
-  },
-  featuredBadges: {
-    flexDirection: 'row',
-    gap: 8,
-  },
+  featuredCardBlur: { flex: 1, borderRadius: 16, overflow: 'hidden', borderWidth: 1 },
+  featuredImage: { ...StyleSheet.absoluteFillObject },
+  featuredGradient: { ...StyleSheet.absoluteFillObject },
+  featuredContent: { flex: 1, padding: 14, justifyContent: 'space-between' },
+  featuredBadges: { flexDirection: 'row', gap: 6 },
+  featuredInfo: { gap: 4 },
+  featuredDate: { color: '#60A5FA', fontSize: 12, fontWeight: '700' },
+  featuredCategory: { color: '#60A5FA', fontSize: 11, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
+  featuredTitle: { color: '#fff', fontSize: 18, fontWeight: '800' },
+  featuredClub: { color: 'rgba(255,255,255,0.85)', fontSize: 13 },
+  featuredFooter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
+  featuredLocation: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1, marginRight: 8 },
+  featuredLocationText: { color: 'rgba(255,255,255,0.7)', fontSize: 11, flex: 1 },
+  featuredAttendees: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  featuredAttendeesText: { color: 'rgba(255,255,255,0.7)', fontSize: 11 },
+
   attendingBadge: {
     backgroundColor: 'rgba(34, 197, 94, 0.9)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
-  attendingBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#fff',
-  },
+  attendingBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   priceBadge: {
-    backgroundColor: 'rgba(139, 92, 246, 0.9)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   freeBadge: {
     backgroundColor: 'rgba(34, 197, 94, 0.9)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  priceBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  featuredInfo: {
-    gap: 6,
-  },
-  featuredDate: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#60A5FA',
-    letterSpacing: 0.5,
-  },
-  featuredTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#ffffff',  // Always white on image overlay
-    lineHeight: 28,
-  },
-  featuredClub: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.7)',
-  },
-  featuredFooter: {
-    flexDirection: 'row',
-    gap: 16,
-    marginTop: 4,
-  },
-  featuredLocation: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flex: 1,
-  },
-  featuredLocationText: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.7)',
-    fontWeight: '500',
-  },
-  featuredAttendees: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  featuredAttendeesText: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.7)',
-    fontWeight: '500',
-  },
-  eventsSection: {
-    paddingHorizontal: 16,
-  },
-  eventCard: {
-    marginBottom: 12,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  eventCardBlur: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-  },
-  eventCardContent: {
-    flexDirection: 'row',
-    padding: 12,
-    gap: 12,
-  },
-  eventThumbnail: {
-    width: 90,
-    height: 90,
-    borderRadius: 12,
-  },
-  eventDateBadge: {
-    width: 90,
-    height: 90,
-    borderRadius: 12,
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
-    borderWidth: 2,
-    borderColor: '#8B5CF6',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  eventDateMonth: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#8B5CF6',
-    letterSpacing: 1,
-  },
-  eventDateDay: {
-    fontSize: 28,
-    fontWeight: '800',
-  },
-  eventDetails: {
-    flex: 1,
-    gap: 8,
-  },
-  eventHeader: {
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'flex-start',
-  },
-  eventTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  eventClub: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#60A5FA',
-    marginTop: 2,
-  },
-  smallAttendingBadge: {
-    backgroundColor: 'rgba(34, 197, 94, 0.2)',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#22C55E',
   },
-  smallAttendingText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#22C55E',
-  },
-  eventMeta: {
+  priceBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  clubBadge: {
+    backgroundColor: 'rgba(96, 165, 250, 0.9)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 4,
   },
-  eventMetaRow: {
+  clubBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  proBadge: {
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
   },
-  eventMetaText: {
-    fontSize: 12,
-    flex: 1,
-  },
-  eventFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  eventAttendeesRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  eventAttendeesText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#60A5FA',
-  },
-  eventPrice: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#8B5CF6',
-  },
-  eventFree: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#22C55E',
-  },
-  emptyCard: {
-    marginTop: 40,
-    borderRadius: 16,
-    overflow: 'hidden',
+  proBadgeText: { color: '#FFD700', fontSize: 11, fontWeight: '700' },
+
+  // List rows
+  row: { borderRadius: 16, overflow: 'hidden' },
+  rowBlur: { borderRadius: 16, overflow: 'hidden', borderWidth: 1 },
+  rowContent: { flexDirection: 'row', padding: 12, gap: 12 },
+  rowImage: { width: 84, height: 84, borderRadius: 12 },
+  rowImagePlaceholder: { width: 84, height: 84, borderRadius: 12, overflow: 'hidden' },
+  rowImageGradient: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  rowDetails: { flex: 1, gap: 6 },
+  rowHeader: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
+  rowTitleRow: { flexDirection: 'row', alignItems: 'center' },
+  rowTitle: { fontSize: 15, fontWeight: '700' },
+  rowSubtitle: { color: '#60A5FA', fontSize: 12, fontWeight: '600', marginTop: 2 },
+  rowDescription: { fontSize: 12, lineHeight: 17 },
+  rowMeta: { gap: 3 },
+  rowMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  rowMetaText: { fontSize: 12 },
+  rowFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 },
+  rowAttendeeText: { color: '#60A5FA', fontSize: 12, fontWeight: '600' },
+  rowPriceFree: { color: '#22C55E', fontSize: 13, fontWeight: '700' },
+  rowPricePaid: { color: '#60A5FA', fontSize: 13, fontWeight: '700' },
+  smallAttendingBadge: {
+    backgroundColor: 'rgba(34, 197, 94, 0.2)',
+    borderColor: '#22C55E',
     borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
-  emptyContent: {
-    alignItems: 'center',
-    padding: 32,
+  smallAttendingText: { color: '#22C55E', fontSize: 10, fontWeight: '700' },
+  entityTypePill: {
+    backgroundColor: 'rgba(96,165,250,0.18)',
+    borderColor: '#60A5FA',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 14,
-    textAlign: 'center',
-  },
+  entityTypePillText: { color: '#60A5FA', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
 });

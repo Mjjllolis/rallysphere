@@ -35,25 +35,41 @@ let configInstance: FinixConfig | null = null;
 const getFinixConfig = (): FinixConfig => {
   if (configInstance) return configInstance;
 
-  const environment: "sandbox" | "live" = isTestMode ? "sandbox" : "live";
+  // TEST_MODE must be exactly "true" or "false" to avoid silent misconfiguration
+  // (a typo like TEST_MODE="False" would currently fall through to live mode).
+  const rawTestMode = process.env.TEST_MODE;
+  if (rawTestMode !== "true" && rawTestMode !== "false") {
+    throw new Error(
+      `TEST_MODE must be exactly "true" or "false" (got: "${rawTestMode}"). Set in functions/.env.`
+    );
+  }
 
-  const username = isTestMode
-    ? (process.env.FINIX_USERNAME || "")
-    : (process.env.FINIX_USERNAME_LIVE || "");
-  const password = isTestMode
-    ? (process.env.FINIX_PASSWORD || "")
-    : (process.env.FINIX_PASSWORD_LIVE || "");
-  const applicationId = isTestMode
-    ? (process.env.FINIX_APPLICATION_ID || "")
-    : (process.env.FINIX_APPLICATION_ID_LIVE || "");
-  const platformMerchantId = isTestMode
-    ? (process.env.FINIX_PLATFORM_MERCHANT_ID || "")
-    : (process.env.FINIX_PLATFORM_MERCHANT_ID_LIVE || "");
+  const environment: "sandbox" | "live" = isTestMode ? "sandbox" : "live";
+  const suffix = isTestMode ? "" : "_LIVE";
+
+  const username = process.env[`FINIX_USERNAME${suffix}`] || "";
+  const password = process.env[`FINIX_PASSWORD${suffix}`] || "";
+  const applicationId = process.env[`FINIX_APPLICATION_ID${suffix}`] || "";
+  const platformMerchantId = process.env[`FINIX_PLATFORM_MERCHANT_ID${suffix}`] || "";
   const webhookSecret = process.env.FINIX_WEBHOOK_SECRET || "";
 
+  // Fail loud when running in live mode without the *_LIVE creds populated.
+  // The default empty-string fallbacks above would otherwise produce confusing
+  // 401s from Finix instead of a clear startup error.
   if (!username || !password || !applicationId || !platformMerchantId) {
+    const missing = [
+      !username && `FINIX_USERNAME${suffix}`,
+      !password && `FINIX_PASSWORD${suffix}`,
+      !applicationId && `FINIX_APPLICATION_ID${suffix}`,
+      !platformMerchantId && `FINIX_PLATFORM_MERCHANT_ID${suffix}`,
+    ].filter(Boolean).join(", ");
     throw new Error(
-      "Finix credentials not configured. Set FINIX_USERNAME, FINIX_PASSWORD, FINIX_APPLICATION_ID, FINIX_PLATFORM_MERCHANT_ID (sandbox) or *_LIVE variants."
+      `Finix ${environment} credentials missing: ${missing}. Set in functions/.env then redeploy.`
+    );
+  }
+  if (!webhookSecret) {
+    console.warn(
+      `[FinixConfig] FINIX_WEBHOOK_SECRET is empty. Webhook signature verification will be skipped — set this before going live.`
     );
   }
 

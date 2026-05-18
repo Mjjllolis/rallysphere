@@ -122,7 +122,7 @@ export default function TabLayout() {
             name="events"
             options={{
               tabBarIcon: ({ color, focused }) => (
-                <AnimatedTabIcon name="calendar-month" color={color} focused={focused} />
+                <AnimatedTabIcon name="compass" color={color} focused={focused} />
               ),
             }}
           />

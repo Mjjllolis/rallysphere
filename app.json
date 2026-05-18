@@ -3,7 +3,7 @@
     "name": "RallySphere",
     "slug": "rally-sphere",
     "scheme": "rallysphere",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/Logo.png",
     "userInterfaceStyle": "automatic",
@@ -21,7 +21,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.rallysphere.app",
-      "buildNumber": "40",
+      "buildNumber": "42",
       "icon": {
         "light": "./assets/Logo.png",
         "dark": "./assets/Logo-dark.png"
@@ -41,7 +41,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.rallysphere.app",
-      "versionCode": 6,
+      "versionCode": 10,
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
@@ -73,7 +73,7 @@
             "deploymentTarget": "15.1"
           },
           "android": {
-            "minSdkVersion": 23
+            "minSdkVersion": 24
           }
         }
       ]

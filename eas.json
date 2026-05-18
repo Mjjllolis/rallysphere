@@ -39,7 +39,7 @@
         "appleTeamId": "66YBRZM5J5"
       },
       "android": {
-        "serviceAccountKeyPath": "/Users/mishawnlolis/Downloads/rallysphere-bbda79302dcc.json",
+        "serviceAccountKeyPath": "./service-account-key.json",
         "track": "internal"
       }
     }

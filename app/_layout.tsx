@@ -1,4 +1,5 @@
 // app/_layout.tsx
+import '../lib/silence-logs';
 import React, { useEffect, useState, createContext, useContext, useMemo } from 'react';
 import { Platform, Linking, Alert, useColorScheme } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
