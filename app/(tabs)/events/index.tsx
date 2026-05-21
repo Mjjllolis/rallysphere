@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -16,10 +16,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
 import { useAuth, useThemeToggle } from '../../_layout';
-import { getEvents, joinEvent, leaveEvent } from '../../../lib/firebase';
-import type { Event } from '../../../lib/firebase';
+import { getEvents, joinEvent, leaveEvent, getClubs, joinClub, leaveClub, subscribeToClubs } from '../../../lib/firebase';
+import type { Event, Club } from '../../../lib/firebase';
 import PaymentSheet from '../../../components/PaymentSheet';
 import CreateScreen from '../../../components/CreateScreen';
+import JoinClubModal from '../../../components/JoinClubModal';
+import RallyCreditsDisplay from '../../../components/RallyCreditsDisplay';
 
 const { width } = Dimensions.get('window');
 const FEATURED_CARD_WIDTH = width * 0.75;
@@ -30,6 +32,8 @@ export default function EventsScreen() {
   const { isDark } = useThemeToggle();
   const { user } = useAuth();
 
+  const [contentType, setContentType] = useState<'events' | 'clubs'>('events');
+  const [menuVisible, setMenuVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'my-events'>('upcoming');
   const [allEvents, setAllEvents] = useState<Event[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([]);
@@ -43,9 +47,46 @@ export default function EventsScreen() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [createModalVisible, setCreateModalVisible] = useState(false);
 
+  // Clubs state
+  const [myClubs, setMyClubs] = useState<Club[]>([]);
+  const [discoverClubs, setDiscoverClubs] = useState<Club[]>([]);
+  const [filteredClubs, setFilteredClubs] = useState<Club[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [joinModalVisible, setJoinModalVisible] = useState(false);
+  const [selectedClub, setSelectedClub] = useState<Club | null>(null);
+
+  const availableCategories = useMemo(() => {
+    const cats = [...new Set(discoverClubs.map(club => club.category).filter(Boolean))].sort();
+    return ['All', ...cats];
+  }, [discoverClubs]);
+
   useEffect(() => {
-    loadEvents();
-  }, [user]);
+    if (contentType === 'events') {
+      loadEvents();
+    } else {
+      loadClubs();
+    }
+  }, [user, contentType]);
+
+  useEffect(() => {
+    if (user && contentType === 'clubs') {
+      // Set up real-time listener for user's clubs
+      const unsubscribe = subscribeToClubs(user.uid, (clubs) => {
+        setMyClubs(clubs);
+      });
+      return unsubscribe;
+    }
+  }, [user, contentType]);
+
+  useEffect(() => {
+    if (contentType === 'clubs') {
+      // Reset category if it no longer exists
+      if (selectedCategory !== 'All' && !availableCategories.includes(selectedCategory)) {
+        setSelectedCategory('All');
+      }
+      filterClubs();
+    }
+  }, [discoverClubs, searchQuery, selectedCategory, availableCategories, contentType]);
 
   const loadEvents = async () => {
     try {
@@ -89,8 +130,61 @@ export default function EventsScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadEvents();
+    if (contentType === 'events') {
+      await loadEvents();
+    } else {
+      await loadClubs();
+    }
     setRefreshing(false);
+  };
+
+  const loadClubs = async () => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+
+      // Load user's clubs
+      const myClubsResult = await getClubs(user.uid);
+      if (myClubsResult.success) {
+        setMyClubs(myClubsResult.clubs);
+      }
+
+      // Load public clubs for discovery
+      const discoverResult = await getClubs();
+      if (discoverResult.success) {
+        // Filter out clubs user is already a member of
+        const userClubIds = myClubsResult.clubs.map(club => club.id);
+        const availableClubs = discoverResult.clubs.filter(club => !userClubIds.includes(club.id));
+        setDiscoverClubs(availableClubs);
+      }
+    } catch (error) {
+      // console.error('Error loading clubs:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filterClubs = () => {
+    let filtered = discoverClubs;
+
+    // Filter by category
+    if (selectedCategory !== 'All') {
+      filtered = filtered.filter(club => club.category === selectedCategory);
+    }
+
+    // Filter by search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(club =>
+        club.name.toLowerCase().includes(query) ||
+        club.description.toLowerCase().includes(query) ||
+        club.category.toLowerCase().includes(query) ||
+        (club.tags && club.tags.some(tag => tag.toLowerCase().includes(query)))
+      );
+    }
+
+    setFilteredClubs(filtered);
   };
 
   const handleJoinEvent = async (eventId: string) => {
@@ -166,6 +260,91 @@ export default function EventsScreen() {
     ]);
   };
 
+  const handleJoinClubAction = async (clubId: string, message?: string) => {
+    if (!user) return;
+
+    setActionLoading(clubId);
+    try {
+      const result = await joinClub(clubId, user.uid, user.email || '', user.displayName || '', message);
+      if (result.success) {
+        if (result.approved) {
+          Alert.alert('Success!', 'You have joined the club!');
+          await loadClubs();
+        } else {
+          Alert.alert('Request Sent!', 'Your join request has been sent to the club admins.');
+        }
+      } else {
+        Alert.alert('Error', result.error || 'Failed to join club');
+      }
+    } catch (error) {
+      // console.error('Error joining club:', error);
+      Alert.alert('Error', 'An unexpected error occurred');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleLeaveClubAction = async (clubId: string) => {
+    if (!user) return;
+
+    Alert.alert(
+      'Leave Club',
+      'Are you sure you want to leave this club?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: async () => {
+            setActionLoading(clubId);
+            try {
+              const result = await leaveClub(clubId, user.uid);
+              if (result.success) {
+                Alert.alert('Success', 'You have left the club');
+                await loadClubs();
+              } else {
+                Alert.alert('Error', result.error || 'Failed to leave club');
+              }
+            } catch (error) {
+              // console.error('Error leaving club:', error);
+              Alert.alert('Error', 'An unexpected error occurred');
+            } finally {
+              setActionLoading(null);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const openJoinModal = (club: Club) => {
+    setSelectedClub(club);
+    setJoinModalVisible(true);
+  };
+
+  const handleJoinFromModal = async (message: string) => {
+    if (selectedClub) {
+      await handleJoinClubAction(selectedClub.id, message);
+    }
+  };
+
+  const getUserClubRole = (club: Club): string => {
+    if (!user) return 'Member';
+    if (club.owner === user.uid || club.createdBy === user.uid) return 'Owner';
+    if (club.admins.includes(user.uid)) return 'Admin';
+    if (club.subscribers?.includes(user.uid)) return 'Subscriber';
+    return 'Member';
+  };
+
+  const getRoleBadgeStyle = (role: string) => {
+    switch (role) {
+      case 'Owner': return styles.ownerBadge;
+      case 'Admin': return styles.adminBadge;
+      case 'Subscriber': return styles.subscriberBadge;
+      default: return styles.memberBadge;
+    }
+  };
+
   const filterEvents = (events: Event[]) => {
     if (!searchQuery) return events;
     const query = searchQuery.toLowerCase();
@@ -205,6 +384,99 @@ export default function EventsScreen() {
   };
 
   const displayEvents = getCurrentEvents();
+
+  const renderClubCard = (club: Club, isJoined: boolean) => {
+    const role = getUserClubRole(club);
+    return (
+      <TouchableOpacity
+        key={club.id}
+        style={styles.clubCard}
+        onPress={() => router.push(`/club/${club.id}`)}
+        activeOpacity={0.9}
+      >
+        <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.clubCardBlur, { borderColor: theme.colors.outline }]}>
+          <View style={styles.clubCardContent}>
+            {/* Left: Club Logo/Image */}
+            {club.logo || club.coverImage ? (
+              <Image
+                source={{ uri: club.logo || club.coverImage }}
+                style={styles.clubImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.clubImagePlaceholder}>
+                <LinearGradient
+                  colors={['#1B365D', '#60A5FA']}
+                  style={styles.clubImageGradient}
+                >
+                  <Ionicons name="people" size={32} color="#fff" />
+                </LinearGradient>
+              </View>
+            )}
+
+            {/* Right: Club Details */}
+            <View style={styles.clubDetails}>
+              <View style={styles.clubHeader}>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.clubTitleRow}>
+                    <Text style={[styles.clubTitle, { color: theme.colors.onSurface }]} numberOfLines={1}>
+                      {club.name}
+                    </Text>
+                    {club.isPro && (
+                      <Ionicons name="star" size={16} color="#FFD700" style={{ marginLeft: 6 }} />
+                    )}
+                  </View>
+                  <Text style={styles.clubCategory} numberOfLines={1}>
+                    {club.category}
+                  </Text>
+                </View>
+
+                <View style={styles.badgesColumn}>
+                  {isJoined && (
+                    <View style={[styles.memberBadge, getRoleBadgeStyle(role)]}>
+                      <Text style={[
+                        styles.memberBadgeText,
+                        role === 'Owner' && { color: '#FFD700' },
+                        role === 'Admin' && { color: '#60A5FA' },
+                        role === 'Subscriber' && { color: '#4CAF50' },
+                      ]}>{role}</Text>
+                    </View>
+                  )}
+                  {isJoined && user && (
+                    <RallyCreditsDisplay
+                      userId={user.uid}
+                      clubId={club.id}
+                      compact
+                    />
+                  )}
+                </View>
+              </View>
+
+              <Text style={[styles.clubDescription, { color: theme.colors.onSurfaceVariant }]} numberOfLines={2}>
+                {club.description}
+              </Text>
+
+              <View style={styles.clubFooter}>
+                <View style={styles.clubMetaRow}>
+                  <Ionicons name="people-outline" size={14} color="#60A5FA" />
+                  <Text style={styles.clubMetaText}>
+                    {club.members.length} {club.members.length === 1 ? 'member' : 'members'}
+                  </Text>
+                </View>
+
+                {!club.isPublic && (
+                  <View style={styles.privateIndicator}>
+                    <Ionicons name="lock-closed-outline" size={12} color={theme.colors.onSurfaceVariant} />
+                    <Text style={[styles.privateText, { color: theme.colors.onSurfaceVariant }]}>Private</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+        </BlurView>
+      </TouchableOpacity>
+    );
+  };
 
   const renderFeaturedCard = (event: Event) => {
     const isAttending = user && event.attendees.includes(user.uid);
@@ -401,52 +673,152 @@ export default function EventsScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Events</Text>
+          {/* Title with Dropdown */}
+          <View style={styles.headerTitleRow}>
+            <TouchableOpacity
+              onPress={() => setMenuVisible(!menuVisible)}
+              style={styles.titleButton}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>
+                {contentType === 'events' ? 'Events' : 'Clubs'}
+              </Text>
+              <IconButton
+                icon={menuVisible ? "chevron-up" : "chevron-down"}
+                iconColor={theme.colors.onSurface}
+                size={28}
+                style={{ margin: 0, marginLeft: -4 }}
+              />
+            </TouchableOpacity>
+
+            {/* Dropdown Menu */}
+            {menuVisible && (
+              <View style={[styles.dropdownMenu, {
+                backgroundColor: isDark ? 'rgba(30,41,59,0.95)' : 'rgba(255,255,255,0.95)',
+                borderColor: theme.colors.outline
+              }]}>
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setContentType('events');
+                    setMenuVisible(false);
+                  }}
+                >
+                  <IconButton icon="calendar-month" size={20} iconColor={theme.colors.onSurface} style={{ margin: 0 }} />
+                  <Text style={[styles.dropdownText, { color: theme.colors.onSurface }]}>Events</Text>
+                  {contentType === 'events' && (
+                    <IconButton icon="check" size={20} iconColor="#60A5FA" style={{ margin: 0, marginLeft: 'auto' }} />
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setContentType('clubs');
+                    setMenuVisible(false);
+                  }}
+                >
+                  <IconButton icon="account-group" size={20} iconColor={theme.colors.onSurface} style={{ margin: 0 }} />
+                  <Text style={[styles.dropdownText, { color: theme.colors.onSurface }]}>Clubs</Text>
+                  {contentType === 'clubs' && (
+                    <IconButton icon="check" size={20} iconColor="#60A5FA" style={{ margin: 0, marginLeft: 'auto' }} />
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
 
           {/* Tab Switcher with Create Button */}
           <View style={styles.tabContainer}>
             <View style={styles.tabsWrapper}>
-              <TouchableOpacity
-                style={[styles.tab, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }, activeTab === 'upcoming' && styles.tabActive]}
-                onPress={() => setActiveTab('upcoming')}
-              >
-                <IconButton
-                  icon={activeTab === 'upcoming' ? 'calendar' : 'calendar-outline'}
-                  iconColor={activeTab === 'upcoming' ? '#fff' : theme.colors.onSurfaceVariant}
-                  size={18}
-                  style={{ margin: 0 }}
-                />
-                <Text
-                  style={[
-                    styles.tabText,
-                    { color: theme.colors.onSurfaceVariant },
-                    activeTab === 'upcoming' && styles.tabTextActive,
-                  ]}
-                >
-                  Upcoming
-                </Text>
-              </TouchableOpacity>
+              {contentType === 'events' ? (
+                <>
+                  <TouchableOpacity
+                    style={[styles.tab, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }, activeTab === 'upcoming' && styles.tabActive]}
+                    onPress={() => setActiveTab('upcoming')}
+                  >
+                    <IconButton
+                      icon={activeTab === 'upcoming' ? 'calendar' : 'calendar-outline'}
+                      iconColor={activeTab === 'upcoming' ? '#fff' : theme.colors.onSurfaceVariant}
+                      size={18}
+                      style={{ margin: 0 }}
+                    />
+                    <Text
+                      style={[
+                        styles.tabText,
+                        { color: theme.colors.onSurfaceVariant },
+                        activeTab === 'upcoming' && styles.tabTextActive,
+                      ]}
+                    >
+                      Upcoming
+                    </Text>
+                  </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.tab, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }, activeTab === 'my-events' && styles.tabActive]}
-                onPress={() => setActiveTab('my-events')}
-              >
-                <IconButton
-                  icon={activeTab === 'my-events' ? 'ticket' : 'ticket-outline'}
-                  iconColor={activeTab === 'my-events' ? '#fff' : theme.colors.onSurfaceVariant}
-                  size={18}
-                  style={{ margin: 0 }}
-                />
-                <Text
-                  style={[
-                    styles.tabText,
-                    { color: theme.colors.onSurfaceVariant },
-                    activeTab === 'my-events' && styles.tabTextActive,
-                  ]}
-                >
-                  My Events
-                </Text>
-              </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.tab, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }, activeTab === 'my-events' && styles.tabActive]}
+                    onPress={() => setActiveTab('my-events')}
+                  >
+                    <IconButton
+                      icon={activeTab === 'my-events' ? 'ticket' : 'ticket-outline'}
+                      iconColor={activeTab === 'my-events' ? '#fff' : theme.colors.onSurfaceVariant}
+                      size={18}
+                      style={{ margin: 0 }}
+                    />
+                    <Text
+                      style={[
+                        styles.tabText,
+                        { color: theme.colors.onSurfaceVariant },
+                        activeTab === 'my-events' && styles.tabTextActive,
+                      ]}
+                    >
+                      My Events
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={[styles.tab, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }, activeTab === 'upcoming' && styles.tabActive]}
+                    onPress={() => setActiveTab('upcoming')}
+                  >
+                    <IconButton
+                      icon={activeTab === 'upcoming' ? 'account-group' : 'account-group-outline'}
+                      iconColor={activeTab === 'upcoming' ? '#fff' : theme.colors.onSurfaceVariant}
+                      size={18}
+                      style={{ margin: 0 }}
+                    />
+                    <Text
+                      style={[
+                        styles.tabText,
+                        { color: theme.colors.onSurfaceVariant },
+                        activeTab === 'upcoming' && styles.tabTextActive,
+                      ]}
+                    >
+                      My Clubs
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.tab, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }, activeTab === 'my-events' && styles.tabActive]}
+                    onPress={() => setActiveTab('my-events')}
+                  >
+                    <IconButton
+                      icon={activeTab === 'my-events' ? 'compass' : 'compass-outline'}
+                      iconColor={activeTab === 'my-events' ? '#fff' : theme.colors.onSurfaceVariant}
+                      size={18}
+                      style={{ margin: 0 }}
+                    />
+                    <Text
+                      style={[
+                        styles.tabText,
+                        { color: theme.colors.onSurfaceVariant },
+                        activeTab === 'my-events' && styles.tabTextActive,
+                      ]}
+                    >
+                      Discover
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
 
             {/* Create Button */}
@@ -470,7 +842,7 @@ export default function EventsScreen() {
         <View style={styles.searchContainer}>
           <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.searchBarContainer, { borderColor: theme.colors.outline }]}>
             <Searchbar
-              placeholder="Search events..."
+              placeholder={contentType === 'events' ? "Search events..." : "Search clubs..."}
               onChangeText={setSearchQuery}
               value={searchQuery}
               style={styles.searchBar}
@@ -480,6 +852,45 @@ export default function EventsScreen() {
             />
           </BlurView>
         </View>
+
+        {/* Category Filter - Only show for clubs discover tab */}
+        {contentType === 'clubs' && activeTab === 'my-events' && availableCategories.length > 2 && (
+          <View style={styles.categoryContainer}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryContent}
+            >
+              {availableCategories.map((category) => (
+                <TouchableOpacity
+                  key={category}
+                  onPress={() => setSelectedCategory(category)}
+                  activeOpacity={0.7}
+                >
+                  <BlurView
+                    intensity={selectedCategory === category ? 30 : 15}
+                    tint={isDark ? "dark" : "light"}
+                    style={[
+                      styles.categoryChip,
+                      { borderColor: theme.colors.outline },
+                      selectedCategory === category && styles.categoryChipSelected
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryText,
+                        { color: theme.colors.onSurfaceVariant },
+                        selectedCategory === category && styles.categoryTextSelected
+                      ]}
+                    >
+                      {category}
+                    </Text>
+                  </BlurView>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         <ScrollView
           style={styles.scrollView}
@@ -492,51 +903,90 @@ export default function EventsScreen() {
             />
           }
         >
-          {/* Featured Carousel - Only show on Upcoming tab */}
-          {activeTab === 'upcoming' && featuredEvents.length > 0 && (
-            <View style={styles.featuredSection}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Featured Events</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.featuredCarousel}
-                decelerationRate="fast"
-                snapToInterval={FEATURED_CARD_WIDTH + 16}
-                snapToAlignment="start"
-              >
-                {featuredEvents.map((event) => renderFeaturedCard(event))}
-              </ScrollView>
-            </View>
-          )}
-
-          {/* Events List */}
-          <View style={styles.eventsSection}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
-              {activeTab === 'upcoming' ? 'All Events' : 'Your Events'}
-            </Text>
-
-            {displayEvents.length > 0 ? (
-              displayEvents.map((event) => renderEventCard(event))
-            ) : (
-              <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.emptyCard, { borderColor: theme.colors.outline }]}>
-                <View style={styles.emptyContent}>
-                  <IconButton
-                    icon="calendar-blank-outline"
-                    size={64}
-                    iconColor={theme.colors.onSurfaceDisabled}
-                  />
-                  <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>No events found</Text>
-                  <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
-                    {activeTab === 'my-events'
-                      ? 'Join some events to see them here!'
-                      : searchQuery
-                      ? 'Try adjusting your search'
-                      : 'Check back later for new events'}
-                  </Text>
+          {contentType === 'events' ? (
+            <>
+              {/* Featured Carousel - Only show on Upcoming tab */}
+              {activeTab === 'upcoming' && featuredEvents.length > 0 && (
+                <View style={styles.featuredSection}>
+                  <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Featured Events</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.featuredCarousel}
+                    decelerationRate="fast"
+                    snapToInterval={FEATURED_CARD_WIDTH + 16}
+                    snapToAlignment="start"
+                  >
+                    {featuredEvents.map((event) => renderFeaturedCard(event))}
+                  </ScrollView>
                 </View>
-              </BlurView>
-            )}
-          </View>
+              )}
+
+              {/* Events List */}
+              <View style={styles.eventsSection}>
+                <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
+                  {activeTab === 'upcoming' ? 'All Events' : 'Your Events'}
+                </Text>
+
+                {displayEvents.length > 0 ? (
+                  displayEvents.map((event) => renderEventCard(event))
+                ) : (
+                  <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.emptyCard, { borderColor: theme.colors.outline }]}>
+                    <View style={styles.emptyContent}>
+                      <IconButton
+                        icon="calendar-blank-outline"
+                        size={64}
+                        iconColor={theme.colors.onSurfaceDisabled}
+                      />
+                      <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>No events found</Text>
+                      <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
+                        {activeTab === 'my-events'
+                          ? 'Join some events to see them here!'
+                          : searchQuery
+                          ? 'Try adjusting your search'
+                          : 'Check back later for new events'}
+                      </Text>
+                    </View>
+                  </BlurView>
+                )}
+              </View>
+            </>
+          ) : (
+            <>
+              {/* Clubs List */}
+              <View style={styles.eventsSection}>
+                {activeTab === 'upcoming' ? (
+                  myClubs.length > 0 ? (
+                    myClubs.map((club) => renderClubCard(club, true))
+                  ) : (
+                    <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.emptyCard, { borderColor: theme.colors.outline }]}>
+                      <View style={styles.emptyContent}>
+                        <IconButton icon="account-group-outline" size={64} iconColor={theme.colors.onSurfaceDisabled} />
+                        <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>No clubs yet</Text>
+                        <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
+                          Join some clubs to get started!
+                        </Text>
+                      </View>
+                    </BlurView>
+                  )
+                ) : (
+                  filteredClubs.length > 0 ? (
+                    filteredClubs.map((club) => renderClubCard(club, false))
+                  ) : (
+                    <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.emptyCard, { borderColor: theme.colors.outline }]}>
+                      <View style={styles.emptyContent}>
+                        <IconButton icon="magnify" size={64} iconColor={theme.colors.onSurfaceDisabled} />
+                        <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>No clubs found</Text>
+                        <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
+                          Try adjusting your search or filters
+                        </Text>
+                      </View>
+                    </BlurView>
+                  )
+                )}
+              </View>
+            </>
+          )}
         </ScrollView>
       </SafeAreaView>
 
@@ -552,13 +1002,26 @@ export default function EventsScreen() {
         />
       )}
 
+      <JoinClubModal
+        visible={joinModalVisible}
+        onDismiss={() => setJoinModalVisible(false)}
+        onJoin={handleJoinFromModal}
+        clubName={selectedClub?.name || ''}
+        requiresApproval={!selectedClub?.isPublic}
+        loading={selectedClub ? actionLoading === selectedClub.id : false}
+      />
+
       <CreateScreen
         visible={createModalVisible}
         onClose={() => {
           setCreateModalVisible(false);
-          loadEvents();
+          if (contentType === 'events') {
+            loadEvents();
+          } else {
+            loadClubs();
+          }
         }}
-        initialType="Event"
+        initialType={contentType === 'events' ? 'Event' : 'Club'}
       />
     </View>
   );
@@ -579,10 +1042,44 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 12,
   },
+  headerTitleRow: {
+    position: 'relative',
+    marginBottom: 4,
+  },
+  titleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+  },
   headerTitle: {
     fontSize: 32,
     fontWeight: '700',
-    marginBottom: 4,
+  },
+  dropdownMenu: {
+    position: 'absolute',
+    top: 48,
+    left: 0,
+    minWidth: 200,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 1000,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  dropdownText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   tabContainer: {
     flexDirection: 'row',
@@ -895,5 +1392,145 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
     textAlign: 'center',
+  },
+  // Club styles
+  clubCard: {
+    marginBottom: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  clubCardBlur: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+  },
+  clubCardContent: {
+    flexDirection: 'row',
+    padding: 12,
+    gap: 12,
+  },
+  clubImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+  },
+  clubImagePlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  clubImageGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  clubDetails: {
+    flex: 1,
+    gap: 8,
+  },
+  clubHeader: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'flex-start',
+  },
+  badgesColumn: {
+    gap: 6,
+    alignItems: 'flex-end',
+    minWidth: 80,
+  },
+  clubTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  clubTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  clubCategory: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#60A5FA',
+    marginTop: 2,
+  },
+  memberBadge: {
+    backgroundColor: 'rgba(34, 197, 94, 0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#22C55E',
+    alignSelf: 'stretch',
+    alignItems: 'center',
+  },
+  memberBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#22C55E',
+  },
+  ownerBadge: {
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    borderColor: '#FFD700',
+  },
+  adminBadge: {
+    backgroundColor: 'rgba(96, 165, 250, 0.2)',
+    borderColor: '#60A5FA',
+  },
+  subscriberBadge: {
+    backgroundColor: 'rgba(76, 175, 80, 0.2)',
+    borderColor: '#4CAF50',
+  },
+  clubDescription: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  clubFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  clubMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  clubMetaText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#60A5FA',
+  },
+  privateIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  privateText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  categoryContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  categoryContent: {
+    gap: 8,
+    paddingRight: 16,
+  },
+  categoryChip: {
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  categoryChipSelected: {
+    borderColor: '#60A5FA',
+  },
+  categoryText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  categoryTextSelected: {
+    color: '#ffffff',
   },
 });
