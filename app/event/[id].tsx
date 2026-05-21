@@ -13,14 +13,16 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
+import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, Stack, useFocusEffect } from 'expo-router';
 import { useAuth, useThemeToggle } from '../_layout';
-import { getEventById, joinEvent, getUserRallyCredits, getClub, getUserProfile, storeWaiverSignature, getWaiverSignature, deleteEvent } from '../../lib/firebase';
+import { getEventById, joinEvent, getUserRallyCredits, getClub, getUserProfile, storeWaiverSignature, getWaiverSignature } from '../../lib/firebase';
 import type { Club } from '../../lib/firebase';
 import { leaveEventWithRefund } from '../../lib/finix';
 import type { Event, UserRallyCredits, UserProfile } from '../../lib/firebase';
 import BackButton from '../../components/BackButton';
 import PaymentSheet from '../../components/PaymentSheet';
+import CancelEventSheet from '../../components/CancelEventSheet';
 import RallyCreditsPaidModal from '../../components/RallyCreditsPaidModal';
 import { generateAndShareWaiverPDF } from '../../lib/waiverPdf';
 
@@ -40,6 +42,7 @@ export default function EventDetailScreen() {
   const [userCredits, setUserCredits] = useState<UserRallyCredits | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
+  const [cancelSheetVisible, setCancelSheetVisible] = useState(false);
   const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [payoutInfo, setPayoutInfo] = useState<{
     amount: number;
@@ -451,39 +454,6 @@ export default function EventDetailScreen() {
     );
   };
 
-  const handleDeleteEvent = () => {
-    if (!event) return;
-    Alert.alert(
-      'Delete Event',
-      `Are you sure you want to delete "${event.title}"? This action cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setActionLoading(true);
-            try {
-              const result = await deleteEvent(event.id);
-              if (result.success) {
-                Alert.alert('Deleted', 'Event has been deleted.', [
-                  { text: 'OK', onPress: () => router.back() }
-                ]);
-              } else {
-                Alert.alert('Error', result.error || 'Failed to delete event');
-              }
-            } catch (error) {
-              // console.error('Error deleting event:', error);
-              Alert.alert('Error', 'An unexpected error occurred');
-            } finally {
-              setActionLoading(false);
-            }
-          }
-        }
-      ]
-    );
-  };
-
   const handleEditEvent = () => {
     if (!event) return;
     router.push(`/event/edit?eventId=${event.id}`);
@@ -616,13 +586,13 @@ export default function EventDetailScreen() {
                         <Text style={[styles.customMenuText, { color: theme.colors.onSurface }]}>{isWaitlisted ? 'Leave Waitlist' : 'Leave Event'}</Text>
                       </TouchableOpacity>
                     )}
-                    {canManageEvent && (
+                    {canManageEvent && event.status !== 'cancelled' && (
                       <TouchableOpacity
                         style={styles.customMenuItem}
-                        onPress={() => { setMenuVisible(false); handleDeleteEvent(); }}
+                        onPress={() => { setMenuVisible(false); setCancelSheetVisible(true); }}
                       >
-                        <IconButton icon="delete" size={18} iconColor="#EF4444" style={{ margin: 0 }} />
-                        <Text style={[styles.customMenuText, { color: '#EF4444' }]}>Delete Event</Text>
+                        <IconButton icon="close-circle-outline" size={18} iconColor="#EF4444" style={{ margin: 0 }} />
+                        <Text style={[styles.customMenuText, { color: '#EF4444' }]}>Cancel Event</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -654,6 +624,16 @@ export default function EventDetailScreen() {
                 </Chip>
               )}
             </View>
+
+            {event.status === 'cancelled' && (
+              <View style={styles.cancelledBanner}>
+                <Ionicons name="alert-circle" size={18} color="#fff" />
+                <Text style={styles.cancelledBannerText}>
+                  This event has been cancelled
+                  {event.cancelledReason ? ` — ${event.cancelledReason}` : ''}
+                </Text>
+              </View>
+            )}
 
             <Text variant="headlineMedium" style={[styles.eventTitle, { color: theme.colors.onSurface }]}>
               {event.title}
@@ -974,6 +954,23 @@ export default function EventDetailScreen() {
           event={event}
           onDismiss={() => setPaymentSheetVisible(false)}
           onSuccess={handlePaymentSuccess}
+        />
+      )}
+
+      {/* Cancel Event Sheet */}
+      {event && (
+        <CancelEventSheet
+          visible={cancelSheetVisible}
+          event={event}
+          onDismiss={() => setCancelSheetVisible(false)}
+          onCancelled={(summary) => {
+            setCancelSheetVisible(false);
+            Alert.alert(
+              'Event Cancelled',
+              `Refunded ${summary.paidRefunded} paid ticket${summary.paidRefunded === 1 ? '' : 's'} ($${summary.totalRefunded.toFixed(2)}) and cancelled ${summary.freeCancelled} free RSVP${summary.freeCancelled === 1 ? '' : 's'}.${summary.failures.length > 0 ? `\n\n${summary.failures.length} refund${summary.failures.length === 1 ? '' : 's'} failed — check the Finix dashboard.` : ''}`,
+              [{ text: 'OK', onPress: () => loadEventData(true) }]
+            );
+          }}
         />
       )}
 
@@ -1446,7 +1443,7 @@ export default function EventDetailScreen() {
       </Modal>
 
       {/* Floating Action Button */}
-      {user && isUpcoming && (
+      {user && isUpcoming && event.status !== 'cancelled' && (
         <TouchableOpacity
           onPress={isAttending || isWaitlisted ? handleLeaveEvent : handleJoinEvent}
           disabled={actionLoading || (!isAttending && !isWaitlisted && !!isFull)}
@@ -1630,6 +1627,22 @@ const styles = StyleSheet.create({
   },
   statusChipText: {
     fontWeight: '600',
+  },
+  cancelledBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#EF4444',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  cancelledBannerText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
+    flex: 1,
   },
   statusChipTextDark: {
     fontWeight: '600',

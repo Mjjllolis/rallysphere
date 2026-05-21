@@ -65,6 +65,7 @@ export default function EventCard({
   };
 
   const getEventStatus = () => {
+    if (event.status === 'cancelled') return { text: 'Cancelled', color: '#EF4444' };
     if (isWaitlisted) return { text: 'Waitlisted', color: theme.colors.tertiary };
     if (isAttending) return { text: 'Attending', color: theme.colors.primary };
     return null;
@@ -139,7 +140,7 @@ export default function EventCard({
             </View>
           </View>
 
-          {(onJoin || onLeave) && isUpcoming && (
+          {(onJoin || onLeave) && isUpcoming && event.status !== 'cancelled' && (
             <Button
               mode={isAttending || isWaitlisted ? "outlined" : "contained"}
               compact

@@ -225,6 +225,10 @@ export interface Event {
   hasWaiver?: boolean;  // Whether event requires waiver agreement
   waiverText?: string;  // The waiver/terms text users must agree to
   // Note: Waiver signatures are stored in subcollection: events/{eventId}/waiverSignatures/{userId}
+  status?: 'active' | 'cancelled';  // Missing => treat as 'active' (back-compat with existing events)
+  cancelledAt?: Timestamp;
+  cancelledBy?: string;  // user uid who cancelled the event
+  cancelledReason?: string;
 }
 
 export interface ClubJoinRequest {
@@ -1376,6 +1380,91 @@ export const deleteEvent = async (eventId: string) => {
 };
 
 /**
+ * Compute a preview of what will happen if the given event is cancelled.
+ * Used by the cancel-event bottom sheet to show admins the financial impact
+ * before they confirm. Reads ticketOrders (which the caller must be authorized
+ * to read — i.e. event creator or club admin).
+ */
+export const getEventCancellationPreview = async (eventId: string) => {
+  try {
+    const ordersResult = await getEventTicketOrders(eventId);
+    if (!ordersResult.success) {
+      return {
+        success: false,
+        error: ordersResult.error,
+        paidCount: 0,
+        freeCount: 0,
+        totalRefund: 0,
+        alreadyRefundedCount: 0,
+      };
+    }
+
+    let paidCount = 0;
+    let freeCount = 0;
+    let totalRefund = 0;
+    let alreadyRefundedCount = 0;
+
+    for (const order of ordersResult.orders) {
+      if (order.status === 'refunded' || order.status === 'cancelled') {
+        alreadyRefundedCount++;
+        continue;
+      }
+      if ((order.totalAmount || 0) > 0 && (order as any).transactionId) {
+        paidCount++;
+        totalRefund += order.totalAmount;
+      } else {
+        freeCount++;
+      }
+    }
+
+    return {
+      success: true,
+      paidCount,
+      freeCount,
+      totalRefund,
+      alreadyRefundedCount,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message,
+      paidCount: 0,
+      freeCount: 0,
+      totalRefund: 0,
+      alreadyRefundedCount: 0,
+    };
+  }
+};
+
+/**
+ * Cancel an event: refund all paid attendees via Finix, mark free attendees' tickets
+ * cancelled, set event.status='cancelled', and clear attendees/waitlist.
+ * Caller must be event creator or a club admin (enforced server-side).
+ */
+export const cancelEventWithRefunds = async (eventId: string, reason?: string) => {
+  try {
+    const fn = httpsCallable(functions, 'cancelEvent');
+    const result = await fn({ eventId, reason });
+    return { success: true, ...(result.data as object) } as {
+      success: boolean;
+      paidRefunded: number;
+      freeCancelled: number;
+      totalRefunded: number;
+      failures: Array<{ orderId: string; error: string }>;
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error?.message || String(error),
+      paidRefunded: 0,
+      freeCancelled: 0,
+      totalRefunded: 0,
+      failures: [],
+    };
+  }
+};
+
+/**
  * Get all events the user has joined (used to surface free events in the tickets screen).
  * Returns events where the user is in the attendees array.
  */
@@ -1405,7 +1494,10 @@ export const getAllEvents = async (includeFeatured: boolean = false) => {
     const events: Event[] = [];
 
     querySnapshot.forEach((doc) => {
-      events.push({ id: doc.id, ...doc.data() } as Event);
+      const data = doc.data();
+      // Hide cancelled events from public browse
+      if (data.status === 'cancelled') return;
+      events.push({ id: doc.id, ...data } as Event);
     });
 
     // Sort by start date
@@ -1472,11 +1564,15 @@ export const getEvents = async (clubId?: string) => {
     
     const querySnapshot = await getDocs(q);
     const events: Event[] = [];
-    
+
     querySnapshot.forEach((doc) => {
-      events.push({ id: doc.id, ...doc.data() } as Event);
+      const data = doc.data();
+      // Hide cancelled events from public browse (clubId-scoped reads keep them
+      // so club admins still see the historical record on their club pages).
+      if (!clubId && data.status === 'cancelled') return;
+      events.push({ id: doc.id, ...data } as Event);
     });
-    
+
     // Sort in JavaScript instead of Firestore
     events.sort((a, b) => {
       const dateA = a.startDate?.toDate ? a.startDate.toDate() : new Date(a.startDate);

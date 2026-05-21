@@ -572,25 +572,28 @@ export default function EventSwipeCard({
           <Pressable
             onPress={(e) => {
               e.stopPropagation();
-              if (!(isJoining || isFull || isPastEvent || isAttending || isWaitlisted)) {
+              const isCancelled = event.status === 'cancelled';
+              if (!(isJoining || isFull || isPastEvent || isAttending || isWaitlisted || isCancelled)) {
                 handleQuickJoin();
               }
             }}
             style={[
               styles.bottomJoinButton,
-              { backgroundColor: isPastEvent ? theme.colors.surfaceDisabled : theme.colors.primary },
-              isPastEvent && styles.bottomJoinButtonDisabled
+              { backgroundColor: isPastEvent || event.status === 'cancelled' ? theme.colors.surfaceDisabled : theme.colors.primary },
+              (isPastEvent || event.status === 'cancelled') && styles.bottomJoinButtonDisabled
             ]}
           >
             <Text
               variant="titleMedium"
               style={[
                 styles.bottomJoinButtonText,
-                { color: isPastEvent ? theme.colors.onSurfaceDisabled : theme.colors.onPrimary },
-                isPastEvent && styles.bottomJoinButtonTextDisabled
+                { color: isPastEvent || event.status === 'cancelled' ? theme.colors.onSurfaceDisabled : theme.colors.onPrimary },
+                (isPastEvent || event.status === 'cancelled') && styles.bottomJoinButtonTextDisabled
               ]}
             >
-              {isPastEvent
+              {event.status === 'cancelled'
+                ? 'Cancelled'
+                : isPastEvent
                 ? 'Past Event'
                 : isAttending
                   ? 'Attending'

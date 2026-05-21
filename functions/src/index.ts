@@ -1631,6 +1631,148 @@ export const refundTicketOrder = functions.https.onCall(
 );
 
 // ============================================================================
+// CANCEL EVENT (Admin) — refunds all paid attendees and marks event cancelled
+// ============================================================================
+
+export const cancelEvent = functions.https.onCall(
+  { enforceAppCheck: false, timeoutSeconds: 540, memory: "512MiB" },
+  async (request: any) => {
+    const data = request.data;
+    const auth = request.auth;
+
+    if (!auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const { eventId, reason } = data || {};
+    if (!eventId) {
+      throw new functions.https.HttpsError("invalid-argument", "Missing required field: eventId");
+    }
+
+    const db = admin.firestore();
+    const eventRef = db.collection("events").doc(eventId);
+    const eventSnap = await eventRef.get();
+    if (!eventSnap.exists) {
+      throw new functions.https.HttpsError("not-found", "Event not found");
+    }
+    const event = eventSnap.data() as any;
+
+    if (event.status === "cancelled") {
+      throw new functions.https.HttpsError("failed-precondition", "Event is already cancelled");
+    }
+
+    // Authorize: event creator OR club admin/owner
+    const isCreator = event.createdBy === auth.uid;
+    let isAuthorized = isCreator;
+    if (!isAuthorized && event.clubId) {
+      const clubSnap = await db.collection("clubs").doc(event.clubId).get();
+      if (clubSnap.exists) {
+        const club = clubSnap.data() as any;
+        const admins: string[] = club?.clubAdmins || club?.admins || [];
+        const owner = club?.clubOwner || club?.owner;
+        isAuthorized = admins.includes(auth.uid) || owner === auth.uid;
+      }
+    }
+    if (!isAuthorized) {
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "Only the event creator or a club admin can cancel this event"
+      );
+    }
+
+    // Collect refundable ticket orders for this event
+    const ordersSnap = await db
+      .collection("ticketOrders")
+      .where("eventId", "==", eventId)
+      .get();
+
+    let paidRefunded = 0;
+    let freeCancelled = 0;
+    let totalRefunded = 0;
+    const failures: Array<{ orderId: string; error: string }> = [];
+
+    for (const orderDoc of ordersSnap.docs) {
+      const order = orderDoc.data() as any;
+      if (order.status === "cancelled" || order.status === "refunded") {
+        continue; // already handled
+      }
+      const transactionId = order.transactionId;
+      const isPaid = !!transactionId && (order.totalAmount || 0) > 0;
+
+      if (isPaid) {
+        try {
+          const reversal = await reverseTransfer(transactionId);
+          const refundAmount = fromCents(reversal.amount || 0);
+          totalRefunded += refundAmount;
+          paidRefunded += 1;
+          await orderDoc.ref.update({
+            status: "refunded",
+            refundTransactionId: reversal.id,
+            refundAmount,
+            refundedAt: admin.firestore.FieldValue.serverTimestamp(),
+            refundedBy: auth.uid,
+            refundReason: reason || "Event cancelled",
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        } catch (err: any) {
+          console.error(`Failed to refund order ${orderDoc.id}:`, err?.message || err);
+          failures.push({ orderId: orderDoc.id, error: err?.message || String(err) });
+        }
+      } else {
+        // Free or unpaid — just mark cancelled
+        await orderDoc.ref.update({
+          status: "cancelled",
+          cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+          cancelledBy: auth.uid,
+          cancelledReason: reason || "Event cancelled",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        freeCancelled += 1;
+      }
+    }
+
+    // Clear attendees/waitlist subcollections so the event no longer shows attendees
+    const subcollections = ["attendees", "waitlist"];
+    for (const sub of subcollections) {
+      const subSnap = await eventRef.collection(sub).get();
+      let batch = db.batch();
+      let ops = 0;
+      for (const d of subSnap.docs) {
+        batch.delete(d.ref);
+        ops++;
+        if (ops >= 400) {
+          await batch.commit();
+          batch = db.batch();
+          ops = 0;
+        }
+      }
+      if (ops > 0) await batch.commit();
+    }
+
+    // Mark the event cancelled and reset counters/arrays
+    await eventRef.update({
+      status: "cancelled",
+      cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+      cancelledBy: auth.uid,
+      cancelledReason: reason || null,
+      attendees: [],
+      waitlist: [],
+      attendeeCount: 0,
+      waitlistCount: 0,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return {
+      success: true,
+      paidRefunded,
+      freeCancelled,
+      totalRefunded,
+      failures,
+    };
+  }
+);
+
+// ============================================================================
 // REFUND STORE ORDER (Admin)
 // ============================================================================
 
