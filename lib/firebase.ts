@@ -1345,11 +1345,51 @@ export const updateEvent = async (eventId: string, eventData: Partial<Omit<Event
 // Delete an event
 export const deleteEvent = async (eventId: string) => {
   try {
+    // Mark all confirmed/checked_in ticket orders for this event as cancelled
+    // before deleting the event itself, so users see them as cancelled in their tickets.
+    const ordersSnap = await getDocs(
+      query(collection(db, 'ticketOrders'), where('eventId', '==', eventId))
+    );
+    const cancelBatch = writeBatch(db);
+    let batchOps = 0;
+    for (const orderDoc of ordersSnap.docs) {
+      const status = orderDoc.data().status;
+      if (status === 'confirmed' || status === 'checked_in') {
+        cancelBatch.update(orderDoc.ref, {
+          status: 'cancelled',
+          cancelledReason: 'Event cancelled',
+          updatedAt: serverTimestamp(),
+        });
+        batchOps++;
+      }
+    }
+    if (batchOps > 0) {
+      await cancelBatch.commit();
+    }
+
     await deleteDoc(doc(db, 'events', eventId));
     return { success: true };
   } catch (error: any) {
     // console.error('Error deleting event:', error);
     return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Get all events the user has joined (used to surface free events in the tickets screen).
+ * Returns events where the user is in the attendees array.
+ */
+export const getUserAttendingEvents = async (userId: string) => {
+  try {
+    const eventsRef = collection(db, 'events');
+    const q = query(eventsRef, where('attendees', 'array-contains', userId));
+    const snap = await getDocs(q);
+    const events: Event[] = [];
+    snap.forEach((d) => events.push({ id: d.id, ...(d.data() as Omit<Event, 'id'>) }));
+    return { success: true, events };
+  } catch (error: any) {
+    // console.error('Error getting user attending events:', error);
+    return { success: false, error: error.message, events: [] };
   }
 };
 

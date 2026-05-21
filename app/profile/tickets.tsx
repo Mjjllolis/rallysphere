@@ -18,7 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAuth, useThemeToggle } from '../_layout';
-import { getUserTicketOrders } from '../../lib/firebase';
+import { getUserTicketOrders, getUserAttendingEvents } from '../../lib/firebase';
 import type { TicketOrder } from '../../lib/firebase';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -54,7 +54,7 @@ const getStatusLabel = (status: TicketOrder['status']) => {
   }
 };
 
-const STATUS_FILTERS = ['All', 'Upcoming', 'Attended', 'Cancelled'];
+const STATUS_FILTERS = ['All', 'Upcoming', 'Attended', 'Refunded', 'Cancelled'];
 
 export default function TicketsScreen() {
   const { user } = useAuth();
@@ -83,11 +83,45 @@ export default function TicketsScreen() {
 
     try {
       setLoading(true);
-      const result = await getUserTicketOrders(user.uid);
+      const [ordersResult, eventsResult] = await Promise.all([
+        getUserTicketOrders(user.uid),
+        getUserAttendingEvents(user.uid),
+      ]);
 
-      if (result.success) {
-        setTickets(result.orders);
-      }
+      const ticketOrders: TicketOrder[] = ordersResult.success ? ordersResult.orders : [];
+      const attendingEvents = eventsResult.success ? eventsResult.events : [];
+
+      // Synthesize ticket rows for events the user joined without a paid ticketOrders entry
+      // (free events). This gives the tickets screen one unified list.
+      const orderedEventIds = new Set(ticketOrders.map((o) => o.eventId));
+      const freeTickets: TicketOrder[] = attendingEvents
+        .filter((e) => !orderedEventIds.has(e.id))
+        .map((e) => ({
+          id: `free-${e.id}-${user.uid}`,
+          eventId: e.id,
+          clubId: e.clubId,
+          clubName: e.clubName,
+          userId: user.uid,
+          userName: user.displayName || '',
+          userEmail: user.email || '',
+          eventName: e.title,
+          eventImage: e.coverImage,
+          eventDate: e.startDate,
+          quantity: 1,
+          ticketPrice: 0,
+          processingFee: 0,
+          platformFee: 0,
+          totalAmount: 0,
+          clubAmount: 0,
+          currency: e.currency || 'usd',
+          status: 'confirmed',
+          paymentIntentId: '',
+          transferredToClub: false,
+          createdAt: e.createdAt,
+          updatedAt: e.updatedAt,
+        }));
+
+      setTickets([...ticketOrders, ...freeTickets]);
     } catch (error) {
       // console.error('Error loading tickets:', error);
     } finally {
@@ -134,9 +168,9 @@ export default function TicketsScreen() {
           return eventDate < now;
         });
       } else if (selectedStatus === 'Cancelled') {
-        filtered = filtered.filter((ticket) =>
-          ['cancelled', 'refunded'].includes(ticket.status)
-        );
+        filtered = filtered.filter((ticket) => ticket.status === 'cancelled');
+      } else if (selectedStatus === 'Refunded') {
+        filtered = filtered.filter((ticket) => ticket.status === 'refunded');
       }
     }
 
@@ -233,7 +267,9 @@ export default function TicketsScreen() {
                     {ticket.quantity} {ticket.quantity === 1 ? 'Ticket' : 'Tickets'}
                   </Text>
                 </View>
-                <Text style={styles.ticketPrice}>${ticket.totalAmount.toFixed(2)}</Text>
+                <Text style={styles.ticketPrice}>
+                  {ticket.ticketPrice > 0 ? `$${ticket.ticketPrice.toFixed(2)}` : 'Free'}
+                </Text>
               </View>
             </View>
           </View>
