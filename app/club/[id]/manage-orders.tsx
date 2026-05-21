@@ -381,12 +381,12 @@ export default function ManageOrdersScreen() {
                       {/* Delivery Method */}
                       <View style={[styles.detailRow, { marginTop: 8 }]}>
                         <Chip
-                          icon="map-marker"
+                          icon={order.deliveryMethod === 'shipping' ? 'truck-delivery' : 'map-marker'}
                           compact
                           textStyle={{ fontSize: 11 }}
                           style={{ alignSelf: 'flex-start' }}
                         >
-                          Pickup
+                          {order.deliveryMethod === 'shipping' ? 'Shipping' : 'Pickup'}
                         </Chip>
                       </View>
 
@@ -513,11 +513,32 @@ export default function ManageOrdersScreen() {
                 style={{ marginBottom: 12 }}
               />
 
+              {/* Fulfilment row: show shipping-flow vs pickup-flow buttons based on the order */}
+              {selectedOrder.deliveryMethod === 'shipping' ? (
+                <SegmentedButtons
+                  value={newStatus}
+                  onValueChange={(value) => setNewStatus(value as StoreOrder['status'])}
+                  buttons={[
+                    { value: 'shipped', label: 'Shipped' },
+                    { value: 'delivered', label: 'Delivered' },
+                  ]}
+                  style={{ marginBottom: 12 }}
+                />
+              ) : (
+                <SegmentedButtons
+                  value={newStatus}
+                  onValueChange={(value) => setNewStatus(value as StoreOrder['status'])}
+                  buttons={[
+                    { value: 'picked_up', label: 'Picked Up' },
+                  ]}
+                  style={{ marginBottom: 12 }}
+                />
+              )}
+
               <SegmentedButtons
                 value={newStatus}
                 onValueChange={(value) => setNewStatus(value as StoreOrder['status'])}
                 buttons={[
-                  { value: 'picked_up', label: 'Picked Up' },
                   { value: 'cancelled', label: 'Cancelled' },
                   { value: 'refunded', label: 'Refunded' },
                 ]}

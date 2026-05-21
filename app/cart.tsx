@@ -20,6 +20,9 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart, type CartItem } from '../lib/cartContext';
 import { useAuth } from './_layout';
+import { getStoreItem, getUserAddresses } from '../lib/firebase';
+import type { StoreItem, ShippingAddress } from '../lib/firebase';
+import StorePaymentSheet from '../components/StorePaymentSheet';
 
 export default function CartScreen() {
   const theme = useTheme();
@@ -84,6 +87,13 @@ export default function CartScreen() {
     );
   };
 
+  // Sequential checkout state — each cart item is paid for in its own StorePaymentSheet.
+  // When cart has N items the user steps through N payment sheets in order. On dismiss
+  // mid-flow the remaining items stay in the cart.
+  const [checkoutItem, setCheckoutItem] = useState<StoreItem | null>(null);
+  const [checkoutAddress, setCheckoutAddress] = useState<ShippingAddress | null>(null);
+  const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
+
   const handleCheckout = async () => {
     if (!user) {
       Alert.alert('Login Required', 'Please login to checkout');
@@ -96,17 +106,80 @@ export default function CartScreen() {
       return;
     }
 
-    // For now, show a message about checkout
-    // In a full implementation, you'd process the entire cart
-    Alert.alert(
-      'Checkout',
-      'Cart checkout with multiple items is coming soon! For now, you can purchase items individually from the product page.',
-      [
-        {
-          text: 'OK',
-        },
-      ]
-    );
+    setProcessing(true);
+    try {
+      // Preload the user's default shipping address once for the whole flow
+      const addrResult = await getUserAddresses(user.uid);
+      const defaultAddr = addrResult.success
+        ? (addrResult.addresses.find((a: ShippingAddress) => a.isDefault) || addrResult.addresses[0] || null)
+        : null;
+      setCheckoutAddress(defaultAddr);
+
+      await beginCheckoutForCartItem(cart[0]);
+    } catch (err) {
+      Alert.alert('Checkout failed', 'Could not start checkout. Please try again.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const beginCheckoutForCartItem = async (cartItem: CartItem) => {
+    const result = await getStoreItem(cartItem.id);
+    if (!result.success || !result.item) {
+      Alert.alert(
+        'Item Unavailable',
+        `${cartItem.name} is no longer available and will be removed from your cart.`,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              removeFromCart(cartItem.id, cartItem.selectedVariants);
+              // After the skip, see if there's still anything to check out
+              setTimeout(() => {
+                const remaining = cart.filter(
+                  (c) => !(c.id === cartItem.id && JSON.stringify(c.selectedVariants) === JSON.stringify(cartItem.selectedVariants))
+                );
+                if (remaining.length > 0) {
+                  beginCheckoutForCartItem(remaining[0]);
+                } else {
+                  Alert.alert('Done', 'Your cart is empty.');
+                }
+              }, 0);
+            },
+          },
+        ]
+      );
+      return;
+    }
+    setCheckoutItem(result.item);
+    setPaymentSheetVisible(true);
+  };
+
+  const handlePaymentSuccess = () => {
+    if (!checkoutItem) return;
+    // Remove the just-purchased item from cart
+    const purchased = cart.find((c) => c.id === checkoutItem.id);
+    if (purchased) {
+      removeFromCart(purchased.id, purchased.selectedVariants);
+    }
+    setPaymentSheetVisible(false);
+    setCheckoutItem(null);
+
+    // Find the next unprocessed item (the one we just removed is gone from cart)
+    const next = cart.find((c) => c.id !== checkoutItem.id);
+    if (next) {
+      // Defer to next tick so the sheet finishes its dismiss animation
+      setTimeout(() => beginCheckoutForCartItem(next), 350);
+    } else {
+      // All done — bounce to orders
+      setTimeout(() => router.replace('/profile/orders'), 350);
+    }
+  };
+
+  const handlePaymentDismiss = () => {
+    setPaymentSheetVisible(false);
+    setCheckoutItem(null);
+    // Remaining items stay in the cart; user can retry later
   };
 
   const { itemsTotal, shipping, tax, total } = calculateTotals();
@@ -232,10 +305,26 @@ export default function CartScreen() {
         {/* Delivery Method */}
         <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
           <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Delivery Method</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 }}>
-            <Ionicons name="location" size={20} color={theme.colors.primary} />
-            <Text style={{ color: theme.colors.onSurface, fontSize: 15, fontWeight: '600' }}>Pickup Only</Text>
-          </View>
+          {(() => {
+            const hasShipping = cart.some((it) => (it.shippingCost || 0) > 0);
+            const hasPickup = cart.some((it) => !it.shippingCost);
+            return (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 }}>
+                <Ionicons
+                  name={hasShipping ? 'cube' : 'location'}
+                  size={20}
+                  color={theme.colors.primary}
+                />
+                <Text style={{ color: theme.colors.onSurface, fontSize: 15, fontWeight: '600' }}>
+                  {hasShipping && hasPickup
+                    ? 'Pickup or Shipping — chosen per item'
+                    : hasShipping
+                    ? 'Shipping'
+                    : 'Pickup Only'}
+                </Text>
+              </View>
+            );
+          })()}
         </View>
 
         {/* Order Summary */}
@@ -276,6 +365,21 @@ export default function CartScreen() {
           Checkout - ${total.toFixed(2)}
         </Button>
       </View>
+
+      {/* Sequential per-item checkout sheet */}
+      {checkoutItem && user && (
+        <StorePaymentSheet
+          visible={paymentSheetVisible}
+          item={checkoutItem}
+          quantity={cart.find((c) => c.id === checkoutItem.id)?.quantity || 1}
+          deliveryMethod={(checkoutItem.shippingCost || 0) > 0 ? 'shipping' : 'pickup'}
+          selectedAddress={checkoutAddress}
+          selectedVariants={cart.find((c) => c.id === checkoutItem.id)?.selectedVariants || {}}
+          onDismiss={handlePaymentDismiss}
+          onSuccess={handlePaymentSuccess}
+          userId={user.uid}
+        />
+      )}
     </SafeAreaView>
   );
 }

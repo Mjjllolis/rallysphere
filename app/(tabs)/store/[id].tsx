@@ -82,7 +82,8 @@ export default function StoreItemDetailScreen() {
       if (result.success && result.item) {
         setItem(result.item);
 
-        // Always pickup
+        // Default to pickup. If the item supports shipping (has a shippingCost), the
+        // chooser UI is shown below so the user can switch.
         setDeliveryMethod('pickup');
       } else {
         Alert.alert('Error', 'Item not found');
@@ -410,51 +411,110 @@ export default function StoreItemDetailScreen() {
             </BlurView>
           </View>
 
-          {/* Pickup Location */}
+          {/* Delivery Method — pickup/shipping toggle if item supports both */}
           <View style={styles.sectionContainer}>
             <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.sectionBlur, { borderColor: theme.colors.outline }]}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Pickup</Text>
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => {
-                  const address = item.pickupAddress;
-                  if (!address) return;
-                  const encoded = encodeURIComponent(address);
-                  const url = Platform.select({
-                    ios: `maps:0,0?q=${encoded}`,
-                    android: `geo:0,0?q=${encoded}`,
-                    default: `https://maps.google.com/?q=${encoded}`,
-                  });
-                  Linking.openURL(url);
-                }}
-              >
-                <View style={styles.deliveryRow}>
+              <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
+                {(item.shippingCost || 0) > 0 ? 'Delivery' : 'Pickup'}
+              </Text>
+
+              {(item.shippingCost || 0) > 0 && (
+                <View style={[styles.deliveryRow, { marginBottom: 12 }]}>
+                  <TouchableOpacity onPress={() => setDeliveryMethod('pickup')} activeOpacity={0.7} style={{ flex: 1 }}>
+                    <BlurView
+                      intensity={30}
+                      tint={isDark ? "dark" : "light"}
+                      style={[
+                        styles.deliveryButton,
+                        { borderColor: theme.colors.outline },
+                        deliveryMethod === 'pickup' && styles.deliveryButtonActive,
+                      ]}
+                    >
+                      <Ionicons name="location-outline" size={18} color={deliveryMethod === 'pickup' ? '#60A5FA' : theme.colors.onSurfaceVariant} />
+                      <Text style={[styles.deliveryButtonText, deliveryMethod === 'pickup' && styles.deliveryButtonTextActive]}>
+                        Pickup
+                      </Text>
+                    </BlurView>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setDeliveryMethod('shipping')} activeOpacity={0.7} style={{ flex: 1 }}>
+                    <BlurView
+                      intensity={30}
+                      tint={isDark ? "dark" : "light"}
+                      style={[
+                        styles.deliveryButton,
+                        { borderColor: theme.colors.outline },
+                        deliveryMethod === 'shipping' && styles.deliveryButtonActive,
+                      ]}
+                    >
+                      <Ionicons name="cube-outline" size={18} color={deliveryMethod === 'shipping' ? '#60A5FA' : theme.colors.onSurfaceVariant} />
+                      <Text style={[styles.deliveryButtonText, deliveryMethod === 'shipping' && styles.deliveryButtonTextActive]}>
+                        Ship — ${item.shippingCost?.toFixed(2)}
+                      </Text>
+                    </BlurView>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {deliveryMethod === 'pickup' ? (
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    const address = item.pickupAddress;
+                    if (!address) return;
+                    const encoded = encodeURIComponent(address);
+                    const url = Platform.select({
+                      ios: `maps:0,0?q=${encoded}`,
+                      android: `geo:0,0?q=${encoded}`,
+                      default: `https://maps.google.com/?q=${encoded}`,
+                    });
+                    Linking.openURL(url);
+                  }}
+                >
+                  <View style={styles.deliveryRow}>
+                    <BlurView
+                      intensity={30}
+                      tint={isDark ? "dark" : "light"}
+                      style={[
+                        styles.deliveryButton,
+                        { borderColor: theme.colors.outline },
+                        styles.deliveryButtonActive,
+                        { flex: 1 },
+                      ]}
+                    >
+                      <Ionicons name="location-outline" size={20} color="#60A5FA" />
+                      <Text style={[styles.deliveryButtonText, styles.deliveryButtonTextActive]}>
+                        {item.pickupAddress || 'Pickup address coming soon'}
+                      </Text>
+                    </BlurView>
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                <View>
+                  <Text style={[styles.deliveryButtonText, { marginBottom: 6 }]}>
+                    Shipping to:
+                  </Text>
                   <BlurView
                     intensity={30}
                     tint={isDark ? "dark" : "light"}
                     style={[
                       styles.deliveryButton,
-                      { borderColor: theme.colors.outline },
-                      styles.deliveryButtonActive,
-                      { flex: 1 },
+                      { borderColor: theme.colors.outline, flex: 1 },
                     ]}
                   >
-                    <Ionicons
-                      name="location-outline"
-                      size={20}
-                      color="#60A5FA"
-                    />
-                    <Text
-                      style={[
-                        styles.deliveryButtonText,
-                        styles.deliveryButtonTextActive,
-                      ]}
-                    >
-                      {item.pickupAddress || 'Location TBD'}
+                    <Ionicons name="home-outline" size={18} color={theme.colors.onSurfaceVariant} />
+                    <Text style={[styles.deliveryButtonText, { flex: 1 }]} numberOfLines={2}>
+                      {(() => {
+                        const addr = savedAddresses.find((a) => a.id === selectedAddressId);
+                        if (!addr) return 'Add or select an address';
+                        return `${addr.addressLine1}, ${addr.city}, ${addr.state} ${addr.zipCode}`;
+                      })()}
                     </Text>
+                    <TouchableOpacity onPress={() => router.push('/profile/addresses')} hitSlop={8}>
+                      <Text style={{ color: '#60A5FA', fontWeight: '600', fontSize: 13 }}>Change</Text>
+                    </TouchableOpacity>
                   </BlurView>
                 </View>
-              </TouchableOpacity>
+              )}
             </BlurView>
           </View>
 
@@ -467,7 +527,12 @@ export default function StoreItemDetailScreen() {
             <View style={styles.bottomBarContent}>
               <View style={styles.totalPriceContainer}>
                 <Text style={[styles.totalLabel, { color: theme.colors.onSurfaceVariant }]}>Total Price</Text>
-                <Text style={[styles.totalPrice, { color: theme.colors.onSurface }]}>${(item.price * quantity).toFixed(0)}</Text>
+                <Text style={[styles.totalPrice, { color: theme.colors.onSurface }]}>
+                  ${calculateTotal().total.toFixed(2)}
+                </Text>
+                <Text style={[styles.totalLabel, { color: theme.colors.onSurfaceVariant, fontSize: 11, marginTop: 2 }]}>
+                  ${(item.price * quantity).toFixed(2)} item + ${calculateTotal().processingFee.toFixed(2)} fees{calculateTotal().shipping > 0 ? ` + $${calculateTotal().shipping.toFixed(2)} shipping` : ''}
+                </Text>
               </View>
 
               <TouchableOpacity
