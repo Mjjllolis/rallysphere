@@ -413,7 +413,7 @@ export default function ManageOrdersScreen() {
                           <Text variant="bodySmall">${order.price.toFixed(2)}</Text>
                         </View>
                         <View style={styles.priceRow}>
-                          <Text variant="bodySmall">Processing Fee (6% + $0.29)</Text>
+                          <Text variant="bodySmall">Processing Fee (10% + $0.29)</Text>
                           <Text variant="bodySmall">
                             ${(order.totalAmount - order.price).toFixed(2)}
                           </Text>

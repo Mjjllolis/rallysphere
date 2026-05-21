@@ -417,7 +417,7 @@ export default function ManageTicketOrdersScreen() {
                           <Text variant="bodySmall">${order.ticketPrice.toFixed(2)}</Text>
                         </View>
                         <View style={styles.priceRow}>
-                          <Text variant="bodySmall">Processing Fee (6% + $0.29)</Text>
+                          <Text variant="bodySmall">Processing Fee (10% + $0.29)</Text>
                           <Text variant="bodySmall">${order.processingFee.toFixed(2)}</Text>
                         </View>
                         <Divider style={{ marginVertical: 4 }} />

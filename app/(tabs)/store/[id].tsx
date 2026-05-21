@@ -123,8 +123,8 @@ export default function StoreItemDetailScreen() {
     const shipping = deliveryMethod === 'shipping' ? (item.shippingCost || 0) : 0;
     const subtotal = itemTotal + shipping;
 
-    // Processing fee: 6% + $0.29
-    const PROCESSING_FEE_PERCENTAGE = 0.06;
+    // Processing fee: 10% + $0.29 (matches event tickets and server-side charge)
+    const PROCESSING_FEE_PERCENTAGE = 0.10;
     const PROCESSING_FEE_FIXED = 0.29;
     const processingFee = (subtotal * PROCESSING_FEE_PERCENTAGE) + PROCESSING_FEE_FIXED;
 
