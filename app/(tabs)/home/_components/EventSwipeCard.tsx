@@ -372,7 +372,8 @@ export default function EventSwipeCard({
 
   const isAttending = user ? event.attendees.includes(user.uid) : false;
   const isWaitlisted = user ? event.waitlist.includes(user.uid) : false;
-  const isFull = event.maxAttendees && event.attendees.length >= event.maxAttendees;
+  const attendeeCountValue = event.attendeeCount ?? event.attendees?.length ?? 0;
+  const isFull = event.maxAttendees && attendeeCountValue >= event.maxAttendees;
 
   // Check if event is in the past
   const isPastEvent = event.startDate ?
@@ -519,7 +520,7 @@ export default function EventSwipeCard({
             <View style={styles.detailItem}>
               <IconButton icon="account-group" size={16} iconColor={theme.colors.onSurfaceVariant} style={styles.icon} />
               <Text style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>
-                {event.attendees.length}{event.maxAttendees ? `/${event.maxAttendees}` : ''}
+                {attendeeCountValue}{event.maxAttendees ? `/${event.maxAttendees}` : ''}
               </Text>
             </View>
           </View>

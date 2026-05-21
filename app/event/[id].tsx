@@ -136,8 +136,8 @@ export default function EventDetailScreen() {
   );
 
   useEffect(() => {
-    if (event?.attendees?.length) {
-      loadAttendeesData(event.attendees);
+    if ((event?.attendeeCount ?? event?.attendees?.length ?? 0) > 0) {
+      loadAttendeesData(event!.attendees);
     }
   }, [event?.attendees]);
 
@@ -536,7 +536,9 @@ export default function EventDetailScreen() {
   const isCreator = user && event.createdBy === user.uid;
   const isClubAdmin = user && club && (club.admins.includes(user.uid) || club.owner === user.uid);
   const canManageEvent = isCreator || isClubAdmin;
-  const isFull = event.maxAttendees && event.attendees.length >= event.maxAttendees;
+  const attendeeCountValue = event.attendeeCount ?? event.attendees?.length ?? 0;
+  const waitlistCountValue = event.waitlistCount ?? event.waitlist?.length ?? 0;
+  const isFull = event.maxAttendees && attendeeCountValue >= event.maxAttendees;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -703,7 +705,7 @@ export default function EventDetailScreen() {
               <View style={styles.quickInfoItem}>
                 <IconButton icon="account-group" iconColor={theme.colors.onSurface} size={18} style={styles.quickInfoIcon} />
                 <Text variant="bodyMedium" style={[styles.quickInfoText, { color: theme.colors.onSurfaceVariant }]}>
-                  {event.attendees.length.toString()}{event.maxAttendees ? `/${event.maxAttendees.toString()}` : ''}
+                  {attendeeCountValue.toString()}{event.maxAttendees ? `/${event.maxAttendees.toString()}` : ''}
                 </Text>
               </View>
             </View>
@@ -835,7 +837,7 @@ export default function EventDetailScreen() {
           <View style={styles.statsContainer}>
             <View style={[styles.statCard, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)', borderColor: theme.colors.outline }]}>
               <Text variant="headlineSmall" style={[styles.statNumber, { color: theme.colors.onSurface }]}>
-                {event.attendees.length.toString()}
+                {attendeeCountValue.toString()}
               </Text>
               <Text variant="bodyMedium" style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>
                 Attending
@@ -845,7 +847,7 @@ export default function EventDetailScreen() {
             {(event.maxAttendees ?? 0) > 0 && (
               <View style={[styles.statCard, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)', borderColor: theme.colors.outline }]}>
                 <Text variant="headlineSmall" style={[styles.statNumber, { color: theme.colors.onSurface }]}>
-                  {(event.maxAttendees - event.attendees.length).toString()}
+                  {(event.maxAttendees - attendeeCountValue).toString()}
                 </Text>
                 <Text variant="bodyMedium" style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>
                   Spots Left
@@ -853,10 +855,10 @@ export default function EventDetailScreen() {
               </View>
             )}
 
-            {event.waitlist.length > 0 && (
+            {waitlistCountValue > 0 && (
               <View style={[styles.statCard, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)', borderColor: theme.colors.outline }]}>
                 <Text variant="headlineSmall" style={[styles.statNumber, { color: theme.colors.onSurface }]}>
-                  {event.waitlist.length.toString()}
+                  {waitlistCountValue.toString()}
                 </Text>
                 <Text variant="bodyMedium" style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>
                   Waitlisted
@@ -888,10 +890,10 @@ export default function EventDetailScreen() {
           )}
 
           {/* Attendees List */}
-          {event.attendees.length > 0 && (
+          {attendeeCountValue > 0 && (
             <View style={styles.section}>
               <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
-                Attendees ({event.attendees.length})
+                Attendees ({attendeeCountValue})
               </Text>
               <View style={styles.membersList}>
                 {event.attendees.map((userId) => {

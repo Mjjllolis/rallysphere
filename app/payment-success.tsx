@@ -3,7 +3,7 @@ import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { Text, Button, useTheme } from 'react-native-paper';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { db, auth } from '../lib/firebase';
-import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, arrayUnion, increment, writeBatch, serverTimestamp } from 'firebase/firestore';
 
 export default function PaymentSuccess() {
   const theme = useTheme();
@@ -31,11 +31,22 @@ export default function PaymentSuccess() {
           return;
         }
 
-        // Add user to event attendees
+        // Add user to event attendees (idempotent: skip if cloud function already added them)
         const eventRef = doc(db, 'events', eventId);
-        await updateDoc(eventRef, {
-          attendees: arrayUnion(userId),
-        });
+        const eventSnap = await getDoc(eventRef);
+        const alreadyAttending = (eventSnap.data()?.attendees || []).includes(userId);
+        if (!alreadyAttending) {
+          const batch = writeBatch(db);
+          batch.update(eventRef, {
+            attendees: arrayUnion(userId),
+            attendeeCount: increment(1),
+          });
+          batch.set(doc(db, 'events', eventId, 'attendees', userId), {
+            userId,
+            joinedAt: serverTimestamp(),
+          });
+          await batch.commit();
+        }
 
         // console.log('Successfully added user to event after payment');
         setProcessing(false);

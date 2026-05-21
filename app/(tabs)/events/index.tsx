@@ -104,7 +104,7 @@ export default function DiscoverScreen() {
     () =>
       [...filteredEvents]
         .filter((e) => e.coverImage)
-        .sort((a, b) => (b.attendees?.length || 0) - (a.attendees?.length || 0))
+        .sort((a, b) => (b.attendeeCount ?? b.attendees?.length ?? 0) - (a.attendeeCount ?? a.attendees?.length ?? 0))
         .slice(0, 5),
     [filteredEvents]
   );
@@ -187,7 +187,7 @@ export default function DiscoverScreen() {
                 <View style={styles.featuredAttendees}>
                   <Ionicons name="people-outline" size={14} color="rgba(255,255,255,0.7)" />
                   <Text style={styles.featuredAttendeesText}>
-                    {event.attendees?.length || 0}{event.maxAttendees ? `/${event.maxAttendees}` : ''}
+                    {event.attendeeCount ?? event.attendees?.length ?? 0}{event.maxAttendees ? `/${event.maxAttendees}` : ''}
                   </Text>
                 </View>
               </View>
@@ -308,7 +308,7 @@ export default function DiscoverScreen() {
                 <View style={styles.rowMetaItem}>
                   <Ionicons name="people-outline" size={13} color="#60A5FA" />
                   <Text style={styles.rowAttendeeText}>
-                    {event.attendees?.length || 0}{event.maxAttendees ? `/${event.maxAttendees}` : ''} going
+                    {event.attendeeCount ?? event.attendees?.length ?? 0}{event.maxAttendees ? `/${event.maxAttendees}` : ''} going
                   </Text>
                 </View>
                 <Text style={(event.ticketPrice || 0) > 0 ? styles.rowPricePaid : styles.rowPriceFree}>

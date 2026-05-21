@@ -33,6 +33,7 @@ import {
   onSnapshot,
   increment,
   deleteField,
+  writeBatch,
   type Timestamp
 } from 'firebase/firestore';
 import {
@@ -210,6 +211,8 @@ export interface Event {
   maxAttendees?: number;
   attendees: string[];
   waitlist: string[];
+  attendeeCount?: number;
+  waitlistCount?: number;
   likes: string[];
   coverImage?: string;
   tags?: string[];
@@ -1266,7 +1269,7 @@ export const geocodeLocation = async (address: string): Promise<{ latitude: numb
   }
 };
 
-export const createEvent = async (eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt' | 'attendees' | 'waitlist' | 'likes'>) => {
+export const createEvent = async (eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt' | 'attendees' | 'waitlist' | 'likes' | 'attendeeCount' | 'waitlistCount'>) => {
   try {
     // Fetch club logo if not provided
     let clubLogo = eventData.clubLogo;
@@ -1291,6 +1294,8 @@ export const createEvent = async (eventData: Omit<Event, 'id' | 'createdAt' | 'u
       updatedAt: serverTimestamp(),
       attendees: [],
       waitlist: [],
+      attendeeCount: 0,
+      waitlistCount: 0,
       likes: []
     };
 
@@ -1461,20 +1466,36 @@ export const joinEvent = async (eventId: string, userId: string) => {
       return { success: false, error: 'Already attending this event' };
     }
     
-    // Check capacity
-    if (event.maxAttendees && event.attendees.length >= event.maxAttendees) {
+    // Check capacity (prefer denormalized counter, fall back to array length)
+    const currentAttendeeCount = event.attendeeCount ?? event.attendees?.length ?? 0;
+    const eventRef = doc(db, 'events', eventId);
+    if (event.maxAttendees && currentAttendeeCount >= event.maxAttendees) {
       // Add to waitlist
-      await updateDoc(doc(db, 'events', eventId), {
+      const batch = writeBatch(db);
+      batch.update(eventRef, {
         waitlist: arrayUnion(userId),
+        waitlistCount: increment(1),
         updatedAt: serverTimestamp()
       });
+      batch.set(doc(db, 'events', eventId, 'waitlist', userId), {
+        userId,
+        joinedAt: serverTimestamp()
+      });
+      await batch.commit();
       return { success: true, waitlisted: true };
     } else {
       // Add to attendees
-      await updateDoc(doc(db, 'events', eventId), {
+      const batch = writeBatch(db);
+      batch.update(eventRef, {
         attendees: arrayUnion(userId),
+        attendeeCount: increment(1),
         updatedAt: serverTimestamp()
       });
+      batch.set(doc(db, 'events', eventId, 'attendees', userId), {
+        userId,
+        joinedAt: serverTimestamp()
+      });
+      await batch.commit();
 
       // Award RallyCredits if the event has them
       // console.log('[joinEvent] Checking rally credits:', {
@@ -1512,13 +1533,23 @@ export const leaveEvent = async (eventId: string, userId: string) => {
     }
 
     const eventData = eventDoc.data();
+    const wasAttendee = (eventData.attendees || []).includes(userId);
+    const wasWaitlisted = (eventData.waitlist || []).includes(userId);
 
-    // Remove user from event
-    await updateDoc(doc(db, 'events', eventId), {
+    // Remove user from event (only decrement counters for the list they were in)
+    const updates: any = {
       attendees: arrayRemove(userId),
       waitlist: arrayRemove(userId),
       updatedAt: serverTimestamp()
-    });
+    };
+    if (wasAttendee) updates.attendeeCount = increment(-1);
+    if (wasWaitlisted) updates.waitlistCount = increment(-1);
+    const eventRef = doc(db, 'events', eventId);
+    const batch = writeBatch(db);
+    batch.update(eventRef, updates);
+    if (wasAttendee) batch.delete(doc(db, 'events', eventId, 'attendees', userId));
+    if (wasWaitlisted) batch.delete(doc(db, 'events', eventId, 'waitlist', userId));
+    await batch.commit();
 
     // If event had Rally Credits payout, forfeit the credits
     if (eventData.rallyCreditsAwarded && eventData.rallyCreditsAwarded > 0) {
@@ -3469,8 +3500,11 @@ export const checkInAttendee = async (eventId: string, userId: string) => {
 
     const event = eventDoc.data() as Event;
 
-    // Check if user is an attendee
-    if (!event.attendees.includes(userId)) {
+    // Check if user is an attendee (subcollection is source of truth; fall back to array)
+    const attendeeSubDoc = await getDoc(doc(db, 'events', eventId, 'attendees', userId));
+    const inSubcollection = attendeeSubDoc.exists();
+    const inArray = (event.attendees || []).includes(userId);
+    if (!inSubcollection && !inArray) {
       return { success: false, error: 'User is not an attendee of this event' };
     }
 
@@ -3706,8 +3740,15 @@ export const getEventAttendees = async (eventId: string) => {
     }
 
     const event = eventDoc.data() as Event;
-    const attendeeIds = event.attendees || [];
     const checkedInIds = event.checkedIn || [];
+
+    // Read attendees from subcollection (source of truth post-migration).
+    // Fall back to the legacy array if the subcollection is empty but the array isn't.
+    const subSnap = await getDocs(collection(db, 'events', eventId, 'attendees'));
+    let attendeeIds: string[] = subSnap.docs.map((d) => d.id);
+    if (attendeeIds.length === 0 && (event.attendees?.length || 0) > 0) {
+      attendeeIds = event.attendees;
+    }
 
     // Fetch user details for all attendees
     const attendeesWithDetails = await Promise.all(
@@ -3957,7 +3998,7 @@ export const getClubAnalytics = async (clubId: string) => {
     const memberCount = club.members.length;
 
     // Calculate event attendance stats
-    const totalEventAttendance = events.reduce((sum, event) => sum + (event.attendees?.length || 0), 0);
+    const totalEventAttendance = events.reduce((sum, event) => sum + (event.attendeeCount ?? event.attendees?.length ?? 0), 0);
     const upcomingEvents = events.filter(e => {
       const eventDate = e.startDate?.toDate ? e.startDate.toDate() : new Date(e.startDate);
       return eventDate > new Date();
@@ -3973,12 +4014,12 @@ export const getClubAnalytics = async (clubId: string) => {
 
     // Get top events by attendance
     const topEvents = [...events]
-      .sort((a, b) => (b.attendees?.length || 0) - (a.attendees?.length || 0))
+      .sort((a, b) => (b.attendeeCount ?? b.attendees?.length ?? 0) - (a.attendeeCount ?? a.attendees?.length ?? 0))
       .slice(0, 5)
       .map(e => ({
         id: e.id,
         title: e.title,
-        attendees: e.attendees?.length || 0,
+        attendees: e.attendeeCount ?? e.attendees?.length ?? 0,
         maxAttendees: e.maxAttendees || 0
       }));
 

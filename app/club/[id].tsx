@@ -882,7 +882,7 @@ export default function ClubDetailScreen() {
                           <View style={styles.eventCardDetailRow}>
                             <IconButton icon="account-group" size={16} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0 }} />
                             <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                              {event.attendees?.length || 0}{event.maxAttendees ? `/${event.maxAttendees}` : ''} attending
+                              {event.attendeeCount ?? event.attendees?.length ?? 0}{event.maxAttendees ? `/${event.maxAttendees}` : ''} attending
                             </Text>
                           </View>
                         </View>

@@ -8,7 +8,7 @@ import { WebView } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Event, RallyCreditRedemption, UserRallyCredits } from '../lib/firebase';
 import { db, auth, getClubRallyRedemptions, getUserRallyCredits, spendRallyCredits } from '../lib/firebase';
-import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, arrayUnion, increment, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useThemeToggle } from '../app/_layout';
 import {
@@ -221,7 +221,20 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
       const userId = auth.currentUser?.uid;
       if (!userId) return;
       const eventRef = doc(db, 'events', event.id);
-      await updateDoc(eventRef, { attendees: arrayUnion(userId) });
+      const eventSnap = await getDoc(eventRef);
+      const alreadyAttending = (eventSnap.data()?.attendees || []).includes(userId);
+      if (!alreadyAttending) {
+        const batch = writeBatch(db);
+        batch.update(eventRef, {
+          attendees: arrayUnion(userId),
+          attendeeCount: increment(1),
+        });
+        batch.set(doc(db, 'events', event.id, 'attendees', userId), {
+          userId,
+          joinedAt: serverTimestamp(),
+        });
+        await batch.commit();
+      }
     } catch (error) {
       // silent
     }

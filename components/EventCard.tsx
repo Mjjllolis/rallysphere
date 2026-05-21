@@ -127,7 +127,7 @@ export default function EventCard({
             
             <View style={styles.infoRow}>
               <Text variant="bodySmall" style={[styles.infoText, { color: theme.colors.onSurfaceVariant }]}>
-                👥 {event.attendees.length}
+                👥 {event.attendeeCount ?? event.attendees?.length ?? 0}
                 {event.maxAttendees ? ` / ${event.maxAttendees}` : ''} attending
               </Text>
 
@@ -146,10 +146,10 @@ export default function EventCard({
               loading={loading}
               onPress={handleJoinLeave}
               style={styles.joinButton}
-              disabled={event.maxAttendees && event.attendees.length >= event.maxAttendees && !isAttending && !isWaitlisted}
+              disabled={event.maxAttendees && (event.attendeeCount ?? event.attendees?.length ?? 0) >= event.maxAttendees && !isAttending && !isWaitlisted}
             >
-              {isWaitlisted ? "Leave Waitlist" : isAttending ? "Leave Event" : 
-               (event.maxAttendees && event.attendees.length >= event.maxAttendees ? "Full" : "Join")}
+              {isWaitlisted ? "Leave Waitlist" : isAttending ? "Leave Event" :
+               (event.maxAttendees && (event.attendeeCount ?? event.attendees?.length ?? 0) >= event.maxAttendees ? "Full" : "Join")}
             </Button>
           )}
         </View>

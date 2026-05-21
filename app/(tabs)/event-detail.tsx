@@ -54,8 +54,8 @@ export default function EventDetailScreen() {
   }, [eventId]);
 
   useEffect(() => {
-    if (event?.attendees?.length) {
-      loadAttendeesData(event.attendees);
+    if ((event?.attendeeCount ?? event?.attendees?.length ?? 0) > 0) {
+      loadAttendeesData(event!.attendees);
     }
   }, [event?.attendees]);
 
@@ -307,7 +307,9 @@ export default function EventDetailScreen() {
   const isUpcoming = event.startDate && new Date(event.startDate.toDate ? event.startDate.toDate() : event.startDate) > new Date();
   const isPast = event.endDate && new Date(event.endDate.toDate ? event.endDate.toDate() : event.endDate) < new Date();
   const isCreator = user && event.createdBy === user.uid;
-  const isFull = event.maxAttendees && event.attendees.length >= event.maxAttendees;
+  const attendeeCountValue = event.attendeeCount ?? event.attendees?.length ?? 0;
+  const waitlistCountValue = event.waitlistCount ?? event.waitlist?.length ?? 0;
+  const isFull = event.maxAttendees && attendeeCountValue >= event.maxAttendees;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -407,7 +409,7 @@ export default function EventDetailScreen() {
                 <View style={styles.quickInfoItem}>
                   <IconButton icon="account-group" iconColor={theme.colors.onSurface} size={20} />
                   <Text variant="bodyMedium" style={[styles.quickInfoText, { color: theme.colors.onSurface }]}>
-                    {event.attendees.length.toString()}{event.maxAttendees ? `/${event.maxAttendees.toString()}` : ''}
+                    {attendeeCountValue.toString()}{event.maxAttendees ? `/${event.maxAttendees.toString()}` : ''}
                   </Text>
                 </View>
               </View>
@@ -547,7 +549,7 @@ export default function EventDetailScreen() {
           <View style={styles.statsContainer}>
             <View style={[styles.statCard, { backgroundColor: isDark ? 'rgba(100,100,100,0.1)' : 'rgba(0,0,0,0.05)' }]}>
               <Text variant="headlineSmall" style={styles.statNumber}>
-                {event.attendees.length.toString()}
+                {attendeeCountValue.toString()}
               </Text>
               <Text variant="bodyMedium" style={styles.statLabel}>
                 Attending
@@ -557,7 +559,7 @@ export default function EventDetailScreen() {
             {(event.maxAttendees ?? 0) > 0 && (
               <View style={[styles.statCard, { backgroundColor: isDark ? 'rgba(100,100,100,0.1)' : 'rgba(0,0,0,0.05)' }]}>
                 <Text variant="headlineSmall" style={styles.statNumber}>
-                  {(event.maxAttendees - event.attendees.length).toString()}
+                  {(event.maxAttendees - attendeeCountValue).toString()}
                 </Text>
                 <Text variant="bodyMedium" style={styles.statLabel}>
                   Spots Left
@@ -565,10 +567,10 @@ export default function EventDetailScreen() {
               </View>
             )}
 
-            {event.waitlist.length > 0 && (
+            {waitlistCountValue > 0 && (
               <View style={[styles.statCard, { backgroundColor: isDark ? 'rgba(100,100,100,0.1)' : 'rgba(0,0,0,0.05)' }]}>
                 <Text variant="headlineSmall" style={styles.statNumber}>
-                  {event.waitlist.length.toString()}
+                  {waitlistCountValue.toString()}
                 </Text>
                 <Text variant="bodyMedium" style={styles.statLabel}>
                   Waitlisted
@@ -600,10 +602,10 @@ export default function EventDetailScreen() {
           )}
 
           {/* Attendees List */}
-          {event.attendees.length > 0 && (
+          {attendeeCountValue > 0 && (
             <View style={styles.section}>
               <Text variant="titleLarge" style={styles.sectionTitle}>
-                Attendees ({event.attendees.length})
+                Attendees ({attendeeCountValue})
               </Text>
               <View style={styles.membersList}>
                 {event.attendees.map((userId) => {

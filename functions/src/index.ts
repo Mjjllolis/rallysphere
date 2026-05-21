@@ -504,17 +504,32 @@ export const createEventTransaction = functions.https.onCall(
       }
 
       // Add user to event (attendees or waitlist)
-      if (eventData?.maxAttendees && (eventData.attendees?.length || 0) >= eventData.maxAttendees) {
-        await db.collection("events").doc(eventId).update({
+      const currentAttendeeCount =
+        eventData?.attendeeCount ?? eventData?.attendees?.length ?? 0;
+      const eventRef = db.collection("events").doc(eventId);
+      const batch = db.batch();
+      if (eventData?.maxAttendees && currentAttendeeCount >= eventData.maxAttendees) {
+        batch.update(eventRef, {
           waitlist: admin.firestore.FieldValue.arrayUnion(userId),
+          waitlistCount: admin.firestore.FieldValue.increment(1),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        batch.set(eventRef.collection("waitlist").doc(userId), {
+          userId,
+          joinedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
       } else {
-        await db.collection("events").doc(eventId).update({
+        batch.update(eventRef, {
           attendees: admin.firestore.FieldValue.arrayUnion(userId),
+          attendeeCount: admin.firestore.FieldValue.increment(1),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
+        batch.set(eventRef.collection("attendees").doc(userId), {
+          userId,
+          joinedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
       }
+      await batch.commit();
 
       // ACH settles async; card settles fast. Map Finix state → our status.
       const orderStatus = transfer.state === "SUCCEEDED" ? "confirmed" : "pending";
@@ -1456,11 +1471,18 @@ export const leaveEventWithRefund = functions.https.onCall(
         }
       }
 
-      await db.collection("events").doc(eventId).update({
+      const leaveEventRef = db.collection("events").doc(eventId);
+      const leaveBatch = db.batch();
+      leaveBatch.update(leaveEventRef, {
         attendees: admin.firestore.FieldValue.arrayRemove(userId),
         waitlist: admin.firestore.FieldValue.arrayRemove(userId),
+        attendeeCount: admin.firestore.FieldValue.increment(-1),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+      leaveBatch.delete(leaveEventRef.collection("attendees").doc(userId));
+      // Defensive: also remove any waitlist subcollection doc in case state is inconsistent
+      leaveBatch.delete(leaveEventRef.collection("waitlist").doc(userId));
+      await leaveBatch.commit();
 
       // Forfeit rally credits
       if (eventData?.rallyCreditsAwarded && eventData.rallyCreditsAwarded > 0) {
@@ -2134,7 +2156,14 @@ export const fixEventsAndCredits = functions.https.onCall(
 
         if (!event.rallyCreditsAwarded || event.rallyCreditsAwarded <= 0) continue;
 
-        for (const userId of (event.attendees || [])) {
+        // Read attendees from subcollection (source of truth post-migration);
+        // fall back to legacy array if the subcollection is empty.
+        const attendeesSubSnap = await eventDoc.ref.collection("attendees").get();
+        const attendeeIds: string[] = attendeesSubSnap.empty
+          ? (event.attendees || [])
+          : attendeesSubSnap.docs.map((d) => d.id);
+
+        for (const userId of attendeeIds) {
           try {
             const creditsRef = db.collection("rallyCredits").doc(userId);
             const creditsDoc = await creditsRef.get();
