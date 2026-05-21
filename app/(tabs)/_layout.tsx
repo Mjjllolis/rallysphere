@@ -42,29 +42,25 @@ const GlassTabBar = ({
   return (
     <View style={[styles.container, { bottom: Math.max(insets.bottom, 8) }]}>
       <BlurView
-        intensity={60}
+        intensity={isDark ? 60 : 30}
         tint={isDark ? "dark" : "light"}
         style={StyleSheet.absoluteFill}
       />
       <View
         style={[
           StyleSheet.absoluteFill,
-          { backgroundColor: isDark ? "rgba(30,30,30,0.25)" : "rgba(255,255,255,0.25)" },
+          { backgroundColor: isDark ? "rgba(30,30,30,0.25)" : "rgba(255,255,255,0.4)" },
         ]}
       />
 
-      <View style={styles.shineContainer}>
-        <LinearGradient
-          colors={[
-            "transparent",
-            isDark ? "rgba(255, 255, 255, 0.4)" : "rgba(255, 255, 255, 0.8)",
-            "transparent",
-          ]}
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 1, y: 0.5 }}
-          style={styles.shineLine}
-        />
-      </View>
+      {/* Subtle even border */}
+      <View
+        pointerEvents="none"
+        style={[
+          styles.border,
+          { borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)" },
+        ]}
+      />
 
       <View style={styles.tabs}>
         {state.routes.map((route, index) => {
@@ -87,7 +83,9 @@ const GlassTabBar = ({
             <Pressable key={route.key} onPress={handlePress} style={styles.tab}>
               {options.tabBarIcon({
                 focused: isFocused,
-                color: isFocused ? theme.colors.onSurface : theme.colors.onSurfaceDisabled,
+                color: isFocused
+                  ? (isDark ? '#FFFFFF' : '#000000')
+                  : (isDark ? '#9CA3AF' : '#6B7280'),
                 size: 28,
               })}
             </Pressable>
@@ -167,10 +165,20 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  border: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 32,
+    borderWidth: 1,
+    zIndex: 5,
   },
   tabs: {
     flex: 1,
@@ -183,19 +191,5 @@ const styles = StyleSheet.create({
     height: 64,
     alignItems: "center",
     justifyContent: "center",
-  },
-  shineContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 1,
-    overflow: 'hidden',
-    zIndex: 10,
-  },
-  shineLine: {
-    width: '70%',
-    height: 1,
-    alignSelf: 'center',
   },
 });

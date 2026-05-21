@@ -32,6 +32,7 @@ export default function GlassInput({ label, icon, error, style, compact, ...prop
               <TextInput
                 style={[styles.input, icon && styles.inputWithIcon, isMultiline && styles.inputMultiline, { color: theme.colors.onSurface }]}
                 placeholderTextColor={theme.colors.onSurfaceDisabled}
+                onFocus={props.onFocus}
                 {...props}
               />
             </View>
@@ -47,6 +48,7 @@ export default function GlassInput({ label, icon, error, style, compact, ...prop
               <TextInput
                 style={[styles.input, icon && styles.inputWithIcon, isMultiline && styles.inputMultiline, { color: theme.colors.onSurface }]}
                 placeholderTextColor={theme.colors.onSurfaceDisabled}
+                onFocus={props.onFocus}
                 {...props}
               />
             </View>

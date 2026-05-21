@@ -75,6 +75,55 @@ export default function DiscoverScreen() {
     setRefreshing(false);
   };
 
+  const loadClubs = async () => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+
+      // Load user's clubs
+      const myClubsResult = await getClubs(user.uid);
+      if (myClubsResult.success) {
+        setMyClubs(myClubsResult.clubs);
+      }
+
+      // Load public clubs for discovery
+      const discoverResult = await getClubs();
+      if (discoverResult.success) {
+        // Filter out clubs user is already a member of
+        const userClubIds = myClubsResult.clubs.map(club => club.id);
+        const availableClubs = discoverResult.clubs.filter(club => !userClubIds.includes(club.id));
+        setDiscoverClubs(availableClubs);
+      }
+    } catch (error) {
+      // console.error('Error loading clubs:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filterClubs = () => {
+    let filtered = discoverClubs;
+
+    // Filter by category
+    if (selectedCategory !== 'All') {
+      filtered = filtered.filter(club => club.category === selectedCategory);
+    }
+
+    // Filter by search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(club =>
+        club.name.toLowerCase().includes(query) ||
+        club.description.toLowerCase().includes(query) ||
+        club.category.toLowerCase().includes(query) ||
+        (club.tags && club.tags.some(tag => tag.toLowerCase().includes(query)))
+      );
+    }
+
+    setFilteredClubs(filtered);
+  };
+
   // ----- filtering -----
   const q = searchQuery.trim().toLowerCase();
 
