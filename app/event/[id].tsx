@@ -690,6 +690,9 @@ export default function EventDetailScreen() {
               </View>
             </View>
           </View>
+          {/* Divider */}
+          <View style={[styles.divider, { backgroundColor: theme.colors.outline }]} />
+
           {/* Description */}
           <View style={styles.section}>
             <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
@@ -1450,14 +1453,16 @@ export default function EventDetailScreen() {
           activeOpacity={0.8}
           style={[styles.floatingButtonWrapper, { bottom: insets.bottom + 16 }]}
         >
-          <LinearGradient
-            colors={isAttending || isWaitlisted
-              ? [theme.colors.errorContainer, theme.colors.error]
-              : [theme.colors.primary, theme.colors.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
+          <BlurView
+            intensity={80}
+            tint={isDark ? "dark" : "light"}
             style={[
               styles.floatingButton,
+              {
+                backgroundColor: isAttending || isWaitlisted
+                  ? 'rgba(239, 68, 68, 0.3)'
+                  : isDark ? 'rgba(96, 165, 250, 0.3)' : 'rgba(27, 54, 93, 0.3)',
+              },
               (actionLoading || (!isAttending && !isWaitlisted && !!isFull)) && styles.floatingButtonDisabled
             ]}
           >
@@ -1476,7 +1481,7 @@ export default function EventDetailScreen() {
                   : 'Join Event'}
               </Text>
             )}
-          </LinearGradient>
+          </BlurView>
         </TouchableOpacity>
       )}
     </View>
@@ -1667,7 +1672,7 @@ const styles = StyleSheet.create({
   quickInfo: {
     flexDirection: 'row',
     gap: 16,
-    marginBottom: 16,
+    marginBottom: 12,
     flexWrap: 'wrap',
   },
   quickInfoItem: {
@@ -1686,9 +1691,9 @@ const styles = StyleSheet.create({
   },
   eventInfoSection: {
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
-    marginBottom: 16,
+    paddingTop: 8,
+    paddingBottom: 0,
+    marginBottom: 0,
   },
   eventTitle: {
     fontWeight: 'bold',
@@ -1810,8 +1815,8 @@ const styles = StyleSheet.create({
   },
   floatingButtonWrapper: {
     position: 'absolute',
-    left: 20,
     right: 20,
+    alignSelf: 'flex-end',
     zIndex: 100,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
@@ -1820,11 +1825,14 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   floatingButton: {
-    paddingVertical: 18,
-    paddingHorizontal: 28,
-    borderRadius: 30,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 25,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   floatingButtonDisabled: {
     opacity: 0.5,
@@ -1838,6 +1846,9 @@ const styles = StyleSheet.create({
   waiverModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
+  },
+  waiverModalBackdrop: {
+    flex: 1,
   },
   waiverFullPageContent: {
     flex: 1,
@@ -2096,5 +2107,11 @@ const styles = StyleSheet.create({
   signedWaiverCloseText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  divider: {
+    height: 1,
+    marginHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 20,
   },
 });
