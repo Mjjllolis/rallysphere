@@ -32,7 +32,8 @@
       "appleTeamId": "66YBRZM5J5",
       "googleServicesFile": "./firebase/GoogleService-Info.plist",
       "entitlements": {
-        "com.apple.developer.devicecheck.appattest-environment": "production"
+        "com.apple.developer.devicecheck.appattest-environment": "production",
+        "com.apple.developer.in-app-payments": ["merchant.com.rallysphere.app"]
       }
     },
     "android": {
