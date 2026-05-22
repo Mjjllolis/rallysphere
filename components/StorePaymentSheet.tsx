@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, StyleSheet, Alert, Platform, TouchableOpacity,
-  Animated, Dimensions, ScrollView, Modal, Image, Linking,
+  Animated, Dimensions, ScrollView, Modal, Image, Linking, Easing,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, ActivityIndicator, IconButton, useTheme } from 'react-native-paper';
 import { WebView } from 'react-native-webview';
 import type { StoreItem, RallyCreditRedemption, UserRallyCredits, ShippingAddress } from '../lib/firebase';
@@ -21,7 +22,10 @@ import {
 } from '../lib/finix';
 import { useThemeToggle } from '../app/_layout';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const SLIDE_DURATION = 280;
+const SUMMARY_HEIGHT = Math.round(SCREEN_HEIGHT * 0.5);
+const PAYMENT_HEIGHT = Math.round(SCREEN_HEIGHT * 0.92);
 
 interface StorePaymentSheetProps {
   visible: boolean;
@@ -49,8 +53,13 @@ export default function StorePaymentSheet({
 }: StorePaymentSheetProps) {
   const theme = useTheme();
   const { isDark } = useThemeToggle();
+  const insets = useSafeAreaInsets();
   const webViewRef = useRef<any>(null);
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const slideX = useRef(new Animated.Value(0)).current;
+  const sheetHeight = useRef(new Animated.Value(SUMMARY_HEIGHT)).current;
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const [step, setStep] = useState<'summary' | 'payment'>('summary');
 
   const [userCredits, setUserCredits] = useState<UserRallyCredits | null>(null);
   const [storeRedemptions, setStoreRedemptions] = useState<RallyCreditRedemption[]>([]);
@@ -73,20 +82,90 @@ export default function StorePaymentSheet({
 
   useEffect(() => {
     if (visible) {
-      Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start();
+      slideX.setValue(0);
+      sheetHeight.setValue(SUMMARY_HEIGHT);
+      slideAnim.setValue(SCREEN_HEIGHT);
+      backdropOpacity.setValue(0);
+      setStep('summary');
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: SLIDE_DURATION,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(backdropOpacity, {
+          toValue: 1,
+          duration: SLIDE_DURATION,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
       loadUserCredits();
       loadStoreRedemptions();
       loadSavedInstruments();
       setSaveNewCard(false);
       initPayment();
     } else {
-      Animated.timing(slideAnim, { toValue: SCREEN_HEIGHT, duration: 250, useNativeDriver: true }).start();
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: SCREEN_HEIGHT,
+          duration: SLIDE_DURATION,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(backdropOpacity, {
+          toValue: 0,
+          duration: SLIDE_DURATION,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
       setServerBreakdown(null);
       setFinixContext(null);
       setFormReady(false);
       setSelectedReward(null);
     }
   }, [visible]);
+
+  const goToPayment = () => {
+    setStep('payment');
+    Animated.parallel([
+      Animated.timing(slideX, {
+        toValue: -SCREEN_WIDTH,
+        duration: SLIDE_DURATION,
+        useNativeDriver: true,
+      }),
+      Animated.timing(sheetHeight, {
+        toValue: PAYMENT_HEIGHT,
+        duration: SLIDE_DURATION,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  };
+
+  const goToSummary = () => {
+    Animated.parallel([
+      Animated.timing(slideX, {
+        toValue: 0,
+        duration: SLIDE_DURATION,
+        useNativeDriver: true,
+      }),
+      Animated.timing(sheetHeight, {
+        toValue: SUMMARY_HEIGHT,
+        duration: SLIDE_DURATION,
+        useNativeDriver: false,
+      }),
+    ]).start(() => setStep('summary'));
+  };
+
+  const handleRequestClose = () => {
+    if (step === 'payment') {
+      goToSummary();
+    } else {
+      onDismiss();
+    }
+  };
 
   useEffect(() => {
     if (visible && userId) {
@@ -345,20 +424,50 @@ export default function StorePaymentSheet({
   const totals = calculateTotal();
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onDismiss}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={handleRequestClose}>
       <View style={styles.overlay}>
-        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onDismiss} />
-        <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: backdropOpacity }]}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onDismiss} />
+        </Animated.View>
+        <Animated.View
+          style={[
+            styles.sheet,
+            {
+              height: sheetHeight,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
           <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={styles.sheetBlur}>
-            {/* Header */}
-            <View style={[styles.header, { borderBottomColor: theme.colors.outline }]}>
-              <Text style={[styles.headerText, { color: theme.colors.onSurface }]}>Confirm Purchase</Text>
-              <TouchableOpacity onPress={onDismiss}>
-                <IconButton icon="close" iconColor={theme.colors.onSurface} size={24} style={{ margin: 0 }} />
-              </TouchableOpacity>
-            </View>
+            {/* Close button — closes the whole sheet on either step */}
+            <TouchableOpacity
+              style={[styles.closeButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
+              onPress={onDismiss}
+            >
+              <Text style={[styles.closeIcon, { color: theme.colors.onSurfaceVariant }]}>✕</Text>
+            </TouchableOpacity>
 
-            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+            {/* Sliding panes container — clips overflow so only one pane shows at a time */}
+            <View style={{ flex: 1, overflow: 'hidden' }}>
+              <Animated.View
+                style={{
+                  flexDirection: 'row',
+                  width: SCREEN_WIDTH * 2,
+                  flex: 1,
+                  transform: [{ translateX: slideX }],
+                }}
+              >
+                {/* ============ PANE 1: SUMMARY ============ */}
+                <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
+                  <ScrollView
+                    style={styles.scrollView}
+                    contentContainerStyle={{ paddingBottom: 16 }}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 4 }}>
+                      <Text style={[styles.headerText, { color: theme.colors.onSurface }]}>Confirm Purchase</Text>
+                    </View>
               {/* Product Info */}
               <View style={styles.section}>
                 <View style={styles.productRow}>
@@ -536,19 +645,75 @@ export default function StorePaymentSheet({
                 </View>
               </View>
 
-              {/* Finix Tokenization Form (or saved-card picker) */}
-              {totals.total > 0 && (
-                <View style={styles.section}>
-                  <Text style={[styles.sectionTitle, { color: theme.colors.onSurfaceVariant }]}>PAYMENT METHOD</Text>
+                  </ScrollView>
+
+                  {/* Pane 1 footer — Continue to Payment / Confirm Free */}
+                  <View style={[styles.summaryFooter, { paddingBottom: insets.bottom + 16, borderTopColor: theme.colors.outline }]}>
+                    <TouchableOpacity
+                      style={[
+                        styles.continueButton,
+                        {
+                          backgroundColor: totals.total === 0 ? '#10B981' : theme.colors.primary,
+                          opacity: (processing || initializingPayment || (totals.total > 0 && !finixContext)) ? 0.7 : 1,
+                        },
+                      ]}
+                      onPress={totals.total === 0 ? handlePurchase : goToPayment}
+                      disabled={processing || initializingPayment || (totals.total > 0 && !finixContext)}
+                      activeOpacity={0.85}
+                    >
+                      {processing || initializingPayment ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <>
+                          <Text style={styles.continueButtonText}>
+                            {totals.total === 0
+                              ? 'Confirm (Free)'
+                              : `Continue to Payment — $${totals.total.toFixed(2)}`}
+                          </Text>
+                          <Text style={styles.continueButtonSubtext}>
+                            {totals.total === 0
+                              ? 'Using Rally Credits'
+                              : 'Next: choose card, ACH, or wallet'}
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* ============ PANE 2: PAYMENT ============ */}
+                <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
+                  <View style={styles.stepHeader}>
+                    <TouchableOpacity onPress={goToSummary} style={styles.backButton} activeOpacity={0.7}>
+                      <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>← Back</Text>
+                    </TouchableOpacity>
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={{ fontWeight: 'bold', fontSize: 16, color: theme.colors.onSurface }} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                      <Text style={{ fontSize: 13, color: theme.colors.onSurfaceVariant }}>
+                        Total: ${totals.total.toFixed(2)}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.sectionTitle, { color: theme.colors.onSurfaceVariant, paddingHorizontal: 20, marginBottom: 4 }]}>
+                    PAYMENT METHOD
+                  </Text>
+
+                  {/* Body — saved-card picker or Finix WebView */}
                   {initializingPayment || !finixContext ? (
-                    <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+                    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                       <ActivityIndicator size="small" color={theme.colors.primary} />
                       <Text style={{ marginTop: 8, color: theme.colors.onSurfaceVariant, fontSize: 13 }}>
                         Initializing payment...
                       </Text>
                     </View>
                   ) : !useNewCard && savedInstruments.length > 0 ? (
-                    <View>
+                    <ScrollView
+                      style={{ flex: 1 }}
+                      contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8 }}
+                      keyboardShouldPersistTaps="handled"
+                    >
                       {savedInstruments.map((pi) => {
                         const selected = selectedSavedPiId === pi.piId;
                         return (
@@ -579,9 +744,9 @@ export default function StorePaymentSheet({
                       >
                         <Text style={[styles.useNewCardText, { color: theme.colors.primary }]}>+ Use new payment</Text>
                       </TouchableOpacity>
-                    </View>
+                    </ScrollView>
                   ) : (
-                    <>
+                    <View style={{ flex: 1 }}>
                       <WebView
                         ref={webViewRef}
                         source={{
@@ -593,7 +758,7 @@ export default function StorePaymentSheet({
                             external: true,
                           }),
                         }}
-                        style={styles.webView}
+                        style={{ flex: 1, backgroundColor: 'transparent', marginHorizontal: 20 }}
                         onMessage={handleWebViewMessage}
                         javaScriptEnabled
                         scrollEnabled
@@ -602,7 +767,7 @@ export default function StorePaymentSheet({
                         applePayEnabled
                       />
                       {paymentMethod === 'card' && (
-                        <View style={{ marginTop: 8 }}>
+                        <View style={{ paddingHorizontal: 20, paddingTop: 4 }}>
                           <TouchableOpacity onPress={() => setSaveNewCard((v) => !v)} activeOpacity={0.7} style={styles.saveCardRow}>
                             <View
                               style={[
@@ -623,43 +788,43 @@ export default function StorePaymentSheet({
                           )}
                         </View>
                       )}
-                    </>
+                    </View>
                   )}
-                </View>
-              )}
-            </ScrollView>
 
-            {/* Footer */}
-            <View style={[styles.footer, { borderTopColor: theme.colors.outline }]}>
-              {(() => {
-                const usingSaved = !useNewCard && !!selectedSavedPiId;
-                const payDisabled = processing || initializingPayment || (totals.total > 0 && !usingSaved && !formReady);
-                return (
-              <TouchableOpacity
-                style={styles.purchaseButton}
-                onPress={handlePurchase}
-                disabled={payDisabled}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={['#EF4444', '#DC2626']}
-                  style={[styles.purchaseButtonGradient, payDisabled && { opacity: 0.6 }]}
-                >
-                  {processing || initializingPayment ? (
-                    <ActivityIndicator color="white" />
-                  ) : (
-                    <Text style={styles.purchaseButtonText}>
-                      {totals.total === 0
-                        ? 'Confirm (Free)'
-                        : paymentMethod === 'ach'
-                          ? `Authorize & Pay $${totals.total.toFixed(2)}`
-                          : `Pay $${totals.total.toFixed(2)}`}
-                    </Text>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
-                );
-              })()}
+                  {/* Pane 2 footer — Pay button */}
+                  <View style={[styles.paymentFooter, { paddingBottom: insets.bottom + 16, borderTopColor: theme.colors.outline }]}>
+                    {(() => {
+                      const usingSaved = !useNewCard && !!selectedSavedPiId;
+                      const payDisabled = processing || initializingPayment || (totals.total > 0 && !usingSaved && !formReady);
+                      return (
+                        <TouchableOpacity
+                          style={styles.purchaseButton}
+                          onPress={handlePurchase}
+                          disabled={payDisabled}
+                          activeOpacity={0.8}
+                        >
+                          <LinearGradient
+                            colors={['#EF4444', '#DC2626']}
+                            style={[styles.purchaseButtonGradient, payDisabled && { opacity: 0.6 }]}
+                          >
+                            {processing || initializingPayment ? (
+                              <ActivityIndicator color="white" />
+                            ) : (
+                              <Text style={styles.purchaseButtonText}>
+                                {totals.total === 0
+                                  ? 'Confirm (Free)'
+                                  : paymentMethod === 'ach'
+                                    ? `Authorize & Pay $${totals.total.toFixed(2)}`
+                                    : `Pay $${totals.total.toFixed(2)}`}
+                              </Text>
+                            )}
+                          </LinearGradient>
+                        </TouchableOpacity>
+                      );
+                    })()}
+                  </View>
+                </View>
+              </Animated.View>
             </View>
           </BlurView>
         </Animated.View>
@@ -671,11 +836,65 @@ export default function StorePaymentSheet({
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   backdrop: { flex: 1 },
-  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: SCREEN_HEIGHT * 0.9, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden' },
-  sheetBlur: { borderTopLeftRadius: 20, borderTopRightRadius: 20 },
+  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden' },
+  sheetBlur: { flex: 1, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
+  closeButton: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  closeIcon: { fontSize: 16, fontWeight: '600' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1 },
   headerText: { fontSize: 20, fontWeight: 'bold' },
-  scrollView: { maxHeight: SCREEN_HEIGHT * 0.65 },
+  scrollView: { flex: 1 },
+  summaryFooter: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    borderTopWidth: 1,
+  },
+  paymentFooter: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    borderTopWidth: 1,
+  },
+  continueButton: {
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  continueButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  continueButtonSubtext: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 12,
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  stepHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 8,
+  },
+  backButton: {
+    paddingVertical: 4,
+    paddingRight: 8,
+  },
+  backButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
   section: { padding: 20 },
   sectionTitle: { fontSize: 14, fontWeight: '600', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
   productRow: { flexDirection: 'row', gap: 16 },
