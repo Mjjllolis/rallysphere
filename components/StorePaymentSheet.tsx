@@ -128,35 +128,35 @@ export default function StorePaymentSheet({
     }
   }, [visible]);
 
+  // Animate horizontal slide (transform, native driver) and sheet-height (layout,
+  // JS driver) separately rather than via Animated.parallel — mixing drivers
+  // inside a parallel composite can cause "Attempting to run JS driven animation
+  // on animated node that has been moved to 'native' earlier" after hot-reload.
   const goToPayment = () => {
     setStep('payment');
-    Animated.parallel([
-      Animated.timing(slideX, {
-        toValue: -SCREEN_WIDTH,
-        duration: SLIDE_DURATION,
-        useNativeDriver: true,
-      }),
-      Animated.timing(sheetHeight, {
-        toValue: PAYMENT_HEIGHT,
-        duration: SLIDE_DURATION,
-        useNativeDriver: false,
-      }),
-    ]).start();
+    Animated.timing(slideX, {
+      toValue: -SCREEN_WIDTH,
+      duration: SLIDE_DURATION,
+      useNativeDriver: true,
+    }).start();
+    Animated.timing(sheetHeight, {
+      toValue: PAYMENT_HEIGHT,
+      duration: SLIDE_DURATION,
+      useNativeDriver: false,
+    }).start();
   };
 
   const goToSummary = () => {
-    Animated.parallel([
-      Animated.timing(slideX, {
-        toValue: 0,
-        duration: SLIDE_DURATION,
-        useNativeDriver: true,
-      }),
-      Animated.timing(sheetHeight, {
-        toValue: SUMMARY_HEIGHT,
-        duration: SLIDE_DURATION,
-        useNativeDriver: false,
-      }),
-    ]).start(() => setStep('summary'));
+    Animated.timing(slideX, {
+      toValue: 0,
+      duration: SLIDE_DURATION,
+      useNativeDriver: true,
+    }).start(() => setStep('summary'));
+    Animated.timing(sheetHeight, {
+      toValue: SUMMARY_HEIGHT,
+      duration: SLIDE_DURATION,
+      useNativeDriver: false,
+    }).start();
   };
 
   const handleRequestClose = () => {
