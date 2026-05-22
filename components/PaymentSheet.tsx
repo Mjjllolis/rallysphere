@@ -804,6 +804,9 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
                           backgroundColor="transparent"
                           keyboardDisplayRequiresUserAction={false}
                           hideKeyboardAccessoryView={false}
+                          // Expose Apple Pay JS API inside the WebView so window.Finix.ApplePay works.
+                          // Off by default in react-native-webview; without this the wallet button never renders.
+                          applePayEnabled
                         />
                       )}
                       {!formReady && (

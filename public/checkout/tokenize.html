@@ -276,7 +276,16 @@
       // --- Wallets (Apple Pay / Google Pay) ---
       if (wallets) {
         document.getElementById('wallets').style.display = 'flex';
-        // Finix auto-renders wallet buttons when supported. If not, buttons stay hidden.
+        // Finix auto-renders wallet buttons when supported. Errors surface to the
+        // RN host's diagnostic channel so we can see why a wallet didn't render.
+        diag('wallets-start', {
+          hasApplePay: !!(window.Finix && window.Finix.ApplePay),
+          hasApplePayCanMakePayments: !!(window.Finix && window.Finix.ApplePay && window.Finix.ApplePay.canMakePayments),
+          applePayCanMakePayments: !!(window.Finix && window.Finix.ApplePay && window.Finix.ApplePay.canMakePayments && (function () { try { return window.Finix.ApplePay.canMakePayments(); } catch (_) { return false; } })()),
+          hasGooglePay: !!(window.Finix && window.Finix.GooglePay),
+          hasGooglePayIsReady: !!(window.Finix && window.Finix.GooglePay && window.Finix.GooglePay.isReadyToPay),
+        });
+
         try {
           if (window.Finix.ApplePay && window.Finix.ApplePay.canMakePayments && window.Finix.ApplePay.canMakePayments()) {
             window.Finix.ApplePay.mount('apple-pay-button', {
@@ -290,10 +299,18 @@
                   fraudSessionId: getFraudSessionId(),
                 });
               },
-              onError: function (err) { showError(err.message || 'Apple Pay failed'); },
+              onError: function (err) {
+                diag('apple-pay-onerror', { message: err && err.message });
+                showError((err && err.message) || 'Apple Pay failed');
+              },
             });
+            diag('apple-pay-mounted', {});
+          } else {
+            diag('apple-pay-skip', { reason: 'canMakePayments false or SDK missing' });
           }
-        } catch (e) { /* ignore — wallet optional */ }
+        } catch (e) {
+          diag('apple-pay-throw', { message: e && e.message, stack: e && e.stack });
+        }
 
         try {
           if (window.Finix.GooglePay && window.Finix.GooglePay.isReadyToPay) {
@@ -308,10 +325,18 @@
                   fraudSessionId: getFraudSessionId(),
                 });
               },
-              onError: function (err) { showError(err.message || 'Google Pay failed'); },
+              onError: function (err) {
+                diag('google-pay-onerror', { message: err && err.message });
+                showError((err && err.message) || 'Google Pay failed');
+              },
             });
+            diag('google-pay-mounted', {});
+          } else {
+            diag('google-pay-skip', { reason: 'isReadyToPay missing or SDK missing' });
           }
-        } catch (e) { /* ignore */ }
+        } catch (e) {
+          diag('google-pay-throw', { message: e && e.message, stack: e && e.stack });
+        }
       }
 
       // --- Tab switching ---

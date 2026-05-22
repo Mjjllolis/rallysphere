@@ -599,6 +599,7 @@ export default function StorePaymentSheet({
                         scrollEnabled
                         originWhitelist={['*']}
                         mixedContentMode="always"
+                        applePayEnabled
                       />
                       {paymentMethod === 'card' && (
                         <View style={{ marginTop: 8 }}>
