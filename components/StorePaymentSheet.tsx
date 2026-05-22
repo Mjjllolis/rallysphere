@@ -429,16 +429,11 @@ export default function StorePaymentSheet({
         <Animated.View style={[StyleSheet.absoluteFill, { opacity: backdropOpacity }]}>
           <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onDismiss} />
         </Animated.View>
-        <Animated.View
-          style={[
-            styles.sheet,
-            {
-              height: sheetHeight,
-              transform: [{ translateY: slideAnim }],
-            },
-          ]}
-        >
-          <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={styles.sheetBlur}>
+        {/* Outer wrapper: native-driven open/close translateY. */}
+        {/* Inner: JS-driven height (layout). Splitting avoids the native/JS driver collision. */}
+        <Animated.View style={[styles.sheetWrapper, { transform: [{ translateY: slideAnim }] }]}>
+          <Animated.View style={[styles.sheet, { height: sheetHeight }]}>
+            <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={styles.sheetBlur}>
             {/* Close button — closes the whole sheet on either step */}
             <TouchableOpacity
               style={[styles.closeButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
@@ -827,6 +822,7 @@ export default function StorePaymentSheet({
               </Animated.View>
             </View>
           </BlurView>
+          </Animated.View>
         </Animated.View>
       </View>
     </Modal>
@@ -836,7 +832,12 @@ export default function StorePaymentSheet({
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   backdrop: { flex: 1 },
-  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden' },
+  sheetWrapper: {
+    position: 'absolute', left: 0, right: 0, bottom: 0,
+    shadowColor: '#000', shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.2, shadowRadius: 8, elevation: 10,
+  },
+  sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden' },
   sheetBlur: { flex: 1, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
   closeButton: {
     position: 'absolute',
