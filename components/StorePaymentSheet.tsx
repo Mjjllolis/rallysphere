@@ -751,6 +751,7 @@ export default function StorePaymentSheet({
                             ach: true,
                             wallets: true,
                             external: true,
+                            theme: isDark ? 'dark' : 'light',
                           }),
                         }}
                         style={{ flex: 1, backgroundColor: 'transparent', marginHorizontal: 20 }}
