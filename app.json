@@ -21,7 +21,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.rallysphere.app",
-      "buildNumber": "42",
+      "buildNumber": "44",
       "icon": {
         "light": "./assets/Logo.png",
         "dark": "./assets/Logo-dark.png"
@@ -33,7 +33,9 @@
       "googleServicesFile": "./firebase/GoogleService-Info.plist",
       "entitlements": {
         "com.apple.developer.devicecheck.appattest-environment": "production",
-        "com.apple.developer.in-app-payments": ["merchant.com.rallysphere.app"]
+        "com.apple.developer.in-app-payments": [
+          "merchant.com.rallysphere.app"
+        ]
       }
     },
     "android": {
@@ -42,7 +44,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.rallysphere.app",
-      "versionCode": 10,
+      "versionCode": 11,
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
