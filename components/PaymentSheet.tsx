@@ -11,6 +11,7 @@ import { db, auth, getClubRallyRedemptions, getUserRallyCredits, spendRallyCredi
 import { doc, getDoc, updateDoc, arrayUnion, increment, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useThemeToggle } from '../app/_layout';
+import { useDebugLogs } from '../lib/debugContext';
 import {
   getFinixTokenizationContext,
   buildFinixTokenizeUrl,
@@ -22,7 +23,7 @@ import {
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SLIDE_DURATION = 280;
-const SUMMARY_HEIGHT = Math.round(SCREEN_HEIGHT * 0.5);
+const SUMMARY_HEIGHT = Math.round(SCREEN_HEIGHT * 0.68);
 const PAYMENT_HEIGHT = Math.round(SCREEN_HEIGHT * 0.92);
 
 interface PaymentSheetProps {
@@ -35,8 +36,10 @@ interface PaymentSheetProps {
 export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: PaymentSheetProps) {
   const theme = useTheme();
   const { isDark } = useThemeToggle();
+  const { debugLogs } = useDebugLogs();
   const insets = useSafeAreaInsets();
   const webViewRef = useRef<any>(null);
+  const applePayWebViewRef = useRef<any>(null);
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const slideX = useRef(new Animated.Value(0)).current;
   const sheetHeight = useRef(new Animated.Value(SUMMARY_HEIGHT)).current;
@@ -60,15 +63,30 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
 
   const tokenizeUrl = useMemo(() => {
     if (!finixContext) return null;
+    // Step 2 is card/ACH only — Apple Pay lives on the summary screen.
     return buildFinixTokenizeUrl({
       context: finixContext,
       amount: feeBreakdown?.totalAmount,
       ach: true,
-      wallets: true,
+      wallets: false,
       external: true,
+      debug: debugLogs,
       theme: isDark ? 'dark' : 'light',
     }) + `&_=${Date.now()}`;
-  }, [finixContext, feeBreakdown?.totalAmount, isDark]);
+  }, [finixContext, feeBreakdown?.totalAmount, isDark, debugLogs]);
+
+  // Compact Apple-Pay-only form embedded on the summary screen.
+  const applePayUrl = useMemo(() => {
+    if (!finixContext) return null;
+    return buildFinixTokenizeUrl({
+      context: finixContext,
+      amount: feeBreakdown?.totalAmount,
+      wallets: true,
+      walletsOnly: true,
+      debug: debugLogs,
+      theme: isDark ? 'dark' : 'light',
+    }) + `&_=${Date.now()}`;
+  }, [finixContext, feeBreakdown?.totalAmount, isDark, debugLogs]);
 
   // Rally Credits discount state
   const [showDiscounts, setShowDiscounts] = useState(false);
@@ -329,6 +347,29 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
     }
   };
 
+  // Messages from the compact Apple-Pay-only WebView on the summary screen.
+  // Only handles diag + the apple_pay token; ignores ready/tab/content-height so
+  // it never interferes with the step-2 card form state.
+  const handleApplePayMessage = async (event_: any) => {
+    try {
+      const msg = JSON.parse(event_.nativeEvent.data);
+      if (msg.type === 'diag') {
+        const { type, stage, t, ...rest } = msg;
+        const extras = Object.keys(rest).length ? ' ' + JSON.stringify(rest) : '';
+        setDiagLog((prev) => [...prev.slice(-19), `[ap ${new Date(t).toISOString().slice(11, 19)}] ${stage}${extras}`]);
+        return;
+      }
+      if (msg.type === 'token') {
+        await processPayment(msg.tokenId, msg.paymentMethod || 'apple_pay', msg.fraudSessionId, {
+          thirdPartyToken: msg.thirdPartyToken,
+          billingContact: msg.billingContact,
+        });
+      } else if (msg.type === 'error') {
+        Alert.alert('Payment Error', msg.message || 'An error occurred');
+      }
+    } catch (e) { /* ignore */ }
+  };
+
   const handleWebViewMessage = async (event_: any) => {
     try {
       const msg = JSON.parse(event_.nativeEvent.data);
@@ -336,7 +377,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
         const { type, stage, t, ...rest } = msg;
         const extras = Object.keys(rest).length ? ' ' + JSON.stringify(rest) : '';
         const line = `[${new Date(t).toISOString().slice(11, 19)}] ${stage}${extras}`;
-        console.log('[Finix WebView]', msg);
+        if (debugLogs) console.log('[Finix WebView]', msg);
         setDiagLog((prev) => [...prev.slice(-19), line]);
         return;
       }
@@ -356,6 +397,8 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
       } else if (msg.type === 'token') {
         await processPayment(msg.tokenId, msg.paymentMethod || 'card', msg.fraudSessionId, {
           savePaymentMethod: saveNewCard && (msg.paymentMethod || 'card') === 'card',
+          thirdPartyToken: msg.thirdPartyToken,
+          billingContact: msg.billingContact,
         });
       } else if (msg.type === 'error') {
         setLoading(false);
@@ -368,7 +411,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
     tokenId: string | null,
     method: string,
     fraudSessionId?: string,
-    opts?: { savedPaymentInstrumentId?: string; savePaymentMethod?: boolean }
+    opts?: { savedPaymentInstrumentId?: string; savePaymentMethod?: boolean; thirdPartyToken?: string; billingContact?: any }
   ) => {
     const { ticketPrice: discountedTicketPrice, discount: discountAmount, isFree } = calculateDiscountedPrice();
     const userId = auth.currentUser?.uid;
@@ -403,6 +446,8 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
 
       const result = await createEventTransaction({
         tokenId: tokenId || undefined,
+        thirdPartyToken: opts?.thirdPartyToken,
+        billingContact: opts?.billingContact,
         savedPaymentInstrumentId: opts?.savedPaymentInstrumentId,
         savePaymentMethod: opts?.savePaymentMethod,
         fraudSessionId,
@@ -418,6 +463,14 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
           creditsUsed: selectedDiscount.creditsRequired,
         } : undefined,
       });
+
+      // Apple Pay: dismiss the native sheet before our own alert. Inject into
+      // both WebViews — only the one that started the session will respond.
+      if (method === 'apple_pay') {
+        const js = `window.__applePayCompletion && window.__applePayCompletion(${result.success ? 'true' : 'false'}); true;`;
+        webViewRef.current?.injectJavaScript(js);
+        applePayWebViewRef.current?.injectJavaScript(js);
+      }
 
       if (result.success) {
         if (selectedDiscount) {
@@ -694,8 +747,33 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
                   </View>
                 </ScrollView>
 
-                {/* Fixed footer — Continue / Claim Free button pinned to the bottom of the sheet */}
+                {/* Fixed footer — Apple Pay on top, then card/bank. Pinned to the bottom of the sheet. */}
                 <View style={[styles.content, { paddingBottom: insets.bottom + 16, paddingTop: 8 }]}>
+                  {/* Apple Pay — compact WebView button (Apple Pay must launch from a tap inside a WebView) */}
+                  {!isFree && finixContext && applePayUrl && (
+                    <View style={{ height: 52, marginBottom: 4 }}>
+                      <WebView
+                        ref={applePayWebViewRef}
+                        source={{ uri: applePayUrl }}
+                        style={{ flex: 1, backgroundColor: 'transparent' }}
+                        onMessage={handleApplePayMessage}
+                        javaScriptEnabled
+                        scrollEnabled={false}
+                        originWhitelist={['*']}
+                        mixedContentMode="always"
+                        applePayEnabled
+                      />
+                    </View>
+                  )}
+
+                  {!isFree && finixContext && applePayUrl && (
+                    <View style={styles.orRow}>
+                      <View style={[styles.orLine, { backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)' }]} />
+                      <Text style={[styles.orText, { color: theme.colors.onSurfaceVariant }]}>or</Text>
+                      <View style={[styles.orLine, { backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)' }]} />
+                    </View>
+                  )}
+
                   <TouchableOpacity
                     style={[styles.continueButton, { marginBottom: 0, backgroundColor: isFree ? '#10B981' : theme.colors.primary, opacity: (loading || (!isFree && !feeBreakdown)) ? 0.7 : 1 }]}
                     onPress={isFree ? handlePay : goToPayment}
@@ -708,7 +786,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
                         <Text style={styles.continueButtonText}>
                           {isFree
                             ? 'Claim Free Ticket'
-                            : `Continue to Payment — ${feeBreakdown ? formatPrice(feeBreakdown.totalAmount, event.currency) : formatPrice(discountedTicketPrice, event.currency)}`}
+                            : `Continue with Card / Bank — ${feeBreakdown ? formatPrice(feeBreakdown.totalAmount, event.currency) : formatPrice(discountedTicketPrice, event.currency)}`}
                         </Text>
                         <Text style={styles.continueButtonSubtext}>
                           {isFree ? `Using ${selectedDiscount?.creditsRequired} Rally Credits` : 'Next: enter card or bank details'}
@@ -956,6 +1034,9 @@ const styles = StyleSheet.create({
   continueButton: { borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginBottom: 16 },
   continueButtonText: { color: '#fff', fontSize: 17, fontWeight: '700' },
   continueButtonSubtext: { color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 4 },
+  orRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 12 },
+  orLine: { flex: 1, height: 1 },
+  orText: { marginHorizontal: 12, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
   savedCardRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 10,

@@ -11,6 +11,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import Constants from 'expo-constants';
 import { CartProvider } from '../lib/cartContext';
 import { FavoritesProvider } from '../lib/favoritesContext';
+import { DebugProvider } from '../lib/debugContext';
 
 // Prevent auto-hiding splash screen
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -371,7 +372,9 @@ export default function RootLayout() {
       <ThemeContext.Provider value={{ isDark, themePreference, setThemePreference, isLoading: themeLoading }}>
         <FavoritesProvider>
           <CartProvider>
-            {content}
+            <DebugProvider>
+              {content}
+            </DebugProvider>
           </CartProvider>
         </FavoritesProvider>
       </ThemeContext.Provider>

@@ -21,10 +21,11 @@ import {
   type SavedPaymentInstrument,
 } from '../lib/finix';
 import { useThemeToggle } from '../app/_layout';
+import { useDebugLogs } from '../lib/debugContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SLIDE_DURATION = 280;
-const SUMMARY_HEIGHT = Math.round(SCREEN_HEIGHT * 0.5);
+const SUMMARY_HEIGHT = Math.round(SCREEN_HEIGHT * 0.6);
 const PAYMENT_HEIGHT = Math.round(SCREEN_HEIGHT * 0.92);
 
 interface StorePaymentSheetProps {
@@ -53,8 +54,11 @@ export default function StorePaymentSheet({
 }: StorePaymentSheetProps) {
   const theme = useTheme();
   const { isDark } = useThemeToggle();
+  const { debugLogs } = useDebugLogs();
   const insets = useSafeAreaInsets();
   const webViewRef = useRef<any>(null);
+  const applePayWebViewRef = useRef<any>(null);
+  const apCacheBust = useRef(Date.now()).current;
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const slideX = useRef(new Animated.Value(0)).current;
   const sheetHeight = useRef(new Animated.Value(SUMMARY_HEIGHT)).current;
@@ -79,6 +83,7 @@ export default function StorePaymentSheet({
   const [selectedSavedPiId, setSelectedSavedPiId] = useState<string | null>(null);
   const [useNewCard, setUseNewCard] = useState(false);
   const [saveNewCard, setSaveNewCard] = useState(false);
+  const [diagLog, setDiagLog] = useState<string[]>([]);
 
   useEffect(() => {
     if (visible) {
@@ -313,9 +318,43 @@ export default function StorePaymentSheet({
     return { itemPrice, shipping, rewardDiscount, subtotal, tax, processingFee, total };
   };
 
-  const handleWebViewMessage = async (event_: any) => {
+  const pushDiag = (line: string) => {
+    if (debugLogs) console.log('[finix-diag]', line);
+    setDiagLog((prev) => [...prev.slice(-29), line]);
+  };
+
+  // Messages from the compact Apple-Pay-only WebView on the summary screen.
+  // Only handles diag + the apple_pay token; ignores ready/tab so it never
+  // interferes with the step-2 card form state.
+  const handleApplePayMessage = async (event_: any) => {
     try {
       const msg = JSON.parse(event_.nativeEvent.data);
+      if (msg.type === 'diag') {
+        const { type, t, stage, ...rest } = msg;
+        pushDiag(`[ap] ${stage} ${Object.keys(rest).length ? JSON.stringify(rest) : ''}`);
+        return;
+      }
+      if (msg.type === 'token') {
+        setProcessing(true);
+        await processPaymentWithToken(msg.tokenId, msg.paymentMethod || 'apple_pay', msg.fraudSessionId, {
+          thirdPartyToken: msg.thirdPartyToken,
+          billingContact: msg.billingContact,
+        });
+      } else if (msg.type === 'error') {
+        Alert.alert('Payment Error', msg.message || 'An error occurred');
+      }
+    } catch (e) { /* ignore */ }
+  };
+
+  const handleWebViewMessage = async (event_: any) => {
+    if (debugLogs) console.log('[finix-raw]', event_.nativeEvent.data);
+    try {
+      const msg = JSON.parse(event_.nativeEvent.data);
+      if (msg.type === 'diag') {
+        const { type, t, stage, ...rest } = msg;
+        pushDiag(`${stage} ${Object.keys(rest).length ? JSON.stringify(rest) : ''}`);
+        return;
+      }
       if (msg.type === 'ready') {
         setFormReady(!!msg.ready);
         if (!msg.ready) Alert.alert('Error', msg.error || 'Failed to load payment form');
@@ -324,6 +363,8 @@ export default function StorePaymentSheet({
       } else if (msg.type === 'token') {
         await processPaymentWithToken(msg.tokenId, msg.paymentMethod || 'card', msg.fraudSessionId, {
           savePaymentMethod: saveNewCard && (msg.paymentMethod || 'card') === 'card',
+          thirdPartyToken: msg.thirdPartyToken,
+          billingContact: msg.billingContact,
         });
       } else if (msg.type === 'error') {
         setProcessing(false);
@@ -336,11 +377,13 @@ export default function StorePaymentSheet({
     tokenId: string | null,
     method: string,
     fraudSessionId?: string,
-    opts?: { savedPaymentInstrumentId?: string; savePaymentMethod?: boolean }
+    opts?: { savedPaymentInstrumentId?: string; savePaymentMethod?: boolean; thirdPartyToken?: string; billingContact?: any }
   ) => {
     try {
       const result = await createStoreTransaction({
         tokenId: tokenId || undefined,
+        thirdPartyToken: opts?.thirdPartyToken,
+        billingContact: opts?.billingContact,
         savedPaymentInstrumentId: opts?.savedPaymentInstrumentId,
         savePaymentMethod: opts?.savePaymentMethod,
         fraudSessionId,
@@ -368,6 +411,15 @@ export default function StorePaymentSheet({
             : Math.min(item.price * quantity, selectedReward.discountAmount || 0),
         } : undefined,
       });
+
+      // Apple Pay: tell the in-WebView session to finish so its native sheet
+      // dismisses before we show our own alert. Inject into both WebViews — only
+      // the one that started the session will respond.
+      if (method === 'apple_pay') {
+        const js = `window.__applePayCompletion && window.__applePayCompletion(${result.success ? 'true' : 'false'}); true;`;
+        webViewRef.current?.injectJavaScript(js);
+        applePayWebViewRef.current?.injectJavaScript(js);
+      }
 
       if (result.success) {
         if (selectedReward) {
@@ -422,6 +474,18 @@ export default function StorePaymentSheet({
   if (!visible) return null;
 
   const totals = calculateTotal();
+
+  // Compact Apple-Pay-only form embedded on the summary screen.
+  const applePayUrl = finixContext
+    ? buildFinixTokenizeUrl({
+        context: finixContext,
+        amount: totals.total,
+        wallets: true,
+        walletsOnly: true,
+        debug: debugLogs,
+        theme: isDark ? 'dark' : 'light',
+      }) + `&_=${apCacheBust}`
+    : null;
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleRequestClose}>
@@ -642,8 +706,31 @@ export default function StorePaymentSheet({
 
                   </ScrollView>
 
-                  {/* Pane 1 footer — Continue to Payment / Confirm Free */}
+                  {/* Pane 1 footer — Apple Pay on top, then card/bank */}
                   <View style={[styles.summaryFooter, { paddingBottom: insets.bottom + 16, borderTopColor: theme.colors.outline }]}>
+                    {/* Apple Pay — compact WebView button (must launch from a tap inside a WebView) */}
+                    {totals.total > 0 && finixContext && applePayUrl && (
+                      <>
+                        <View style={{ height: 52, marginBottom: 4 }}>
+                          <WebView
+                            ref={applePayWebViewRef}
+                            source={{ uri: applePayUrl }}
+                            style={{ flex: 1, backgroundColor: 'transparent' }}
+                            onMessage={handleApplePayMessage}
+                            javaScriptEnabled
+                            scrollEnabled={false}
+                            originWhitelist={['*']}
+                            mixedContentMode="always"
+                            applePayEnabled
+                          />
+                        </View>
+                        <View style={styles.orRow}>
+                          <View style={[styles.orLine, { backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)' }]} />
+                          <Text style={[styles.orText, { color: theme.colors.onSurfaceVariant }]}>or</Text>
+                          <View style={[styles.orLine, { backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)' }]} />
+                        </View>
+                      </>
+                    )}
                     <TouchableOpacity
                       style={[
                         styles.continueButton,
@@ -663,12 +750,12 @@ export default function StorePaymentSheet({
                           <Text style={styles.continueButtonText}>
                             {totals.total === 0
                               ? 'Confirm (Free)'
-                              : `Continue to Payment — $${totals.total.toFixed(2)}`}
+                              : `Continue with Card / Bank — $${totals.total.toFixed(2)}`}
                           </Text>
                           <Text style={styles.continueButtonSubtext}>
                             {totals.total === 0
                               ? 'Using Rally Credits'
-                              : 'Next: choose card, ACH, or wallet'}
+                              : 'Next: enter card or bank details'}
                           </Text>
                         </>
                       )}
@@ -745,14 +832,19 @@ export default function StorePaymentSheet({
                       <WebView
                         ref={webViewRef}
                         source={{
-                          uri: buildFinixTokenizeUrl({
-                            context: finixContext,
-                            amount: totals.total,
-                            ach: true,
-                            wallets: true,
-                            external: true,
-                            theme: isDark ? 'dark' : 'light',
-                          }),
+                          uri: (() => {
+                            const u = buildFinixTokenizeUrl({
+                              context: finixContext,
+                              amount: totals.total,
+                              ach: true,
+                              wallets: false,
+                              external: true,
+                              debug: debugLogs,
+                              theme: isDark ? 'dark' : 'light',
+                            });
+                            if (debugLogs) console.log('[finix-url]', u, 'context=', JSON.stringify(finixContext));
+                            return u;
+                          })(),
                         }}
                         style={{ flex: 1, backgroundColor: 'transparent', marginHorizontal: 20 }}
                         onMessage={handleWebViewMessage}
@@ -761,7 +853,20 @@ export default function StorePaymentSheet({
                         originWhitelist={['*']}
                         mixedContentMode="always"
                         applePayEnabled
+                        onLoadStart={() => { if (debugLogs) console.log('[finix-wv] loadStart'); }}
+                        onLoadEnd={() => { if (debugLogs) console.log('[finix-wv] loadEnd'); }}
+                        onError={(e) => pushDiag(`WV-ERROR ${JSON.stringify(e.nativeEvent)}`)}
+                        onHttpError={(e) => pushDiag(`WV-HTTP-ERROR ${JSON.stringify(e.nativeEvent)}`)}
                       />
+                      {debugLogs && (
+                        <View style={{ maxHeight: 140, marginHorizontal: 20, marginTop: 4, backgroundColor: 'rgba(0,0,0,0.85)', borderRadius: 8, padding: 8 }}>
+                          <ScrollView>
+                            <Text style={{ color: '#0f0', fontSize: 9, fontFamily: 'Courier' }}>
+                              {diagLog.length ? diagLog.join('\n') : 'waiting for finix diag…'}
+                            </Text>
+                          </ScrollView>
+                        </View>
+                      )}
                       {paymentMethod === 'card' && (
                         <View style={{ paddingHorizontal: 20, paddingTop: 4 }}>
                           <TouchableOpacity onPress={() => setSaveNewCard((v) => !v)} activeOpacity={0.7} style={styles.saveCardRow}>
@@ -882,6 +987,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: '500',
   },
+  orRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 12 },
+  orLine: { flex: 1, height: 1 },
+  orText: { marginHorizontal: 12, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
   stepHeader: {
     flexDirection: 'row',
     alignItems: 'center',

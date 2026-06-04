@@ -15,6 +15,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { logout } from '../lib/firebase';
 import { useThemeToggle } from '../app/_layout';
+import { useDebugLogs } from '../lib/debugContext';
+import GlassSwitch from './GlassSwitch';
 
 interface SettingsScreenProps {
   visible: boolean;
@@ -23,6 +25,7 @@ interface SettingsScreenProps {
 
 export default function SettingsScreen({ visible, onClose }: SettingsScreenProps) {
   const { isDark, themePreference, setThemePreference } = useThemeToggle();
+  const { debugLogs, setDebugLogs } = useDebugLogs();
   const theme = useTheme();
   const [deleteAccountModalVisible, setDeleteAccountModalVisible] = React.useState(false);
 
@@ -258,6 +261,13 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
                   </View>
                 </BlurView>
               </TouchableOpacity>
+
+              <GlassSwitch
+                label="Debug logs"
+                description="Show diagnostic details on screen (for troubleshooting)"
+                value={debugLogs}
+                onValueChange={setDebugLogs}
+              />
             </View>
 
             {/* Support */}

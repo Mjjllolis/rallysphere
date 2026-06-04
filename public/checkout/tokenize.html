@@ -40,19 +40,44 @@
     }
     body.dark button.submit { background: #60A5FA; color: #0B1220; }
     button.submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .wallet-row { margin-bottom: 4px; }
+    /* Official Apple Pay button rendered by WebKit. */
+    .apple-pay-button {
+      -webkit-appearance: -apple-pay-button;
+      -apple-pay-button-type: buy;
+      -apple-pay-button-style: black;
+      display: block; width: 100%; height: 48px; border-radius: 12px; cursor: pointer;
+    }
+    body.dark .apple-pay-button { -apple-pay-button-style: white; }
+
+    .or-divider {
+      display: flex; align-items: center; gap: 12px; margin: 16px 0 4px;
+      color: #94A3B8; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .or-divider::before, .or-divider::after {
+      content: ''; flex: 1; height: 1px; background: #E2E8F0;
+    }
+    body.dark .or-divider { color: rgba(255,255,255,0.45); }
+    body.dark .or-divider::before, body.dark .or-divider::after { background: rgba(255,255,255,0.12); }
   </style>
 </head>
 <body>
   <div id="app">
     <div id="loading" class="loading">Loading payment form…</div>
-    <div class="tabs" id="tabs">
-      <div class="tab active" data-tab="card">Card</div>
-      <div class="tab" data-tab="ach" id="tab-ach" style="display:none;">Bank (ACH)</div>
-    </div>
+
+    <pre id="diag-panel" style="display:none; max-height:200px; overflow:auto; margin-bottom:12px; padding:8px; background:#000; color:#0f0; font:10px/1.4 monospace; border-radius:6px; white-space:pre-wrap; word-break:break-word;"></pre>
 
     <div class="wallet-row" id="wallets" style="display: none;">
       <div id="apple-pay-button" style="flex: 1;"></div>
-      <div id="google-pay-button" style="flex: 1;"></div>
+      <div id="google-pay-button" style="flex: 1; display: none;"></div>
+    </div>
+
+    <div class="or-divider" id="wallet-divider" style="display: none;"><span>or</span></div>
+
+    <div class="tabs" id="tabs">
+      <div class="tab active" data-tab="card">Card</div>
+      <div class="tab" data-tab="ach" id="tab-ach" style="display:none;">Bank (ACH)</div>
     </div>
 
     <div id="pane-card" class="pane active">
@@ -83,6 +108,13 @@
           if (extra) Object.assign(payload, extra);
           if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
             window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+          }
+          // Also render on-page so it's visible without RN log access.
+          var panel = document.getElementById('diag-panel');
+          if (panel) {
+            var line = stage + (extra ? ' ' + JSON.stringify(extra) : '');
+            panel.textContent += line + '\n';
+            panel.scrollTop = panel.scrollHeight;
           }
         } catch (e) { /* noop */ }
       }
@@ -118,13 +150,33 @@
       const appId = params.get('appId') || '';
       const ach = params.get('ach') === 'true';
       const wallets = params.get('wallets') === 'true';
+      // walletsOnly renders just the Apple Pay button (compact embed on a summary screen).
+      const walletsOnly = params.get('walletsOnly') === 'true';
+      // debug shows the on-page diagnostics panel (off unless the user enables it in Settings).
+      const debug = params.get('debug') === 'true';
       const external = params.get('external') === 'true';
       const supportEmail = params.get('supportEmail') || 'support@rallysphere.com';
       const amount = params.get('amount') || '';
       const theme = params.get('theme') === 'dark' ? 'dark' : 'light';
       const isDark = theme === 'dark';
       if (isDark) document.body.classList.add('dark');
-      diag('params-parsed', { env: env, hasAppId: !!appId, ach: ach, wallets: wallets, external: external, theme: theme });
+      // Show the on-page diagnostics panel in sandbox only (never in production/live).
+      if (debug && !walletsOnly) {
+        var dp = document.getElementById('diag-panel');
+        if (dp) dp.style.display = 'block';
+      }
+      // In wallets-only mode, hide everything except the Apple Pay button.
+      if (walletsOnly) {
+        ['tabs', 'wallet-divider', 'pane-card', 'pane-ach', 'diag-panel', 'loading'].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.style.display = 'none';
+        });
+        document.body.style.background = 'transparent';
+        document.body.style.padding = '0';
+        var wr = document.getElementById('wallets');
+        if (wr) wr.style.margin = '0';
+      }
+      diag('params-parsed', { env: env, hasAppId: !!appId, ach: ach, wallets: wallets, walletsOnly: walletsOnly, external: external, theme: theme });
 
       document.getElementById('support-email').textContent = supportEmail;
 
@@ -205,6 +257,7 @@
       // --- Card form ---
       let cardForm = null;
       let cardFormLoaded = false;
+      if (!walletsOnly) {
       try {
         diag('card-form-creating');
         cardForm = window.Finix.CardTokenForm('card-form', {
@@ -272,13 +325,22 @@
           console.warn('ACH form init failed:', err);
         }
       }
+      } // end if (!walletsOnly)
 
       // --- Wallets (Apple Pay / Google Pay) ---
       if (wallets) {
-        document.getElementById('wallets').style.display = 'flex';
-        // Finix auto-renders wallet buttons when supported. Errors surface to the
-        // RN host's diagnostic channel so we can see why a wallet didn't render.
+        // Diagnostics on the SDK surface (kept while we validate the flow).
+        diag('finix-surface', {
+          finixKeys: (function () { try { return Object.keys(window.Finix || {}).join(','); } catch (_) { return 'err'; } })(),
+          finixProtoKeys: (function () { try { return Object.getOwnPropertyNames(Object.getPrototypeOf(window.Finix || {})).join(','); } catch (_) { return 'err'; } })(),
+          applePayType: typeof (window.Finix && window.Finix.ApplePay),
+          applePayButtonType: typeof (window.Finix && window.Finix.ApplePayButton),
+          googlePayType: typeof (window.Finix && window.Finix.GooglePay),
+        });
         diag('wallets-start', {
+          hasApplePaySession: typeof window.ApplePaySession !== 'undefined',
+          applePaySessionCanMakePayments: (function () { try { return typeof window.ApplePaySession !== 'undefined' && window.ApplePaySession.canMakePayments(); } catch (_) { return 'threw'; } })(),
+          hasFinix: !!window.Finix,
           hasApplePay: !!(window.Finix && window.Finix.ApplePay),
           hasApplePayCanMakePayments: !!(window.Finix && window.Finix.ApplePay && window.Finix.ApplePay.canMakePayments),
           applePayCanMakePayments: !!(window.Finix && window.Finix.ApplePay && window.Finix.ApplePay.canMakePayments && (function () { try { return window.Finix.ApplePay.canMakePayments(); } catch (_) { return false; } })()),
@@ -286,30 +348,110 @@
           hasGooglePayIsReady: !!(window.Finix && window.Finix.GooglePay && window.Finix.GooglePay.isReadyToPay),
         });
 
+        // --- Apple Pay via native ApplePaySession (Finix has no JS wallet SDK) ---
+        // Merchant validation is proxied through our Cloud Function, which calls
+        // Finix /apple_pay_sessions. The authorized token is posted to the RN host,
+        // which charges via Finix and then calls window.__applePayCompletion(ok).
+        var APPLE_PAY_SESSION_URL = 'https://us-central1-rally-sphere.cloudfunctions.net/createApplePaySession';
+
         try {
-          if (window.Finix.ApplePay && window.Finix.ApplePay.canMakePayments && window.Finix.ApplePay.canMakePayments()) {
-            window.Finix.ApplePay.mount('apple-pay-button', {
-              ...commonOptions,
-              amount: amount,
-              onSuccess: function (res) {
-                postToNative({
-                  type: 'token',
-                  tokenId: res?.data?.id || res?.id,
-                  paymentMethod: 'apple_pay',
-                  fraudSessionId: getFraudSessionId(),
-                });
-              },
-              onError: function (err) {
-                diag('apple-pay-onerror', { message: err && err.message });
-                showError((err && err.message) || 'Apple Pay failed');
-              },
-            });
-            diag('apple-pay-mounted', {});
+          if (typeof window.ApplePaySession !== 'undefined' && window.ApplePaySession.canMakePayments()) {
+            document.getElementById('wallets').style.display = 'flex';
+            var apContainer = document.getElementById('apple-pay-button');
+            apContainer.innerHTML = '';
+            // Official WebKit-rendered Apple Pay button (real logo + wording).
+            var apBtn = document.createElement('button');
+            apBtn.type = 'button';
+            apBtn.className = 'apple-pay-button';
+            apBtn.setAttribute('aria-label', 'Pay with Apple Pay');
+            apBtn.onclick = function () { startApplePay(); };
+            apContainer.appendChild(apBtn);
+            var divider = document.getElementById('wallet-divider');
+            if (divider) divider.style.display = 'flex';
+            diag('apple-pay-button-rendered', {});
           } else {
-            diag('apple-pay-skip', { reason: 'canMakePayments false or SDK missing' });
+            diag('apple-pay-skip', {
+              reason: (typeof window.ApplePaySession === 'undefined')
+                ? 'ApplePaySession undefined (entitlement/WebView)'
+                : 'canMakePayments() false (no Wallet card)'
+            });
           }
         } catch (e) {
-          diag('apple-pay-throw', { message: e && e.message, stack: e && e.stack });
+          diag('apple-pay-throw', { message: e && e.message });
+        }
+
+        function startApplePay() {
+          diag('apple-pay-tap', {});
+          var amountStr = (parseFloat(amount || '0') || 0).toFixed(2);
+          var request = {
+            countryCode: 'US',
+            currencyCode: 'USD',
+            merchantCapabilities: ['supports3DS'],
+            supportedNetworks: ['visa', 'masterCard', 'amex', 'discover'],
+            requiredBillingContactFields: ['postalAddress', 'name'],
+            total: { label: 'RallySphere', amount: amountStr, type: 'final' },
+          };
+          var session;
+          try {
+            session = new window.ApplePaySession(3, request);
+          } catch (e) {
+            diag('apple-pay-session-throw', { message: e && e.message });
+            showError('Apple Pay error: ' + (e && e.message));
+            return;
+          }
+
+          session.onvalidatemerchant = function (event) {
+            diag('apple-pay-validate-merchant', { url: String(event.validationURL || '').slice(0, 60) });
+            fetch(APPLE_PAY_SESSION_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ validation_url: event.validationURL, display_name: 'RallySphere' }),
+            })
+              .then(function (r) { return r.json(); })
+              .then(function (data) {
+                if (!data || !data.merchantSession) throw new Error((data && data.error) || 'No merchant session');
+                diag('apple-pay-merchant-validated', {});
+                session.completeMerchantValidation(data.merchantSession);
+              })
+              .catch(function (err) {
+                diag('apple-pay-validate-error', { message: err && err.message });
+                showError('Apple Pay validation failed: ' + (err && err.message));
+                try { session.abort(); } catch (_) {}
+              });
+          };
+
+          session.onpaymentauthorized = function (event) {
+            diag('apple-pay-authorized', {});
+            var thirdPartyToken = JSON.stringify({ token: event.payment.token });
+            // RN charges, then calls this back with the result so we can finish the sheet.
+            window.__applePayCompletion = function (ok) {
+              try {
+                session.completePayment(ok
+                  ? window.ApplePaySession.STATUS_SUCCESS
+                  : window.ApplePaySession.STATUS_FAILURE);
+                diag('apple-pay-completed', { ok: !!ok });
+              } catch (e) {
+                diag('apple-pay-complete-throw', { message: e && e.message });
+              }
+            };
+            postToNative({
+              type: 'token',
+              paymentMethod: 'apple_pay',
+              thirdPartyToken: thirdPartyToken,
+              billingContact: event.payment.billingContact || null,
+              fraudSessionId: getFraudSessionId(),
+            });
+          };
+
+          session.oncancel = function () { diag('apple-pay-cancel', {}); };
+
+          try {
+            session.begin();
+            diag('apple-pay-begin', {});
+          } catch (e) {
+            diag('apple-pay-begin-throw', { message: e && e.message });
+            showError('Apple Pay error: ' + (e && e.message));
+          }
         }
 
         try {

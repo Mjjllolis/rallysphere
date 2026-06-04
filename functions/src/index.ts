@@ -263,6 +263,43 @@ async function createPaymentInstrumentFromToken(
   return pi.id;
 }
 
+// The Apple Pay token is encrypted to the Finix merchant whose Apple Pay
+// certificate was used to create the apple_pay_session. That is our platform
+// merchant's identity — cache it so we don't refetch on every charge.
+let platformIdentityCache: string | null = null;
+async function getPlatformMerchantIdentity(): Promise<string> {
+  if (platformIdentityCache) return platformIdentityCache;
+  const cfg = getFinixConfig();
+  const merchant = await finixGet(`/merchants/${cfg.platformMerchantId}`);
+  if (!merchant?.identity) {
+    throw new Error("Could not resolve platform merchant identity for Apple Pay");
+  }
+  platformIdentityCache = merchant.identity as string;
+  return platformIdentityCache;
+}
+
+// Create a payment_instrument from an Apple Pay token. The frontend passes the
+// stringified `{ token: <ApplePayPaymentToken> }` plus the billing contact.
+// Apple Pay tokens are single-use, so these PIs are never saved for reuse.
+async function createPaymentInstrumentFromApplePay(opts: {
+  thirdPartyToken: string;
+  buyerIdentityId: string;
+  name?: string | null;
+  address?: any | null;
+}): Promise<string> {
+  const merchantIdentity = await getPlatformMerchantIdentity();
+  const body: any = {
+    third_party_token: opts.thirdPartyToken,
+    type: "APPLE_PAY",
+    identity: opts.buyerIdentityId,
+    merchant_identity: merchantIdentity,
+  };
+  if (opts.name) body.name = opts.name;
+  if (opts.address) body.address = opts.address;
+  const pi = await finixPost("/payment_instruments", body);
+  return pi.id;
+}
+
 interface PaymentInstrumentDetails {
   brand?: string | null;
   last4?: string | null;
@@ -292,6 +329,7 @@ async function resolvePaymentInstrument(opts: {
   buyerIdentityId: string;
   savedPaymentInstrumentId?: string;
   tokenId?: string;
+  applePay?: { thirdPartyToken: string; name?: string | null; address?: any | null };
 }): Promise<{ paymentInstrumentId: string; usedSaved: boolean }> {
   if (opts.savedPaymentInstrumentId) {
     const doc = await opts.db
@@ -306,14 +344,46 @@ async function resolvePaymentInstrument(opts: {
     }
     return { paymentInstrumentId: opts.savedPaymentInstrumentId, usedSaved: true };
   }
+  if (opts.applePay?.thirdPartyToken) {
+    const piId = await createPaymentInstrumentFromApplePay({
+      thirdPartyToken: opts.applePay.thirdPartyToken,
+      buyerIdentityId: opts.buyerIdentityId,
+      name: opts.applePay.name,
+      address: opts.applePay.address,
+    });
+    return { paymentInstrumentId: piId, usedSaved: false };
+  }
   if (!opts.tokenId) {
     throw new functions.https.HttpsError(
       "invalid-argument",
-      "Either tokenId or savedPaymentInstrumentId is required"
+      "Either tokenId, savedPaymentInstrumentId, or an Apple Pay token is required"
     );
   }
   const piId = await createPaymentInstrumentFromToken(opts.tokenId, opts.buyerIdentityId);
   return { paymentInstrumentId: piId, usedSaved: false };
+}
+
+// Map Apple's billingContact (from onpaymentauthorized) to a Finix address.
+function applePayAddressFromContact(contact: any): any | null {
+  if (!contact) return null;
+  const lines = contact.addressLines || [];
+  const addr: any = {
+    line1: lines[0] || undefined,
+    line2: lines[1] || undefined,
+    city: contact.locality || undefined,
+    region: contact.administrativeArea || undefined,
+    postal_code: contact.postalCode || undefined,
+    country: contact.countryCode ? String(contact.countryCode).toUpperCase() : undefined,
+  };
+  // Drop undefined keys so we don't send a half-empty object.
+  Object.keys(addr).forEach((k) => addr[k] === undefined && delete addr[k]);
+  return Object.keys(addr).length ? addr : null;
+}
+
+function applePayNameFromContact(contact: any): string | null {
+  if (!contact) return null;
+  const name = [contact.givenName, contact.familyName].filter(Boolean).join(" ").trim();
+  return name || null;
 }
 
 // Persist a freshly tokenized payment_instrument to the user's saved cards
@@ -387,6 +457,73 @@ export const getFinixTokenizationContext = functions.https.onCall(
 );
 
 // ============================================================================
+// APPLE PAY — MERCHANT SESSION VALIDATION
+// Called by the hosted tokenization form (rally-sphere.web.app) from inside the
+// ApplePaySession `onvalidatemerchant` callback. The form can't hold Finix
+// credentials, so it posts Apple's validation_url here and we proxy it to
+// Finix's /apple_pay_sessions endpoint, returning the merchant session for
+// session.completeMerchantValidation().
+// ============================================================================
+
+const APPLE_PAY_DOMAIN = "rally-sphere.web.app";
+const APPLE_PAY_ALLOWED_ORIGINS = [`https://${APPLE_PAY_DOMAIN}`, "https://rally-sphere.firebaseapp.com"];
+
+export const createApplePaySession = functions.https.onRequest(async (req, res) => {
+  const origin = req.headers.origin || "";
+  if (APPLE_PAY_ALLOWED_ORIGINS.includes(origin)) {
+    res.set("Access-Control-Allow-Origin", origin);
+  }
+  res.set("Vary", "Origin");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    res.status(204).send("");
+    return;
+  }
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+
+  try {
+    const validationUrl = req.body?.validation_url || req.body?.validationURL;
+    const displayName = req.body?.display_name || "RallySphere";
+
+    if (!validationUrl || typeof validationUrl !== "string") {
+      res.status(400).json({ error: "validation_url is required" });
+      return;
+    }
+    // Only allow Apple's own domains as the validation target (anti-SSRF).
+    let host = "";
+    try { host = new URL(validationUrl).hostname; } catch { /* invalid url */ }
+    if (!/(^|\.)apple\.com$/.test(host)) {
+      res.status(400).json({ error: "validation_url must be an apple.com domain" });
+      return;
+    }
+
+    const merchantIdentity = await getPlatformMerchantIdentity();
+    const session = await finixPost("/apple_pay_sessions", {
+      validation_url: validationUrl,
+      merchant_identity: merchantIdentity,
+      domain: APPLE_PAY_DOMAIN,
+      display_name: displayName,
+    });
+
+    // Finix returns session_details as a JSON string — parse it so the browser
+    // can hand the object straight to completeMerchantValidation().
+    let merchantSession: any = session?.session_details;
+    if (typeof merchantSession === "string") {
+      try { merchantSession = JSON.parse(merchantSession); } catch { /* leave as-is */ }
+    }
+    res.status(200).json({ merchantSession });
+  } catch (error: any) {
+    console.error("Apple Pay session validation failed:", error?.message || error);
+    res.status(500).json({ error: error?.message || "Apple Pay session validation failed" });
+  }
+});
+
+// ============================================================================
 // CREATE EVENT TICKET TRANSACTION
 // ============================================================================
 
@@ -402,6 +539,8 @@ export const createEventTransaction = functions.https.onCall(
 
     const {
       tokenId,
+      thirdPartyToken,
+      billingContact,
       fraudSessionId,
       paymentMethod = "card",
       idempotencyKey,
@@ -415,10 +554,10 @@ export const createEventTransaction = functions.https.onCall(
       savePaymentMethod,
     } = data;
 
-    if ((!tokenId && !savedPaymentInstrumentId) || !eventId || ticketPrice == null) {
+    if ((!tokenId && !savedPaymentInstrumentId && !thirdPartyToken) || !eventId || ticketPrice == null) {
       throw new functions.https.HttpsError(
         "invalid-argument",
-        "Missing required fields: (tokenId or savedPaymentInstrumentId), eventId, ticketPrice"
+        "Missing required fields: (tokenId, savedPaymentInstrumentId, or Apple Pay token), eventId, ticketPrice"
       );
     }
 
@@ -465,6 +604,11 @@ export const createEventTransaction = functions.https.onCall(
       const buyerIdentityId = await ensureBuyerIdentity(db, userId, user);
       const { paymentInstrumentId, usedSaved } = await resolvePaymentInstrument({
         db, userId, buyerIdentityId, savedPaymentInstrumentId, tokenId,
+        applePay: thirdPartyToken ? {
+          thirdPartyToken,
+          name: applePayNameFromContact(billingContact),
+          address: applePayAddressFromContact(billingContact),
+        } : undefined,
       });
 
       // Create Finix transfer (charge)
@@ -624,6 +768,8 @@ export const createStoreTransaction = functions.https.onCall(
 
     const {
       tokenId,
+      thirdPartyToken,
+      billingContact,
       fraudSessionId,
       paymentMethod = "card",
       idempotencyKey,
@@ -637,10 +783,10 @@ export const createStoreTransaction = functions.https.onCall(
       savePaymentMethod,
     } = data;
 
-    if ((!tokenId && !savedPaymentInstrumentId) || !itemId || !quantity || !deliveryMethod) {
+    if ((!tokenId && !savedPaymentInstrumentId && !thirdPartyToken) || !itemId || !quantity || !deliveryMethod) {
       throw new functions.https.HttpsError(
         "invalid-argument",
-        "Missing required fields: (tokenId or savedPaymentInstrumentId), itemId, quantity, deliveryMethod"
+        "Missing required fields: (tokenId, savedPaymentInstrumentId, or Apple Pay token), itemId, quantity, deliveryMethod"
       );
     }
     if (quantity <= 0) {
@@ -693,6 +839,11 @@ export const createStoreTransaction = functions.https.onCall(
       const buyerIdentityId = await ensureBuyerIdentity(db, userId, user);
       const { paymentInstrumentId, usedSaved } = await resolvePaymentInstrument({
         db, userId, buyerIdentityId, savedPaymentInstrumentId, tokenId,
+        applePay: thirdPartyToken ? {
+          thirdPartyToken,
+          name: applePayNameFromContact(billingContact),
+          address: applePayAddressFromContact(billingContact),
+        } : undefined,
       });
 
       const transferBody: any = {

@@ -72,7 +72,9 @@ export function buildFinixTokenizeUrl(opts: {
   amount?: number;
   ach?: boolean;
   wallets?: boolean;
+  walletsOnly?: boolean;
   external?: boolean;
+  debug?: boolean;
   supportEmail?: string;
   theme?: 'dark' | 'light';
   overrideBaseUrl?: string;
@@ -84,7 +86,9 @@ export function buildFinixTokenizeUrl(opts: {
   if (opts.amount != null) p.set('amount', opts.amount.toFixed(2));
   if (opts.ach) p.set('ach', 'true');
   if (opts.wallets) p.set('wallets', 'true');
+  if (opts.walletsOnly) p.set('walletsOnly', 'true');
   if (opts.external) p.set('external', 'true');
+  if (opts.debug) p.set('debug', 'true');
   if (opts.supportEmail) p.set('supportEmail', opts.supportEmail);
   if (opts.theme) p.set('theme', opts.theme);
   return `${base}?${p.toString()}`;
@@ -124,6 +128,8 @@ export const getFinixTokenizationContext = async (): Promise<{
 
 export interface CreateEventTransactionParams {
   tokenId?: string;
+  thirdPartyToken?: string;
+  billingContact?: any;
   savedPaymentInstrumentId?: string;
   savePaymentMethod?: boolean;
   fraudSessionId?: string;
@@ -159,6 +165,8 @@ export const createEventTransaction = async (
     const fn = httpsCallable(functions, 'createEventTransaction');
     const result = await fn({
       tokenId: params.tokenId,
+      thirdPartyToken: params.thirdPartyToken,
+      billingContact: params.billingContact,
       savedPaymentInstrumentId: params.savedPaymentInstrumentId,
       savePaymentMethod: params.savePaymentMethod,
       fraudSessionId: params.fraudSessionId,
@@ -193,6 +201,8 @@ export const createEventTransaction = async (
 
 export interface CreateStoreTransactionParams {
   tokenId?: string;
+  thirdPartyToken?: string;
+  billingContact?: any;
   savedPaymentInstrumentId?: string;
   savePaymentMethod?: boolean;
   fraudSessionId?: string;
@@ -238,6 +248,8 @@ export const createStoreTransaction = async (
     const fn = httpsCallable(functions, 'createStoreTransaction');
     const result = await fn({
       tokenId: params.tokenId,
+      thirdPartyToken: params.thirdPartyToken,
+      billingContact: params.billingContact,
       savedPaymentInstrumentId: params.savedPaymentInstrumentId,
       savePaymentMethod: params.savePaymentMethod,
       fraudSessionId: params.fraudSessionId,
