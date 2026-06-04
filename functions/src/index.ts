@@ -181,7 +181,9 @@ async function awardRallyCredits(
       eventId,
       eventName: eventData.title || "",
       description: `Earned ${eventData.rallyCreditsAwarded} credits for purchasing ticket to ${eventData.title}`,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      // serverTimestamp() is a sentinel and is rejected inside array elements;
+      // use a concrete Timestamp so arrayUnion / [..] writes succeed.
+      createdAt: admin.firestore.Timestamp.now(),
     };
 
     if (!creditsDoc.exists) {
@@ -1662,7 +1664,8 @@ export const leaveEventWithRefund = functions.https.onCall(
                 eventId,
                 eventName: eventData.title || "",
                 description: `Forfeited ${amountToForfeit} credits for leaving ${eventData.title}`,
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                // serverTimestamp() sentinel is rejected inside array elements.
+                createdAt: admin.firestore.Timestamp.now(),
               };
 
               await creditsRef.update({
