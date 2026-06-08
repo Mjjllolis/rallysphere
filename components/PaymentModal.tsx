@@ -6,6 +6,7 @@ import {
   getFinixTokenizationContext,
   buildFinixTokenizeUrl,
   createEventTransaction,
+  newIdempotencyKey,
   type FinixTokenizationContext,
 } from '../lib/finix';
 
@@ -44,6 +45,15 @@ export default function PaymentModal({
 }: PaymentModalProps) {
   const theme = useTheme();
   const webViewRef = useRef<any>(null);
+  // Stable idempotency key per checkout (regenerated on method change, cleared
+  // on success) so a double tap / retry can't bill the buyer twice.
+  const idempotencyRef = useRef<{ key: string; method: string } | null>(null);
+  const getIdempotencyKey = (method: string) => {
+    if (!idempotencyRef.current || idempotencyRef.current.method !== method) {
+      idempotencyRef.current = { key: newIdempotencyKey(), method };
+    }
+    return idempotencyRef.current.key;
+  };
   const [context, setContext] = useState<FinixTokenizationContext | null>(null);
   const [formReady, setFormReady] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -104,6 +114,7 @@ export default function PaymentModal({
       const result = await createEventTransaction({
         tokenId,
         fraudSessionId,
+        idempotencyKey: getIdempotencyKey(method),
         paymentMethod: method as any,
         eventId,
         ticketPrice,
@@ -111,11 +122,12 @@ export default function PaymentModal({
       });
 
       if (result.success) {
+        idempotencyRef.current = null; // charge captured — next purchase gets a fresh key
         const isAch = method === 'ach';
         Alert.alert(
-          isAch ? 'ACH Payment Submitted' : 'Payment Successful!',
+          isAch ? 'ACH Authorization Confirmed' : 'Payment Successful!',
           isAch
-            ? 'Your ACH payment has been submitted. It may take 3–5 business days to clear. You will receive a confirmation email.'
+            ? 'You authorized a one-time ACH debit from your bank account for this ticket. The debit may take 3–5 business days to clear, and you will receive a confirmation email. To revoke or dispute this authorization, contact support@rallysphere.com.'
             : 'You have successfully joined the event. Your ticket has been confirmed.',
           [{ text: 'OK', onPress: () => { onSuccess(); onDismiss(); } }]
         );

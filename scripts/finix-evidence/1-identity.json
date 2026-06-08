@@ -1,0 +1,80 @@
+{
+  "id" : "ID7mZfk2RGdpmnBBDDjY75n4",
+  "created_at" : "2026-06-08T15:41:42.76Z",
+  "updated_at" : "2026-06-08T15:41:42.76Z",
+  "application" : "APpDynVZb6sw6D6w3PzzfyeS",
+  "entity" : {
+    "ach_max_transaction_amount" : 0,
+    "amex_mid" : null,
+    "annual_card_volume" : 0,
+    "business_address" : null,
+    "business_name" : null,
+    "business_phone" : null,
+    "business_tax_id_fingerprint" : null,
+    "business_tax_id_provided" : false,
+    "business_type" : null,
+    "default_statement_descriptor" : null,
+    "discover_mid" : null,
+    "dob" : null,
+    "doing_business_as" : null,
+    "email" : "cert-test@rallysphere.com",
+    "first_name" : "Cert",
+    "has_accepted_credit_cards_previously" : false,
+    "incorporation_date" : null,
+    "last_name" : "Tester",
+    "max_transaction_amount" : 0,
+    "mcc" : null,
+    "ownership_type" : null,
+    "personal_address" : {
+      "line1" : null,
+      "line2" : null,
+      "city" : null,
+      "region" : null,
+      "postal_code" : null,
+      "country" : null
+    },
+    "phone" : null,
+    "principal_percentage_ownership" : null,
+    "short_business_name" : null,
+    "tax_authority" : null,
+    "tax_id_fingerprint" : null,
+    "tax_id_provided" : false,
+    "title" : null,
+    "url" : null
+  },
+  "identity_roles" : [ "BUYER" ],
+  "tags" : { },
+  "type" : "PERSONAL",
+  "_links" : {
+    "self" : {
+      "href" : "https://finix.sandbox-payments-api.com/identities/ID7mZfk2RGdpmnBBDDjY75n4"
+    },
+    "verifications" : {
+      "href" : "https://finix.sandbox-payments-api.com/identities/ID7mZfk2RGdpmnBBDDjY75n4/verifications"
+    },
+    "merchants" : {
+      "href" : "https://finix.sandbox-payments-api.com/identities/ID7mZfk2RGdpmnBBDDjY75n4/merchants"
+    },
+    "settlements" : {
+      "href" : "https://finix.sandbox-payments-api.com/identities/ID7mZfk2RGdpmnBBDDjY75n4/settlements"
+    },
+    "authorizations" : {
+      "href" : "https://finix.sandbox-payments-api.com/identities/ID7mZfk2RGdpmnBBDDjY75n4/authorizations"
+    },
+    "transfers" : {
+      "href" : "https://finix.sandbox-payments-api.com/identities/ID7mZfk2RGdpmnBBDDjY75n4/transfers"
+    },
+    "payment_instruments" : {
+      "href" : "https://finix.sandbox-payments-api.com/identities/ID7mZfk2RGdpmnBBDDjY75n4/payment_instruments"
+    },
+    "associated_identities" : {
+      "href" : "https://finix.sandbox-payments-api.com/identities/ID7mZfk2RGdpmnBBDDjY75n4/associated_identities"
+    },
+    "disputes" : {
+      "href" : "https://finix.sandbox-payments-api.com/identities/ID7mZfk2RGdpmnBBDDjY75n4/disputes"
+    },
+    "application" : {
+      "href" : "https://finix.sandbox-payments-api.com/applications/APpDynVZb6sw6D6w3PzzfyeS"
+    }
+  }
+}

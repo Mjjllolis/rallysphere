@@ -47,6 +47,8 @@ export interface RefundResult {
 export interface FinixTokenizationContext {
   applicationId: string;
   environment: 'sandbox' | 'live';
+  /** Platform merchant id, used to seed Finix.Auth() for the fraud session id. */
+  merchantId?: string;
 }
 
 export interface SavedPaymentInstrument {
@@ -83,6 +85,8 @@ export function buildFinixTokenizeUrl(opts: {
   const p = new URLSearchParams();
   p.set('env', opts.context.environment);
   p.set('appId', opts.context.applicationId);
+  // Merchant id seeds Finix.Auth() in the form so it can produce a fraud session id.
+  if (opts.context.merchantId) p.set('merchantId', opts.context.merchantId);
   if (opts.amount != null) p.set('amount', opts.amount.toFixed(2));
   if (opts.ach) p.set('ach', 'true');
   if (opts.wallets) p.set('wallets', 'true');
@@ -92,6 +96,20 @@ export function buildFinixTokenizeUrl(opts: {
   if (opts.supportEmail) p.set('supportEmail', opts.supportEmail);
   if (opts.theme) p.set('theme', opts.theme);
   return `${base}?${p.toString()}`;
+}
+
+/**
+ * Generate an idempotency key for a payment attempt. Finix dedupes Transfers
+ * that share an `idempotency_id`, so reusing one key across retries / double
+ * taps of the same charge prevents double-billing. Doesn't need crypto-grade
+ * randomness — only uniqueness per checkout — so no extra native dependency.
+ */
+export function newIdempotencyKey(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 // ============================================================================
@@ -114,7 +132,7 @@ export const getFinixTokenizationContext = async (): Promise<{
     const result = await fn({});
     const data = result.data as any;
     if (data?.applicationId && data?.environment) {
-      return { success: true, context: { applicationId: data.applicationId, environment: data.environment } };
+      return { success: true, context: { applicationId: data.applicationId, environment: data.environment, merchantId: data.merchantId } };
     }
     return { success: false, error: 'Failed to get Finix tokenization context' };
   } catch (error: any) {

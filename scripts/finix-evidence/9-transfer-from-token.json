@@ -1,0 +1,79 @@
+{
+  "id": "TRmBSW4iV1UjZBQqWkU5ACrW",
+  "created_at": "2026-06-08T20:14:28.37Z",
+  "updated_at": "2026-06-08T20:14:28.37Z",
+  "additional_buyer_charges": null,
+  "additional_healthcare_data": null,
+  "additional_purchase_data": null,
+  "address_verification": "POSTAL_CODE_AND_STREET_MATCH",
+  "amount": 1299,
+  "amount_requested": 1299,
+  "application": "APpDynVZb6sw6D6w3PzzfyeS",
+  "created_via": "UNKNOWN",
+  "currency": "USD",
+  "destination": null,
+  "externally_funded": "UNKNOWN",
+  "failure_code": null,
+  "failure_message": null,
+  "fee": 0,
+  "fee_profile": "FPmtT4MYmiAs1qjLjneQmk4d",
+  "idempotency_id": "certtok-TKtKAUeKfSk2qixXp36NgmSw",
+  "ip_address_details": null,
+  "merchant": "MUcA9pBCLMo4JBozsYrGD5VN",
+  "merchant_identity": "IDdshtEbfriQddSLHEw2ZbJ8",
+  "messages": [],
+  "network_details": {
+    "brand": "VISA",
+    "authorization_code": "864608",
+    "acquirer_reference_number": null
+  },
+  "operation_key": "CARD_NOT_PRESENT_SALE",
+  "parent_transfer": null,
+  "parent_transfer_trace_id": null,
+  "raw": null,
+  "ready_to_settle_at": "2026-06-09T20:14:28.37Z",
+  "receipt_last_printed_at": null,
+  "security_code_verification": "MATCHED",
+  "source": "PIpvTWyyeA6PaKL9b1tvjxpL",
+  "split_transfers": [],
+  "state": "SUCCEEDED",
+  "statement_descriptor": "FLX*FLEX",
+  "subtype": "API",
+  "supplemental_fee": null,
+  "tags": {
+    "purpose": "cert-token-form"
+  },
+  "third_party_details": null,
+  "tip_amount": null,
+  "trace_id": "d4eb0cd5-1723-4cde-b195-ef47bd4e68a7",
+  "type": "DEBIT",
+  "_links": {
+    "application": {
+      "href": "https://finix.sandbox-payments-api.com/applications/APpDynVZb6sw6D6w3PzzfyeS"
+    },
+    "self": {
+      "href": "https://finix.sandbox-payments-api.com/transfers/TRmBSW4iV1UjZBQqWkU5ACrW"
+    },
+    "merchant_identity": {
+      "href": "https://finix.sandbox-payments-api.com/identities/IDdshtEbfriQddSLHEw2ZbJ8"
+    },
+    "payment_instruments": {
+      "href": "https://finix.sandbox-payments-api.com/transfers/TRmBSW4iV1UjZBQqWkU5ACrW/payment_instruments"
+    },
+    "reversals": {
+      "href": "https://finix.sandbox-payments-api.com/transfers/TRmBSW4iV1UjZBQqWkU5ACrW/reversals"
+    },
+    "fees": {
+      "href": "https://finix.sandbox-payments-api.com/fees?linked_to=TRmBSW4iV1UjZBQqWkU5ACrW"
+    },
+    "disputes": {
+      "href": "https://finix.sandbox-payments-api.com/transfers/TRmBSW4iV1UjZBQqWkU5ACrW/disputes"
+    },
+    "source": {
+      "href": "https://finix.sandbox-payments-api.com/payment_instruments/PIpvTWyyeA6PaKL9b1tvjxpL"
+    },
+    "fee_profile": {
+      "href": "https://finix.sandbox-payments-api.com/fee_profiles/FPmtT4MYmiAs1qjLjneQmk4d"
+    }
+  }
+}

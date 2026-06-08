@@ -1,0 +1,62 @@
+{
+  "id": "PIpvTWyyeA6PaKL9b1tvjxpL",
+  "created_at": "2026-06-08T20:14:28.17Z",
+  "updated_at": "2026-06-08T20:14:28.17Z",
+  "application": "APpDynVZb6sw6D6w3PzzfyeS",
+  "created_via": "API",
+  "currency": "USD",
+  "disabled_code": null,
+  "disabled_message": null,
+  "enabled": true,
+  "fingerprint": "FPRogKWsRQks2HGaau5eGR9AF",
+  "identity": "IDrRWwF6MqrsaiK4t5pjpWVr",
+  "instrument_type": "PAYMENT_CARD",
+  "account_updater_enabled": false,
+  "address": {
+    "line1": "",
+    "line2": "",
+    "city": "",
+    "region": "",
+    "postal_code": "94105",
+    "country": "USA"
+  },
+  "address_verification": "UNKNOWN",
+  "bin": "489514",
+  "brand": "VISA",
+  "card_type": "UNKNOWN",
+  "expiration_month": 12,
+  "expiration_year": 2030,
+  "issuer_country": "UNKNOWN",
+  "last_four": "0006",
+  "name": null,
+  "network_token_enabled": false,
+  "network_token_state": "NOT_ENABLED",
+  "security_code_verification": "UNKNOWN",
+  "tags": {},
+  "third_party": null,
+  "third_party_token": null,
+  "type": "PAYMENT_CARD",
+  "_links": {
+    "self": {
+      "href": "https://finix.sandbox-payments-api.com/payment_instruments/PIpvTWyyeA6PaKL9b1tvjxpL"
+    },
+    "authorizations": {
+      "href": "https://finix.sandbox-payments-api.com/payment_instruments/PIpvTWyyeA6PaKL9b1tvjxpL/authorizations"
+    },
+    "transfers": {
+      "href": "https://finix.sandbox-payments-api.com/payment_instruments/PIpvTWyyeA6PaKL9b1tvjxpL/transfers"
+    },
+    "verifications": {
+      "href": "https://finix.sandbox-payments-api.com/payment_instruments/PIpvTWyyeA6PaKL9b1tvjxpL/verifications"
+    },
+    "application": {
+      "href": "https://finix.sandbox-payments-api.com/applications/APpDynVZb6sw6D6w3PzzfyeS"
+    },
+    "identity": {
+      "href": "https://finix.sandbox-payments-api.com/identities/IDrRWwF6MqrsaiK4t5pjpWVr"
+    },
+    "updates": {
+      "href": "https://finix.sandbox-payments-api.com/payment_instruments/PIpvTWyyeA6PaKL9b1tvjxpL/updates"
+    }
+  }
+}

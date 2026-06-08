@@ -102,11 +102,20 @@ const getFinixClient = (): AxiosInstance => {
   return clientInstance;
 };
 
-// Make a POST with an idempotency key. Finix requires this on every mutating request.
+// Make a POST, attaching idempotency where Finix supports it. Finix reads
+// idempotency from the `idempotency_id` field in the request BODY (an
+// Idempotency-Key header is ignored). It's supported on Transfers and their
+// reversals — the money-movement calls that must be safe to retry — so we
+// inject it there and leave other endpoints (identities, onboarding_forms,
+// payment_instruments, enrollments) untouched to avoid rejected-field errors.
 async function finixPost<T = any>(path: string, body: any, idempotencyKey?: string): Promise<T> {
   const client = getFinixClient();
-  const key = idempotencyKey || uuidv4();
-  const res = await client.post(path, body, { headers: { "Idempotency-Key": key } });
+  const supportsIdempotency =
+    path === "/transfers" || /^\/transfers\/[^/]+\/reversals$/.test(path);
+  const finalBody = supportsIdempotency
+    ? { idempotency_id: idempotencyKey || uuidv4(), ...body }
+    : body;
+  const res = await client.post(path, finalBody);
   if (res.status >= 400) {
     const errs = res.data?._embedded?.errors || (res.data?.message ? [{ message: res.data.message }] : []);
     const details = errs
@@ -450,6 +459,9 @@ export const getFinixTokenizationContext = functions.https.onCall(
       return {
         applicationId: cfg.applicationId,
         environment: cfg.environment,
+        // Platform merchant id, used client-side to seed Finix.Auth() for the
+        // fraud session id passed back on the transfer.
+        merchantId: cfg.platformMerchantId,
       };
     } catch (error: any) {
       console.error("Error getting Finix context:", error);
@@ -620,11 +632,13 @@ export const createEventTransaction = functions.https.onCall(
         amount: toCents(totalAmount),
         fee: toCents(processingFee),
         currency,
+        // fraud_session_id is a top-level field Finix uses for fraud screening;
+        // it must not be nested inside tags or it's treated as plain metadata.
+        ...(fraudSessionId && { fraud_session_id: fraudSessionId }),
         tags: {
           event_id: eventId,
           user_id: userId,
           club_id: eventData!.clubId,
-          ...(fraudSessionId && { fraud_session_id: fraudSessionId }),
         },
       };
 
@@ -854,11 +868,13 @@ export const createStoreTransaction = functions.https.onCall(
         amount: toCents(totalAmount),
         fee: toCents(processingFee),
         currency: "USD",
+        // fraud_session_id is a top-level field Finix uses for fraud screening;
+        // it must not be nested inside tags or it's treated as plain metadata.
+        ...(fraudSessionId && { fraud_session_id: fraudSessionId }),
         tags: {
           item_id: itemId,
           user_id: userId,
           club_id: item.clubId,
-          ...(fraudSessionId && { fraud_session_id: fraudSessionId }),
         },
       };
 
@@ -1605,7 +1621,7 @@ export const leaveEventWithRefund = functions.https.onCall(
 
         if (transactionId) {
           try {
-            const reversal = await reverseTransfer(transactionId);
+            const reversal = await reverseTransfer(transactionId, `refund-${transactionId}`);
             refundAmount = fromCents(reversal.amount || 0);
             refundProcessed = true;
 
@@ -1751,7 +1767,7 @@ export const refundTicketOrder = functions.https.onCall(
         );
       }
 
-      const reversal = await reverseTransfer(transactionId);
+      const reversal = await reverseTransfer(transactionId, `refund-${transactionId}`);
       const refundAmount = fromCents(reversal.amount || 0);
       console.log(`Refund created for ticket order ${orderId}: ${reversal.id}`);
 
@@ -1855,7 +1871,7 @@ export const cancelEvent = functions.https.onCall(
 
       if (isPaid) {
         try {
-          const reversal = await reverseTransfer(transactionId);
+          const reversal = await reverseTransfer(transactionId, `refund-${transactionId}`);
           const refundAmount = fromCents(reversal.amount || 0);
           totalRefunded += refundAmount;
           paidRefunded += 1;
@@ -1979,7 +1995,7 @@ export const refundStoreOrder = functions.https.onCall(
         );
       }
 
-      const reversal = await reverseTransfer(transactionId);
+      const reversal = await reverseTransfer(transactionId, `refund-${transactionId}`);
       const refundAmount = fromCents(reversal.amount || 0);
       console.log(`Refund created for store order ${orderId}: ${reversal.id}`);
 

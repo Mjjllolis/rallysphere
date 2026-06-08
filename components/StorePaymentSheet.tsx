@@ -16,6 +16,7 @@ import {
   buildFinixTokenizeUrl,
   createStoreTransaction,
   listSavedPaymentInstruments,
+  newIdempotencyKey,
   type FinixTokenizationContext,
   type StoreBreakdown,
   type SavedPaymentInstrument,
@@ -58,6 +59,15 @@ export default function StorePaymentSheet({
   const insets = useSafeAreaInsets();
   const webViewRef = useRef<any>(null);
   const applePayWebViewRef = useRef<any>(null);
+  // Stable idempotency key per checkout (regenerated on method change, cleared
+  // on success) so a double tap / retry can't bill the buyer twice.
+  const idempotencyRef = useRef<{ key: string; method: string } | null>(null);
+  const getIdempotencyKey = (method: string) => {
+    if (!idempotencyRef.current || idempotencyRef.current.method !== method) {
+      idempotencyRef.current = { key: newIdempotencyKey(), method };
+    }
+    return idempotencyRef.current.key;
+  };
   const apCacheBust = useRef(Date.now()).current;
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const slideX = useRef(new Animated.Value(0)).current;
@@ -387,6 +397,7 @@ export default function StorePaymentSheet({
         savedPaymentInstrumentId: opts?.savedPaymentInstrumentId,
         savePaymentMethod: opts?.savePaymentMethod,
         fraudSessionId,
+        idempotencyKey: getIdempotencyKey(method),
         paymentMethod: method as any,
         itemId: item.id,
         quantity,
@@ -422,15 +433,16 @@ export default function StorePaymentSheet({
       }
 
       if (result.success) {
+        idempotencyRef.current = null; // charge captured — next purchase gets a fresh key
         if (selectedReward) {
           await spendRallyCredits(userId, item.clubId, selectedReward.creditsRequired,
             selectedReward.id, `Store discount: ${item.name}`).catch(() => {});
         }
         const isAch = method === 'ach';
         Alert.alert(
-          isAch ? 'ACH Payment Submitted' : 'Purchase Successful!',
+          isAch ? 'ACH Authorization Confirmed' : 'Purchase Successful!',
           isAch
-            ? 'Your ACH payment has been submitted. It may take 3–5 business days to clear. We\'ll ship your order once funds settle.'
+            ? 'You authorized a one-time ACH debit from your bank account for this order. The debit may take 3–5 business days to clear, and we\'ll ship your order once funds settle. To revoke or dispute this authorization, contact support@rallysphere.com.'
             : 'Your order has been placed successfully.'
         );
         onSuccess();

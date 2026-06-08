@@ -1,0 +1,21 @@
+{
+  "_embedded" : {
+    "errors" : [ {
+      "logref" : "f4b5aae01e7ae5f5",
+      "message" : "Transfer TRiuMs2q5TPBNsckgphqasY9 was declined. DECLINED",
+      "code" : "DECLINED",
+      "failure_code" : "GENERIC_DECLINE",
+      "failure_message" : "The transaction was declined for an unknown reason. The account owner needs to contact their issuer for more information.",
+      "_links" : {
+        "transfer" : {
+          "href" : "https://finix.sandbox-payments-api.com/transfers/TRiuMs2q5TPBNsckgphqasY9"
+        },
+        "self" : {
+          "href" : "https://finix.sandbox-payments-api.com/transfers"
+        }
+      },
+      "transfer" : "TRiuMs2q5TPBNsckgphqasY9"
+    } ]
+  },
+  "total" : 1
+}

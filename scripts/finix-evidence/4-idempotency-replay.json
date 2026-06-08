@@ -1,0 +1,19 @@
+{
+  "_embedded" : {
+    "errors" : [ {
+      "logref" : "2f7ab0bb9286c2e1",
+      "message" : "Duplicate transfer TRioz7puLfyibWX3iui2CkPD already exists with idempotency ID cert-success-qypc2wTcR3nQ2pKSyB28Q",
+      "code" : "UNKNOWN",
+      "_links" : {
+        "transfer" : {
+          "href" : "https://finix.sandbox-payments-api.com/transfers/TRioz7puLfyibWX3iui2CkPD"
+        },
+        "self" : {
+          "href" : "https://finix.sandbox-payments-api.com/transfers"
+        }
+      },
+      "transfer" : "TRioz7puLfyibWX3iui2CkPD"
+    } ]
+  },
+  "total" : 1
+}

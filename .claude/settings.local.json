@@ -1,6 +1,11 @@
 {
   "permissions": {
     "allow": [
+      "Edit",
+      "Write",
+      "MultiEdit",
+      "Read",
+      "Bash",
       "Bash(npx expo install:*)",
       "Bash(npm install:*)",
       "Bash(ls:*)",
@@ -128,7 +133,9 @@
       "Bash(eas --version)",
       "Bash(java -version)",
       "Bash(npm list *)",
-      "Bash(/usr/libexec/java_home -V)"
+      "Bash(/usr/libexec/java_home -V)",
+      "WebFetch(domain:finix.com)",
+      "WebFetch(domain:docs.finix.com)"
     ],
     "deny": [],
     "ask": []

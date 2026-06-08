@@ -89,8 +89,9 @@
       <div id="ach-form"></div>
       <div class="ach-auth" id="ach-auth-text">
         <strong>ACH Authorization</strong>
-        By clicking Continue, I authorize RallySphere to debit my bank account for the amount shown above.
-        I understand this is a one-time ACH debit and may only revoke this authorization by contacting RallySphere
+        By clicking Continue, I authorize RallySphere to electronically debit my bank account
+        for <span id="ach-amount">the amount shown above</span> as a one-time ACH debit.
+        I understand I may only revoke this authorization by contacting RallySphere
         at <span id="support-email">support@rallysphere.com</span> at least 3 business days before the scheduled debit.
       </div>
       <button class="submit" id="btn-submit-ach" disabled>Continue</button>
@@ -148,6 +149,7 @@
       const params = new URLSearchParams(location.search);
       const env = params.get('env') || 'sandbox';
       const appId = params.get('appId') || '';
+      const merchantId = params.get('merchantId') || '';
       const ach = params.get('ach') === 'true';
       const wallets = params.get('wallets') === 'true';
       // walletsOnly renders just the Apple Pay button (compact embed on a summary screen).
@@ -179,6 +181,11 @@
       diag('params-parsed', { env: env, hasAppId: !!appId, ach: ach, wallets: wallets, walletsOnly: walletsOnly, external: external, theme: theme });
 
       document.getElementById('support-email').textContent = supportEmail;
+      // Name the exact debit amount in the ACH authorization for NACHA specificity.
+      if (amount) {
+        var achAmountEl = document.getElementById('ach-amount');
+        if (achAmountEl) achAmountEl.textContent = '$' + amount;
+      }
 
       if (external) {
         // Hide in-form submit buttons — parent sheet will trigger submit.
@@ -208,13 +215,25 @@
         el.style.display = 'none';
       }
 
+      // Finix fraud detection: initialize Finix.Auth once at load (it begins
+      // collecting device/browser signals), then read the session key at submit
+      // time. The session id is sent to our backend and passed as the top-level
+      // fraud_session_id on the Transfer. See docs.finix.com fraud-detection.
+      var finixAuth = null;
+      function initFraudSession() {
+        try {
+          if (merchantId && window.Finix && typeof window.Finix.Auth === 'function') {
+            finixAuth = window.Finix.Auth(env, merchantId);
+            diag('fraud-auth-init', { hasMerchant: true });
+          } else {
+            diag('fraud-auth-skip', { hasMerchant: !!merchantId, hasAuth: !!(window.Finix && window.Finix.Auth) });
+          }
+        } catch (e) { diag('fraud-auth-error', { msg: String(e && e.message || e) }); }
+      }
       function getFraudSessionId() {
         try {
-          if (window.Finix && typeof window.Finix.Fingerprint === 'function') {
-            return window.Finix.Fingerprint();
-          }
-          if (window.Finix && window.Finix.fraud_session_id) {
-            return window.Finix.fraud_session_id();
+          if (finixAuth && typeof finixAuth.getSessionKey === 'function') {
+            return finixAuth.getSessionKey();
           }
         } catch (e) { /* ignore */ }
         return null;
@@ -233,6 +252,10 @@
         postToNative({ type: 'ready', ready: false, error: 'Missing appId' });
         return;
       }
+
+      // Start the fraud session as early as possible so Finix can observe the
+      // full checkout interaction before the buyer submits.
+      initFraudSession();
 
       const commonOptions = {
         applicationId: appId,

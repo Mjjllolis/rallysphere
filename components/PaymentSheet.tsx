@@ -17,6 +17,7 @@ import {
   buildFinixTokenizeUrl,
   createEventTransaction,
   listSavedPaymentInstruments,
+  newIdempotencyKey,
   type FinixTokenizationContext,
   type SavedPaymentInstrument,
 } from '../lib/finix';
@@ -40,6 +41,16 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
   const insets = useSafeAreaInsets();
   const webViewRef = useRef<any>(null);
   const applePayWebViewRef = useRef<any>(null);
+  // Stable idempotency key for the current checkout. Regenerated when the
+  // payment method changes (so it never conflicts) and cleared on success, so
+  // a double tap / retry of the *same* charge can't bill the buyer twice.
+  const idempotencyRef = useRef<{ key: string; method: string } | null>(null);
+  const getIdempotencyKey = (method: string) => {
+    if (!idempotencyRef.current || idempotencyRef.current.method !== method) {
+      idempotencyRef.current = { key: newIdempotencyKey(), method };
+    }
+    return idempotencyRef.current.key;
+  };
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const slideX = useRef(new Animated.Value(0)).current;
   const sheetHeight = useRef(new Animated.Value(SUMMARY_HEIGHT)).current;
@@ -451,6 +462,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
         savedPaymentInstrumentId: opts?.savedPaymentInstrumentId,
         savePaymentMethod: opts?.savePaymentMethod,
         fraudSessionId,
+        idempotencyKey: getIdempotencyKey(method),
         paymentMethod: method as any,
         eventId: event.id,
         ticketPrice: discountedTicketPrice,
@@ -473,6 +485,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
       }
 
       if (result.success) {
+        idempotencyRef.current = null; // charge captured — next purchase gets a fresh key
         if (selectedDiscount) {
           await spendRallyCredits(
             userId, event.clubId, selectedDiscount.creditsRequired,
@@ -482,9 +495,9 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
 
         const isAch = method === 'ach';
         Alert.alert(
-          isAch ? 'ACH Payment Submitted' : 'Payment Successful!',
+          isAch ? 'ACH Authorization Confirmed' : 'Payment Successful!',
           isAch
-            ? 'Your ACH payment has been submitted. It may take 3–5 business days to clear. You will receive a confirmation email.'
+            ? 'You authorized a one-time ACH debit from your bank account for this ticket. The debit may take 3–5 business days to clear, and you will receive a confirmation email. To revoke or dispute this authorization, contact support@rallysphere.com.'
             : 'You have successfully purchased a ticket for this event.',
           [{ text: 'OK', onPress: () => { onSuccess(); onDismiss(); } }]
         );

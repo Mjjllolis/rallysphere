@@ -1,0 +1,62 @@
+{
+  "id" : "PIqypc2wTcR3nQ2PpKSyB28Q",
+  "created_at" : "2026-06-08T15:41:43.21Z",
+  "updated_at" : "2026-06-08T15:41:43.21Z",
+  "application" : "APpDynVZb6sw6D6w3PzzfyeS",
+  "created_via" : "API",
+  "currency" : "USD",
+  "disabled_code" : null,
+  "disabled_message" : null,
+  "enabled" : true,
+  "fingerprint" : "FPRogKWsRQks2HGaau5eGR9AF",
+  "identity" : "ID7mZfk2RGdpmnBBDDjY75n4",
+  "instrument_type" : "PAYMENT_CARD",
+  "account_updater_enabled" : false,
+  "address" : {
+    "line1" : "1 Market St",
+    "line2" : null,
+    "city" : "San Francisco",
+    "region" : "CA",
+    "postal_code" : "94105",
+    "country" : "USA"
+  },
+  "address_verification" : "UNKNOWN",
+  "bin" : "489514",
+  "brand" : "VISA",
+  "card_type" : "UNKNOWN",
+  "expiration_month" : 12,
+  "expiration_year" : 2030,
+  "issuer_country" : "UNKNOWN",
+  "last_four" : "0006",
+  "name" : "Cert Tester",
+  "network_token_enabled" : false,
+  "network_token_state" : "NOT_ENABLED",
+  "security_code_verification" : "UNKNOWN",
+  "tags" : { },
+  "third_party" : null,
+  "third_party_token" : null,
+  "type" : "PAYMENT_CARD",
+  "_links" : {
+    "self" : {
+      "href" : "https://finix.sandbox-payments-api.com/payment_instruments/PIqypc2wTcR3nQ2PpKSyB28Q"
+    },
+    "authorizations" : {
+      "href" : "https://finix.sandbox-payments-api.com/payment_instruments/PIqypc2wTcR3nQ2PpKSyB28Q/authorizations"
+    },
+    "transfers" : {
+      "href" : "https://finix.sandbox-payments-api.com/payment_instruments/PIqypc2wTcR3nQ2PpKSyB28Q/transfers"
+    },
+    "verifications" : {
+      "href" : "https://finix.sandbox-payments-api.com/payment_instruments/PIqypc2wTcR3nQ2PpKSyB28Q/verifications"
+    },
+    "application" : {
+      "href" : "https://finix.sandbox-payments-api.com/applications/APpDynVZb6sw6D6w3PzzfyeS"
+    },
+    "identity" : {
+      "href" : "https://finix.sandbox-payments-api.com/identities/ID7mZfk2RGdpmnBBDDjY75n4"
+    },
+    "updates" : {
+      "href" : "https://finix.sandbox-payments-api.com/payment_instruments/PIqypc2wTcR3nQ2PpKSyB28Q/updates"
+    }
+  }
+}
