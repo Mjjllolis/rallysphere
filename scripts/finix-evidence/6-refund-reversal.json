@@ -1,7 +1,7 @@
 {
-  "id" : "TRrqEBuhuUXPCVji5nAL42rk",
-  "created_at" : "2026-06-08T15:41:45.73Z",
-  "updated_at" : "2026-06-08T15:41:45.79Z",
+  "id" : "TR36mKvAjURdrJaBEi11EHLV",
+  "created_at" : "2026-06-08T20:15:03.53Z",
+  "updated_at" : "2026-06-08T20:15:03.58Z",
   "additional_buyer_charges" : null,
   "additional_healthcare_data" : null,
   "additional_purchase_data" : null,
@@ -11,20 +11,20 @@
   "application" : "APpDynVZb6sw6D6w3PzzfyeS",
   "created_via" : "UNKNOWN",
   "currency" : "USD",
-  "destination" : "PIqypc2wTcR3nQ2PpKSyB28Q",
+  "destination" : "PIpvTWyyeA6PaKL9b1tvjxpL",
   "externally_funded" : "UNKNOWN",
   "failure_code" : null,
   "failure_message" : null,
   "fee" : 0,
   "fee_profile" : "FPmtT4MYmiAs1qjLjneQmk4d",
-  "idempotency_id" : "refund-TRioz7puLfyibWX3iui2CkPD",
+  "idempotency_id" : "refund-TRmBSW4iV1UjZBQqWkU5ACrW",
   "ip_address_details" : null,
   "merchant" : "MUcA9pBCLMo4JBozsYrGD5VN",
   "merchant_identity" : "IDdshtEbfriQddSLHEw2ZbJ8",
   "messages" : [ ],
   "network_details" : null,
   "operation_key" : "CARD_NOT_PRESENT_REFUND",
-  "parent_transfer" : "TRioz7puLfyibWX3iui2CkPD",
+  "parent_transfer" : "TRmBSW4iV1UjZBQqWkU5ACrW",
   "parent_transfer_trace_id" : null,
   "raw" : null,
   "ready_to_settle_at" : null,
@@ -39,26 +39,26 @@
   "tags" : { },
   "third_party_details" : null,
   "tip_amount" : null,
-  "trace_id" : "678540b7-d8d9-4fae-b335-9c382373a3d0",
+  "trace_id" : "676ccf08-f0b2-4c0f-b2a2-dcd339805ffa",
   "type" : "REVERSAL",
   "_links" : {
     "application" : {
       "href" : "https://finix.sandbox-payments-api.com/applications/APpDynVZb6sw6D6w3PzzfyeS"
     },
     "self" : {
-      "href" : "https://finix.sandbox-payments-api.com/transfers/TRrqEBuhuUXPCVji5nAL42rk"
+      "href" : "https://finix.sandbox-payments-api.com/transfers/TR36mKvAjURdrJaBEi11EHLV"
     },
     "parent" : {
-      "href" : "https://finix.sandbox-payments-api.com/transfers/TRioz7puLfyibWX3iui2CkPD"
+      "href" : "https://finix.sandbox-payments-api.com/transfers/TRmBSW4iV1UjZBQqWkU5ACrW"
     },
     "destination" : {
-      "href" : "https://finix.sandbox-payments-api.com/payment_instruments/PIqypc2wTcR3nQ2PpKSyB28Q"
+      "href" : "https://finix.sandbox-payments-api.com/payment_instruments/PIpvTWyyeA6PaKL9b1tvjxpL"
     },
     "merchant_identity" : {
       "href" : "https://finix.sandbox-payments-api.com/identities/IDdshtEbfriQddSLHEw2ZbJ8"
     },
     "payment_instruments" : {
-      "href" : "https://finix.sandbox-payments-api.com/transfers/TRrqEBuhuUXPCVji5nAL42rk/payment_instruments"
+      "href" : "https://finix.sandbox-payments-api.com/transfers/TR36mKvAjURdrJaBEi11EHLV/payment_instruments"
     },
     "fee_profile" : {
       "href" : "https://finix.sandbox-payments-api.com/fee_profiles/FPmtT4MYmiAs1qjLjneQmk4d"

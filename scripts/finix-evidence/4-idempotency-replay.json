@@ -1,18 +1,18 @@
 {
   "_embedded" : {
     "errors" : [ {
-      "logref" : "2f7ab0bb9286c2e1",
-      "message" : "Duplicate transfer TRioz7puLfyibWX3iui2CkPD already exists with idempotency ID cert-success-qypc2wTcR3nQ2pKSyB28Q",
+      "logref" : "c65597d259fc681d",
+      "message" : "Duplicate transfer TRmBSW4iV1UjZBQqWkU5ACrW already exists with idempotency ID certtok-TKtKAUeKfSk2qixXp36NgmSw",
       "code" : "UNKNOWN",
       "_links" : {
         "transfer" : {
-          "href" : "https://finix.sandbox-payments-api.com/transfers/TRioz7puLfyibWX3iui2CkPD"
+          "href" : "https://finix.sandbox-payments-api.com/transfers/TRmBSW4iV1UjZBQqWkU5ACrW"
         },
         "self" : {
           "href" : "https://finix.sandbox-payments-api.com/transfers"
         }
       },
-      "transfer" : "TRioz7puLfyibWX3iui2CkPD"
+      "transfer" : "TRmBSW4iV1UjZBQqWkU5ACrW"
     } ]
   },
   "total" : 1

@@ -20,8 +20,9 @@ def load(name):
         return json.load(f)
 
 
-pi = load("2-payment-instrument.json")
-success = load("3-transfer-success.json")
+token = load("7-token.json")                  # minted by the Finix CardTokenForm
+pi = load("8-pi-from-token.json")             # PI created FROM the token
+success = load("9-transfer-from-token.json")  # transfer on the token-sourced PI
 replay = load("4-idempotency-replay.json")
 failed = load("5-transfer-failed.json")
 reversal = load("6-refund-reversal.json")
@@ -93,6 +94,7 @@ doc.add_paragraph(
 )
 kv("Platform merchant (sandbox)", success["merchant"])
 kv("Test card used", "VISA ending 0006 (4895142232120006)")
+kv("Card tokenized via", "Finix CardTokenForm (js.finix.com) — token " + token["id"])
 
 # ---- Summary table ----------------------------------------------------------
 h1("Summary")
@@ -134,6 +136,13 @@ doc.add_paragraph(
 code('onboarding_link_details: { tos_acceptance: true, fee_ready: true, fee_details_url: ".../fees.html" }')
 
 h2("2. Successful Transaction")
+doc.add_paragraph(
+    "Card details were entered into the Finix CardTokenForm, which returned a token. "
+    "The Payment Instrument was then created from that token (type: TOKEN), and the transfer "
+    "was run against the token-sourced Payment Instrument — no raw card data was sent to the API."
+)
+kv("Finix token (from form)", token["id"])
+kv("Payment Instrument (from token)", pi["id"])
 kv("Transfer ID", success["id"])
 kv("State", success["state"], GREEN)
 kv("Amount", f'${success["amount"]/100:.2f} {success["currency"]}')
@@ -194,8 +203,15 @@ h2("8. Finix Tokenization Forms")
 doc.add_paragraph(
     "Card and bank details are collected exclusively through Finix's hosted Tokenization Forms "
     "(Finix.CardTokenForm and Finix.BankTokenForm, loaded from js.finix.com). The application "
-    "only ever receives a token id — no PAN, CVV, or bank number touches RallySphere code or servers."
+    "only ever receives a token id — no PAN, CVV, or bank number touches RallySphere code or servers. "
+    "The Payment Instrument is then created using the token id in the request body "
+    "(type: TOKEN), per Finix guidance."
 )
+kv("Token (CardTokenForm)", token["id"])
+kv("Token fingerprint", token.get("fingerprint", ""))
+kv("Payment Instrument created from token", pi["id"])
+kv("PI fingerprint (matches token)", pi.get("fingerprint", ""))
+code('POST /payment_instruments  { "type": "TOKEN", "token": "%s", "identity": "ID..." }' % token["id"])
 
 h2("9. Webhooks")
 doc.add_paragraph(
