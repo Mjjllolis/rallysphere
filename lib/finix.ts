@@ -119,7 +119,7 @@ export function newIdempotencyKey(): string {
 // client-side.
 // ============================================================================
 
-export const getFinixTokenizationContext = async (): Promise<{
+export const getFinixTokenizationContext = async (opts?: { debug?: boolean }): Promise<{
   success: boolean;
   context?: FinixTokenizationContext;
   error?: string;
@@ -129,7 +129,8 @@ export const getFinixTokenizationContext = async (): Promise<{
       return { success: false, error: 'You must be logged in to make a payment' };
     }
     const fn = httpsCallable(functions, 'getFinixTokenizationContext');
-    const result = await fn({});
+    // debug → staff-only sandbox env (enforced server-side).
+    const result = await fn({ debug: opts?.debug });
     const data = result.data as any;
     if (data?.applicationId && data?.environment) {
       return { success: true, context: { applicationId: data.applicationId, environment: data.environment, merchantId: data.merchantId } };
@@ -153,6 +154,8 @@ export interface CreateEventTransactionParams {
   fraudSessionId?: string;
   paymentMethod?: 'card' | 'ach' | 'apple_pay' | 'google_pay';
   idempotencyKey?: string;
+  /** Staff-only: route this charge to Finix sandbox (enforced server-side). */
+  debug?: boolean;
   eventId: string;
   ticketPrice: number;
   currency?: string;
@@ -196,6 +199,7 @@ export const createEventTransaction = async (
       discountApplied: params.discountApplied,
       originalPrice: params.originalPrice,
       discountAmount: params.discountAmount,
+      debug: params.debug,
     });
 
     const data = result.data as any;
@@ -226,6 +230,8 @@ export interface CreateStoreTransactionParams {
   fraudSessionId?: string;
   paymentMethod?: 'card' | 'ach' | 'apple_pay' | 'google_pay';
   idempotencyKey?: string;
+  /** Staff-only: route this charge to Finix sandbox (enforced server-side). */
+  debug?: boolean;
   itemId: string;
   quantity: number;
   selectedVariants: { [key: string]: string };
@@ -279,6 +285,7 @@ export const createStoreTransaction = async (
       deliveryMethod: params.deliveryMethod,
       shippingAddress: params.shippingAddress,
       rewardDiscount: params.rewardDiscount,
+      debug: params.debug,
     });
 
     const data = result.data as any;

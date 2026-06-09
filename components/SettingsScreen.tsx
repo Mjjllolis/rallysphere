@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { logout } from '../lib/firebase';
+import { logout, auth } from '../lib/firebase';
 import { useThemeToggle } from '../app/_layout';
 import { useDebugLogs } from '../lib/debugContext';
 import GlassSwitch from './GlassSwitch';
@@ -27,6 +27,9 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
   const { isDark, themePreference, setThemePreference } = useThemeToggle();
   const { debugLogs, setDebugLogs } = useDebugLogs();
   const theme = useTheme();
+  // Debug = Finix sandbox mode; restricted to RallySphere staff. The server
+  // also enforces this, so hiding the toggle is defense-in-depth, not the gate.
+  const isStaff = (auth.currentUser?.email || '').toLowerCase().endsWith('@rallysphere.com');
   const [deleteAccountModalVisible, setDeleteAccountModalVisible] = React.useState(false);
 
   const handleSignOut = async () => {
@@ -262,12 +265,14 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
                 </BlurView>
               </TouchableOpacity>
 
-              <GlassSwitch
-                label="Debug logs"
-                description="Show diagnostic details on screen (for troubleshooting)"
-                value={debugLogs}
-                onValueChange={setDebugLogs}
-              />
+              {isStaff && (
+                <GlassSwitch
+                  label="Debug logs"
+                  description="Show diagnostic details and route payments to the Finix sandbox (staff only)"
+                  value={debugLogs}
+                  onValueChange={setDebugLogs}
+                />
+              )}
             </View>
 
             {/* Support */}

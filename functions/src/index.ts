@@ -25,18 +25,42 @@ interface FinixConfig {
   password: string;
   applicationId: string;
   platformMerchantId: string;
+  // Webhook auth — Basic (what the Finix dashboard webhook form configures) is
+  // preferred; HMAC signing-key (webhookSecret) is supported as a fallback.
+  webhookBasicUser: string;
+  webhookBasicPass: string;
   webhookSecret: string;
   environment: "sandbox" | "live";
 }
 
-let clientInstance: AxiosInstance | null = null;
-let configInstance: FinixConfig | null = null;
+type FinixEnv = "sandbox" | "live";
 
-const getFinixConfig = (): FinixConfig => {
-  if (configInstance) return configInstance;
+// The environment a request uses unless a (staff) caller overrides it. Driven by
+// TEST_MODE: sandbox in test builds, live in production. Must NOT throw at module
+// load — Firebase's deploy-time source analysis loads this file without injecting
+// .env, so strict validation happens lazily in buildFinixConfig() at runtime.
+const DEFAULT_ENV: FinixEnv = process.env.TEST_MODE === "false" ? "live" : "sandbox";
 
-  // TEST_MODE must be exactly "true" or "false" to avoid silent misconfiguration
-  // (a typo like TEST_MODE="False" would currently fall through to live mode).
+const clientInstances: Partial<Record<FinixEnv, AxiosInstance>> = {};
+const configInstances: Partial<Record<FinixEnv, FinixConfig>> = {};
+
+// One-time startup visibility into which Finix envs are fully configured, so the
+// live cutover is verifiable from the function logs. Reads env vars directly
+// (no throw) — actual config building still validates lazily per request.
+(() => {
+  const check = (env: FinixEnv) => {
+    const s = env === "live" ? "_LIVE" : "";
+    const has = (k: string) => !!process.env[k];
+    const creds = ["FINIX_USERNAME", "FINIX_PASSWORD", "FINIX_APPLICATION_ID", "FINIX_PLATFORM_MERCHANT_ID"]
+      .every((k) => has(k + s));
+    const webhookAuth = has(`FINIX_WEBHOOK_BASIC_USER${s}`) || has(`FINIX_WEBHOOK_SECRET${s}`);
+    return `creds=${creds} webhookAuth=${webhookAuth}`;
+  };
+  console.log(`[FinixConfig] default=${DEFAULT_ENV} | sandbox: ${check("sandbox")} | live: ${check("live")}`);
+})();
+
+const buildFinixConfig = (environment: FinixEnv): FinixConfig => {
+  // Strict TEST_MODE validation, lazily at runtime (env is injected by then).
   const rawTestMode = process.env.TEST_MODE;
   if (rawTestMode !== "true" && rawTestMode !== "false") {
     throw new Error(
@@ -44,18 +68,23 @@ const getFinixConfig = (): FinixConfig => {
     );
   }
 
-  const environment: "sandbox" | "live" = isTestMode ? "sandbox" : "live";
-  const suffix = isTestMode ? "" : "_LIVE";
+  const suffix = environment === "live" ? "_LIVE" : "";
 
   const username = process.env[`FINIX_USERNAME${suffix}`] || "";
   const password = process.env[`FINIX_PASSWORD${suffix}`] || "";
   const applicationId = process.env[`FINIX_APPLICATION_ID${suffix}`] || "";
   const platformMerchantId = process.env[`FINIX_PLATFORM_MERCHANT_ID${suffix}`] || "";
-  const webhookSecret = process.env.FINIX_WEBHOOK_SECRET || "";
+  // Webhook Basic-auth creds you set when creating the webhook in the dashboard.
+  const webhookBasicUser =
+    process.env[`FINIX_WEBHOOK_BASIC_USER${suffix}`] || process.env.FINIX_WEBHOOK_BASIC_USER || "";
+  const webhookBasicPass =
+    process.env[`FINIX_WEBHOOK_BASIC_PASS${suffix}`] || process.env.FINIX_WEBHOOK_BASIC_PASS || "";
+  // Per-env HMAC signing key (only if you use the signature auth type instead).
+  const webhookSecret =
+    process.env[`FINIX_WEBHOOK_SECRET${suffix}`] || process.env.FINIX_WEBHOOK_SECRET || "";
 
-  // Fail loud when running in live mode without the *_LIVE creds populated.
-  // The default empty-string fallbacks above would otherwise produce confusing
-  // 401s from Finix instead of a clear startup error.
+  // Fail loud when the requested env's creds aren't populated, instead of
+  // producing confusing 401s from Finix.
   if (!username || !password || !applicationId || !platformMerchantId) {
     const missing = [
       !username && `FINIX_USERNAME${suffix}`,
@@ -67,39 +96,61 @@ const getFinixConfig = (): FinixConfig => {
       `Finix ${environment} credentials missing: ${missing}. Set in functions/.env then redeploy.`
     );
   }
-  if (!webhookSecret) {
+  if (!webhookBasicUser && !webhookBasicPass && !webhookSecret) {
     console.warn(
-      `[FinixConfig] FINIX_WEBHOOK_SECRET is empty. Webhook signature verification will be skipped — set this before going live.`
+      `[FinixConfig] No webhook auth configured for ${environment}. Webhook verification will be skipped — set FINIX_WEBHOOK_BASIC_USER${suffix}/FINIX_WEBHOOK_BASIC_PASS${suffix} (or FINIX_WEBHOOK_SECRET${suffix}) before going live.`
     );
   }
 
-  configInstance = {
-    baseUrl: isTestMode ? FINIX_SANDBOX_URL : FINIX_LIVE_URL,
+  return {
+    baseUrl: environment === "live" ? FINIX_LIVE_URL : FINIX_SANDBOX_URL,
     username,
     password,
     applicationId,
     platformMerchantId,
+    webhookBasicUser,
+    webhookBasicPass,
     webhookSecret,
     environment,
   };
-  return configInstance;
 };
 
-const getFinixClient = (): AxiosInstance => {
-  if (clientInstance) return clientInstance;
-  const cfg = getFinixConfig();
-  clientInstance = axios.create({
-    baseURL: cfg.baseUrl,
-    auth: { username: cfg.username, password: cfg.password },
-    headers: {
-      "Content-Type": "application/json",
-      "Accept": "application/hal+json",
-      "Finix-Version": "2022-02-01",
-    },
-    timeout: 30000,
-    validateStatus: (s) => s < 500,
-  });
-  return clientInstance;
+const getFinixConfig = (environment: FinixEnv = DEFAULT_ENV): FinixConfig => {
+  if (!configInstances[environment]) configInstances[environment] = buildFinixConfig(environment);
+  return configInstances[environment]!;
+};
+
+const getFinixClient = (environment: FinixEnv = DEFAULT_ENV): AxiosInstance => {
+  if (!clientInstances[environment]) {
+    const cfg = getFinixConfig(environment);
+    clientInstances[environment] = axios.create({
+      baseURL: cfg.baseUrl,
+      auth: { username: cfg.username, password: cfg.password },
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/hal+json",
+        "Finix-Version": "2022-02-01",
+      },
+      timeout: 30000,
+      validateStatus: (s) => s < 500,
+    });
+  }
+  return clientInstances[environment]!;
+};
+
+// Decide which Finix environment a request runs against. Only verified
+// @rallysphere.com staff may force sandbox (via the in-app Debug toggle);
+// everyone else always uses the deployment default. This is the security
+// boundary that prevents a normal user from forcing sandbox to get free goods.
+const isRallysphereStaff = (request: any): boolean => {
+  const token = request?.auth?.token || {};
+  const email = String(token.email || "").toLowerCase();
+  return token.email_verified === true && email.endsWith("@rallysphere.com");
+};
+
+const resolveFinixEnv = (request: any, wantSandbox?: boolean): FinixEnv => {
+  if (wantSandbox && isRallysphereStaff(request)) return "sandbox";
+  return DEFAULT_ENV;
 };
 
 // Make a POST, attaching idempotency where Finix supports it. Finix reads
@@ -108,8 +159,8 @@ const getFinixClient = (): AxiosInstance => {
 // reversals — the money-movement calls that must be safe to retry — so we
 // inject it there and leave other endpoints (identities, onboarding_forms,
 // payment_instruments, enrollments) untouched to avoid rejected-field errors.
-async function finixPost<T = any>(path: string, body: any, idempotencyKey?: string): Promise<T> {
-  const client = getFinixClient();
+async function finixPost<T = any>(path: string, body: any, idempotencyKey?: string, env?: FinixEnv): Promise<T> {
+  const client = getFinixClient(env);
   const supportsIdempotency =
     path === "/transfers" || /^\/transfers\/[^/]+\/reversals$/.test(path);
   const finalBody = supportsIdempotency
@@ -128,8 +179,8 @@ async function finixPost<T = any>(path: string, body: any, idempotencyKey?: stri
   return res.data;
 }
 
-async function finixGet<T = any>(path: string): Promise<T> {
-  const client = getFinixClient();
+async function finixGet<T = any>(path: string, env?: FinixEnv): Promise<T> {
+  const client = getFinixClient(env);
   const res = await client.get(path);
   if (res.status >= 400) {
     const errs = res.data?._embedded?.errors || (res.data?.message ? [{ message: res.data.message }] : []);
@@ -235,11 +286,14 @@ async function awardRallyCredits(
 async function ensureBuyerIdentity(
   db: admin.firestore.Firestore,
   userId: string,
-  user: any
+  user: any,
+  env: FinixEnv = DEFAULT_ENV
 ): Promise<string> {
-  // Reuse cached Finix buyer identity if we've created one before.
+  // Buyer identities are env-specific (a sandbox identity 404s in live), so
+  // cache them under separate fields per environment.
+  const field = env === "sandbox" ? "finixBuyerIdentityId_sandbox" : "finixBuyerIdentityId";
   const userDoc = await db.collection("users").doc(userId).get();
-  const existing = userDoc.data()?.finixBuyerIdentityId as string | undefined;
+  const existing = userDoc.data()?.[field] as string | undefined;
   if (existing) return existing;
 
   const body = {
@@ -251,11 +305,11 @@ async function ensureBuyerIdentity(
     },
     tags: { user_id: userId },
   };
-  const identity = await finixPost("/identities", body);
+  const identity = await finixPost("/identities", body, undefined, env);
   const identityId = identity.id;
 
   await db.collection("users").doc(userId).set(
-    { finixBuyerIdentityId: identityId, updatedAt: admin.firestore.FieldValue.serverTimestamp() },
+    { [field]: identityId, updatedAt: admin.firestore.FieldValue.serverTimestamp() },
     { merge: true }
   );
   return identityId;
@@ -263,30 +317,31 @@ async function ensureBuyerIdentity(
 
 async function createPaymentInstrumentFromToken(
   tokenId: string,
-  buyerIdentityId: string
+  buyerIdentityId: string,
+  env: FinixEnv = DEFAULT_ENV
 ): Promise<string> {
   const body = {
     token: tokenId,
     type: "TOKEN",
     identity: buyerIdentityId,
   };
-  const pi = await finixPost("/payment_instruments", body);
+  const pi = await finixPost("/payment_instruments", body, undefined, env);
   return pi.id;
 }
 
 // The Apple Pay token is encrypted to the Finix merchant whose Apple Pay
 // certificate was used to create the apple_pay_session. That is our platform
 // merchant's identity — cache it so we don't refetch on every charge.
-let platformIdentityCache: string | null = null;
-async function getPlatformMerchantIdentity(): Promise<string> {
-  if (platformIdentityCache) return platformIdentityCache;
-  const cfg = getFinixConfig();
-  const merchant = await finixGet(`/merchants/${cfg.platformMerchantId}`);
+const platformIdentityCache: Partial<Record<FinixEnv, string>> = {};
+async function getPlatformMerchantIdentity(env: FinixEnv = DEFAULT_ENV): Promise<string> {
+  if (platformIdentityCache[env]) return platformIdentityCache[env]!;
+  const cfg = getFinixConfig(env);
+  const merchant = await finixGet(`/merchants/${cfg.platformMerchantId}`, env);
   if (!merchant?.identity) {
     throw new Error("Could not resolve platform merchant identity for Apple Pay");
   }
-  platformIdentityCache = merchant.identity as string;
-  return platformIdentityCache;
+  platformIdentityCache[env] = merchant.identity as string;
+  return platformIdentityCache[env]!;
 }
 
 // Create a payment_instrument from an Apple Pay token. The frontend passes the
@@ -297,8 +352,10 @@ async function createPaymentInstrumentFromApplePay(opts: {
   buyerIdentityId: string;
   name?: string | null;
   address?: any | null;
+  env?: FinixEnv;
 }): Promise<string> {
-  const merchantIdentity = await getPlatformMerchantIdentity();
+  const env = opts.env || DEFAULT_ENV;
+  const merchantIdentity = await getPlatformMerchantIdentity(env);
   const body: any = {
     third_party_token: opts.thirdPartyToken,
     type: "APPLE_PAY",
@@ -307,7 +364,7 @@ async function createPaymentInstrumentFromApplePay(opts: {
   };
   if (opts.name) body.name = opts.name;
   if (opts.address) body.address = opts.address;
-  const pi = await finixPost("/payment_instruments", body);
+  const pi = await finixPost("/payment_instruments", body, undefined, env);
   return pi.id;
 }
 
@@ -320,8 +377,8 @@ interface PaymentInstrumentDetails {
   fingerprint?: string | null;
 }
 
-async function fetchPaymentInstrumentDetails(piId: string): Promise<PaymentInstrumentDetails> {
-  const pi = await finixGet(`/payment_instruments/${piId}`);
+async function fetchPaymentInstrumentDetails(piId: string, env: FinixEnv = DEFAULT_ENV): Promise<PaymentInstrumentDetails> {
+  const pi = await finixGet(`/payment_instruments/${piId}`, env);
   return {
     brand: pi.brand ? String(pi.brand).toLowerCase() : null,
     last4: pi.last_four ?? null,
@@ -341,7 +398,9 @@ async function resolvePaymentInstrument(opts: {
   savedPaymentInstrumentId?: string;
   tokenId?: string;
   applePay?: { thirdPartyToken: string; name?: string | null; address?: any | null };
+  env?: FinixEnv;
 }): Promise<{ paymentInstrumentId: string; usedSaved: boolean }> {
+  const env = opts.env || DEFAULT_ENV;
   if (opts.savedPaymentInstrumentId) {
     const doc = await opts.db
       .collection("users").doc(opts.userId)
@@ -361,6 +420,7 @@ async function resolvePaymentInstrument(opts: {
       buyerIdentityId: opts.buyerIdentityId,
       name: opts.applePay.name,
       address: opts.applePay.address,
+      env,
     });
     return { paymentInstrumentId: piId, usedSaved: false };
   }
@@ -370,7 +430,7 @@ async function resolvePaymentInstrument(opts: {
       "Either tokenId, savedPaymentInstrumentId, or an Apple Pay token is required"
     );
   }
-  const piId = await createPaymentInstrumentFromToken(opts.tokenId, opts.buyerIdentityId);
+  const piId = await createPaymentInstrumentFromToken(opts.tokenId, opts.buyerIdentityId, env);
   return { paymentInstrumentId: piId, usedSaved: false };
 }
 
@@ -455,7 +515,10 @@ export const getFinixTokenizationContext = functions.https.onCall(
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
     }
     try {
-      const cfg = getFinixConfig();
+      // Staff debug toggle → sandbox; everyone else → deployment default. The
+      // tokenization form must load the SAME env the charge will run against.
+      const finixEnv = resolveFinixEnv(request, request.data?.debug);
+      const cfg = getFinixConfig(finixEnv);
       return {
         applicationId: cfg.applicationId,
         environment: cfg.environment,
@@ -566,7 +629,12 @@ export const createEventTransaction = functions.https.onCall(
       discountAmount,
       savedPaymentInstrumentId,
       savePaymentMethod,
+      debug,
     } = data;
+
+    // Staff-only sandbox override (driven by the in-app Debug toggle). Enforced
+    // server-side: non-staff always run live regardless of what they send.
+    const finixEnv = resolveFinixEnv(request, debug);
 
     if ((!tokenId && !savedPaymentInstrumentId && !thirdPartyToken) || !eventId || ticketPrice == null) {
       throw new functions.https.HttpsError(
@@ -598,7 +666,12 @@ export const createEventTransaction = functions.https.onCall(
         throw new functions.https.HttpsError("not-found", "Club not found");
       }
       const club = clubDoc.data();
-      if (!club?.finixMerchantId) {
+      // In sandbox (staff debug) charges route to the platform sandbox merchant,
+      // so a club without a live merchant is still testable. Live requires it.
+      const merchantId = finixEnv === "sandbox"
+        ? getFinixConfig("sandbox").platformMerchantId
+        : club?.finixMerchantId;
+      if (finixEnv === "live" && !club?.finixMerchantId) {
         throw new functions.https.HttpsError(
           "failed-precondition",
           "This club has not completed payment setup"
@@ -615,9 +688,9 @@ export const createEventTransaction = functions.https.onCall(
       // Resolve buyer identity + payment_instrument (either fresh token or saved PI)
       const userDoc = await db.collection("users").doc(userId).get();
       const user = userDoc.exists ? userDoc.data() : null;
-      const buyerIdentityId = await ensureBuyerIdentity(db, userId, user);
+      const buyerIdentityId = await ensureBuyerIdentity(db, userId, user, finixEnv);
       const { paymentInstrumentId, usedSaved } = await resolvePaymentInstrument({
-        db, userId, buyerIdentityId, savedPaymentInstrumentId, tokenId,
+        db, userId, buyerIdentityId, savedPaymentInstrumentId, tokenId, env: finixEnv,
         applePay: thirdPartyToken ? {
           thirdPartyToken,
           name: applePayNameFromContact(billingContact),
@@ -627,7 +700,7 @@ export const createEventTransaction = functions.https.onCall(
 
       // Create Finix transfer (charge)
       const transferBody: any = {
-        merchant: club.finixMerchantId,
+        merchant: merchantId,
         source: paymentInstrumentId,
         amount: toCents(totalAmount),
         fee: toCents(processingFee),
@@ -642,7 +715,7 @@ export const createEventTransaction = functions.https.onCall(
         },
       };
 
-      const transfer = await finixPost("/transfers", transferBody, idempotencyKey);
+      const transfer = await finixPost("/transfers", transferBody, idempotencyKey, finixEnv);
 
       if (transfer.state === "FAILED" || transfer.state === "CANCELED") {
         const msg = transfer.failure_message || transfer.failure_code || "Payment declined";
@@ -654,9 +727,10 @@ export const createEventTransaction = functions.https.onCall(
 
       // Persist the freshly tokenized PI as a saved card if user opted in.
       // Skipped when reusing an existing saved PI (it's already saved).
-      if (savePaymentMethod && !usedSaved) {
+      // Never persist a sandbox PI as a reusable card — it would 404 in live.
+      if (savePaymentMethod && !usedSaved && finixEnv === "live") {
         try {
-          const details = await fetchPaymentInstrumentDetails(paymentInstrumentId);
+          const details = await fetchPaymentInstrumentDetails(paymentInstrumentId, finixEnv);
           await saveInstrumentForUser(db, userId, paymentInstrumentId, details);
         } catch (e: any) {
           console.error("Failed to save payment instrument (non-fatal):", e?.message || e);
@@ -711,6 +785,7 @@ export const createEventTransaction = functions.https.onCall(
         paymentMethod,
         status: paymentStatus,
         finixState: transfer.state,
+        finixEnv,
         provider: "finix",
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
@@ -735,6 +810,7 @@ export const createEventTransaction = functions.https.onCall(
         paymentMethod,
         status: orderStatus,
         finixState: transfer.state,
+        finixEnv,
         transactionId,
         provider: "finix",
         ...(discountApplied && {
@@ -797,7 +873,11 @@ export const createStoreTransaction = functions.https.onCall(
       rewardDiscount,
       savedPaymentInstrumentId,
       savePaymentMethod,
+      debug,
     } = data;
+
+    // Staff-only sandbox override (in-app Debug toggle), enforced server-side.
+    const finixEnv = resolveFinixEnv(request, debug);
 
     if ((!tokenId && !savedPaymentInstrumentId && !thirdPartyToken) || !itemId || !quantity || !deliveryMethod) {
       throw new functions.https.HttpsError(
@@ -824,7 +904,11 @@ export const createStoreTransaction = functions.https.onCall(
         throw new functions.https.HttpsError("not-found", "Club not found");
       }
       const club = clubDoc.data() as any;
-      if (!club?.finixMerchantId) {
+      // Sandbox (staff debug) charges route to the platform sandbox merchant.
+      const merchantId = finixEnv === "sandbox"
+        ? getFinixConfig("sandbox").platformMerchantId
+        : club?.finixMerchantId;
+      if (finixEnv === "live" && !club?.finixMerchantId) {
         throw new functions.https.HttpsError(
           "failed-precondition",
           "This club has not completed payment setup"
@@ -852,9 +936,9 @@ export const createStoreTransaction = functions.https.onCall(
 
       const userDoc = await db.collection("users").doc(userId).get();
       const user = userDoc.exists ? userDoc.data() : null;
-      const buyerIdentityId = await ensureBuyerIdentity(db, userId, user);
+      const buyerIdentityId = await ensureBuyerIdentity(db, userId, user, finixEnv);
       const { paymentInstrumentId, usedSaved } = await resolvePaymentInstrument({
-        db, userId, buyerIdentityId, savedPaymentInstrumentId, tokenId,
+        db, userId, buyerIdentityId, savedPaymentInstrumentId, tokenId, env: finixEnv,
         applePay: thirdPartyToken ? {
           thirdPartyToken,
           name: applePayNameFromContact(billingContact),
@@ -863,7 +947,7 @@ export const createStoreTransaction = functions.https.onCall(
       });
 
       const transferBody: any = {
-        merchant: club.finixMerchantId,
+        merchant: merchantId,
         source: paymentInstrumentId,
         amount: toCents(totalAmount),
         fee: toCents(processingFee),
@@ -878,7 +962,7 @@ export const createStoreTransaction = functions.https.onCall(
         },
       };
 
-      const transfer = await finixPost("/transfers", transferBody, idempotencyKey);
+      const transfer = await finixPost("/transfers", transferBody, idempotencyKey, finixEnv);
 
       if (transfer.state === "FAILED" || transfer.state === "CANCELED") {
         const msg = transfer.failure_message || transfer.failure_code || "Payment declined";
@@ -888,9 +972,10 @@ export const createStoreTransaction = functions.https.onCall(
       const transactionId = transfer.id;
       console.log(`Finix store transfer created: ${transactionId} state=${transfer.state}`);
 
-      if (savePaymentMethod && !usedSaved) {
+      // Never persist a sandbox PI as a reusable card — it would 404 in live.
+      if (savePaymentMethod && !usedSaved && finixEnv === "live") {
         try {
-          const details = await fetchPaymentInstrumentDetails(paymentInstrumentId);
+          const details = await fetchPaymentInstrumentDetails(paymentInstrumentId, finixEnv);
           await saveInstrumentForUser(db, userId, paymentInstrumentId, details);
         } catch (e: any) {
           console.error("Failed to save payment instrument (non-fatal):", e?.message || e);
@@ -922,6 +1007,7 @@ export const createStoreTransaction = functions.https.onCall(
         paymentMethod,
         status: orderStatus,
         finixState: transfer.state,
+        finixEnv,
         transactionId,
         provider: "finix",
         originalItemPrice: itemPrice,
@@ -1358,20 +1444,58 @@ export const finixWebhook = functions.https.onRequest(async (req, res) => {
 
   try {
     const cfg = getFinixConfig();
-    const signature = (req.headers["finix-signature"] || req.headers["Finix-Signature"]) as string | undefined;
+    const sigHeader = (req.headers["finix-signature"] || req.headers["Finix-Signature"]) as string | undefined;
     const rawBody = (req as any).rawBody ? (req as any).rawBody.toString("utf8") : JSON.stringify(req.body);
 
-    if (cfg.webhookSecret) {
-      if (!signature) {
+    const constantTimeEq = (a: string, b: string): boolean => {
+      const ab = Buffer.from(a, "utf8");
+      const bb = Buffer.from(b, "utf8");
+      return ab.length === bb.length && crypto.timingSafeEqual(ab, bb);
+    };
+
+    // Primary auth: HTTP Basic (the auth type the Finix dashboard webhook form
+    // configures — Finix sends our chosen creds in the Authorization header).
+    if (cfg.webhookBasicUser || cfg.webhookBasicPass) {
+      const authz = String(req.headers["authorization"] || "");
+      const expected = "Basic " + Buffer.from(`${cfg.webhookBasicUser}:${cfg.webhookBasicPass}`).toString("base64");
+      if (!constantTimeEq(authz, expected)) {
+        console.error("Invalid Finix webhook Basic auth");
+        res.status(401).send("Unauthorized");
+        return;
+      }
+    } else if (cfg.webhookSecret) {
+      if (!sigHeader) {
         res.status(400).send("Missing signature");
+        return;
+      }
+      // Finix-Signature: "timestamp=<epoch-seconds>, sig=<lowercase hex>"
+      // The HMAC-SHA256 is computed over "<timestamp>:<raw_body>" using the
+      // webhook's secret_signing_key (as a UTF-8 string, not hex-decoded).
+      const parts: Record<string, string> = {};
+      for (const kv of sigHeader.split(",")) {
+        const i = kv.indexOf("=");
+        if (i > 0) parts[kv.slice(0, i).trim().toLowerCase()] = kv.slice(i + 1).trim();
+      }
+      const timestamp = parts["timestamp"];
+      const provided = (parts["sig"] || "").toLowerCase();
+      if (!timestamp || !provided) {
+        res.status(400).send("Malformed signature");
+        return;
+      }
+      // Replay protection: reject signatures older than 5 minutes.
+      const ageSec = Math.abs(Math.floor(Date.now() / 1000) - Number(timestamp));
+      if (!Number.isFinite(ageSec) || ageSec > 300) {
+        console.error("Stale Finix webhook signature");
+        res.status(400).send("Stale signature");
         return;
       }
       const expected = crypto
         .createHmac("sha256", cfg.webhookSecret)
-        .update(rawBody)
+        .update(`${timestamp}:${rawBody}`)
         .digest("hex");
-      const provided = signature.replace(/^.*v1=/, "").trim();
-      if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(provided))) {
+      const a = Buffer.from(expected, "utf8");
+      const b = Buffer.from(provided, "utf8");
+      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
         console.error("Invalid Finix webhook signature");
         res.status(400).send("Invalid signature");
         return;
@@ -1569,10 +1693,11 @@ export const getUserPayments = functions.https.onCall(
 // LEAVE EVENT WITH REFUND
 // ============================================================================
 
-async function reverseTransfer(transferId: string, idempotencyKey?: string, amountCents?: number) {
+async function reverseTransfer(transferId: string, idempotencyKey?: string, amountCents?: number, env?: FinixEnv) {
   const body: any = {};
   if (amountCents != null) body.refund_amount = amountCents;
-  return finixPost(`/transfers/${transferId}/reversals`, body, idempotencyKey);
+  // A refund must run against the same environment the original charge used.
+  return finixPost(`/transfers/${transferId}/reversals`, body, idempotencyKey, env);
 }
 
 export const leaveEventWithRefund = functions.https.onCall(
@@ -1621,7 +1746,7 @@ export const leaveEventWithRefund = functions.https.onCall(
 
         if (transactionId) {
           try {
-            const reversal = await reverseTransfer(transactionId, `refund-${transactionId}`);
+            const reversal = await reverseTransfer(transactionId, `refund-${transactionId}`, undefined, orderData.finixEnv);
             refundAmount = fromCents(reversal.amount || 0);
             refundProcessed = true;
 
@@ -1767,7 +1892,7 @@ export const refundTicketOrder = functions.https.onCall(
         );
       }
 
-      const reversal = await reverseTransfer(transactionId, `refund-${transactionId}`);
+      const reversal = await reverseTransfer(transactionId, `refund-${transactionId}`, undefined, order?.finixEnv);
       const refundAmount = fromCents(reversal.amount || 0);
       console.log(`Refund created for ticket order ${orderId}: ${reversal.id}`);
 
@@ -1871,7 +1996,7 @@ export const cancelEvent = functions.https.onCall(
 
       if (isPaid) {
         try {
-          const reversal = await reverseTransfer(transactionId, `refund-${transactionId}`);
+          const reversal = await reverseTransfer(transactionId, `refund-${transactionId}`, undefined, order.finixEnv);
           const refundAmount = fromCents(reversal.amount || 0);
           totalRefunded += refundAmount;
           paidRefunded += 1;
@@ -1995,7 +2120,7 @@ export const refundStoreOrder = functions.https.onCall(
         );
       }
 
-      const reversal = await reverseTransfer(transactionId, `refund-${transactionId}`);
+      const reversal = await reverseTransfer(transactionId, `refund-${transactionId}`, undefined, order?.finixEnv);
       const refundAmount = fromCents(reversal.amount || 0);
       console.log(`Refund created for store order ${orderId}: ${reversal.id}`);
 

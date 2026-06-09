@@ -169,7 +169,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
   const initPayment = async () => {
     setInitializingPayment(true);
     try {
-      const result = await getFinixTokenizationContext();
+      const result = await getFinixTokenizationContext({ debug: debugLogs });
       if (result.success && result.context) {
         setFinixContext(result.context);
       } else {
@@ -463,6 +463,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
         savePaymentMethod: opts?.savePaymentMethod,
         fraudSessionId,
         idempotencyKey: getIdempotencyKey(method),
+        debug: debugLogs,
         paymentMethod: method as any,
         eventId: event.id,
         ticketPrice: discountedTicketPrice,

@@ -9,6 +9,7 @@ import {
   newIdempotencyKey,
   type FinixTokenizationContext,
 } from '../lib/finix';
+import { useDebugLogs } from '../lib/debugContext';
 
 interface PaymentModalProps {
   visible: boolean;
@@ -44,6 +45,7 @@ export default function PaymentModal({
   currency = 'USD',
 }: PaymentModalProps) {
   const theme = useTheme();
+  const { debugLogs } = useDebugLogs();
   const webViewRef = useRef<any>(null);
   // Stable idempotency key per checkout (regenerated on method change, cleared
   // on success) so a double tap / retry can't bill the buyer twice.
@@ -75,7 +77,7 @@ export default function PaymentModal({
   const initPayment = async () => {
     setInitializing(true);
     try {
-      const result = await getFinixTokenizationContext();
+      const result = await getFinixTokenizationContext({ debug: debugLogs });
       if (result.success && result.context) {
         setContext(result.context);
       } else {
@@ -115,6 +117,7 @@ export default function PaymentModal({
         tokenId,
         fraudSessionId,
         idempotencyKey: getIdempotencyKey(method),
+        debug: debugLogs,
         paymentMethod: method as any,
         eventId,
         ticketPrice,

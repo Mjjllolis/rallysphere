@@ -221,7 +221,7 @@ export default function StorePaymentSheet({
   const initPayment = async () => {
     setInitializingPayment(true);
     try {
-      const result = await getFinixTokenizationContext();
+      const result = await getFinixTokenizationContext({ debug: debugLogs });
       if (result.success && result.context) {
         setFinixContext(result.context);
         await calculateBreakdown();
@@ -398,6 +398,7 @@ export default function StorePaymentSheet({
         savePaymentMethod: opts?.savePaymentMethod,
         fraudSessionId,
         idempotencyKey: getIdempotencyKey(method),
+        debug: debugLogs,
         paymentMethod: method as any,
         itemId: item.id,
         quantity,
