@@ -154,9 +154,16 @@ const getFinixClient = (environment: FinixEnv = DEFAULT_ENV): AxiosInstance => {
   return clientInstances[environment]!;
 };
 
-// Decide which Finix environment a request runs against. Only verified
-// @rallysphere.com staff may force sandbox (via the in-app Debug toggle);
-// everyone else always uses the deployment default. This is the security
+// Master switch for the staff sandbox override. OFF = the app is production-only;
+// every request runs against DEFAULT_ENV regardless of the Debug toggle. The full
+// env-switching plumbing (getFinixConfig(env), per-request env, staff check) is
+// kept intact, so sandbox testing can be re-enabled later by flipping this to
+// `true` and redeploying — no other code changes needed.
+const ALLOW_SANDBOX_OVERRIDE = false;
+
+// Decide which Finix environment a request runs against. When the override is on,
+// only verified @rallysphere.com staff may force sandbox (via the in-app Debug
+// toggle); everyone else always uses the deployment default. This is the security
 // boundary that prevents a normal user from forcing sandbox to get free goods.
 const isRallysphereStaff = (request: any): boolean => {
   const token = request?.auth?.token || {};
@@ -165,7 +172,7 @@ const isRallysphereStaff = (request: any): boolean => {
 };
 
 const resolveFinixEnv = (request: any, wantSandbox?: boolean): FinixEnv => {
-  if (wantSandbox && isRallysphereStaff(request)) return "sandbox";
+  if (ALLOW_SANDBOX_OVERRIDE && wantSandbox && isRallysphereStaff(request)) return "sandbox";
   return DEFAULT_ENV;
 };
 
@@ -306,8 +313,11 @@ async function ensureBuyerIdentity(
   env: FinixEnv = DEFAULT_ENV
 ): Promise<string> {
   // Buyer identities are env-specific (a sandbox identity 404s in live), so
-  // cache them under separate fields per environment.
-  const field = env === "sandbox" ? "finixBuyerIdentityId_sandbox" : "finixBuyerIdentityId";
+  // cache them under separate fields per environment. NOTE: we deliberately do
+  // NOT reuse the legacy bare `finixBuyerIdentityId` field — it holds SANDBOX
+  // identities created during pre-launch testing, which 404 against the live
+  // API. Using `_live`/`_sandbox` makes live mint a fresh identity on demand.
+  const field = env === "sandbox" ? "finixBuyerIdentityId_sandbox" : "finixBuyerIdentityId_live";
   const userDoc = await db.collection("users").doc(userId).get();
   const existing = userDoc.data()?.[field] as string | undefined;
   if (existing) return existing;
