@@ -1,4 +1,5 @@
 import * as functions from "firebase-functions";
+import { defineSecret } from "firebase-functions/params";
 import * as admin from "firebase-admin";
 import axios, { AxiosInstance } from "axios";
 import { v4 as uuidv4 } from "uuid";
@@ -40,6 +41,21 @@ type FinixEnv = "sandbox" | "live";
 // load — Firebase's deploy-time source analysis loads this file without injecting
 // .env, so strict validation happens lazily in buildFinixConfig() at runtime.
 const DEFAULT_ENV: FinixEnv = process.env.TEST_MODE === "false" ? "live" : "sandbox";
+
+// Finix credentials live in Cloud Secret Manager (not in .env), so teammates can
+// deploy without ever holding the secret values. Declared here and attached to
+// every Finix-touching function via `secrets: FINIX_SECRETS`; at runtime their
+// values are injected into process.env, so the reads in buildFinixConfig() work
+// unchanged. Non-secret config (TEST_MODE, application/merchant IDs) stays in the
+// committed functions/.env. Set/rotate with: firebase functions:secrets:set NAME
+const FINIX_SECRETS = [
+  defineSecret("FINIX_USERNAME"),
+  defineSecret("FINIX_PASSWORD"),
+  defineSecret("FINIX_USERNAME_LIVE"),
+  defineSecret("FINIX_PASSWORD_LIVE"),
+  defineSecret("FINIX_WEBHOOK_BASIC_USER_LIVE"),
+  defineSecret("FINIX_WEBHOOK_BASIC_PASS_LIVE"),
+];
 
 const clientInstances: Partial<Record<FinixEnv, AxiosInstance>> = {};
 const configInstances: Partial<Record<FinixEnv, FinixConfig>> = {};
@@ -509,7 +525,7 @@ async function saveInstrumentForUser(
 // ============================================================================
 
 export const getFinixTokenizationContext = functions.https.onCall(
-  { enforceAppCheck: false },
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
   async (request: any) => {
     if (!request.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
@@ -545,7 +561,7 @@ export const getFinixTokenizationContext = functions.https.onCall(
 const APPLE_PAY_DOMAIN = "rally-sphere.web.app";
 const APPLE_PAY_ALLOWED_ORIGINS = [`https://${APPLE_PAY_DOMAIN}`, "https://rally-sphere.firebaseapp.com"];
 
-export const createApplePaySession = functions.https.onRequest(async (req, res) => {
+export const createApplePaySession = functions.https.onRequest({ secrets: FINIX_SECRETS }, async (req, res) => {
   const origin = req.headers.origin || "";
   if (APPLE_PAY_ALLOWED_ORIGINS.includes(origin)) {
     res.set("Access-Control-Allow-Origin", origin);
@@ -605,7 +621,7 @@ export const createApplePaySession = functions.https.onRequest(async (req, res) 
 // ============================================================================
 
 export const createEventTransaction = functions.https.onCall(
-  { enforceAppCheck: false },
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
   async (request: any) => {
     const data = request.data;
     const auth = request.auth;
@@ -849,7 +865,7 @@ export const createEventTransaction = functions.https.onCall(
 // ============================================================================
 
 export const createStoreTransaction = functions.https.onCall(
-  { enforceAppCheck: false },
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
   async (request: any) => {
     const data = request.data;
     const auth = request.auth;
@@ -1057,7 +1073,7 @@ export const createStoreTransaction = functions.https.onCall(
 // ============================================================================
 
 export const listPaymentInstruments = functions.https.onCall(
-  { enforceAppCheck: false },
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
   async (request: any) => {
     if (!request.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
@@ -1097,7 +1113,7 @@ export const listPaymentInstruments = functions.https.onCall(
 );
 
 export const deletePaymentInstrument = functions.https.onCall(
-  { enforceAppCheck: false },
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
   async (request: any) => {
     if (!request.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
@@ -1148,7 +1164,7 @@ export const deletePaymentInstrument = functions.https.onCall(
 // Finix form, then saves the resulting payment_instrument under the user
 // without creating a transfer.
 export const saveNewPaymentInstrument = functions.https.onCall(
-  { enforceAppCheck: false },
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
   async (request: any) => {
     if (!request.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
@@ -1186,7 +1202,7 @@ export const saveNewPaymentInstrument = functions.https.onCall(
 );
 
 export const setDefaultPaymentInstrument = functions.https.onCall(
-  { enforceAppCheck: false },
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
   async (request: any) => {
     if (!request.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
@@ -1224,7 +1240,7 @@ export const setDefaultPaymentInstrument = functions.https.onCall(
 // ============================================================================
 
 export const createSubMerchantAccount = functions.https.onCall(
-  { enforceAppCheck: false },
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
   async (request: any) => {
     const data = request.data;
     const auth = request.auth;
@@ -1367,7 +1383,7 @@ export const createSubMerchantAccount = functions.https.onCall(
 // ============================================================================
 
 export const getSubMerchantStatus = functions.https.onCall(
-  { enforceAppCheck: false },
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
   async (request: any) => {
     const data = request.data;
     const auth = request.auth;
@@ -1436,7 +1452,7 @@ export const getSubMerchantStatus = functions.https.onCall(
 // body using FINIX_WEBHOOK_SECRET. Header: `Finix-Signature`.
 // ============================================================================
 
-export const finixWebhook = functions.https.onRequest(async (req, res) => {
+export const finixWebhook = functions.https.onRequest({ secrets: FINIX_SECRETS }, async (req, res) => {
   if (req.method !== "POST") {
     res.status(405).send("Method Not Allowed");
     return;
@@ -1660,7 +1676,7 @@ export const finixWebhook = functions.https.onRequest(async (req, res) => {
 // ============================================================================
 
 export const getUserPayments = functions.https.onCall(
-  { enforceAppCheck: false },
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
   async (request: any) => {
     if (!request.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
@@ -1701,7 +1717,7 @@ async function reverseTransfer(transferId: string, idempotencyKey?: string, amou
 }
 
 export const leaveEventWithRefund = functions.https.onCall(
-  { enforceAppCheck: false },
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
   async (request: any) => {
     const data = request.data;
     const auth = request.auth;
@@ -1844,7 +1860,7 @@ export const leaveEventWithRefund = functions.https.onCall(
 // ============================================================================
 
 export const refundTicketOrder = functions.https.onCall(
-  { enforceAppCheck: false },
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
   async (request: any) => {
     const data = request.data;
     const auth = request.auth;
@@ -1930,7 +1946,7 @@ export const refundTicketOrder = functions.https.onCall(
 // ============================================================================
 
 export const cancelEvent = functions.https.onCall(
-  { enforceAppCheck: false, timeoutSeconds: 540, memory: "512MiB" },
+  { enforceAppCheck: false, timeoutSeconds: 540, memory: "512MiB", secrets: FINIX_SECRETS },
   async (request: any) => {
     const data = request.data;
     const auth = request.auth;
@@ -2072,7 +2088,7 @@ export const cancelEvent = functions.https.onCall(
 // ============================================================================
 
 export const refundStoreOrder = functions.https.onCall(
-  { enforceAppCheck: false },
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
   async (request: any) => {
     const data = request.data;
     const auth = request.auth;
@@ -2190,7 +2206,7 @@ async function createEnrollment(
 }
 
 export const createProSubscription = functions.https.onCall(
-  { enforceAppCheck: false },
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
   async (request: any) => {
     const data = request.data;
     const auth = request.auth;
@@ -2254,7 +2270,7 @@ export const createProSubscription = functions.https.onCall(
 );
 
 export const cancelProSubscription = functions.https.onCall(
-  { enforceAppCheck: false },
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
   async (request: any) => {
     const data = request.data;
     const auth = request.auth;
@@ -2294,7 +2310,7 @@ export const cancelProSubscription = functions.https.onCall(
 );
 
 export const createUserProSubscription = functions.https.onCall(
-  { enforceAppCheck: false },
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
   async (request: any) => {
     const data = request.data;
     const auth = request.auth;
@@ -2351,7 +2367,7 @@ export const createUserProSubscription = functions.https.onCall(
 );
 
 export const cancelUserProSubscription = functions.https.onCall(
-  { enforceAppCheck: false },
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
   async (request: any) => {
     const data = request.data;
     const auth = request.auth;
@@ -2395,7 +2411,7 @@ export const cancelUserProSubscription = functions.https.onCall(
 );
 
 export const createClubSubscription = functions.https.onCall(
-  { enforceAppCheck: false },
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
   async (request: any) => {
     const data = request.data;
     const auth = request.auth;
@@ -2459,7 +2475,7 @@ export const createClubSubscription = functions.https.onCall(
 );
 
 export const cancelClubSubscription = functions.https.onCall(
-  { enforceAppCheck: false },
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
   async (request: any) => {
     const data = request.data;
     const auth = request.auth;
@@ -2508,7 +2524,7 @@ export const cancelClubSubscription = functions.https.onCall(
 // ============================================================================
 
 export const fixEventsAndCredits = functions.https.onCall(
-  { enforceAppCheck: false },
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
   async (request: any) => {
     const db = admin.firestore();
 
