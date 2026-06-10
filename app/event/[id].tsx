@@ -504,7 +504,11 @@ export default function EventDetailScreen() {
   const isUpcoming = event.startDate && new Date(event.startDate.toDate ? event.startDate.toDate() : event.startDate) > new Date();
   const isPast = event.endDate && new Date(event.endDate.toDate ? event.endDate.toDate() : event.endDate) < new Date();
   const isCreator = user && event.createdBy === user.uid;
-  const isClubAdmin = user && club && (club.admins.includes(user.uid) || club.owner === user.uid);
+  // Clubs store ownership as either `admins`/`owner` or `clubAdmins`/`clubOwner`
+  // — read both, and default the array so .includes() never throws on undefined.
+  const clubAdminList: string[] = (club && ((club as any).clubAdmins || club.admins)) || [];
+  const clubOwnerId = club && ((club as any).clubOwner || club.owner);
+  const isClubAdmin = !!(user && club && (clubAdminList.includes(user.uid) || clubOwnerId === user.uid));
   const canManageEvent = isCreator || isClubAdmin;
   const attendeeCountValue = event.attendeeCount ?? event.attendees?.length ?? 0;
   const waitlistCountValue = event.waitlistCount ?? event.waitlist?.length ?? 0;

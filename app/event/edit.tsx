@@ -64,10 +64,12 @@ export default function EditEventScreen() {
           const clubResult = await getClub(e.clubId);
           if (clubResult.success && clubResult.club) {
             setClub(clubResult.club);
+            const cAdmins: string[] = ((clubResult.club as any).clubAdmins || clubResult.club.admins) || [];
+            const cOwner = (clubResult.club as any).clubOwner || clubResult.club.owner;
             const isAdmin = user && (
               e.createdBy === user.uid ||
-              clubResult.club.admins.includes(user.uid) ||
-              clubResult.club.owner === user.uid
+              cAdmins.includes(user.uid) ||
+              cOwner === user.uid
             );
             if (!isAdmin) {
               Alert.alert('Access Denied', 'You do not have permission to edit this event.');

@@ -1,0 +1,61 @@
+// scripts/reset-club-finix.js
+// Clears stale SANDBOX Finix onboarding fields from clubs so they re-onboard in
+// LIVE. A club's finixMerchantId/finixIdentityId created in sandbox 404s against
+// the live API ("merchant not found" / "identity not found"). After clearing,
+// the next onboarding (now in production) creates a fresh live merchant and the
+// webhook repopulates these (bare) fields with live values.
+//
+// Usage:
+//   node scripts/reset-club-finix.js                 # DRY RUN — lists affected clubs
+//   node scripts/reset-club-finix.js --apply         # clears ALL clubs
+//   node scripts/reset-club-finix.js --apply <clubId># clears one club
+const admin = require('firebase-admin');
+const path = require('path');
+const serviceAccount = require(path.resolve(__dirname, '../service-account-key.json'));
+
+admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+const db = admin.firestore();
+
+const FIELDS = [
+  'finixMerchantId',
+  'finixIdentityId',
+  'finixOnboardingComplete',
+  'finixOnboardingDeclined',
+  'finixOnboardingStatus',
+  'finixOnboardingFormId',
+  'finixOnboardingUrl',
+  'finixOnboardingLinkExpiresAt',
+  'finixOnboardingStartedAt',
+];
+
+async function main() {
+  const apply = process.argv.includes('--apply');
+  const clubIdArg = process.argv.slice(2).find((a) => !a.startsWith('--'));
+
+  const snap = clubIdArg
+    ? [await db.collection('clubs').doc(clubIdArg).get()]
+    : (await db.collection('clubs').get()).docs;
+
+  let affected = 0;
+  for (const doc of snap) {
+    if (!doc.exists) { console.log(`Club ${clubIdArg} not found`); continue; }
+    const d = doc.data() || {};
+    const present = FIELDS.filter((f) => d[f] != null);
+    if (present.length === 0) continue;
+    affected++;
+    console.log(`\n${apply ? 'CLEARING' : 'WOULD CLEAR'}  club ${doc.id}  (${d.name || 'unnamed'})`);
+    console.log(`  finixMerchantId=${d.finixMerchantId || '-'}  finixIdentityId=${d.finixIdentityId || '-'}  complete=${d.finixOnboardingComplete}`);
+    if (apply) {
+      const update = {};
+      for (const f of FIELDS) update[f] = admin.firestore.FieldValue.delete();
+      update.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+      await doc.ref.update(update);
+    }
+  }
+
+  console.log(`\n${apply ? 'Cleared' : 'Would clear'} ${affected} club(s).`);
+  if (!apply && affected > 0) console.log('Re-run with --apply to perform the reset.');
+  process.exit(0);
+}
+
+main().catch((e) => { console.error(e); process.exit(1); });
