@@ -225,10 +225,59 @@ export interface Event {
   hasWaiver?: boolean;  // Whether event requires waiver agreement
   waiverText?: string;  // The waiver/terms text users must agree to
   // Note: Waiver signatures are stored in subcollection: events/{eventId}/waiverSignatures/{userId}
+  hasQuestionnaire?: boolean;  // Whether event requires questionnaire completion
+  questionnaireTitle?: string;  // Optional title for the questionnaire
+  questionCount?: number;  // Number of questions in the questionnaire
+  // Note: Questions are stored in subcollection: events/{eventId}/questions/{questionId}
+  // Note: Responses are stored in subcollection: events/{eventId}/questionnaireResponses/{userId}
   status?: 'active' | 'cancelled';  // Missing => treat as 'active' (back-compat with existing events)
   cancelledAt?: Timestamp;
   cancelledBy?: string;  // user uid who cancelled the event
   cancelledReason?: string;
+}
+
+// Questionnaire Types
+export type ResponseType =
+  | 'text'
+  | 'long_text'
+  | 'phone'
+  | 'email'
+  | 'number'
+  | 'date'
+  | 'single_choice'
+  | 'multiple_choice';
+
+export interface Question {
+  id: string;
+  text: string;
+  responseType: ResponseType;
+  required: boolean;
+  isPublic: boolean;  // If true, responses visible to other users
+  order: number;
+  choices?: string[];  // Only for single_choice/multiple_choice
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface Questionnaire {
+  enabled: boolean;
+  questions: Question[];
+}
+
+export interface QuestionnaireResponse {
+  id: string;
+  eventId: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  responses: {
+    questionId: string;
+    questionText: string;
+    responseType: ResponseType;
+    answer: string | string[];  // string[] for multiple_choice
+    isPublic: boolean;
+  }[];
+  submittedAt: Timestamp;
 }
 
 export interface ClubJoinRequest {
@@ -1685,6 +1734,12 @@ export const leaveEvent = async (eventId: string, userId: string) => {
     batch.update(eventRef, updates);
     if (wasAttendee) batch.delete(doc(db, 'events', eventId, 'attendees', userId));
     if (wasWaitlisted) batch.delete(doc(db, 'events', eventId, 'waitlist', userId));
+
+    // Clean up questionnaire responses and waiver signatures
+    // This ensures user data is removed when they leave, and they can re-register fresh
+    batch.delete(doc(db, 'events', eventId, 'questionnaireResponses', userId));
+    batch.delete(doc(db, 'events', eventId, 'waiverSignatures', userId));
+
     await batch.commit();
 
     // If event had Rally Credits payout, forfeit the credits
@@ -1804,6 +1859,169 @@ export const getEventWaiverSignatures = async (
     // console.error('Error getting event waiver signatures:', error);
     // Return empty signatures object on error (check-in screen can handle empty)
     return { success: false, signatures: {}, error: error.message };
+  }
+};
+
+/**
+ * Save event questionnaire questions to Firestore
+ * Stores questions in subcollection: events/{eventId}/questions/{questionId}
+ */
+export const saveEventQuestionnaire = async (
+  eventId: string,
+  questions: Question[]
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    if (!eventId) {
+      return { success: false, error: 'No eventId provided' };
+    }
+
+    if (!questions || questions.length === 0) {
+      return { success: false, error: 'No questions to save' };
+    }
+
+    const db = getFirestore();
+    const batch = writeBatch(db);
+
+    // Delete existing questions
+    const questionsRef = collection(db, 'events', eventId, 'questions');
+    const existingQuestions = await getDocs(questionsRef);
+    existingQuestions.forEach((docSnap) => batch.delete(docSnap.ref));
+
+    // Add new questions
+    questions.forEach((question) => {
+      const questionRef = doc(db, 'events', eventId, 'questions', question.id);
+      batch.set(questionRef, {
+        ...question,
+        createdAt: question.createdAt || serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    });
+
+    // Update questionCount on the event document
+    const eventRef = doc(db, 'events', eventId);
+    batch.update(eventRef, {
+      questionCount: questions.length,
+      updatedAt: serverTimestamp(),
+    });
+
+    await batch.commit();
+    return { success: true };
+  } catch (error: any) {
+    // console.error('Error saving questionnaire:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Get event questionnaire questions from Firestore
+ * Retrieves questions ordered by their order field
+ */
+export const getEventQuestionnaire = async (
+  eventId: string
+): Promise<{ success: boolean; questions?: Question[]; error?: string }> => {
+  try {
+    const db = getFirestore();
+    const questionsRef = collection(db, 'events', eventId, 'questions');
+    const questionsQuery = query(questionsRef, orderBy('order', 'asc'));
+    const questionsSnap = await getDocs(questionsQuery);
+
+    const questions = questionsSnap.docs.map((doc) => ({
+      ...doc.data(),
+      id: doc.id,
+    })) as Question[];
+
+    return { success: true, questions };
+  } catch (error: any) {
+    // console.error('Error getting questionnaire:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Submit a user's questionnaire response for an event
+ * Stores response in subcollection: events/{eventId}/questionnaireResponses/{userId}
+ */
+export const submitQuestionnaireResponse = async (
+  eventId: string,
+  userId: string,
+  userName: string,
+  userEmail: string,
+  responses: Array<{
+    questionId: string;
+    questionText: string;
+    responseType: ResponseType;
+    answer: string | string[];
+    isPublic: boolean;
+  }>
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const db = getFirestore();
+    const responseRef = doc(db, 'events', eventId, 'questionnaireResponses', userId);
+
+    await setDoc(responseRef, {
+      userId,
+      userName,
+      userEmail,
+      responses,
+      submittedAt: serverTimestamp(),
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    // console.error('Error submitting questionnaire response:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Get a user's questionnaire response for an event
+ */
+export const getQuestionnaireResponse = async (
+  eventId: string,
+  userId: string
+): Promise<{ success: boolean; response?: QuestionnaireResponse; error?: string }> => {
+  try {
+    const db = getFirestore();
+    const responseRef = doc(db, 'events', eventId, 'questionnaireResponses', userId);
+    const responseSnap = await getDoc(responseRef);
+
+    if (!responseSnap.exists()) {
+      return { success: false, error: 'Response not found' };
+    }
+
+    const response = {
+      ...responseSnap.data(),
+      id: responseSnap.id,
+    } as QuestionnaireResponse;
+
+    return { success: true, response };
+  } catch (error: any) {
+    // console.error('Error getting questionnaire response:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Get all questionnaire responses for an event
+ * Used by event organizers to view all responses
+ */
+export const getEventQuestionnaireResponses = async (
+  eventId: string
+): Promise<{ success: boolean; responses?: QuestionnaireResponse[]; error?: string }> => {
+  try {
+    const db = getFirestore();
+    const responsesRef = collection(db, 'events', eventId, 'questionnaireResponses');
+    const responsesSnap = await getDocs(responsesRef);
+
+    const responses = responsesSnap.docs.map((doc) => ({
+      ...doc.data(),
+      id: doc.id,
+    })) as QuestionnaireResponse[];
+
+    return { success: true, responses };
+  } catch (error: any) {
+    // console.error('Error getting questionnaire responses:', error);
+    return { success: false, error: error.message };
   }
 };
 

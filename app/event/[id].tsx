@@ -24,6 +24,7 @@ import BackButton from '../../components/BackButton';
 import PaymentSheet from '../../components/PaymentSheet';
 import CancelEventSheet from '../../components/CancelEventSheet';
 import RallyCreditsPaidModal from '../../components/RallyCreditsPaidModal';
+import EventRegistrationFlow from '../../components/EventRegistrationFlow';
 import { generateAndShareWaiverPDF } from '../../lib/waiverPdf';
 
 const { width } = Dimensions.get('window');
@@ -58,6 +59,7 @@ export default function EventDetailScreen() {
   const [waiverScrolledToBottom, setWaiverScrolledToBottom] = useState(false);
   const [signedWaiver, setSignedWaiver] = useState<{ initials: string; signedAt: Date } | null>(null);
   const [showSignedWaiverModal, setShowSignedWaiverModal] = useState(false);
+  const [showRegistrationFlow, setShowRegistrationFlow] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
   const [clubLogo, setClubLogo] = useState<string | undefined>(undefined);
   const [club, setClub] = useState<Club | null>(null);
@@ -313,14 +315,19 @@ export default function EventDetailScreen() {
   const handleJoinEvent = async () => {
     if (!user || !event) return;
 
-    // If event has a waiver, show waiver modal first
-    if (event.hasWaiver && event.waiverText) {
-      setWaiverAgreed(false);
-      setWaiverModalVisible(true);
+    // If event has questionnaire or waiver, show registration flow
+    if (event.hasQuestionnaire || (event.hasWaiver && event.waiverText)) {
+      setShowRegistrationFlow(true);
       return;
     }
 
     // Continue with normal join flow
+    await proceedWithJoin();
+  };
+
+  const handleRegistrationComplete = async () => {
+    // Registration flow completed (questionnaire + waiver saved)
+    // Now proceed with joining the event
     await proceedWithJoin();
   };
 
@@ -990,6 +997,19 @@ export default function EventDetailScreen() {
           clubId={payoutInfo.clubId}
           clubName={payoutInfo.clubName}
           isAlreadyMember={payoutInfo.isAlreadyMember}
+        />
+      )}
+
+      {/* Event Registration Flow (Questionnaire + Waiver) */}
+      {event && user && userProfile && (
+        <EventRegistrationFlow
+          visible={showRegistrationFlow}
+          event={event}
+          userId={user.uid}
+          userName={userProfile.displayName || user.displayName || 'Unknown'}
+          userEmail={userProfile.email || user.email || ''}
+          onComplete={handleRegistrationComplete}
+          onDismiss={() => setShowRegistrationFlow(false)}
         />
       )}
 

@@ -1,10 +1,11 @@
 // components/forms/EventForm.tsx
-import React, { useState, useEffect } from 'react';
-import { View, Alert, StyleSheet } from 'react-native';
-import { Text, useTheme } from 'react-native-paper';
+import { useState, useEffect } from 'react';
+import { View, Alert, StyleSheet, TouchableOpacity } from 'react-native';
+import { Text, useTheme, IconButton } from 'react-native-paper';
+import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
-import { createEvent, uploadImage, getClubs } from '../../lib/firebase';
-import { useAuth } from '../../app/_layout';
+import { createEvent, uploadImage, getClubs, saveEventQuestionnaire } from '../../lib/firebase';
+import { useAuth, useThemeToggle } from '../../app/_layout';
 import GlassInput from '../GlassInput';
 import GlassSwitch from '../GlassSwitch';
 import GlassDropdown from '../GlassDropdown';
@@ -12,7 +13,8 @@ import GlassImageCard from '../GlassImageCard';
 import GlassButton from '../GlassButton';
 import GlassDateTimePicker from '../GlassDateTimePicker';
 import GlassTagInput from '../GlassTagInput';
-import type { Club } from '../../lib/firebase';
+import QuestionnaireBuilderSheet from '../QuestionnaireBuilderSheet';
+import type { Club, Question, Questionnaire } from '../../lib/firebase';
 
 interface EventFormProps {
   onColorsExtracted: (colors: string[]) => void;
@@ -21,6 +23,7 @@ interface EventFormProps {
 
 export default function EventForm({ onColorsExtracted, onSuccess }: EventFormProps) {
   const theme = useTheme();
+  const { isDark } = useThemeToggle();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [availableClubs, setAvailableClubs] = useState<Club[]>([]);
@@ -40,6 +43,9 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
   const [tags, setTags] = useState<string[]>([]);
   const [isPublic, setIsPublic] = useState(true);
   const [hasWaiver, setHasWaiver] = useState(false);
+  const [hasQuestionnaire, setHasQuestionnaire] = useState(false);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [showQuestionnaireBuilder, setShowQuestionnaireBuilder] = useState(false);
   const [waiverText, setWaiverText] = useState('');
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date(Date.now() + 2 * 60 * 60 * 1000));
@@ -81,7 +87,8 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
       selectedClub !== null &&
       formData.location.trim().length > 0 &&
       endDate > startDate &&
-      (!hasWaiver || waiverText.trim().length > 0)
+      (!hasWaiver || waiverText.trim().length > 0) &&
+      (!hasQuestionnaire || questions.length > 0)
     );
   };
 
@@ -108,6 +115,10 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
     }
     if (hasWaiver && !waiverText.trim()) {
       Alert.alert('Error', 'Waiver text is required when waiver is enabled');
+      return false;
+    }
+    if (hasQuestionnaire && questions.length === 0) {
+      Alert.alert('Error', 'Please add at least one question to the questionnaire');
       return false;
     }
     return true;
@@ -165,10 +176,17 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
         rallyCreditsAwarded: rallyCreditsPayoutValue,
         hasWaiver: hasWaiver,
         waiverText: hasWaiver ? waiverText.trim() : undefined,
+        hasQuestionnaire,
+        questionnaireTitle: hasQuestionnaire ? 'Event Registration' : undefined,
+        questionCount: hasQuestionnaire ? questions.length : 0,
       };
 
       const result = await createEvent(eventData);
-      if (result.success) {
+      if (result.success && result.eventId) {
+        // Save questionnaire questions if enabled
+        if (hasQuestionnaire && questions.length > 0) {
+          await saveEventQuestionnaire(result.eventId, questions);
+        }
         onSuccess();
         router.push(`/event/${result.eventId}`);
       } else {
@@ -259,7 +277,7 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
         onChangeText={(value) => updateFormData('maxAttendees', value)}
         placeholder="Unlimited"
         keyboardType="numeric"
-        icon="account-multiple"
+        icon="account-m"
       />
 
       <GlassInput
@@ -323,6 +341,48 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
         />
       )}
 
+      <TouchableOpacity
+        onPress={() => setShowQuestionnaireBuilder(true)}
+        activeOpacity={0.7}
+        style={styles.configButtonWrapper}
+      >
+        {isDark ? (
+          <BlurView intensity={40} tint="light" style={[styles.configButton, { borderColor: theme.colors.outline }]}>
+            <View style={styles.configButtonContent}>
+              <IconButton icon="clipboard-text-outline" size={20} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0 }} />
+              <View style={styles.configButtonText}>
+                <Text variant="bodyMedium" style={[styles.configLabel, { color: theme.colors.onSurface }]}>
+                  Event Questionnaire
+                </Text>
+                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                  {hasQuestionnaire && questions.length > 0
+                    ? `${questions.length} ${questions.length === 1 ? 'Question' : 'Questions'}`
+                    : 'Optional'}
+                </Text>
+              </View>
+            </View>
+            <IconButton icon="chevron-right" size={20} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0 }} />
+          </BlurView>
+        ) : (
+          <View style={[styles.configButton, { borderColor: theme.colors.outline, backgroundColor: theme.colors.surfaceVariant }]}>
+            <View style={styles.configButtonContent}>
+              <IconButton icon="clipboard-text-outline" size={20} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0 }} />
+              <View style={styles.configButtonText}>
+                <Text variant="bodyMedium" style={[styles.configLabel, { color: theme.colors.onSurface }]}>
+                  Event Questionnaire
+                </Text>
+                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                  {hasQuestionnaire && questions.length > 0
+                    ? `${questions.length} ${questions.length === 1 ? 'Question' : 'Questions'}`
+                    : 'Optional'}
+                </Text>
+              </View>
+            </View>
+            <IconButton icon="chevron-right" size={20} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0 }} />
+          </View>
+        )}
+      </TouchableOpacity>
+
       {/* Submit Button */}
       <GlassButton
         title="Create Event"
@@ -331,6 +391,18 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
         disabled={loading}
         variant="primary"
         isReady={isFormComplete()}
+      />
+
+      {/* Questionnaire Builder Modal */}
+      <QuestionnaireBuilderSheet
+        visible={showQuestionnaireBuilder}
+        questionnaire={{ enabled: hasQuestionnaire, questions }}
+        onDismiss={() => setShowQuestionnaireBuilder(false)}
+        onSave={(questionnaire: Questionnaire) => {
+          setHasQuestionnaire(questionnaire.enabled);
+          setQuestions(questionnaire.questions);
+          setShowQuestionnaireBuilder(false);
+        }}
       />
     </View>
   );
@@ -370,5 +442,31 @@ const styles = StyleSheet.create({
   warningText: {
     fontSize: 13,
     lineHeight: 18,
+  },
+  configButtonWrapper: {
+    marginBottom: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  configButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  configButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  configButtonText: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  configLabel: {
+    fontWeight: '600',
+    marginBottom: 2,
   },
 });

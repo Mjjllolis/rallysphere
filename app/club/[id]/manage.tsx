@@ -100,6 +100,7 @@ export default function ClubManageDashboard() {
 
   const adminActions = [
     { title: 'Event Check-in', description: 'Check in attendees and award credits', icon: 'qrcode-scan', route: `/club/${clubId}/event-checkin` },
+    { title: 'Questionnaires', description: 'View questionnaire responses from event attendees', icon: 'clipboard-text-outline', route: `/club/${clubId}/manage-questionnaire` },
     { title: 'Member Management', description: 'Manage members and join requests', icon: 'account-group', route: `/club/${clubId}/manage-members`, badge: pendingRequests },
     { title: 'Subscribers', description: 'Manage subscriber settings and pricing', icon: 'star-circle', route: `/club/${clubId}/manage-subscriptions`, badge: club?.subscribers?.length || 0 },
     { title: 'Analytics', description: 'View club performance metrics', icon: 'chart-line', route: `/club/${clubId}/analytics` },
