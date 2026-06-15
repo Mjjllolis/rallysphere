@@ -14,6 +14,8 @@ interface GlassButtonProps {
   variant?: 'primary' | 'secondary';
   icon?: React.ReactNode;
   isReady?: boolean;
+  style?: object;
+  size?: 'default' | 'small';
 }
 
 export default function GlassButton({
@@ -24,6 +26,8 @@ export default function GlassButton({
   variant = 'primary',
   icon,
   isReady = false,
+  style,
+  size = 'default',
 }: GlassButtonProps) {
   const theme = useTheme();
   const { isDark } = useThemeToggle();
@@ -34,7 +38,7 @@ export default function GlassButton({
       onPress={onPress}
       disabled={isDisabled}
       activeOpacity={0.7}
-      style={[styles.container, isDisabled && styles.containerDisabled]}
+      style={[styles.container, isDisabled && styles.containerDisabled, style]}
     >
       {isReady && !isDisabled ? (
         <LinearGradient
@@ -43,13 +47,13 @@ export default function GlassButton({
           end={{ x: 1, y: 1 }}
           style={[styles.blur, { borderColor: '#059669' }]}
         >
-          <View style={styles.content}>
+          <View style={[styles.content, size === 'small' && styles.contentSmall]}>
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
               <>
                 {icon && <View style={styles.iconContainer}>{icon}</View>}
-                <Text style={[styles.title, { color: '#fff' }]}>{title}</Text>
+                <Text style={[styles.title, size === 'small' && styles.titleSmall, { color: '#fff' }]}>{title}</Text>
               </>
             )}
           </View>
@@ -62,6 +66,7 @@ export default function GlassButton({
         >
           <View style={[
             styles.content,
+            size === 'small' && styles.contentSmall,
             variant === 'primary' && { backgroundColor: 'rgba(255, 255, 255, 0.2)' },
           ]}>
             {loading ? (
@@ -69,20 +74,20 @@ export default function GlassButton({
             ) : (
               <>
                 {icon && <View style={styles.iconContainer}>{icon}</View>}
-                <Text style={[styles.title, { color: theme.colors.onSurfaceDisabled }]}>{title}</Text>
+                <Text style={[styles.title, size === 'small' && styles.titleSmall, { color: theme.colors.onSurface }]}>{title}</Text>
               </>
             )}
           </View>
         </BlurView>
       ) : (
         <View style={[styles.blur, { borderColor: theme.colors.outline, backgroundColor: variant === 'primary' ? theme.colors.primary : theme.colors.surfaceVariant }]}>
-          <View style={styles.content}>
+          <View style={[styles.content, size === 'small' && styles.contentSmall]}>
             {loading ? (
               <ActivityIndicator color={variant === 'primary' ? theme.colors.onPrimary : theme.colors.onSurface} />
             ) : (
               <>
                 {icon && <View style={styles.iconContainer}>{icon}</View>}
-                <Text style={[styles.title, { color: variant === 'primary' ? theme.colors.onPrimary : theme.colors.onSurfaceDisabled }]}>{title}</Text>
+                <Text style={[styles.title, size === 'small' && styles.titleSmall, { color: variant === 'primary' ? theme.colors.onPrimary : theme.colors.onSurface }]}>{title}</Text>
               </>
             )}
           </View>
@@ -113,14 +118,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     minHeight: 56,
   },
+  contentSmall: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    minHeight: 40,
+  },
   readyGradient: {
     borderRadius: 16,
   },
   iconContainer: {
-    marginRight: 8,
+    marginRight: 6,
   },
   title: {
     fontSize: 17,
     fontWeight: '700',
+  },
+  titleSmall: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

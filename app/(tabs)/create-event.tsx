@@ -61,6 +61,7 @@ export default function CreateEventScreen() {
   
   const [isPublic, setIsPublic] = useState(true);
   const [hasWaiver, setHasWaiver] = useState(false);
+  const [hasQuestionnaire, setHasQuestionnaire] = useState(false);
   const [waiverText, setWaiverText] = useState('');
   const [coverImage, setCoverImage] = useState<string | null>(null);
   
