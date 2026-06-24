@@ -15,7 +15,15 @@
     "release": "bash scripts/release.sh all",
     "release:ios": "bash scripts/release.sh ios",
     "release:android": "bash scripts/release.sh android",
-    "prod:check": "bash scripts/prod-check.sh"
+    "prod:check": "bash scripts/prod-check.sh",
+    "prepare": "husky",
+    "lint": "expo lint"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ]
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -71,7 +79,12 @@
     "@types/react": "~19.1.0",
     "babel-plugin-module-resolver": "5.0.2",
     "baseline-browser-mapping": "^2.9.5",
+    "eslint-config-expo": "~10.0.0",
+    "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.8",
     "patch-package": "^8.0.1",
+    "prettier": "^3.8.4",
     "typescript": "~5.9.2"
   },
   "expo": {
