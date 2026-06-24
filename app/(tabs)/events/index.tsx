@@ -7,9 +7,10 @@ import {
   RefreshControl,
   TouchableOpacity,
   Dimensions,
+  TextInput,
 } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
-import { Text, Searchbar, useTheme } from 'react-native-paper';
+import { Text, useTheme, IconButton } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,6 +19,7 @@ import { router } from 'expo-router';
 import { useAuth, useThemeToggle } from '../../_layout';
 import { getEvents, getClubs } from '../../../lib/firebase';
 import type { Event, Club } from '../../../lib/firebase';
+import DiscoverFilterPanel, { DiscoverFilters } from '../../../components/DiscoverFilterPanel';
 
 const { width } = Dimensions.get('window');
 const FEATURED_CARD_WIDTH = width * 0.75;
@@ -36,6 +38,26 @@ export default function DiscoverScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
+  const [filterPanelVisible, setFilterPanelVisible] = useState(false);
+  const [filters, setFilters] = useState<DiscoverFilters>({
+    price: 'all',
+    dateRange: 'any',
+    sortBy: 'soonest',
+    showVirtual: false,
+  });
+
+  const defaultFilters: DiscoverFilters = {
+    price: 'all',
+    dateRange: 'any',
+    sortBy: 'soonest',
+    showVirtual: false,
+  };
+
+  const hasActiveFilters =
+    filters.price !== 'all' ||
+    filters.dateRange !== 'any' ||
+    filters.sortBy !== 'soonest' ||
+    filters.showVirtual;
 
   useEffect(() => {
     load();
@@ -75,69 +97,78 @@ export default function DiscoverScreen() {
     setRefreshing(false);
   };
 
-  const loadClubs = async () => {
-    if (!user) return;
-
-    try {
-      setLoading(true);
-
-      // Load user's clubs
-      const myClubsResult = await getClubs(user.uid);
-      if (myClubsResult.success) {
-        setMyClubs(myClubsResult.clubs);
-      }
-
-      // Load public clubs for discovery
-      const discoverResult = await getClubs();
-      if (discoverResult.success) {
-        // Filter out clubs user is already a member of
-        const userClubIds = myClubsResult.clubs.map(club => club.id);
-        const availableClubs = discoverResult.clubs.filter(club => !userClubIds.includes(club.id));
-        setDiscoverClubs(availableClubs);
-      }
-    } catch (error) {
-      // console.error('Error loading clubs:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filterClubs = () => {
-    let filtered = discoverClubs;
-
-    // Filter by category
-    if (selectedCategory !== 'All') {
-      filtered = filtered.filter(club => club.category === selectedCategory);
-    }
-
-    // Filter by search query
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(club =>
-        club.name.toLowerCase().includes(query) ||
-        club.description.toLowerCase().includes(query) ||
-        club.category.toLowerCase().includes(query) ||
-        (club.tags && club.tags.some(tag => tag.toLowerCase().includes(query)))
-      );
-    }
-
-    setFilteredClubs(filtered);
-  };
-
   // ----- filtering -----
   const q = searchQuery.trim().toLowerCase();
 
   const filteredEvents = useMemo(() => {
-    if (!q) return events;
-    return events.filter(
-      (e) =>
-        e.title?.toLowerCase().includes(q) ||
-        e.description?.toLowerCase().includes(q) ||
-        e.clubName?.toLowerCase().includes(q) ||
-        e.location?.toLowerCase().includes(q) ||
-        (e.tags && e.tags.some((t) => t.toLowerCase().includes(q)))
-    );
-  }, [events, q]);
+    let result = [...events];
+
+    // Search query filter
+    if (q) {
+      result = result.filter(
+        (e) =>
+          e.title?.toLowerCase().includes(q) ||
+          e.description?.toLowerCase().includes(q) ||
+          e.clubName?.toLowerCase().includes(q) ||
+          e.location?.toLowerCase().includes(q) ||
+          (e.tags && e.tags.some((t) => t.toLowerCase().includes(q)))
+      );
+    }
+
+    // Price filter
+    if (filters.price === 'free') {
+      result = result.filter((e) => !e.ticketPrice || e.ticketPrice === 0);
+    } else if (filters.price === 'paid') {
+      result = result.filter((e) => e.ticketPrice && e.ticketPrice > 0);
+    }
+
+    // Date range filter
+    const now = new Date();
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    const weekEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const monthEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    if (filters.dateRange === 'today') {
+      result = result.filter((e) => {
+        const d = e.startDate?.toDate ? e.startDate.toDate() : new Date(e.startDate as any);
+        return d <= todayEnd;
+      });
+    } else if (filters.dateRange === 'week') {
+      result = result.filter((e) => {
+        const d = e.startDate?.toDate ? e.startDate.toDate() : new Date(e.startDate as any);
+        return d <= weekEnd;
+      });
+    } else if (filters.dateRange === 'month') {
+      result = result.filter((e) => {
+        const d = e.startDate?.toDate ? e.startDate.toDate() : new Date(e.startDate as any);
+        return d <= monthEnd;
+      });
+    }
+
+    // Virtual filter
+    if (filters.showVirtual) {
+      result = result.filter((e) => e.isVirtual);
+    }
+
+    // Sort
+    if (filters.sortBy === 'soonest') {
+      result.sort((a, b) => {
+        const dateA = a.startDate?.toDate ? a.startDate.toDate() : new Date(a.startDate as any);
+        const dateB = b.startDate?.toDate ? b.startDate.toDate() : new Date(b.startDate as any);
+        return dateA.getTime() - dateB.getTime();
+      });
+    } else if (filters.sortBy === 'popular') {
+      result.sort((a, b) => (b.attendeeCount ?? b.attendees?.length ?? 0) - (a.attendeeCount ?? a.attendees?.length ?? 0));
+    } else if (filters.sortBy === 'newest') {
+      result.sort((a, b) => {
+        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
+        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
+        return dateB.getTime() - dateA.getTime();
+      });
+    }
+
+    return result;
+  }, [events, q, filters]);
 
   const filteredClubs = useMemo(() => {
     if (!q) return clubs;
@@ -464,8 +495,9 @@ export default function DiscoverScreen() {
       <View style={StyleSheet.absoluteFill}>
         <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
       </View>
+      {/* Subtle Gradient Overlay - matches store */}
       <LinearGradient
-        colors={['rgba(27, 54, 93, 0.3)', 'rgba(96, 165, 250, 0.1)', isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(248, 250, 252, 0)']}
+        colors={['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(248, 250, 252, 0)']}
         locations={[0, 0.3, 1]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
@@ -475,24 +507,49 @@ export default function DiscoverScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Discover</Text>
-          <Text style={[styles.headerSubtitle, { color: theme.colors.onSurfaceVariant }]}>
-            Events, clubs, and what's happening around you
-          </Text>
         </View>
 
         {/* Search */}
         <View style={styles.searchContainer}>
           <BlurView intensity={20} tint={isDark ? 'dark' : 'light'} style={[styles.searchBarContainer, { borderColor: theme.colors.outline }]}>
-            <Searchbar
-              placeholder="Search events and clubs"
-              onChangeText={setSearchQuery}
-              value={searchQuery}
-              style={styles.searchBar}
-              inputStyle={{ fontSize: 14 }}
-              iconColor={theme.colors.onSurfaceVariant}
-              placeholderTextColor={theme.colors.onSurfaceVariant}
-            />
+            <View style={styles.searchInputWrapper}>
+              <Ionicons
+                name="search-outline"
+                size={18}
+                color={theme.colors.onSurfaceVariant}
+                style={styles.searchIcon}
+              />
+              <TextInput
+                placeholder="Search events and clubs..."
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                style={[styles.searchInput, { color: theme.colors.onSurface }]}
+                placeholderTextColor={theme.colors.onSurfaceDisabled}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+                  <Ionicons name="close-circle" size={18} color={theme.colors.onSurfaceVariant} />
+                </TouchableOpacity>
+              )}
+            </View>
           </BlurView>
+
+          {/* Filter Button */}
+          <TouchableOpacity
+            style={styles.filterButtonWrapper}
+            onPress={() => setFilterPanelVisible(true)}
+            activeOpacity={0.7}
+          >
+            <BlurView intensity={20} tint={isDark ? 'dark' : 'light'} style={[styles.filterButton, { borderColor: theme.colors.outline }]}>
+              <IconButton
+                icon="tune"
+                iconColor={hasActiveFilters ? '#60A5FA' : theme.colors.onSurface}
+                size={20}
+                style={{ margin: 0 }}
+              />
+              {hasActiveFilters && <View style={styles.filterBadge} />}
+            </BlurView>
+          </TouchableOpacity>
         </View>
 
         {/* Filter chips */}
@@ -588,6 +645,15 @@ export default function DiscoverScreen() {
             </>
           )}
         </ScrollView>
+
+        {/* Filter Panel */}
+        <DiscoverFilterPanel
+          visible={filterPanelVisible}
+          onClose={() => setFilterPanelVisible(false)}
+          filters={filters}
+          onFiltersChange={setFilters}
+          onReset={() => setFilters(defaultFilters)}
+        />
       </SafeAreaView>
     </View>
   );
@@ -606,13 +672,60 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 32, fontWeight: '800' },
   headerSubtitle: { fontSize: 13, marginTop: 4 },
 
-  searchContainer: { paddingHorizontal: 16, paddingBottom: 12 },
+  searchContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 10,
+    alignItems: 'center',
+  },
   searchBarContainer: {
+    flex: 1,
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
   },
-  searchBar: { backgroundColor: 'transparent', elevation: 0 },
+  searchInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    height: 42,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    padding: 0,
+    margin: 0,
+  },
+  clearButton: {
+    padding: 4,
+  },
+  filterButtonWrapper: {
+    borderRadius: 21,
+    overflow: 'hidden',
+  },
+  filterButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#60A5FA',
+  },
 
   chipsRow: {
     flexDirection: 'row',

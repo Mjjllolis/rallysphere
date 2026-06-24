@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Alert, TextInput } from 'react-native';
+import { useState, useCallback } from 'react';
+import { View, StyleSheet, TouchableOpacity, Alert, TextInput, LayoutChangeEvent } from 'react-native';
 import { Text, IconButton, useTheme, Menu } from 'react-native-paper';
 import { useThemeToggle } from '../app/_layout';
 import type { Question, ResponseType } from '../lib/firebase';
@@ -14,6 +14,8 @@ interface QuestionCardProps {
   onMoveDown: (id: string) => void;
   onOpenTypePicker: (questionId: string, currentType: ResponseType) => void;
   disabled?: boolean;
+  onLayout?: (event: LayoutChangeEvent) => void;
+  onFieldFocus?: () => void;
 }
 
 const RESPONSE_TYPE_LABELS: Record<ResponseType, string> = {
@@ -37,6 +39,8 @@ export default function QuestionCard({
   onMoveDown,
   onOpenTypePicker,
   disabled = false,
+  onLayout,
+  onFieldFocus,
 }: QuestionCardProps) {
   const theme = useTheme();
   const { isDark } = useThemeToggle();
@@ -78,7 +82,7 @@ export default function QuestionCard({
   };
 
   return (
-    <View style={[styles.container, disabled && styles.containerDisabled]}>
+    <View style={[styles.container, disabled && styles.containerDisabled]} onLayout={onLayout}>
       {/* Question Number and Actions */}
       <View style={styles.header}>
         <Text
@@ -141,6 +145,7 @@ export default function QuestionCard({
       <TextInput
         value={question.text}
         onChangeText={handleTextChange}
+        onFocus={onFieldFocus}
         placeholder="Enter your question"
         placeholderTextColor={
           disabled
@@ -190,6 +195,7 @@ export default function QuestionCard({
                   newChoices[choiceIndex] = text;
                   onUpdate(question.id, { choices: newChoices });
                 }}
+                onFocus={onFieldFocus}
                 placeholder={`Option ${choiceIndex + 1}`}
                 placeholderTextColor={
                   disabled

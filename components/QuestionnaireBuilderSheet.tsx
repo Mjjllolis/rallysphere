@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -9,6 +9,7 @@ import {
   Alert,
   LayoutAnimation,
   UIManager,
+  LayoutChangeEvent,
 } from 'react-native';
 import { Text, IconButton, useTheme } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -47,6 +48,26 @@ export default function QuestionnaireBuilderSheet({
   const [showTypePicker, setShowTypePicker] = useState(false);
   const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null);
   const [currentType, setCurrentType] = useState<ResponseType | null>(null);
+
+  const scrollViewRef = useRef<ScrollView>(null);
+  const questionPositions = useRef<{ [key: string]: number }>({});
+
+  const handleScrollToField = useCallback((y: number) => {
+    // Scroll field higher up on screen for better keyboard visibility
+    const scrollOffset = Math.max(0, y - 60);
+    scrollViewRef.current?.scrollTo({ y: scrollOffset, animated: true });
+  }, []);
+
+  const handleQuestionLayout = useCallback((questionId: string) => (event: LayoutChangeEvent) => {
+    questionPositions.current[questionId] = event.nativeEvent.layout.y;
+  }, []);
+
+  const handleQuestionFocus = useCallback((questionId: string) => () => {
+    const y = questionPositions.current[questionId];
+    if (y !== undefined) {
+      handleScrollToField(y);
+    }
+  }, [handleScrollToField]);
 
   const generateQuestionId = () => {
     // Use crypto.randomUUID if available (modern Hermes), fallback to timestamp + random
@@ -105,6 +126,11 @@ export default function QuestionnaireBuilderSheet({
 
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setQuestions([...questions, newQuestion]);
+
+    // Scroll to the new question after it's added
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
   };
 
   const handleUpdateQuestion = (id: string, updates: Partial<Question>) => {
@@ -310,10 +336,12 @@ export default function QuestionnaireBuilderSheet({
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
             <ScrollView
+              ref={scrollViewRef}
               style={styles.scrollView}
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={true}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
               indicatorStyle={isDark ? 'white' : 'black'}
             >
               {questions.map((question, index) => (
@@ -328,6 +356,8 @@ export default function QuestionnaireBuilderSheet({
                   onMoveDown={handleMoveDown}
                   onOpenTypePicker={handleOpenTypePicker}
                   disabled={!enabled}
+                  onLayout={handleQuestionLayout(question.id)}
+                  onFieldFocus={handleQuestionFocus(question.id)}
                 />
               ))}
             </ScrollView>
@@ -424,7 +454,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 300, // Extra padding so last question can scroll into focus
   },
   footer: {
     flexDirection: 'row',

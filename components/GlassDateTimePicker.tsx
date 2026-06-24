@@ -1,6 +1,6 @@
 // components/GlassDateTimePicker.tsx
 import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Animated, Dimensions, ScrollView, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Animated, Dimensions, ScrollView, NativeScrollEvent, NativeSyntheticEvent, Keyboard } from 'react-native';
 import { Text, IconButton, useTheme } from 'react-native-paper';
 import { BlurView } from 'expo-blur';
 import { useThemeToggle } from '../app/_layout';
@@ -14,6 +14,7 @@ interface GlassDateTimePickerProps {
   date: Date;
   onDateChange: (date: Date) => void;
   minimumDate?: Date;
+  onOpen?: () => void;
 }
 
 export default function GlassDateTimePicker({
@@ -21,6 +22,7 @@ export default function GlassDateTimePicker({
   date,
   onDateChange,
   minimumDate,
+  onOpen,
 }: GlassDateTimePickerProps) {
   const theme = useTheme();
   const { isDark } = useThemeToggle();
@@ -97,7 +99,14 @@ export default function GlassDateTimePicker({
   }, [isExpanded]);
 
   const toggleExpanded = () => {
-    setIsExpanded(!isExpanded);
+    const willExpand = !isExpanded;
+    if (willExpand) {
+      Keyboard.dismiss();
+    }
+    setIsExpanded(willExpand);
+    if (willExpand && onOpen) {
+      onOpen();
+    }
   };
 
   const handleConfirm = () => {

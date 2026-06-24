@@ -1,5 +1,5 @@
 // components/CreateScreen.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Modal,
@@ -10,6 +10,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
 } from 'react-native';
 import { Text, IconButton, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -36,6 +37,14 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
 
   const scaleAnim = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  const handleScrollToField = useCallback((y: number) => {
+    // Scroll field higher up on screen for better keyboard visibility
+    // Smaller offset = field appears higher on screen
+    const scrollOffset = Math.max(0, y - 60);
+    scrollViewRef.current?.scrollTo({ y: scrollOffset, animated: true });
+  }, []);
 
   useEffect(() => {
     if (dropdownVisible) {
@@ -102,6 +111,8 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
           )}
 
           <SafeAreaView style={styles.safeArea} edges={['top']}>
+
+          <View style={[styles.grabber, { backgroundColor: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)' }]} />
 
           {/* Header */}
           <View style={[styles.headerContainer, { borderBottomColor: theme.colors.outline }]}>
@@ -188,20 +199,22 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
           )}
 
           {/* Form Content */}
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
             <ScrollView
+              ref={scrollViewRef}
               style={styles.content}
               contentContainerStyle={styles.contentContainer}
               showsVerticalScrollIndicator={true}
               indicatorStyle={isDark ? "white" : "black"}
               bounces={true}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
             >
               {selectedType === 'Event' && (
-                <EventForm onColorsExtracted={handleColorsExtracted} onSuccess={onClose} />
+                <EventForm onColorsExtracted={handleColorsExtracted} onSuccess={onClose} onScrollToField={handleScrollToField} />
               )}
               {selectedType === 'Club' && (
-                <ClubForm onColorsExtracted={handleColorsExtracted} onSuccess={onClose} />
+                <ClubForm onColorsExtracted={handleColorsExtracted} onSuccess={onClose} onScrollToField={handleScrollToField} />
               )}
             </ScrollView>
           </KeyboardAvoidingView>
@@ -226,6 +239,16 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
+
+  grabber: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'white',
+    margin: 14,
+  },
+
   headerContainer: {
     paddingTop: 8,
     paddingBottom: 12,
@@ -267,7 +290,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 20,
-    paddingBottom: 40,
+    paddingBottom: 300, // Extra padding so last fields can scroll into focus
   },
   dropdownAbsolute: {
     position: 'absolute',

@@ -1,6 +1,6 @@
 // components/forms/ClubForm.tsx
-import React, { useState } from 'react';
-import { View, Alert, StyleSheet } from 'react-native';
+import React, { useState, useRef, useCallback } from 'react';
+import { View, Alert, StyleSheet, LayoutChangeEvent } from 'react-native';
 import { router } from 'expo-router';
 import { createClub, uploadImage } from '../../lib/firebase';
 import { useAuth } from '../../app/_layout';
@@ -26,14 +26,29 @@ const TAGS = [
 interface ClubFormProps {
   onColorsExtracted: (colors: string[]) => void;
   onSuccess: () => void;
+  onScrollToField?: (y: number) => void;
 }
 
-export default function ClubForm({ onColorsExtracted, onSuccess }: ClubFormProps) {
+export default function ClubForm({ onColorsExtracted, onSuccess, onScrollToField }: ClubFormProps) {
   const theme = useTheme();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [coverImage, setCoverImage] = useState<string | null>(null);
   const [logo, setLogo] = useState<string | null>(null);
+
+  // Track field positions for scroll-to-field
+  const fieldPositions = useRef<{ [key: string]: number }>({});
+
+  const handleFieldLayout = useCallback((fieldName: string) => (event: LayoutChangeEvent) => {
+    fieldPositions.current[fieldName] = event.nativeEvent.layout.y;
+  }, []);
+
+  const handleFieldFocus = useCallback((fieldName: string) => () => {
+    const y = fieldPositions.current[fieldName];
+    if (y !== undefined && onScrollToField) {
+      onScrollToField(y);
+    }
+  }, [onScrollToField]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -178,109 +193,140 @@ export default function ClubForm({ onColorsExtracted, onSuccess }: ClubFormProps
       />
 
       {/* Basic Info */}
-      <GlassInput
-        label="Club Name *"
-        value={formData.name}
-        onChangeText={(value) => updateFormData('name', value)}
-        placeholder="Enter club name"
-      />
+      <View onLayout={handleFieldLayout('name')}>
+        <GlassInput
+          label="Club Name *"
+          value={formData.name}
+          onChangeText={(value) => updateFormData('name', value)}
+          placeholder="Enter club name"
+          onFocus={handleFieldFocus('name')}
+        />
+      </View>
 
-      <GlassInput
-        label="Description *"
-        value={formData.description}
-        onChangeText={(value) => updateFormData('description', value)}
-        placeholder="What is your club about?"
-        multiline
-        numberOfLines={4}
-      />
+      <View onLayout={handleFieldLayout('description')}>
+        <GlassInput
+          label="Description *"
+          value={formData.description}
+          onChangeText={(value) => updateFormData('description', value)}
+          placeholder="What is your club about?"
+          multiline
+          numberOfLines={4}
+          onFocus={handleFieldFocus('description')}
+        />
+      </View>
 
       {/* Category */}
-      <GlassDropdown
-        label="Category *"
-        value={formData.sport}
-        options={SPORTS}
-        onSelect={(value) => updateFormData('sport', value)}
-        placeholder="Select a category..."
-        icon="soccer"
-      />
+      <View onLayout={handleFieldLayout('sport')}>
+        <GlassDropdown
+          label="Category *"
+          value={formData.sport}
+          options={SPORTS}
+          onSelect={(value) => updateFormData('sport', value)}
+          placeholder="Select a category..."
+          icon="soccer"
+        />
+      </View>
 
       {/* Club Type Tags */}
-      <GlassDropdown
-        label="Club Type"
-        value={selectedTags.length > 0 ? selectedTags.join(', ') : ''}
-        options={TAGS}
-        onSelect={handleTagSelect}
-        placeholder="Select club type(s)..."
-        icon="tag-multiple"
-      />
+      <View onLayout={handleFieldLayout('tags')}>
+        <GlassDropdown
+          label="Club Type"
+          value={selectedTags.length > 0 ? selectedTags.join(', ') : ''}
+          options={TAGS}
+          onSelect={handleTagSelect}
+          placeholder="Select club type(s)..."
+          icon="tag-multiple"
+        />
+      </View>
 
       {/* Contact Info */}
-      <GlassInput
-        label="Contact Email"
-        value={formData.contactEmail}
-        onChangeText={(value) => updateFormData('contactEmail', value)}
-        placeholder="club@example.com"
-        keyboardType="email-address"
-        autoCapitalize="none"
-        icon="email"
-      />
+      <View onLayout={handleFieldLayout('contactEmail')}>
+        <GlassInput
+          label="Contact Email"
+          value={formData.contactEmail}
+          onChangeText={(value) => updateFormData('contactEmail', value)}
+          placeholder="club@example.com"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          icon="email"
+          onFocus={handleFieldFocus('contactEmail')}
+        />
+      </View>
 
       {/* Social Links */}
       <Text style={[styles.sectionLabel, { color: theme.colors.onSurface }]}>Social Links</Text>
 
-      <GlassInput
-        label="Website"
-        value={formData.website}
-        onChangeText={(value) => updateFormData('website', value)}
-        placeholder="https://yourclub.com"
-        autoCapitalize="none"
-        icon="web"
-      />
+      <View onLayout={handleFieldLayout('website')}>
+        <GlassInput
+          label="Website"
+          value={formData.website}
+          onChangeText={(value) => updateFormData('website', value)}
+          placeholder="https://yourclub.com"
+          autoCapitalize="none"
+          icon="web"
+          onFocus={handleFieldFocus('website')}
+        />
+      </View>
 
-      <GlassInput
-        label="Instagram"
-        value={formData.instagram}
-        onChangeText={(value) => updateFormData('instagram', value)}
-        placeholder="@username"
-        autoCapitalize="none"
-        icon="instagram"
-      />
+      <View onLayout={handleFieldLayout('instagram')}>
+        <GlassInput
+          label="Instagram"
+          value={formData.instagram}
+          onChangeText={(value) => updateFormData('instagram', value)}
+          placeholder="@username"
+          autoCapitalize="none"
+          icon="instagram"
+          onFocus={handleFieldFocus('instagram')}
+        />
+      </View>
 
-      <GlassInput
-        label="Twitter / X"
-        value={formData.twitter}
-        onChangeText={(value) => updateFormData('twitter', value)}
-        placeholder="@username"
-        autoCapitalize="none"
-        icon="twitter"
-      />
+      <View onLayout={handleFieldLayout('twitter')}>
+        <GlassInput
+          label="Twitter / X"
+          value={formData.twitter}
+          onChangeText={(value) => updateFormData('twitter', value)}
+          placeholder="@username"
+          autoCapitalize="none"
+          icon="twitter"
+          onFocus={handleFieldFocus('twitter')}
+        />
+      </View>
 
-      <GlassInput
-        label="Facebook"
-        value={formData.facebook}
-        onChangeText={(value) => updateFormData('facebook', value)}
-        placeholder="Page URL or username"
-        autoCapitalize="none"
-        icon="facebook"
-      />
+      <View onLayout={handleFieldLayout('facebook')}>
+        <GlassInput
+          label="Facebook"
+          value={formData.facebook}
+          onChangeText={(value) => updateFormData('facebook', value)}
+          placeholder="Page URL or username"
+          autoCapitalize="none"
+          icon="facebook"
+          onFocus={handleFieldFocus('facebook')}
+        />
+      </View>
 
-      <GlassInput
-        label="TikTok"
-        value={formData.tiktok}
-        onChangeText={(value) => updateFormData('tiktok', value)}
-        placeholder="@username"
-        autoCapitalize="none"
-        icon="music-note"
-      />
+      <View onLayout={handleFieldLayout('tiktok')}>
+        <GlassInput
+          label="TikTok"
+          value={formData.tiktok}
+          onChangeText={(value) => updateFormData('tiktok', value)}
+          placeholder="@username"
+          autoCapitalize="none"
+          icon="music-note"
+          onFocus={handleFieldFocus('tiktok')}
+        />
+      </View>
 
-      <GlassInput
-        label="Discord"
-        value={formData.discord}
-        onChangeText={(value) => updateFormData('discord', value)}
-        placeholder="Invite link"
-        autoCapitalize="none"
-        icon="forum"
-      />
+      <View onLayout={handleFieldLayout('discord')}>
+        <GlassInput
+          label="Discord"
+          value={formData.discord}
+          onChangeText={(value) => updateFormData('discord', value)}
+          placeholder="Invite link"
+          autoCapitalize="none"
+          icon="forum"
+          onFocus={handleFieldFocus('discord')}
+        />
+      </View>
 
       <GlassSwitch
         label="Public Club"
