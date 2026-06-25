@@ -59,6 +59,12 @@
       "expo-font",
       "expo-secure-store",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "RallySphere uses your photo library so you can choose images from your device — for example, to set your profile picture, add a logo when creating a club, or attach a photo to an event you're posting."
+        }
+      ],
+      [
         "expo-location",
         {
           "locationWhenInUsePermission": "RallySphere needs your location to show nearby events."
