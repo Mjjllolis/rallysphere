@@ -66,6 +66,9 @@
   <div id="app">
     <div id="loading" class="loading">Loading payment form…</div>
 
+    <div id="diag-tools" style="display:none; margin-bottom:6px;">
+      <button id="diag-copy" type="button" style="font:12px/1.2 -apple-system,system-ui,sans-serif; padding:6px 12px; border-radius:6px; border:1px solid #0f0; background:#000; color:#0f0; cursor:pointer;">Copy debug</button>
+    </div>
     <pre id="diag-panel" style="display:none; max-height:200px; overflow:auto; margin-bottom:12px; padding:8px; background:#000; color:#0f0; font:10px/1.4 monospace; border-radius:6px; white-space:pre-wrap; word-break:break-word;"></pre>
 
     <div class="wallet-row" id="wallets" style="display: none;">
@@ -94,7 +97,7 @@
         I understand I may only revoke this authorization by contacting RallySphere
         at <span id="support-email">support@rallysphere.com</span> at least 3 business days before the scheduled debit.
       </div>
-      <button class="submit" id="btn-submit-ach" disabled>Continue</button>
+      <button class="submit" id="btn-submit-ach">Continue</button>
     </div>
 
     <div id="error" class="error"></div>
@@ -154,6 +157,9 @@
       const wallets = params.get('wallets') === 'true';
       // walletsOnly renders just the Apple Pay button (compact embed on a summary screen).
       const walletsOnly = params.get('walletsOnly') === 'true';
+      // bankOnly renders just the bank-account form, for collecting a club's PAYOUT
+      // bank during merchant onboarding (no card, no wallets, no debit auth).
+      const bankOnly = params.get('bankOnly') === 'true';
       // debug shows the on-page diagnostics panel (off unless the user enables it in Settings).
       const debug = params.get('debug') === 'true';
       const external = params.get('external') === 'true';
@@ -166,6 +172,51 @@
       if (debug && !walletsOnly) {
         var dp = document.getElementById('diag-panel');
         if (dp) dp.style.display = 'block';
+        var dtools = document.getElementById('diag-tools');
+        if (dtools) dtools.style.display = 'block';
+        var copyBtn = document.getElementById('diag-copy');
+        if (copyBtn) {
+          copyBtn.addEventListener('click', function () {
+            var txt = (document.getElementById('diag-panel') || {}).textContent || '';
+            var flash = function (ok) {
+              copyBtn.textContent = ok ? 'Copied!' : 'Copy failed';
+              setTimeout(function () { copyBtn.textContent = 'Copy debug'; }, 1500);
+            };
+            var fallback = function () {
+              try {
+                var ta = document.createElement('textarea');
+                ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta); ta.focus(); ta.select();
+                var ok = document.execCommand('copy');
+                document.body.removeChild(ta); flash(ok);
+              } catch (_) { flash(false); }
+            };
+            try {
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(txt).then(function () { flash(true); }, fallback);
+              } else { fallback(); }
+            } catch (_) { fallback(); }
+            // Also hand it to the native host so it can copy from RN if needed.
+            try { if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'diag-copy', text: txt })); } catch (_) { /* noop */ }
+          });
+        }
+      }
+      // In bank-only mode (payout onboarding), show only the bank form and swap
+      // the debit-authorization copy for a payout-bank authorization.
+      if (bankOnly) {
+        ['tabs', 'wallet-divider', 'pane-card', 'wallets'].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.style.display = 'none';
+        });
+        var apane = document.getElementById('pane-ach');
+        if (apane) apane.classList.add('active');
+        var authText = document.getElementById('ach-auth-text');
+        if (authText) {
+          authText.innerHTML = '<strong>Payout bank authorization</strong>' +
+            'By adding this account, I authorize RallySphere and its payment processor Finix ' +
+            'to deposit payout funds to this bank account and to verify it. I confirm I am ' +
+            'authorized to use this business bank account.';
+        }
       }
       // In wallets-only mode, hide everything except the Apple Pay button.
       if (walletsOnly) {
@@ -180,7 +231,11 @@
       }
       diag('params-parsed', { env: env, hasAppId: !!appId, ach: ach, wallets: wallets, walletsOnly: walletsOnly, external: external, theme: theme });
 
-      document.getElementById('support-email').textContent = supportEmail;
+      // #support-email lives inside #ach-auth-text, which bankOnly mode rewrites
+      // above — so it may no longer exist. Guard it, or the whole init throws and
+      // the form freezes on "Loading…".
+      var supportEmailEl = document.getElementById('support-email');
+      if (supportEmailEl) supportEmailEl.textContent = supportEmail;
       // Name the exact debit amount in the ACH authorization for NACHA specificity.
       if (amount) {
         var achAmountEl = document.getElementById('ach-amount');
@@ -281,6 +336,7 @@
       let cardForm = null;
       let cardFormLoaded = false;
       if (!walletsOnly) {
+      if (!bankOnly) {
       try {
         diag('card-form-creating');
         cardForm = window.Finix.CardTokenForm('card-form', {
@@ -331,21 +387,67 @@
           postToNative({ type: 'ready', ready: false, error: 'Card form did not signal ready within 5s' });
         }
       }, 5000);
+      } // end if (!bankOnly) — card form skipped during payout-bank onboarding
 
-      // --- ACH form ---
-      let achForm = null;
-      if (ach) {
-        document.getElementById('tab-ach').style.display = 'block';
-        try {
-          achForm = window.Finix.BankTokenForm('ach-form', {
-            ...commonOptions,
-            onUpdate: (state, metadata, formHasErrors) => {
-              document.getElementById('btn-submit-ach').disabled = !!formHasErrors;
-            },
-          });
-        } catch (err) {
-          // Non-fatal — still allow card
-          console.warn('ACH form init failed:', err);
+      // --- ACH / bank form (checkout ACH tab OR payout-bank onboarding) ---
+      // NOTE: var (function-scoped), NOT let — the submit click handler lives
+      // outside this `if (!walletsOnly)` block and must be able to see achForm.
+      // With `let` it was block-scoped and the handler threw ReferenceError,
+      // which is why the Continue button silently did nothing.
+      var achForm = null;
+      var achFormHasErrors = true;  // assume invalid until the form reports otherwise
+      var achFormTouched = false;   // has the user interacted / has onUpdate fired?
+      if (ach || bankOnly) {
+        const tabAch = document.getElementById('tab-ach');
+        if (tabAch) tabAch.style.display = 'block';
+        // Always clear the bankOnly loading overlay no matter what happens below,
+        // so the screen can never freeze on "Loading…".
+        var clearBankLoading = function () {
+          var l = document.getElementById('loading');
+          if (l) l.style.display = 'none';
+        };
+        // Finix exposes bank tokenization as BankTokenForm; fall back to the
+        // generic TokenForm with bank fields if this SDK build names it differently.
+        var bankFormFactory =
+          (typeof window.Finix.BankTokenForm === 'function' && window.Finix.BankTokenForm) ||
+          (typeof window.Finix.BankForm === 'function' && window.Finix.BankForm) ||
+          null;
+        diag('bank-form-factory', {
+          hasBankTokenForm: typeof window.Finix.BankTokenForm,
+          hasBankForm: typeof window.Finix.BankForm,
+          finixKeys: (function () { try { return Object.keys(window.Finix).join(','); } catch (_) { return 'err'; } })(),
+        });
+        if (!bankFormFactory) {
+          if (bankOnly) {
+            clearBankLoading();
+            showError('Bank form unavailable in this Finix SDK build.');
+            postToNative({ type: 'ready', ready: false, error: 'BankTokenForm unavailable' });
+          }
+        } else {
+          try {
+            achForm = bankFormFactory('ach-form', {
+              ...commonOptions,
+              onLoad: () => { if (bankOnly) { clearBankLoading(); postToNative({ type: 'ready', ready: true }); } },
+              onUpdate: (state, metadata, formHasErrors) => {
+                // Track validity but DON'T disable the button — a dead button gives
+                // the user no feedback. We validate on click and show a message.
+                achFormHasErrors = !!formHasErrors;
+                achFormTouched = true;
+                diag('ach-form-update', { formHasErrors: !!formHasErrors });
+              },
+            });
+            diag('bank-form-created', { bankOnly: bankOnly });
+            // Reveal the form even if onLoad never fires.
+            if (bankOnly) setTimeout(function () { clearBankLoading(); postToNative({ type: 'ready', ready: true }); }, 3000);
+          } catch (err) {
+            diag('bank-form-throw', { msg: String(err && err.message || err) });
+            console.warn('Bank form init failed:', err);
+            if (bankOnly) {
+              clearBankLoading();
+              showError('Could not load bank form: ' + (err && (err.message || err)));
+              postToNative({ type: 'ready', ready: false, error: err && (err.message || String(err)) });
+            }
+          }
         }
       }
       } // end if (!walletsOnly)
@@ -629,16 +731,25 @@
       const btnAch = document.getElementById('btn-submit-ach');
       if (btnAch) {
         btnAch.addEventListener('click', function () {
+          diag('ach-submit-click', { hasForm: !!achForm, touched: achFormTouched, hasErrors: achFormHasErrors });
           if (!achForm) return;
           clearError();
+          // Give the user real feedback instead of a silent no-op when the form
+          // is incomplete or invalid.
+          if (achFormTouched && achFormHasErrors) {
+            showError('Please enter a valid account number, routing number, and account type.');
+            return;
+          }
           this.disabled = true;
           achForm.submit(env, appId, function (err, res) {
             if (err) {
+              diag('ach-submit-error', { msg: String(err && (err.message || err)) });
               showError(err.message || 'Bank account tokenization failed');
               btnAch.disabled = false;
               postToNative({ type: 'error', message: err.message || 'ACH tokenization failed' });
               return;
             }
+            diag('ach-submit-token', { hasId: !!(res && res.data && res.data.id) });
             postToNative({
               type: 'token',
               tokenId: res?.data?.id,

@@ -141,9 +141,15 @@ export interface Club {
   // Location
   location?: string;
   locationCoords?: { latitude: number; longitude: number };
-  // Finix payouts (hosted onboarding)
+  // Finix payouts (direct-API onboarding)
   finixIdentityId?: string;
   finixMerchantId?: string;
+  finixOwnerIdentityIds?: string[];       // beneficial-owner associated identities
+  finixPayoutPiId?: string;               // payout bank payment_instrument
+  finixPayoutBankLast4?: string | null;
+  finixOnboardingState?: string;          // raw Finix onboarding_state (PROVISIONING/APPROVED/UPDATE_REQUESTED/REJECTED)
+  finixOnboardingDraft?: any;             // non-sensitive saved form for resume (no SSN/EIN/bank#)
+  // Legacy hosted-onboarding fields (kept for back-compat / cleanup)
   finixOnboardingFormId?: string;
   finixOnboardingUrl?: string;
   finixOnboardingComplete?: boolean;
@@ -931,6 +937,15 @@ export const getClub = async (clubId: string) => {
         finixOnboardingStartedAt: data.finixOnboardingStartedAt,
         finixMerchantAccountActive: data.finixMerchantAccountActive,
         finixEnrollmentId: data.finixEnrollmentId,
+        // Direct-API onboarding fields (bank payout + saved review draft). These
+        // were previously unmapped, so the wizard never saw the payout bank or the
+        // business/owner draft on reload — leaving Review's Type/Owner blank and the
+        // bank stage unable to show done from server state.
+        finixPayoutPiId: data.finixPayoutPiId,
+        finixPayoutBankLast4: data.finixPayoutBankLast4,
+        finixOnboardingState: data.finixOnboardingState,
+        finixOnboardingDraft: data.finixOnboardingDraft,
+        finixTosAcceptedAt: data.finixTosAcceptedAt,
         subscriptionStatus: data.subscriptionStatus,
         // Pro subscription
         isPro: data.isPro

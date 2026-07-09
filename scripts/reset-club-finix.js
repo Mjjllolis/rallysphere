@@ -19,13 +19,20 @@ const db = admin.firestore();
 const FIELDS = [
   'finixMerchantId',
   'finixIdentityId',
+  'finixMerchantAccountActive',
   'finixOnboardingComplete',
   'finixOnboardingDeclined',
   'finixOnboardingStatus',
+  'finixOnboardingState',
   'finixOnboardingFormId',
   'finixOnboardingUrl',
   'finixOnboardingLinkExpiresAt',
   'finixOnboardingStartedAt',
+  // Direct-API onboarding fields
+  'finixOwnerIdentityIds',
+  'finixPayoutPiId',
+  'finixPayoutBankLast4',
+  'finixOnboardingDraft',
 ];
 
 async function main() {

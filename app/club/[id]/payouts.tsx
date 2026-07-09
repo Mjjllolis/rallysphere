@@ -29,7 +29,11 @@ export default function ClubPayoutsScreen() {
 
   const loadClubData = async () => {
     try {
-      setLoading(true);
+      // NOTE: don't flip `loading` here. This runs both on first load AND as the
+      // wizard's onStatusChange refresh after each stage. Setting loading=true on
+      // the refresh unmounts the whole card + wizard (via the `loading` guard
+      // below), wiping the wizard's in-progress state and reverting a just-saved
+      // stage back to "to-do". The initial `loading` state (true) covers first load.
       const clubResult = await getClub(clubId);
       if (clubResult.success && clubResult.club) {
         setClub(clubResult.club);

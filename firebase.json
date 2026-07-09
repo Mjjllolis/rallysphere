@@ -12,6 +12,14 @@
         "destination": "/index.html"
       }
     ],
+    "headers": [
+      {
+        "source": "/checkout/tokenize.html",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+        ]
+      }
+    ],
     "predeploy": [
       "mkdir -p dist/checkout && cp public/checkout/tokenize.html dist/checkout/tokenize.html",
       "if [ -f public/fees.html ]; then cp public/fees.html dist/fees.html; fi",

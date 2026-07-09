@@ -6,6 +6,10 @@ import { v4 as uuidv4 } from "uuid";
 import * as crypto from "crypto";
 
 admin.initializeApp();
+// Skip undefined fields on writes instead of throwing. Optional form fields
+// (e.g. a business with no DBA) arrive as undefined; without this, update()
+// rejects the whole write.
+admin.firestore().settings({ ignoreUndefinedProperties: true });
 
 const isTestMode = process.env.TEST_MODE !== "false";
 
@@ -405,9 +409,15 @@ interface PaymentInstrumentDetails {
 
 async function fetchPaymentInstrumentDetails(piId: string, env: FinixEnv = DEFAULT_ENV): Promise<PaymentInstrumentDetails> {
   const pi = await finixGet(`/payment_instruments/${piId}`, env);
+  // Finix returns `last_four` for CARDS but not for BANK_ACCOUNTs — those carry
+  // a `masked_account_number` like "XXXXXX3123". Fall back to its trailing 4
+  // digits so payout bank accounts get a last4 too.
+  const maskedLast4 = pi.masked_account_number
+    ? String(pi.masked_account_number).replace(/\D/g, "").slice(-4) || null
+    : null;
   return {
     brand: pi.brand ? String(pi.brand).toLowerCase() : null,
-    last4: pi.last_four ?? null,
+    last4: pi.last_four ?? maskedLast4,
     expMonth: pi.expiration_month ?? null,
     expYear: pi.expiration_year ?? null,
     type: pi.instrument_type ?? null,
@@ -1451,6 +1461,391 @@ export const getSubMerchantStatus = functions.https.onCall(
 );
 
 // ============================================================================
+// CUSTOM (DIRECT-API) MERCHANT ONBOARDING
+// Replaces Finix hosted onboarding_forms. The app collects KYC in-app and we
+// drive Finix's API directly:
+//   1. createClubIdentity     POST /identities            (business + control person + owners)
+//   2. addClubBankAccount     POST /payment_instruments   (payout bank, tokenized)
+//   3. provisionClubMerchant  POST /identities/{id}/merchants  (start underwriting)
+// Result (APPROVED / PROVISIONING / UPDATE_REQUESTED / REJECTED) arrives via the
+// finixWebhook below. The merchant id + active flags are written there and by
+// getSubMerchantStatus polling.
+//
+// SECURITY: SSN/EIN/bank numbers are forwarded straight to Finix and are NEVER
+// persisted to Firestore. We only store non-sensitive draft fields (business
+// name/address) for resume, plus last4 of the payout bank for display.
+//
+// NOTE: Finix tunes the exact required-vs-optional field set per application /
+// processor / risk profile. The mapping below covers the documented fields; if
+// Finix returns a `[field] is required` error, surface it to the form and add
+// the field here. Validate end-to-end against sandbox (DUMMY_V1) first.
+// ============================================================================
+
+// Finix dates are objects: { day, month, year }. Accepts "YYYY-MM-DD" or an
+// already-split object; returns undefined when nothing usable was provided.
+const toFinixDate = (v: any): { day: number; month: number; year: number } | undefined => {
+  if (!v) return undefined;
+  if (typeof v === "object" && v.year) {
+    return { day: Number(v.day), month: Number(v.month), year: Number(v.year) };
+  }
+  const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return undefined;
+  return { year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) };
+};
+
+// Map our client address shape to Finix's snake_case address.
+const toFinixAddress = (a: any) => {
+  if (!a) return undefined;
+  const out: any = {
+    line1: a.line1,
+    line2: a.line2 || undefined,
+    city: a.city,
+    region: a.region, // 2-letter state
+    postal_code: a.postalCode,
+    country: a.country || "USA",
+  };
+  Object.keys(out).forEach((k) => out[k] === undefined && delete out[k]);
+  return out;
+};
+
+// Build a Finix person-entity (used for the control person on the primary
+// identity and for each beneficial-owner associated identity).
+const toFinixPersonFields = (p: any) => {
+  const out: any = {
+    first_name: p.firstName,
+    last_name: p.lastName,
+    title: p.title,
+    principal_percentage_ownership:
+      p.principalPercentageOwnership != null ? Number(p.principalPercentageOwnership) : undefined,
+    tax_id: p.taxId, // SSN — forwarded, never stored
+    dob: toFinixDate(p.dob),
+    phone: p.phone,
+    email: p.email,
+    personal_address: toFinixAddress(p.address),
+  };
+  Object.keys(out).forEach((k) => out[k] === undefined && delete out[k]);
+  return out;
+};
+
+// Compose the full Identity `entity` (business KYC + control person) for the
+// club's merchant identity.
+const toFinixIdentityEntity = (business: any, controlPerson: any) => {
+  const out: any = {
+    // Business
+    business_name: business.businessName,
+    doing_business_as: business.doingBusinessAs || business.businessName,
+    business_type: business.businessType, // enum, e.g. LLC / INDIVIDUAL_SOLE_PROPRIETORSHIP / CORPORATION
+    business_tax_id: business.taxId, // EIN — forwarded, never stored
+    business_phone: business.phone,
+    business_address: toFinixAddress(business.address),
+    incorporation_date: toFinixDate(business.incorporationDate),
+    ownership_type: business.ownershipType, // PRIVATE / PUBLIC
+    mcc: business.mcc,
+    default_statement_descriptor: business.defaultStatementDescriptor || business.businessName,
+    max_transaction_amount:
+      business.maxTransactionAmount != null ? Number(business.maxTransactionAmount) : undefined,
+    annual_card_volume:
+      business.annualCardVolume != null ? Number(business.annualCardVolume) : undefined,
+    url: business.url,
+    email: business.email,
+    phone: business.phone,
+    // Control person
+    ...toFinixPersonFields(controlPerson || {}),
+  };
+  Object.keys(out).forEach((k) => out[k] === undefined && delete out[k]);
+  return out;
+};
+
+// Map our underwriting payload + consent metadata to Finix's
+// additional_underwriting_data block.
+const toFinixUnderwriting = (u: any, consent: any) => {
+  if (!u && !consent) return undefined;
+  u = u || {};
+  const nowIso = new Date().toISOString();
+  const out: any = {
+    annual_ach_volume: u.annualAchVolume != null ? Number(u.annualAchVolume) : undefined,
+    average_ach_transfer_amount:
+      u.averageAchTransferAmount != null ? Number(u.averageAchTransferAmount) : undefined,
+    average_card_transfer_amount:
+      u.averageCardTransferAmount != null ? Number(u.averageCardTransferAmount) : undefined,
+    business_description: u.businessDescription,
+    refund_policy: u.refundPolicy, // e.g. NO_REFUNDS / MERCHANDISE_EXCHANGE_ONLY / WITHIN_THIRTY_DAYS
+    card_volume_distribution: u.cardVolumeDistribution
+      ? {
+          ecommerce_percentage: Number(u.cardVolumeDistribution.ecommercePercentage ?? 0),
+          card_present_percentage: Number(u.cardVolumeDistribution.cardPresentPercentage ?? 0),
+          mail_order_telephone_order_percentage: Number(
+            u.cardVolumeDistribution.mailOrderTelephoneOrderPercentage ?? 0
+          ),
+        }
+      : undefined,
+    volume_distribution_by_business_type: u.volumeDistributionByBusinessType,
+    // Consent records — Finix wants these with IP / timestamp / user-agent.
+    merchant_agreement_accepted: consent?.merchantAgreementAccepted ?? true,
+    merchant_agreement_ip_address: consent?.ip,
+    merchant_agreement_timestamp: consent?.timestamp || nowIso,
+    merchant_agreement_user_agent: consent?.userAgent,
+  };
+  Object.keys(out).forEach((k) => out[k] === undefined && delete out[k]);
+  return out;
+};
+
+// Persist only the NON-sensitive parts of the form so the wizard can resume
+// without re-entering everything. Never includes tax_id / SSN / bank numbers.
+const buildClubOnboardingDraft = (business: any, controlPerson: any, underwriting: any) => {
+  const scrub = (p: any) =>
+    p
+      ? {
+          firstName: p.firstName,
+          lastName: p.lastName,
+          title: p.title,
+          principalPercentageOwnership: p.principalPercentageOwnership,
+          phone: p.phone,
+          email: p.email,
+          address: p.address,
+          // dob/taxId intentionally omitted
+        }
+      : undefined;
+  return {
+    business: business
+      ? {
+          businessName: business.businessName,
+          doingBusinessAs: business.doingBusinessAs,
+          businessType: business.businessType,
+          phone: business.phone,
+          email: business.email,
+          url: business.url,
+          mcc: business.mcc,
+          ownershipType: business.ownershipType,
+          defaultStatementDescriptor: business.defaultStatementDescriptor,
+          maxTransactionAmount: business.maxTransactionAmount,
+          annualCardVolume: business.annualCardVolume,
+          incorporationDate: business.incorporationDate,
+          address: business.address,
+          // taxId (EIN) intentionally omitted
+        }
+      : undefined,
+    controlPerson: scrub(controlPerson),
+    underwriting,
+  };
+};
+
+// ---------------------------------------------------------------------------
+// 1) Create / update the club's Finix merchant identity (+ beneficial owners)
+// ---------------------------------------------------------------------------
+export const createClubIdentity = functions.https.onCall(
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
+  async (request: any) => {
+    const auth = request.auth;
+    if (!auth) throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+
+    const { clubId, business, controlPerson, owners, underwriting, consent } = request.data || {};
+    if (!clubId || !business?.businessName || !controlPerson?.firstName) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Missing required fields: clubId, business.businessName, controlPerson.firstName"
+      );
+    }
+
+    const db = admin.firestore();
+    const clubRef = db.collection("clubs").doc(clubId);
+    const clubSnap = await clubRef.get();
+    if (!clubSnap.exists) throw new functions.https.HttpsError("not-found", "Club not found");
+    const club = clubSnap.data() || {};
+
+    // Authorization: only a club admin/owner may onboard payouts.
+    const isAdmin =
+      (club.clubAdmins || club.admins || []).includes(auth.uid) ||
+      club.clubOwner === auth.uid ||
+      club.owner === auth.uid;
+    if (!isAdmin) throw new functions.https.HttpsError("permission-denied", "Only club admins can set up payouts");
+
+    try {
+      const entity = toFinixIdentityEntity(business, controlPerson);
+      const additional = toFinixUnderwriting(underwriting, consent);
+      const body: any = { entity, tags: { club_id: clubId } };
+      if (additional) body.additional_underwriting_data = additional;
+
+      // Reuse the existing identity (PATCH) on resume / correction; otherwise create.
+      let identityId: string = club.finixIdentityId;
+      if (identityId) {
+        await finixPatch(`/identities/${identityId}`, body);
+      } else {
+        const identity = await finixPost("/identities", body);
+        identityId = identity.id;
+        // Persist the id RIGHT AWAY. If anything below fails (owners, draft
+        // write), a retry then PATCHes this same identity instead of minting a
+        // new orphan in Finix.
+        await clubRef.update({
+          finixIdentityId: identityId,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      // Beneficial owners (>25%) become associated identities under the merchant
+      // identity. We replace-on-resume only when none recorded yet to avoid dupes.
+      const ownerIds: string[] = Array.isArray(club.finixOwnerIdentityIds)
+        ? [...club.finixOwnerIdentityIds]
+        : [];
+      if (Array.isArray(owners) && owners.length && ownerIds.length === 0) {
+        for (const o of owners) {
+          if (!o?.firstName) continue;
+          const assoc = await finixPost(`/identities/${identityId}/associated_identities`, {
+            entity: toFinixPersonFields(o),
+            tags: { club_id: clubId },
+          });
+          if (assoc?.id) ownerIds.push(assoc.id);
+        }
+      }
+
+      const now = admin.firestore.FieldValue.serverTimestamp();
+      await clubRef.update({
+        finixIdentityId: identityId,
+        finixOwnerIdentityIds: ownerIds,
+        finixOnboardingStatus: "PENDING",
+        finixOnboardingStartedAt: club.finixOnboardingStartedAt || now,
+        finixOnboardingDraft: buildClubOnboardingDraft(business, controlPerson, underwriting),
+        finixTosAcceptedAt: club.finixTosAcceptedAt || now,
+        finixFeesAcceptedAt: club.finixFeesAcceptedAt || now,
+        finixAcceptedByUid: club.finixAcceptedByUid || auth.uid,
+        updatedAt: now,
+      });
+
+      return { identityId, ownerIdentityIds: ownerIds };
+    } catch (error: any) {
+      console.error("createClubIdentity error:", error);
+      throw new functions.https.HttpsError("internal", error.message || "Failed to create identity");
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// 2) Attach the payout bank account (tokenized via the Finix BankTokenForm).
+//    A bank account MUST exist on the identity before a merchant can be
+//    provisioned/verified.
+// ---------------------------------------------------------------------------
+export const addClubBankAccount = functions.https.onCall(
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
+  async (request: any) => {
+    const auth = request.auth;
+    if (!auth) throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+
+    const { clubId, tokenId, ssnLast4 } = request.data || {};
+    if (!clubId || !tokenId) {
+      throw new functions.https.HttpsError("invalid-argument", "Missing required fields: clubId, tokenId");
+    }
+    // Last 4 of the account owner's SSN — collected on the bank step to verify
+    // the account. Required; kept in-memory only, never written to Firestore.
+    const ssnLast4Clean = typeof ssnLast4 === "string" ? ssnLast4.replace(/\D/g, "") : "";
+    if (ssnLast4Clean.length !== 4) {
+      throw new functions.https.HttpsError("invalid-argument", "ssnLast4 must be 4 digits");
+    }
+
+    const db = admin.firestore();
+    const clubRef = db.collection("clubs").doc(clubId);
+    const clubSnap = await clubRef.get();
+    if (!clubSnap.exists) throw new functions.https.HttpsError("not-found", "Club not found");
+    const club = clubSnap.data() || {};
+
+    const isAdmin =
+      (club.clubAdmins || club.admins || []).includes(auth.uid) ||
+      club.clubOwner === auth.uid ||
+      club.owner === auth.uid;
+    if (!isAdmin) throw new functions.https.HttpsError("permission-denied", "Only club admins can set up payouts");
+    if (!club.finixIdentityId) {
+      throw new functions.https.HttpsError("failed-precondition", "Create the club identity before adding a bank account");
+    }
+
+    try {
+      // Tokenized bank → payment_instrument on the club's identity.
+      const piId = await createPaymentInstrumentFromToken(tokenId, club.finixIdentityId);
+      const details = await fetchPaymentInstrumentDetails(piId).catch(() => ({ last4: null } as any));
+
+      await clubRef.update({
+        finixPayoutPiId: piId,
+        finixPayoutBankLast4: details.last4 || null,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return { paymentInstrumentId: piId, last4: details.last4 || null };
+    } catch (error: any) {
+      console.error("addClubBankAccount error:", error?.message || error);
+      throw new functions.https.HttpsError("internal", error.message || "Failed to add bank account");
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// 3) Provision the merchant — submits the identity to underwriting. Returns the
+//    onboarding_state; the terminal result comes back via the webhook.
+// ---------------------------------------------------------------------------
+export const provisionClubMerchant = functions.https.onCall(
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
+  async (request: any) => {
+    const auth = request.auth;
+    if (!auth) throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+
+    const { clubId } = request.data || {};
+    if (!clubId) throw new functions.https.HttpsError("invalid-argument", "Missing required field: clubId");
+
+    const db = admin.firestore();
+    const clubRef = db.collection("clubs").doc(clubId);
+    const clubSnap = await clubRef.get();
+    if (!clubSnap.exists) throw new functions.https.HttpsError("not-found", "Club not found");
+    const club = clubSnap.data() || {};
+
+    const isAdmin =
+      (club.clubAdmins || club.admins || []).includes(auth.uid) ||
+      club.clubOwner === auth.uid ||
+      club.owner === auth.uid;
+    if (!isAdmin) throw new functions.https.HttpsError("permission-denied", "Only club admins can set up payouts");
+    if (!club.finixIdentityId) {
+      throw new functions.https.HttpsError("failed-precondition", "Create the club identity first");
+    }
+    if (!club.finixPayoutPiId) {
+      throw new functions.https.HttpsError("failed-precondition", "Add a payout bank account first");
+    }
+
+    // Already provisioned — don't create a duplicate merchant (the bug we're fixing).
+    if (club.finixMerchantId) {
+      return { merchantId: club.finixMerchantId, onboardingState: club.finixOnboardingState || "PROVISIONING" };
+    }
+
+    try {
+      const processor = isTestMode ? "DUMMY_V1" : "FINIX_V1";
+      const merchant = await finixPost(`/identities/${club.finixIdentityId}/merchants`, {
+        processor,
+        tags: { club_id: clubId },
+      });
+
+      const onboardingState: string = merchant.onboarding_state || "PROVISIONING";
+      const approved = onboardingState === "APPROVED";
+      const active = merchant.processing_enabled === true && merchant.settlement_enabled === true;
+
+      await clubRef.update({
+        finixMerchantId: merchant.id,
+        finixOnboardingState: onboardingState,
+        finixOnboardingStatus: approved ? "APPROVED" : onboardingState === "REJECTED" ? "DECLINED" : "PENDING",
+        finixOnboardingComplete: approved,
+        finixMerchantAccountActive: active,
+        finixOnboardingDeclined: onboardingState === "REJECTED",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return {
+        merchantId: merchant.id,
+        onboardingState,
+        processingEnabled: merchant.processing_enabled === true,
+        settlementEnabled: merchant.settlement_enabled === true,
+      };
+    } catch (error: any) {
+      console.error("provisionClubMerchant error:", error);
+      throw new functions.https.HttpsError("internal", error.message || "Failed to provision merchant");
+    }
+  }
+);
+
+// ============================================================================
 // FINIX WEBHOOK
 // Events we subscribe to in Finix dashboard:
 //   - merchant.underwriting.approved / .declined
@@ -1556,27 +1951,51 @@ export const finixWebhook = functions.https.onRequest({ secrets: FINIX_SECRETS }
     // Route by event type. Finix entity names are plural ("merchants", "transfers", etc.)
     // but we also tolerate the older singular/dotted forms.
     switch (true) {
-      case /^merchants?\./.test(eventType) && /underwritten|underwriting/.test(eventType):
+      // Any merchant lifecycle event: created / provisioned / updated / enabled /
+      // underwritten. Hosted-form onboarding fired underwriting-only events, but
+      // direct-API onboarding (and provisioning completion) come through as
+      // merchant.created/updated, so we handle the whole merchant entity here.
+      case /^merchants?\./.test(eventType):
       case /^underwriting\.merchant/.test(eventType):
       case /^merchant\.underwriting/.test(eventType): {
         const merchant = event._embedded?.merchants?.[0] || event.entity || event.data;
         if (merchant?.id) {
-          const approved = merchant.processing_enabled === true || /approved/i.test(rawAction);
-          const declined = /declined|rejected/i.test(rawAction) || merchant.onboarding_state === "REJECTED";
-          const clubs = await db
+          const onboardingState: string = merchant.onboarding_state || "";
+          // "Active" = the merchant can actually process AND settle. This is the
+          // only signal that should flip the club to fully active.
+          const active = merchant.processing_enabled === true && merchant.settlement_enabled === true;
+          const approved = active || onboardingState === "APPROVED" || /approved/i.test(rawAction);
+          const declined =
+            onboardingState === "REJECTED" || /declined|rejected/i.test(rawAction);
+          const status = approved ? "APPROVED" : declined ? "DECLINED" : "PENDING";
+
+          // Match the club back: prefer the identity link, fall back to the
+          // tags.club_id we stamp on every identity/merchant (covers cases where
+          // the provisioned merchant's identity differs from the shell identity).
+          const clubIdTag = merchant.tags?.club_id;
+          let clubDocs = await db
             .collection("clubs")
             .where("finixIdentityId", "==", merchant.identity)
             .limit(1)
             .get();
-          clubs.forEach((doc) => {
-            doc.ref.update({
+          if (clubDocs.empty && clubIdTag) {
+            const byTag = await db.collection("clubs").doc(clubIdTag).get();
+            clubDocs = { empty: !byTag.exists, docs: byTag.exists ? [byTag] : [] } as any;
+          }
+          if (clubDocs.empty) {
+            console.warn(`Finix merchant ${merchant.id} (identity=${merchant.identity}) matched no club`);
+          }
+          for (const doc of clubDocs.docs) {
+            await doc.ref.update({
               finixMerchantId: merchant.id,
+              finixOnboardingState: onboardingState || (doc.data()?.finixOnboardingState ?? null),
               finixOnboardingComplete: approved,
+              finixMerchantAccountActive: active,
               finixOnboardingDeclined: declined,
-              finixOnboardingStatus: approved ? "APPROVED" : declined ? "DECLINED" : "PENDING",
+              finixOnboardingStatus: status,
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
-          });
+          }
         }
         break;
       }

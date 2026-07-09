@@ -75,6 +75,8 @@ export function buildFinixTokenizeUrl(opts: {
   ach?: boolean;
   wallets?: boolean;
   walletsOnly?: boolean;
+  /** Render ONLY the bank-account form — for collecting a club's payout bank during onboarding. */
+  bankOnly?: boolean;
   external?: boolean;
   debug?: boolean;
   supportEmail?: string;
@@ -91,6 +93,7 @@ export function buildFinixTokenizeUrl(opts: {
   if (opts.ach) p.set('ach', 'true');
   if (opts.wallets) p.set('wallets', 'true');
   if (opts.walletsOnly) p.set('walletsOnly', 'true');
+  if (opts.bankOnly) p.set('bankOnly', 'true');
   if (opts.external) p.set('external', 'true');
   if (opts.debug) p.set('debug', 'true');
   if (opts.supportEmail) p.set('supportEmail', opts.supportEmail);
@@ -431,6 +434,119 @@ export const getSubMerchantStatus = async (
     return { success: true, ...data };
   } catch (error: any) {
     return { success: false, error: error.message };
+  }
+};
+
+// ============================================================================
+// CUSTOM (DIRECT-API) ONBOARDING — in-app wizard
+// Replaces hosted onboarding. The wizard collects KYC and calls these in order:
+//   createClubIdentity → addClubBankAccount → provisionClubMerchant
+// Sensitive fields (SSN/EIN/bank#) are sent straight through to the callable;
+// they are forwarded to Finix server-side and never persisted.
+// ============================================================================
+
+export interface FinixAddressInput {
+  line1: string;
+  line2?: string;
+  city: string;
+  region: string;      // 2-letter state, e.g. "TX"
+  postalCode: string;
+  country?: string;    // default "USA"
+}
+
+export interface FinixBusinessInput {
+  businessName: string;
+  doingBusinessAs?: string;
+  businessType: string;          // LLC / INDIVIDUAL_SOLE_PROPRIETORSHIP / CORPORATION / ...
+  taxId: string;                 // EIN
+  phone: string;
+  email: string;
+  url?: string;
+  mcc?: string;
+  ownershipType?: string;        // PRIVATE / PUBLIC
+  defaultStatementDescriptor?: string;
+  maxTransactionAmount?: number; // cents
+  annualCardVolume?: number;     // cents
+  incorporationDate?: string;    // "YYYY-MM-DD"
+  address: FinixAddressInput;
+}
+
+export interface FinixPersonInput {
+  firstName: string;
+  lastName: string;
+  title?: string;
+  principalPercentageOwnership?: number;
+  taxId?: string;                // SSN
+  dob?: string;                  // "YYYY-MM-DD"
+  phone?: string;
+  email?: string;
+  address?: FinixAddressInput;
+}
+
+export interface FinixUnderwritingInput {
+  annualAchVolume?: number;
+  averageAchTransferAmount?: number;
+  averageCardTransferAmount?: number;
+  businessDescription?: string;
+  refundPolicy?: string;
+  cardVolumeDistribution?: {
+    ecommercePercentage?: number;
+    cardPresentPercentage?: number;
+    mailOrderTelephoneOrderPercentage?: number;
+  };
+  volumeDistributionByBusinessType?: Record<string, number>;
+}
+
+export interface CreateClubIdentityParams {
+  clubId: string;
+  business: FinixBusinessInput;
+  controlPerson: FinixPersonInput;
+  owners?: FinixPersonInput[];
+  underwriting?: FinixUnderwritingInput;
+  consent?: { ip?: string; userAgent?: string; merchantAgreementAccepted?: boolean; timestamp?: string };
+}
+
+export const createClubIdentity = async (
+  params: CreateClubIdentityParams
+): Promise<{ success: boolean; identityId?: string; ownerIdentityIds?: string[]; error?: string }> => {
+  try {
+    if (!auth.currentUser) return { success: false, error: 'You must be logged in' };
+    const fn = httpsCallable(functions, 'createClubIdentity');
+    const result = await fn(params);
+    const data = result.data as any;
+    return { success: true, identityId: data.identityId, ownerIdentityIds: data.ownerIdentityIds };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to save business details' };
+  }
+};
+
+export const addClubBankAccount = async (
+  clubId: string,
+  tokenId: string,
+  ssnLast4?: string
+): Promise<{ success: boolean; paymentInstrumentId?: string; last4?: string | null; error?: string }> => {
+  try {
+    if (!auth.currentUser) return { success: false, error: 'You must be logged in' };
+    const fn = httpsCallable(functions, 'addClubBankAccount');
+    const result = await fn({ clubId, tokenId, ssnLast4 });
+    const data = result.data as any;
+    return { success: true, paymentInstrumentId: data.paymentInstrumentId, last4: data.last4 };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to add bank account' };
+  }
+};
+
+export const provisionClubMerchant = async (
+  clubId: string
+): Promise<{ success: boolean; merchantId?: string; onboardingState?: string; error?: string }> => {
+  try {
+    if (!auth.currentUser) return { success: false, error: 'You must be logged in' };
+    const fn = httpsCallable(functions, 'provisionClubMerchant');
+    const result = await fn({ clubId });
+    const data = result.data as any;
+    return { success: true, merchantId: data.merchantId, onboardingState: data.onboardingState };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to submit application' };
   }
 };
 
