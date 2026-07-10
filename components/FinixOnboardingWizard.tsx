@@ -134,6 +134,10 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
   const bankDone = bankSaved || !!bankLast4 || !!club.finixPayoutPiId;
   const submitted = !!club.finixMerchantId;
   const completedStages = (profileDone ? 1 : 0) + (bankDone ? 1 : 0) + (submitted ? 1 : 0);
+  // Once submitted, the application is under review at Finix until it's active.
+  // During that window the admin can view everything but must not edit the
+  // profile or bank — a change mid-underwriting would desync us from Finix.
+  const reviewLock = submitted && !statusActive;
 
   const today = new Date();
   const fail = (msg: string) => { setError(msg); setBusy(false); };
@@ -259,8 +263,8 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
             title="Payment Profile"
             subtitle="Business & owner identity verification (KYC)"
             status={profileDone ? 'done' : 'todo'}
-            actionLabel={profileDone ? 'Edit' : 'Set up'}
-            onPress={() => { setError(null); setStep(0); setView('profile'); }}
+            actionLabel={reviewLock ? undefined : (profileDone ? 'Edit' : 'Set up')}
+            onPress={() => { if (reviewLock) return; setError(null); setStep(0); setView('profile'); }}
           />
           <StageRow
             n={2}
@@ -268,10 +272,10 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
             subtitle="Where your payouts are deposited"
             status={bankDone ? 'done' : profileDone ? 'todo' : 'locked'}
             value={bankDone && bankLast4 ? `•••• ${bankLast4}` : undefined}
-            actionLabel={bankDone ? 'Change' : 'Add'}
+            actionLabel={reviewLock ? undefined : (bankDone ? 'Change' : 'Add')}
             lockedHint="Complete your Payment Profile first"
             disabled={!profileDone}
-            onPress={() => { setError(null); setView('bank'); }}
+            onPress={() => { if (reviewLock) return; setError(null); setView('bank'); }}
           />
           <StageRow
             n={3}
@@ -289,6 +293,12 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
             <Button mode="contained" icon="refresh" onPress={() => { setError(null); setView('status'); }} style={styles.next}>
               View application status
             </Button>
+          )}
+
+          {reviewLock && (
+            <Text variant="bodySmall" style={{ marginTop: 12, textAlign: 'center', color: theme.colors.onSurfaceVariant }}>
+              Your application is under review — these details are locked until it’s approved.
+            </Text>
           )}
 
           {!embedded && (
@@ -538,7 +548,7 @@ function StageRow({
   subtitle: string;
   status: 'done' | 'todo' | 'locked';
   value?: string;
-  actionLabel: string;
+  actionLabel?: string;
   lockedHint?: string;
   disabled?: boolean;
   onPress: () => void;
@@ -573,10 +583,12 @@ function StageRow({
         </Text>
       </View>
       {done ? (
-        <Chip compact mode="flat" textStyle={{ fontSize: 12 }} style={{ backgroundColor: 'transparent' }} onPress={disabled ? undefined : onPress}>
-          {actionLabel}
-        </Chip>
-      ) : !locked ? (
+        actionLabel ? (
+          <Chip compact mode="flat" textStyle={{ fontSize: 12 }} style={{ backgroundColor: 'transparent' }} onPress={disabled ? undefined : onPress}>
+            {actionLabel}
+          </Chip>
+        ) : null
+      ) : !locked && actionLabel ? (
         <Text variant="labelLarge" style={{ color: theme.colors.primary }}>{actionLabel} ›</Text>
       ) : null}
     </Pressable>
