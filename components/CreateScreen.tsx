@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  KeyboardEvent,
 } from 'react-native';
 import { Text, IconButton, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,6 +36,7 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const [backgroundColors, setBackgroundColors] = useState<string[]>(['#6366f1', '#8b5cf6', '#d946ef']);
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
@@ -58,6 +60,21 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
       scaleAnim.setValue(0);
     }
   }, [dropdownVisible]);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardWillShow', (e: KeyboardEvent) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+
+    const hideSub = Keyboard.addListener('keyboardWillHide', () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const handleTypeSelect = (type: CreateType) => {
     setSelectedType(type);
@@ -203,7 +220,10 @@ export default function CreateScreen({ visible, onClose, initialType = 'Event' }
             <ScrollView
               ref={scrollViewRef}
               style={styles.content}
-              contentContainerStyle={styles.contentContainer}
+              contentContainerStyle={[
+                styles.contentContainer,
+                { paddingBottom: keyboardHeight > 0 ? 300 : 40 }
+              ]}
               showsVerticalScrollIndicator={true}
               indicatorStyle={isDark ? "white" : "black"}
               bounces={true}
@@ -290,7 +310,6 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 20,
-    paddingBottom: 300, // Extra padding so last fields can scroll into focus
   },
   dropdownAbsolute: {
     position: 'absolute',

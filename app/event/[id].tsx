@@ -16,7 +16,7 @@ import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, Stack, useFocusEffect } from 'expo-router';
 import { useAuth, useThemeToggle } from '../_layout';
-import { getEventById, joinEvent, getUserRallyCredits, getClub, getUserProfile, storeWaiverSignature, getWaiverSignature } from '../../lib/firebase';
+import { getEventById, joinEvent, getUserRallyCredits, getClub, getUserProfile, storeWaiverSignature, getWaiverSignature, submitQuestionnaireResponse } from '../../lib/firebase';
 import type { Club } from '../../lib/firebase';
 import { leaveEventWithRefund } from '../../lib/finix';
 import type { Event, UserRallyCredits, UserProfile } from '../../lib/firebase';
@@ -24,7 +24,7 @@ import BackButton from '../../components/BackButton';
 import PaymentSheet from '../../components/PaymentSheet';
 import CancelEventSheet from '../../components/CancelEventSheet';
 import RallyCreditsPaidModal from '../../components/RallyCreditsPaidModal';
-import EventRegistrationFlow from '../../components/EventRegistrationFlow';
+import EventRegistrationFlow, { RegistrationData } from '../../components/EventRegistrationFlow';
 import { generateAndShareWaiverPDF } from '../../lib/waiverPdf';
 
 const { width } = Dimensions.get('window');
@@ -325,10 +325,46 @@ export default function EventDetailScreen() {
     await proceedWithJoin();
   };
 
-  const handleRegistrationComplete = async () => {
-    // Registration flow completed (questionnaire + waiver saved)
-    // Now proceed with joining the event
-    await proceedWithJoin();
+  const handleRegistrationComplete = async (registrationData: RegistrationData) => {
+    if (!user || !event || !userProfile) return;
+
+    try {
+      // Save questionnaire responses if provided
+      if (registrationData.questionnaireResponses && registrationData.questionnaireResponses.length > 0) {
+        const questionnaireResult = await submitQuestionnaireResponse(
+          event.id,
+          user.uid,
+          userProfile.displayName || user.displayName || 'Unknown',
+          userProfile.email || user.email || '',
+          registrationData.questionnaireResponses
+        );
+
+        if (!questionnaireResult.success) {
+          Alert.alert('Error', 'Failed to save questionnaire responses: ' + questionnaireResult.error);
+          return;
+        }
+      }
+
+      // Save waiver signature if provided
+      if (registrationData.waiverInitials) {
+        const waiverResult = await storeWaiverSignature(
+          event.id,
+          user.uid,
+          registrationData.waiverInitials
+        );
+
+        if (!waiverResult.success) {
+          Alert.alert('Error', 'Failed to save waiver signature: ' + waiverResult.error);
+          return;
+        }
+      }
+
+      // Now proceed with joining the event
+      await proceedWithJoin();
+    } catch (error) {
+      console.error('Error saving registration data:', error);
+      Alert.alert('Error', 'Failed to save registration data');
+    }
   };
 
   const proceedWithJoin = async () => {

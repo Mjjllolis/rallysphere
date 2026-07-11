@@ -1,6 +1,5 @@
-import { useState, useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity, Alert, TextInput, LayoutChangeEvent } from 'react-native';
-import { Text, IconButton, useTheme, Menu } from 'react-native-paper';
+import { Text, IconButton, useTheme } from 'react-native-paper';
 import { useThemeToggle } from '../app/_layout';
 import type { Question, ResponseType } from '../lib/firebase';
 
@@ -44,9 +43,6 @@ export default function QuestionCard({
 }: QuestionCardProps) {
   const theme = useTheme();
   const { isDark } = useThemeToggle();
-  const [menuVisible, setMenuVisible] = useState(false);
-  const [requiredMenuVisible, setRequiredMenuVisible] = useState(false);
-  const [publicMenuVisible, setPublicMenuVisible] = useState(false);
 
   const canMoveUp = index > 0;
   const canMoveDown = index < totalQuestions - 1;
@@ -56,7 +52,6 @@ export default function QuestionCard({
   };
 
   const handleDelete = () => {
-    setMenuVisible(false);
     Alert.alert(
       'Delete Question',
       'Are you sure you want to delete this question?',
@@ -71,18 +66,14 @@ export default function QuestionCard({
     );
   };
 
-  const handleMoveUp = () => {
-    setMenuVisible(false);
-    onMoveUp(question.id);
-  };
-
-  const handleMoveDown = () => {
-    setMenuVisible(false);
-    onMoveDown(question.id);
-  };
-
   return (
-    <View style={[styles.container, disabled && styles.containerDisabled]} onLayout={onLayout}>
+    <View
+      style={[
+        styles.container,
+        disabled && styles.containerDisabled
+      ]}
+      onLayout={onLayout}
+    >
       {/* Question Number and Actions */}
       <View style={styles.header}>
         <Text
@@ -100,45 +91,57 @@ export default function QuestionCard({
         >
           Question {index + 1}
         </Text>
-        <Menu
-          visible={!disabled && menuVisible}
-          onDismiss={() => setMenuVisible(false)}
-          anchor={
-            <IconButton
-              icon="dots-vertical"
-              size={20}
-              iconColor={disabled
-                ? isDark
-                  ? 'rgba(255,255,255,0.2)'
-                  : 'rgba(0,0,0,0.2)'
-                : theme.colors.onSurfaceVariant
-              }
-              onPress={() => !disabled && setMenuVisible(true)}
-              style={{ margin: 0 }}
-              disabled={disabled}
-            />
-          }
-          anchorPosition="bottom"
-        >
-          <Menu.Item
-            leadingIcon="arrow-up"
-            title="Move Up"
-            disabled={!canMoveUp}
-            onPress={handleMoveUp}
+
+        <View style={styles.actionButtons}>
+          {/* Move Up Button */}
+          <IconButton
+            icon="chevron-up"
+            size={20}
+            iconColor={disabled || !canMoveUp
+              ? isDark
+                ? 'rgba(255,255,255,0.2)'
+                : 'rgba(0,0,0,0.2)'
+              : isDark
+              ? 'rgba(255,255,255,0.5)'
+              : 'rgba(0,0,0,0.5)'
+            }
+            onPress={() => !disabled && canMoveUp && onMoveUp(question.id)}
+            style={{ margin: 0 }}
+            disabled={disabled || !canMoveUp}
           />
-          <Menu.Item
-            leadingIcon="arrow-down"
-            title="Move Down"
-            disabled={!canMoveDown}
-            onPress={handleMoveDown}
+
+          {/* Move Down Button */}
+          <IconButton
+            icon="chevron-down"
+            size={20}
+            iconColor={disabled || !canMoveDown
+              ? isDark
+                ? 'rgba(255,255,255,0.2)'
+                : 'rgba(0,0,0,0.2)'
+              : isDark
+              ? 'rgba(255,255,255,0.5)'
+              : 'rgba(0,0,0,0.5)'
+            }
+            onPress={() => !disabled && canMoveDown && onMoveDown(question.id)}
+            style={{ margin: 0 }}
+            disabled={disabled || !canMoveDown}
           />
-          <Menu.Item
-            leadingIcon="delete"
-            title="Delete"
-            titleStyle={{ color: '#EF4444' }}
-            onPress={handleDelete}
+
+          {/* Delete Button */}
+          <IconButton
+            icon="delete"
+            size={20}
+            iconColor={disabled
+              ? isDark
+                ? 'rgba(255,255,255,0.2)'
+                : 'rgba(0,0,0,0.2)'
+              : '#EF4444'
+            }
+            onPress={() => !disabled && handleDelete()}
+            style={{ margin: 0 }}
+            disabled={disabled}
           />
-        </Menu>
+        </View>
       </View>
 
       {/* Question Text Input */}
@@ -300,126 +303,39 @@ export default function QuestionCard({
           />
         </TouchableOpacity>
 
-        {/* Right: Required and Public */}
-        <View style={styles.rightOptions}>
-          {/* Required */}
-          <Menu
-            visible={!disabled && requiredMenuVisible}
-            onDismiss={() => setRequiredMenuVisible(false)}
-            anchor={
-              <TouchableOpacity
-                onPress={() => !disabled && setRequiredMenuVisible(true)}
-                activeOpacity={0.7}
-                disabled={disabled}
-                style={styles.optionButton}
-              >
-                <Text
-                  variant="bodySmall"
-                  style={[
-                    styles.optionText,
-                    {
-                      color: disabled
-                        ? isDark
-                          ? 'rgba(255,255,255,0.3)'
-                          : 'rgba(0,0,0,0.3)'
-                        : theme.colors.onSurfaceVariant,
-                    },
-                  ]}
-                >
-                  {question.required ? 'Required' : 'Optional'}
-                </Text>
-                <IconButton
-                  icon="chevron-down"
-                  size={16}
-                  iconColor={disabled
-                    ? isDark
-                      ? 'rgba(255,255,255,0.3)'
-                      : 'rgba(0,0,0,0.3)'
-                    : theme.colors.onSurfaceVariant
-                  }
-                  style={{ margin: 0, marginLeft: -4 }}
-                  disabled={disabled}
-                />
-              </TouchableOpacity>
-            }
+        {/* Right: Required Toggle */}
+        <TouchableOpacity
+          onPress={() => !disabled && onUpdate(question.id, { required: !question.required })}
+          activeOpacity={0.7}
+          disabled={disabled}
+          style={[
+            styles.requiredToggle,
+            {
+              backgroundColor: disabled
+                ? isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'
+                : question.required
+                ? isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)'
+                : isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
+              borderColor: question.required ? '#EF4444' : '#10B981',
+            },
+          ]}
+        >
+          <Text
+            variant="bodySmall"
+            style={[
+              styles.requiredText,
+              {
+                color: disabled
+                  ? isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)'
+                  : question.required
+                  ? '#EF4444'
+                  : '#10B981',
+              },
+            ]}
           >
-            <Menu.Item
-              title="Required"
-              onPress={() => {
-                onUpdate(question.id, { required: true });
-                setRequiredMenuVisible(false);
-              }}
-              leadingIcon={question.required ? 'check' : undefined}
-            />
-            <Menu.Item
-              title="Optional"
-              onPress={() => {
-                onUpdate(question.id, { required: false });
-                setRequiredMenuVisible(false);
-              }}
-              leadingIcon={!question.required ? 'check' : undefined}
-            />
-          </Menu>
-
-          {/* Public/Private */}
-          <Menu
-            visible={!disabled && publicMenuVisible}
-            onDismiss={() => setPublicMenuVisible(false)}
-            anchor={
-              <TouchableOpacity
-                onPress={() => !disabled && setPublicMenuVisible(true)}
-                activeOpacity={0.7}
-                disabled={disabled}
-                style={styles.optionButton}
-              >
-                <Text
-                  variant="bodySmall"
-                  style={[
-                    styles.optionText,
-                    {
-                      color: disabled
-                        ? isDark
-                          ? 'rgba(255,255,255,0.3)'
-                          : 'rgba(0,0,0,0.3)'
-                        : theme.colors.onSurfaceVariant,
-                    },
-                  ]}
-                >
-                  {question.isPublic ? 'Public' : 'Private'}
-                </Text>
-                <IconButton
-                  icon="chevron-down"
-                  size={16}
-                  iconColor={disabled
-                    ? isDark
-                      ? 'rgba(255,255,255,0.3)'
-                      : 'rgba(0,0,0,0.3)'
-                    : theme.colors.onSurfaceVariant
-                  }
-                  style={{ margin: 0, marginLeft: -4 }}
-                  disabled={disabled}
-                />
-              </TouchableOpacity>
-            }
-          >
-            <Menu.Item
-              title="Public"
-              onPress={() => {
-                onUpdate(question.id, { isPublic: true });
-                setPublicMenuVisible(false);
-              }}
-              leadingIcon={question.isPublic ? 'check' : undefined}
-            />
-            <Menu.Item
-              title="Private"
-              onPress={() => {
-                onUpdate(question.id, { isPublic: false });
-                setPublicMenuVisible(false);
-              }}
-              leadingIcon={!question.isPublic ? 'check' : undefined}
-            />
-          </Menu>
-        </View>
+            {question.required ? 'Required' : 'Optional'}
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -437,6 +353,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: -12,
   },
   questionNumber: {
     fontSize: 11,
@@ -459,19 +380,6 @@ const styles = StyleSheet.create({
   responseTypeButton: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  rightOptions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  optionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  optionText: {
-    fontSize: 13,
-    fontWeight: '500',
   },
   choicesContainer: {
     marginBottom: 12,
@@ -500,5 +408,17 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 8,
     borderBottomWidth: 1,
+  },
+  requiredToggle: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  requiredText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 });

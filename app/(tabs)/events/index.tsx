@@ -6,6 +6,7 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
+  Pressable,
   Dimensions,
   TextInput,
 } from 'react-native';
@@ -497,8 +498,8 @@ export default function DiscoverScreen() {
       </View>
       {/* Subtle Gradient Overlay - matches store */}
       <LinearGradient
-        colors={['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(248, 250, 252, 0)']}
-        locations={[0, 0.3, 1]}
+        colors={['rgba(170, 91, 250, 0.53)', 'rgba(0, 0, 0, 0.48)', isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(248, 250, 252, 0)']}
+        locations={[0, 0.25, 1]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
       />
@@ -742,8 +743,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   chipActive: {
-    backgroundColor: '#60A5FA',
-    borderColor: '#60A5FA',
+    backgroundColor: '#ac1dff00',
+    borderColor: '#8c01ffb0',
   },
   chipText: { fontSize: 14, fontWeight: '600' },
   chipTextActive: { color: '#fff' },

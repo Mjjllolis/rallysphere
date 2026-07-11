@@ -1,6 +1,6 @@
 // components/forms/EventForm.tsx
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Alert, StyleSheet, TouchableOpacity, LayoutChangeEvent } from 'react-native';
+import { View, Alert, StyleSheet, TouchableOpacity, LayoutChangeEvent, Keyboard, LayoutAnimation } from 'react-native';
 import { Text, useTheme, IconButton } from 'react-native-paper';
 import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
@@ -200,7 +200,10 @@ export default function EventForm({ onColorsExtracted, onSuccess, onScrollToFiel
       if (result.success && result.eventId) {
         // Save questionnaire questions if enabled
         if (hasQuestionnaire && questions.length > 0) {
-          await saveEventQuestionnaire(result.eventId, questions);
+          const saveResult = await saveEventQuestionnaire(result.eventId, questions);
+          if (!saveResult.success) {
+            Alert.alert('Warning', 'Event created but questionnaire failed to save: ' + saveResult.error);
+          }
         }
         onSuccess();
         router.push(`/event/${result.eventId}`);
@@ -214,7 +217,6 @@ export default function EventForm({ onColorsExtracted, onSuccess, onScrollToFiel
       setLoading(false);
     }
   };
-
 
   return (
     <View style={styles.container}>
@@ -370,7 +372,11 @@ export default function EventForm({ onColorsExtracted, onSuccess, onScrollToFiel
         label="Require Waiver"
         description="Users must agree to terms before joining"
         value={hasWaiver}
-        onValueChange={setHasWaiver}
+        onValueChange={(value) => {
+          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+          setHasWaiver(value);
+          Keyboard.dismiss();
+        }}
       />
 
       {hasWaiver && (
@@ -389,7 +395,10 @@ export default function EventForm({ onColorsExtracted, onSuccess, onScrollToFiel
       )}
 
       <TouchableOpacity
-        onPress={() => setShowQuestionnaireBuilder(true)}
+        onPress={() => {
+          Keyboard.dismiss();
+          setShowQuestionnaireBuilder(true);
+        }}
         activeOpacity={0.7}
         style={styles.configButtonWrapper}
       >

@@ -75,7 +75,9 @@
   },
   "expo": {
     "autolinking": {
-      "exclude": ["expo-firebase-core"]
+      "exclude": [
+        "expo-firebase-core"
+      ]
     }
   }
 }

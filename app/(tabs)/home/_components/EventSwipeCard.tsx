@@ -24,8 +24,9 @@ import { router } from 'expo-router';
 import Svg, { Defs, Pattern as SvgPattern, Rect as SvgRect } from 'react-native-svg';
 import type { Event } from '../../../../lib/firebase';
 import { useAuth, useThemeToggle } from '../../../_layout';
-import { joinEvent, getEventById, bookmarkEvent, unbookmarkEvent, getUserBookmarks, likeEvent, unlikeEvent, getUserLikes, getClub, storeWaiverSignature } from '../../../../lib/firebase';
+import { joinEvent, getEventById, bookmarkEvent, unbookmarkEvent, getUserBookmarks, likeEvent, unlikeEvent, getUserLikes, getClub, storeWaiverSignature, submitQuestionnaireResponse } from '../../../../lib/firebase';
 import PaymentSheet from '../../../../components/PaymentSheet';
+import EventRegistrationFlow, { RegistrationData } from '../../../../components/EventRegistrationFlow';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const ALBUM_WIDTH = SCREEN_WIDTH * 0.85;
@@ -75,6 +76,8 @@ export default function EventSwipeCard({
   const [isLiked, setIsLiked] = useState(false);
   const [likeLoading, setLikeLoading] = useState(false);
   const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
+  const [showRegistrationFlow, setShowRegistrationFlow] = useState(false);
+  const [pendingRegistrationData, setPendingRegistrationData] = useState<RegistrationData | null>(null);
 
   // Waiver state
   const [waiverModalVisible, setWaiverModalVisible] = useState(false);
@@ -135,12 +138,44 @@ export default function EventSwipeCard({
     }
   };
 
+  // Save registration data (questionnaire + waiver) after successful join
+  const saveRegistrationData = async (registrationData: RegistrationData | null) => {
+    if (!user || !registrationData) return;
+
+    try {
+      // Save questionnaire responses
+      if (registrationData.questionnaireResponses && registrationData.questionnaireResponses.length > 0) {
+        await submitQuestionnaireResponse(
+          event.id,
+          user.uid,
+          user.displayName || '',
+          user.email || '',
+          registrationData.questionnaireResponses
+        );
+      }
+
+      // Save waiver signature
+      if (registrationData.waiverInitials) {
+        await storeWaiverSignature(event.id, user.uid, registrationData.waiverInitials);
+      }
+    } catch (error) {
+      console.error('Error saving registration data:', error);
+      // Don't block the join - data save is secondary
+    }
+  };
+
   const joinFreeEvent = async () => {
     if (!user) return;
     setIsJoining(true);
     try {
       const result = await joinEvent(event.id, user.uid);
       if (result.success) {
+        // Save registration data AFTER successful join
+        if (pendingRegistrationData) {
+          await saveRegistrationData(pendingRegistrationData);
+          setPendingRegistrationData(null);
+        }
+
         if (result.waitlisted) {
           Alert.alert('Added to Waitlist', 'You have been added to the waitlist');
         } else {
@@ -242,13 +277,25 @@ export default function EventSwipeCard({
       return;
     }
 
-    // If event has a waiver, show waiver modal first
-    if (event.hasWaiver && event.waiverText) {
-      showWaiverModal();
+    // If event has questionnaire or waiver, show registration flow
+    if (event.hasQuestionnaire || (event.hasWaiver && event.waiverText)) {
+      setShowRegistrationFlow(true);
       return;
     }
 
-    // No waiver - proceed directly
+    // No questionnaire/waiver - proceed directly
+    if (event.ticketPrice && event.ticketPrice > 0) {
+      setPaymentSheetVisible(true);
+    } else {
+      await joinFreeEvent();
+    }
+  };
+
+  const handleRegistrationComplete = async (registrationData: RegistrationData) => {
+    // Store registration data - will be saved AFTER successful join
+    setPendingRegistrationData(registrationData);
+
+    // Registration flow completed - proceed with joining
     if (event.ticketPrice && event.ticketPrice > 0) {
       setPaymentSheetVisible(true);
     } else {
@@ -257,6 +304,11 @@ export default function EventSwipeCard({
   };
 
   const handlePaymentSuccess = async () => {
+    // Save registration data AFTER successful payment
+    if (pendingRegistrationData) {
+      await saveRegistrationData(pendingRegistrationData);
+      setPendingRegistrationData(null);
+    }
     // Refresh event data after successful payment
     await refreshEventData();
   };
@@ -620,6 +672,19 @@ export default function EventSwipeCard({
           await refreshEventData();
         }}
       />
+
+      {/* Event Registration Flow (Questionnaire + Waiver) */}
+      {user && (
+        <EventRegistrationFlow
+          visible={showRegistrationFlow}
+          event={event}
+          userId={user.uid}
+          userName={user.displayName || ''}
+          userEmail={user.email || ''}
+          onComplete={handleRegistrationComplete}
+          onDismiss={() => setShowRegistrationFlow(false)}
+        />
+      )}
 
       {/* Waiver Modal - Full Page with Keyboard Awareness */}
       <Modal
