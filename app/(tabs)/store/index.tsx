@@ -338,7 +338,7 @@ export default function StoreScreen() {
 
       {/* Subtle Gradient Overlay */}
       <LinearGradient
-        colors={['rgba(96, 165, 250, 0.3)', 'rgba(139, 92, 246, 0.1)', isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(248, 250, 252, 0)']}
+        colors={['rgba(96, 165, 250, 0.52)', 'rgba(139, 92, 246, 0.1)', isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(248, 250, 252, 0)']}
         locations={[0, 0.3, 1]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"

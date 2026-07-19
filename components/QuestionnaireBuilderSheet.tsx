@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -9,6 +9,8 @@ import {
   Alert,
   LayoutAnimation,
   UIManager,
+  LayoutChangeEvent,
+  Keyboard,
 } from 'react-native';
 import { Text, IconButton, useTheme } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -48,6 +50,26 @@ export default function QuestionnaireBuilderSheet({
   const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null);
   const [currentType, setCurrentType] = useState<ResponseType | null>(null);
 
+  const scrollViewRef = useRef<ScrollView>(null);
+  const questionPositions = useRef<{ [key: string]: number }>({});
+
+  const handleScrollToField = useCallback((y: number) => {
+    // Scroll field higher up on screen for better keyboard visibility
+    const scrollOffset = Math.max(0, y - 60);
+    scrollViewRef.current?.scrollTo({ y: scrollOffset, animated: true });
+  }, []);
+
+  const handleQuestionLayout = useCallback((questionId: string) => (event: LayoutChangeEvent) => {
+    questionPositions.current[questionId] = event.nativeEvent.layout.y;
+  }, []);
+
+  const handleQuestionFocus = useCallback((questionId: string) => () => {
+    const y = questionPositions.current[questionId];
+    if (y !== undefined) {
+      handleScrollToField(y);
+    }
+  }, [handleScrollToField]);
+
   const generateQuestionId = () => {
     // Use crypto.randomUUID if available (modern Hermes), fallback to timestamp + random
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -61,9 +83,15 @@ export default function QuestionnaireBuilderSheet({
     return `q_${timestamp}_${randomPart}`;
   };
 
-  // Reset state when modal becomes visible
+  // Track previous visible state to only initialize on open
+  const prevVisibleRef = useRef(false);
+
+  // Reset state when modal becomes visible (only on open, not on questionnaire changes)
   useEffect(() => {
-    if (visible) {
+    const justOpened = visible && !prevVisibleRef.current;
+    prevVisibleRef.current = visible;
+
+    if (justOpened) {
       const hasQuestions = questionnaire?.questions && questionnaire.questions.length > 0;
       setEnabled(questionnaire?.enabled || false);
 
@@ -73,7 +101,7 @@ export default function QuestionnaireBuilderSheet({
           id: generateQuestionId(),
           text: '',
           responseType: 'text',
-          required: false,
+          required: true,
           isPublic: false,
           order: 0,
           createdAt: Timestamp.now(),
@@ -89,6 +117,24 @@ export default function QuestionnaireBuilderSheet({
     }
   }, [visible, questionnaire]);
 
+  // Animate layout changes when keyboard shows/hides
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSubscription = Keyboard.addListener(showEvent, () => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    });
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
   const handleAddQuestion = () => {
     if (!enabled) return;
 
@@ -96,7 +142,7 @@ export default function QuestionnaireBuilderSheet({
       id: generateQuestionId(),
       text: '',
       responseType: 'text',
-      required: false,
+      required: true,
       isPublic: false,
       order: questions.length,
       createdAt: Timestamp.now(),
@@ -105,9 +151,15 @@ export default function QuestionnaireBuilderSheet({
 
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setQuestions([...questions, newQuestion]);
+
+    // Scroll to the new question after it's added
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
   };
 
   const handleUpdateQuestion = (id: string, updates: Partial<Question>) => {
+    console.log('[QuestionnaireBuilder] Updating question:', id, updates);
     setQuestions(
       questions.map((q) =>
         q.id === id ? { ...q, ...updates, updatedAt: Timestamp.now() } : q
@@ -127,33 +179,38 @@ export default function QuestionnaireBuilderSheet({
     const index = questions.findIndex((q) => q.id === id);
     if (index <= 0) return;
 
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    const newQuestions = [...questions];
-    [newQuestions[index - 1], newQuestions[index]] = [
-      newQuestions[index],
-      newQuestions[index - 1],
-    ];
-    // Re-index order
-    const reindexed = newQuestions.map((q, i) => ({ ...q, order: i }));
-    setQuestions(reindexed);
+    // Small delay to let ripple complete on clicked button before swap
+    setTimeout(() => {
+      const newQuestions = [...questions];
+      [newQuestions[index - 1], newQuestions[index]] = [
+        newQuestions[index],
+        newQuestions[index - 1],
+      ];
+      // Re-index order
+      const reindexed = newQuestions.map((q, i) => ({ ...q, order: i }));
+      setQuestions(reindexed);
+    }, 150);
   };
 
   const handleMoveDown = (id: string) => {
     const index = questions.findIndex((q) => q.id === id);
     if (index >= questions.length - 1) return;
 
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    const newQuestions = [...questions];
-    [newQuestions[index], newQuestions[index + 1]] = [
-      newQuestions[index + 1],
-      newQuestions[index],
-    ];
-    // Re-index order
-    const reindexed = newQuestions.map((q, i) => ({ ...q, order: i }));
-    setQuestions(reindexed);
+    // Small delay to let ripple complete on clicked button before swap
+    setTimeout(() => {
+      const newQuestions = [...questions];
+      [newQuestions[index], newQuestions[index + 1]] = [
+        newQuestions[index + 1],
+        newQuestions[index],
+      ];
+      // Re-index order
+      const reindexed = newQuestions.map((q, i) => ({ ...q, order: i }));
+      setQuestions(reindexed);
+    }, 150);
   };
 
   const handleOpenTypePicker = (questionId: string, questionCurrentType: ResponseType) => {
+    Keyboard.dismiss();
     setActiveQuestionId(questionId);
     setCurrentType(questionCurrentType);
     setShowTypePicker(true);
@@ -310,10 +367,12 @@ export default function QuestionnaireBuilderSheet({
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
             <ScrollView
+              ref={scrollViewRef}
               style={styles.scrollView}
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={true}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
               indicatorStyle={isDark ? 'white' : 'black'}
             >
               {questions.map((question, index) => (
@@ -328,6 +387,8 @@ export default function QuestionnaireBuilderSheet({
                   onMoveDown={handleMoveDown}
                   onOpenTypePicker={handleOpenTypePicker}
                   disabled={!enabled}
+                  onLayout={handleQuestionLayout(question.id)}
+                  onFieldFocus={handleQuestionFocus(question.id)}
                 />
               ))}
             </ScrollView>
@@ -424,7 +485,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 300, // Extra padding so last question can scroll into focus
   },
   footer: {
     flexDirection: 'row',

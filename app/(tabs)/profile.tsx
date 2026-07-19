@@ -209,7 +209,7 @@ export default function ProfilePage() {
         </View>
       </SafeAreaView>
 
-      <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
         <Animated.ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -488,8 +488,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingTop: 80, // Push content down below the floating header
-    paddingBottom: 40,
-    minHeight: Dimensions.get('window').height * 0.9, // Ensure scrollable area even when empty
+    paddingBottom: 120, // Ensure content clears the tab bar
   },
   emptyState: {
     flex: 1,

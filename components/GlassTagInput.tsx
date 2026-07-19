@@ -10,6 +10,7 @@ interface GlassTagInputProps {
   tags: string[];
   onTagsChange: (tags: string[]) => void;
   placeholder?: string;
+  onFocus?: () => void;
 }
 
 export default function GlassTagInput({
@@ -17,6 +18,7 @@ export default function GlassTagInput({
   tags,
   onTagsChange,
   placeholder = 'Type and press return to add tags...',
+  onFocus,
 }: GlassTagInputProps) {
   const theme = useTheme();
   const { isDark } = useThemeToggle();
@@ -78,6 +80,7 @@ export default function GlassTagInput({
               value={inputValue}
               onChangeText={setInputValue}
               onSubmitEditing={handleSubmitEditing}
+              onFocus={onFocus}
               placeholder={placeholder}
               placeholderTextColor={theme.colors.onSurfaceDisabled}
               style={[styles.input, { color: theme.colors.onSurface }]}
@@ -94,6 +97,7 @@ export default function GlassTagInput({
               value={inputValue}
               onChangeText={setInputValue}
               onSubmitEditing={handleSubmitEditing}
+              onFocus={onFocus}
               placeholder={placeholder}
               placeholderTextColor={theme.colors.onSurfaceDisabled}
               style={[styles.input, { color: theme.colors.onSurface }]}

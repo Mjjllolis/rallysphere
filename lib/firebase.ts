@@ -1903,13 +1903,29 @@ export const saveEventQuestionnaire = async (
     existingQuestions.forEach((docSnap) => batch.delete(docSnap.ref));
 
     // Add new questions
-    questions.forEach((question) => {
+    questions.forEach((question, index) => {
       const questionRef = doc(db, 'events', eventId, 'questions', question.id);
-      batch.set(questionRef, {
-        ...question,
-        createdAt: question.createdAt || serverTimestamp(),
+
+      // Clean the question data for Firestore
+      const questionData: any = {
+        id: question.id,
+        text: question.text,
+        responseType: question.responseType,
+        required: question.required,
+        isPublic: question.isPublic,
+        // Ensure order is always a number, fallback to index
+        order: typeof question.order === 'number' ? question.order : index,
+        // Always use serverTimestamp for consistency
+        createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      });
+      };
+
+      // Only add choices if they exist
+      if (question.choices && question.choices.length > 0) {
+        questionData.choices = question.choices;
+      }
+
+      batch.set(questionRef, questionData);
     });
 
     // Update questionCount on the event document
@@ -1922,7 +1938,7 @@ export const saveEventQuestionnaire = async (
     await batch.commit();
     return { success: true };
   } catch (error: any) {
-    // console.error('Error saving questionnaire:', error);
+    console.error('Error saving questionnaire:', error);
     return { success: false, error: error.message };
   }
 };
@@ -1940,15 +1956,20 @@ export const getEventQuestionnaire = async (
     const questionsQuery = query(questionsRef, orderBy('order', 'asc'));
     const questionsSnap = await getDocs(questionsQuery);
 
-    const questions = questionsSnap.docs.map((doc) => ({
-      ...doc.data(),
-      id: doc.id,
-    })) as Question[];
+    const questions = questionsSnap.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        ...data,
+        id: doc.id,
+        // Ensure order exists as a number
+        order: typeof data.order === 'number' ? data.order : 0,
+      };
+    }) as Question[];
 
     return { success: true, questions };
   } catch (error: any) {
-    // console.error('Error getting questionnaire:', error);
-    return { success: false, error: error.message };
+    console.error('Error getting questionnaire:', error);
+    return { success: false, error: error.message, questions: [] };
   }
 };
 
@@ -1974,6 +1995,7 @@ export const submitQuestionnaireResponse = async (
     const responseRef = doc(db, 'events', eventId, 'questionnaireResponses', userId);
 
     await setDoc(responseRef, {
+      eventId,
       userId,
       userName,
       userEmail,

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -14,20 +14,30 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   ActivityIndicator,
+  LayoutAnimation,
+  Keyboard,
+  LayoutChangeEvent,
 } from 'react-native';
 import { Text, IconButton, useTheme, RadioButton, Checkbox } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { useThemeToggle } from '../app/_layout';
 import type { Event, Question, ResponseType } from '../lib/firebase';
-import {
-  getEventQuestionnaire,
-  submitQuestionnaireResponse,
-  storeWaiverSignature,
-} from '../lib/firebase';
+import { getEventQuestionnaire } from '../lib/firebase';
+import GlassDateTimePicker from './GlassDateTimePicker';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 const MODAL_HEIGHT = Math.round(SCREEN_HEIGHT * 0.92);
+
+export interface RegistrationData {
+  questionnaireResponses?: Array<{
+    questionId: string;
+    questionText: string;
+    responseType: ResponseType;
+    answer: string | string[];
+    isPublic: boolean;
+  }>;
+  waiverInitials?: string;
+}
 
 interface EventRegistrationFlowProps {
   visible: boolean;
@@ -35,7 +45,7 @@ interface EventRegistrationFlowProps {
   userId: string;
   userName: string;
   userEmail: string;
-  onComplete: () => void;
+  onComplete: (registrationData: RegistrationData) => void;
   onDismiss: () => void;
 }
 
@@ -73,6 +83,7 @@ export default function EventRegistrationFlow({
   const [steps, setSteps] = useState<Step[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [questionsInitialized, setQuestionsInitialized] = useState(false);
   const [errors, setErrors] = useState<Map<string, string>>(new Map());
 
   // Waiver state
@@ -86,9 +97,9 @@ export default function EventRegistrationFlow({
   const waiverHintOpacity = useRef(new Animated.Value(1)).current;
   const waiverAgreementOpacity = useRef(new Animated.Value(0.4)).current;
 
-  // Date picker state
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [activeDateQuestionId, setActiveDateQuestionId] = useState<string | null>(null);
+  // Field position tracking for scroll-to-field
+  const scrollViewRef = useRef<ScrollView>(null);
+  const fieldPositions = useRef<{ [key: string]: number }>({});
 
   // Build steps based on event config
   useEffect(() => {
@@ -100,25 +111,59 @@ export default function EventRegistrationFlow({
       newSteps.push('waiver');
     }
     setSteps(newSteps);
-  }, [event]);
+  }, [event.hasQuestionnaire, event.hasWaiver]);
 
   // Load questions when visible
   useEffect(() => {
     if (visible && event.hasQuestionnaire) {
       loadQuestions();
     }
-  }, [visible, event.id]);
+  }, [visible, event.id, event.hasQuestionnaire]);
+
+  // Animate layout changes when keyboard shows/hides
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSubscription = Keyboard.addListener(showEvent, () => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    });
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  // Scroll to field handlers
+  const handleFieldLayout = useCallback((fieldId: string) => (event: LayoutChangeEvent) => {
+    fieldPositions.current[fieldId] = event.nativeEvent.layout.y;
+  }, []);
+
+  const handleFieldFocus = useCallback((fieldId: string) => {
+    const y = fieldPositions.current[fieldId];
+    if (y !== undefined && scrollViewRef.current) {
+      const scrollOffset = Math.max(0, y - 100);
+      scrollViewRef.current.scrollTo({ y: scrollOffset, animated: true });
+    }
+  }, []);
 
   // Open/close animations
   useEffect(() => {
     if (visible) {
       // Reset state
       setCurrentStepIndex(0);
+      setQuestions([]);
       setResponses(new Map());
       setWaiverScrolledToBottom(false);
       setWaiverAgreed(false);
       setWaiverInitials('');
       setErrors(new Map());
+      setLoadingQuestions(false);
+      setQuestionsInitialized(false);
       slideX.setValue(0);
       waiverHintOpacity.setValue(1);
       waiverAgreementOpacity.setValue(0.4);
@@ -160,8 +205,11 @@ export default function EventRegistrationFlow({
         });
         setResponses(initialResponses);
       }
+    } catch (error) {
+      console.error('[EventRegistration] Error loading questions:', error);
     } finally {
       setLoadingQuestions(false);
+      setQuestionsInitialized(true);
     }
   };
 
@@ -296,25 +344,20 @@ export default function EventRegistrationFlow({
   const completeRegistration = async () => {
     setLoading(true);
     try {
-      // Save questionnaire responses
+      // Collect registration data to pass to parent
+      // Data will only be saved AFTER successful event join
+      const registrationData: RegistrationData = {};
+
       if (event.hasQuestionnaire && responses.size > 0) {
-        const responsesArray = Array.from(responses.values());
-        await submitQuestionnaireResponse(
-          event.id,
-          userId,
-          userName,
-          userEmail,
-          responsesArray
-        );
+        registrationData.questionnaireResponses = Array.from(responses.values());
       }
 
-      // Save waiver signature
-      if (event.hasWaiver) {
-        await storeWaiverSignature(event.id, userId, waiverInitials);
+      if (event.hasWaiver && waiverInitials) {
+        registrationData.waiverInitials = waiverInitials;
       }
 
-      // Complete
-      onComplete();
+      // Pass data to parent - parent will save after successful join
+      onComplete(registrationData);
       handleClose();
     } catch (error) {
       console.error('Registration error:', error);
@@ -371,9 +414,30 @@ export default function EventRegistrationFlow({
 
   const currentStep = steps[currentStepIndex];
   const isLastStep = currentStepIndex === steps.length - 1;
+
+  // Check if all required questions are answered
+  const areRequiredQuestionsAnswered = () => {
+    // Don't enable button until questions are loaded
+    if (!questionsInitialized) return false;
+    if (questions.length === 0) return false;
+
+    for (const question of questions) {
+      if (!question.required) continue; // Skip optional questions
+
+      const response = responses.get(question.id);
+      const answer = response?.answer;
+
+      // Check if answer exists and is not empty
+      if (!answer) return false;
+      if (Array.isArray(answer) && answer.length === 0) return false;
+      if (typeof answer === 'string' && answer.trim() === '') return false;
+    }
+    return true;
+  };
+
   const canContinue =
     currentStep === 'questionnaire'
-      ? true // Will validate on click
+      ? areRequiredQuestionsAnswered()
       : waiverScrolledToBottom && waiverAgreed && waiverInitials.length > 0;
 
   // Render question input based on type
@@ -397,6 +461,7 @@ export default function EventRegistrationFlow({
           <TextInput
             value={answer as string}
             onChangeText={(text) => updateResponse(question.id, text)}
+            onFocus={() => handleFieldFocus(question.id)}
             placeholder="Your answer"
             placeholderTextColor={isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}
             style={inputStyle}
@@ -408,6 +473,7 @@ export default function EventRegistrationFlow({
           <TextInput
             value={answer as string}
             onChangeText={(text) => updateResponse(question.id, text)}
+            onFocus={() => handleFieldFocus(question.id)}
             placeholder="Your answer"
             placeholderTextColor={isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}
             style={[inputStyle, styles.textArea]}
@@ -422,6 +488,7 @@ export default function EventRegistrationFlow({
           <TextInput
             value={answer as string}
             onChangeText={(text) => updateResponse(question.id, text)}
+            onFocus={() => handleFieldFocus(question.id)}
             placeholder="email@example.com"
             placeholderTextColor={isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}
             style={inputStyle}
@@ -436,6 +503,7 @@ export default function EventRegistrationFlow({
           <TextInput
             value={answer as string}
             onChangeText={(text) => updateResponse(question.id, text)}
+            onFocus={() => handleFieldFocus(question.id)}
             placeholder="(555) 123-4567"
             placeholderTextColor={isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}
             style={inputStyle}
@@ -448,6 +516,7 @@ export default function EventRegistrationFlow({
           <TextInput
             value={answer as string}
             onChangeText={(text) => updateResponse(question.id, text.replace(/[^0-9.-]/g, ''))}
+            onFocus={() => handleFieldFocus(question.id)}
             placeholder="0"
             placeholderTextColor={isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}
             style={inputStyle}
@@ -457,22 +526,12 @@ export default function EventRegistrationFlow({
 
       case 'date':
         return (
-          <TouchableOpacity
-            onPress={() => {
-              setActiveDateQuestionId(question.id);
-              setShowDatePicker(true);
-            }}
-            style={[inputStyle, styles.dateInput]}
-          >
-            <Text style={{ color: answer ? theme.colors.onSurface : (isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)') }}>
-              {answer ? new Date(answer as string).toLocaleDateString() : 'Select date'}
-            </Text>
-            <MaterialCommunityIcons
-              name="calendar"
-              size={20}
-              color={theme.colors.onSurfaceVariant}
-            />
-          </TouchableOpacity>
+          <GlassDateTimePicker
+            label="Select Date"
+            date={answer ? new Date(answer as string) : new Date()}
+            onDateChange={(date) => updateResponse(question.id, date.toISOString())}
+            onOpen={() => handleFieldFocus(question.id)}
+          />
         );
 
       case 'single_choice':
@@ -603,10 +662,12 @@ export default function EventRegistrationFlow({
   // Questionnaire step
   const renderQuestionnaireStep = () => (
     <ScrollView
+      ref={scrollViewRef}
       style={styles.stepContent}
       contentContainerStyle={styles.stepContentContainer}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
     >
       {/* Header with icon */}
       <View style={styles.questionnaireHeader}>
@@ -625,15 +686,18 @@ export default function EventRegistrationFlow({
         Please answer the following questions to complete your registration
       </Text>
 
-      {loadingQuestions ? (
+      {questions.length === 0 ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={isDark ? '#60A5FA' : '#1B365D'} />
           <Text style={[styles.loadingText, { color: isDark ? 'rgba(255,255,255,0.7)' : '#6B7280' }]}>
-            Loading questions...
+            No questions found for this event.
           </Text>
         </View>
       ) : questions.map((question) => (
-        <View key={question.id} style={styles.questionContainer}>
+        <View
+          key={question.id}
+          style={styles.questionContainer}
+          onLayout={handleFieldLayout(question.id)}
+        >
           <View style={styles.questionHeader}>
             <Text style={[styles.questionText, { color: isDark ? '#FFFFFF' : '#374151' }]}>
               {question.text}
@@ -843,29 +907,40 @@ export default function EventRegistrationFlow({
             style={styles.content}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
-            <Animated.View
-              style={[
-                styles.slidingContainer,
-                {
-                  width: SCREEN_WIDTH * steps.length,
-                  transform: [{ translateX: slideX }],
-                },
-              ]}
-            >
-              {steps.includes('questionnaire') && (
-                <View style={[styles.pageContainer, { width: SCREEN_WIDTH }]}>
-                  {renderQuestionnaireStep()}
-                </View>
-              )}
-              {steps.includes('waiver') && (
-                <View style={[styles.pageContainer, { width: SCREEN_WIDTH }]}>
-                  {renderWaiverStep()}
-                </View>
-              )}
-            </Animated.View>
+            {/* Show loading while loading questions */}
+            {loadingQuestions ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={isDark ? '#60A5FA' : '#1B365D'} />
+                <Text style={[styles.loadingText, { color: isDark ? 'rgba(255,255,255,0.7)' : '#6B7280' }]}>
+                  Loading...
+                </Text>
+              </View>
+            ) : (
+              <Animated.View
+                style={[
+                  styles.slidingContainer,
+                  {
+                    width: SCREEN_WIDTH * Math.max(steps.length, 1),
+                    transform: [{ translateX: slideX }],
+                  },
+                ]}
+              >
+                {steps.includes('questionnaire') && (
+                  <View style={[styles.pageContainer, { width: SCREEN_WIDTH }]}>
+                    {renderQuestionnaireStep()}
+                  </View>
+                )}
+                {steps.includes('waiver') && (
+                  <View style={[styles.pageContainer, { width: SCREEN_WIDTH }]}>
+                    {renderWaiverStep()}
+                  </View>
+                )}
+              </Animated.View>
+            )}
           </KeyboardAvoidingView>
 
-          {/* Footer */}
+          {/* Footer - hide while loading */}
+          {!loadingQuestions && (
           <View style={[styles.footer, { borderTopColor: theme.colors.outline }]}>
             <View style={styles.footerButtonRow}>
               {/* Cancel button */}
@@ -897,7 +972,7 @@ export default function EventRegistrationFlow({
                   },
                 ]}
                 onPress={handleNext}
-                disabled={loading}
+                disabled={loading || !canContinue}
               >
                 {loading ? (
                   <Text style={[styles.continueButtonText, { color: '#FFFFFF' }]}>...</Text>
@@ -918,28 +993,9 @@ export default function EventRegistrationFlow({
               </TouchableOpacity>
             </View>
           </View>
+          )}
         </View>
       </Animated.View>
-
-      {/* Date Picker */}
-      {showDatePicker && activeDateQuestionId && (
-        <DateTimePicker
-          value={
-            responses.get(activeDateQuestionId)?.answer
-              ? new Date(responses.get(activeDateQuestionId)!.answer as string)
-              : new Date()
-          }
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(_event, date) => {
-            setShowDatePicker(false);
-            if (date && activeDateQuestionId) {
-              updateResponse(activeDateQuestionId, date.toISOString());
-            }
-            setActiveDateQuestionId(null);
-          }}
-        />
-      )}
     </Modal>
   );
 }
@@ -1016,7 +1072,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   stepContentContainer: {
-    paddingBottom: 24,
+    paddingBottom: 300,
   },
   loadingContainer: {
     flex: 1,
@@ -1068,17 +1124,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 16,
+    fontWeight: '400' as const,
     paddingVertical: 14,
     fontSize: 16,
   },
   textArea: {
     minHeight: 100,
     textAlignVertical: 'top',
-  },
-  dateInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
   },
   choicesContainer: {
     gap: 8,

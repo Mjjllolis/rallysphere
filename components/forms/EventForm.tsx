@@ -1,6 +1,6 @@
 // components/forms/EventForm.tsx
-import { useState, useEffect } from 'react';
-import { View, Alert, StyleSheet, TouchableOpacity } from 'react-native';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { View, Alert, StyleSheet, TouchableOpacity, LayoutChangeEvent, Keyboard, LayoutAnimation } from 'react-native';
 import { Text, useTheme, IconButton } from 'react-native-paper';
 import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
@@ -19,9 +19,10 @@ import type { Club, Question, Questionnaire } from '../../lib/firebase';
 interface EventFormProps {
   onColorsExtracted: (colors: string[]) => void;
   onSuccess: () => void;
+  onScrollToField?: (y: number) => void;
 }
 
-export default function EventForm({ onColorsExtracted, onSuccess }: EventFormProps) {
+export default function EventForm({ onColorsExtracted, onSuccess, onScrollToField }: EventFormProps) {
   const theme = useTheme();
   const { isDark } = useThemeToggle();
   const { user } = useAuth();
@@ -29,6 +30,20 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
   const [availableClubs, setAvailableClubs] = useState<Club[]>([]);
   const [selectedClub, setSelectedClub] = useState<Club | null>(null);
   const [coverImage, setCoverImage] = useState<string | null>(null);
+
+  // Track field positions for scroll-to-field
+  const fieldPositions = useRef<{ [key: string]: number }>({});
+
+  const handleFieldLayout = useCallback((fieldName: string) => (event: LayoutChangeEvent) => {
+    fieldPositions.current[fieldName] = event.nativeEvent.layout.y;
+  }, []);
+
+  const handleFieldFocus = useCallback((fieldName: string) => () => {
+    const y = fieldPositions.current[fieldName];
+    if (y !== undefined && onScrollToField) {
+      onScrollToField(y);
+    }
+  }, [onScrollToField]);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -185,7 +200,10 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
       if (result.success && result.eventId) {
         // Save questionnaire questions if enabled
         if (hasQuestionnaire && questions.length > 0) {
-          await saveEventQuestionnaire(result.eventId, questions);
+          const saveResult = await saveEventQuestionnaire(result.eventId, questions);
+          if (!saveResult.success) {
+            Alert.alert('Warning', 'Event created but questionnaire failed to save: ' + saveResult.error);
+          }
         }
         onSuccess();
         router.push(`/event/${result.eventId}`);
@@ -200,7 +218,6 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
     }
   };
 
-
   return (
     <View style={styles.container}>
       {/* Image Card */}
@@ -213,83 +230,109 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
       />
 
       {/* Club Selection */}
-      <GlassDropdown
-        label="Club *"
-        value={selectedClub?.name || ''}
-        options={availableClubs.map(c => c.name)}
-        onSelect={handleClubSelect}
-        placeholder="Select a club..."
-        icon="account-group"
-      />
+      <View onLayout={handleFieldLayout('club')}>
+        <GlassDropdown
+          label="Club *"
+          value={selectedClub?.name || ''}
+          options={availableClubs.map(c => c.name)}
+          onSelect={handleClubSelect}
+          placeholder="Select a club..."
+          icon="account-group"
+        />
+      </View>
 
       {/* Basic Info */}
-      <GlassInput
-        label="Event Title *"
-        value={formData.title}
-        onChangeText={(value) => updateFormData('title', value)}
-        placeholder="Enter event title"
-      />
+      <View onLayout={handleFieldLayout('title')}>
+        <GlassInput
+          label="Event Title *"
+          value={formData.title}
+          onChangeText={(value) => updateFormData('title', value)}
+          placeholder="Enter event title"
+          onFocus={handleFieldFocus('title')}
+        />
+      </View>
 
-      <GlassInput
-        label="Description *"
-        value={formData.description}
-        onChangeText={(value) => updateFormData('description', value)}
-        placeholder="What's this event about?"
-        multiline
-        numberOfLines={4}
-      />
+      <View onLayout={handleFieldLayout('description')}>
+        <GlassInput
+          label="Description *"
+          value={formData.description}
+          onChangeText={(value) => updateFormData('description', value)}
+          placeholder="What's this event about?"
+          multiline
+          numberOfLines={4}
+          onFocus={handleFieldFocus('description')}
+        />
+      </View>
 
       {/* Tags Section */}
-      <GlassTagInput
-        label="Tags"
-        tags={tags}
-        onTagsChange={setTags}
-        placeholder="Type and press return to add tags..."
-      />
+      <View onLayout={handleFieldLayout('tags')}>
+        <GlassTagInput
+          label="Tags"
+          tags={tags}
+          onTagsChange={setTags}
+          placeholder="Type and press return to add tags..."
+          onFocus={handleFieldFocus('tags')}
+        />
+      </View>
 
-      <GlassInput
-        label="Location *"
-        value={formData.location}
-        onChangeText={(value) => updateFormData('location', value)}
-        placeholder="e.g., Student Center Room 201"
-        icon="map-marker"
-      />
+      <View onLayout={handleFieldLayout('location')}>
+        <GlassInput
+          label="Location *"
+          value={formData.location}
+          onChangeText={(value) => updateFormData('location', value)}
+          placeholder="e.g., Student Center Room 201"
+          icon="map-marker"
+          onFocus={handleFieldFocus('location')}
+        />
+      </View>
 
       {/* Date & Time */}
-      <GlassDateTimePicker
-        label="Start Date & Time"
-        date={startDate}
-        onDateChange={setStartDate}
-        minimumDate={new Date()}
-      />
+      <View onLayout={handleFieldLayout('startDate')}>
+        <GlassDateTimePicker
+          label="Start Date & Time"
+          date={startDate}
+          onDateChange={setStartDate}
+          minimumDate={new Date()}
+          onOpen={handleFieldFocus('startDate')}
+        />
+      </View>
 
-      <GlassDateTimePicker
-        label="End Date & Time"
-        date={endDate}
-        onDateChange={setEndDate}
-        minimumDate={startDate}
-      />
+      <View onLayout={handleFieldLayout('endDate')}>
+        <GlassDateTimePicker
+          label="End Date & Time"
+          date={endDate}
+          onDateChange={setEndDate}
+          minimumDate={startDate}
+          onOpen={handleFieldFocus('endDate')}
+        />
+      </View>
 
       {/* Additional Options */}
-      <GlassInput
-        label="Max Attendees"
-        value={formData.maxAttendees}
-        onChangeText={(value) => updateFormData('maxAttendees', value)}
-        placeholder="Unlimited"
-        keyboardType="numeric"
-        icon="account-m"
-      />
+      <View onLayout={handleFieldLayout('maxAttendees')}>
+        <GlassInput
+          label="Max Attendees"
+          value={formData.maxAttendees}
+          onChangeText={(value) => updateFormData('maxAttendees', value)}
+          placeholder="Unlimited"
+          keyboardType="numeric"
+          icon="account-m"
+          onFocus={handleFieldFocus('maxAttendees')}
+        />
+      </View>
 
-      <GlassInput
-        label="Ticket Price"
-        value={(selectedClub?.finixOnboardingComplete || selectedClub?.finixMerchantAccountActive) ? formData.ticketPrice : 'Free'}
-        onChangeText={(value) => updateFormData('ticketPrice', value)}
-        placeholder="Free"
-        keyboardType="decimal-pad"
-        icon="currency-usd"
-        editable={(selectedClub?.finixOnboardingComplete || selectedClub?.finixMerchantAccountActive) === true}
-        style={!(selectedClub?.finixOnboardingComplete || selectedClub?.finixMerchantAccountActive) && styles.disabledInput}
-      />
+      <View onLayout={handleFieldLayout('ticketPrice')}>
+        <GlassInput
+          label="Ticket Price"
+          value={(selectedClub?.finixOnboardingComplete || selectedClub?.finixMerchantAccountActive) ? formData.ticketPrice : 'Free'}
+          onChangeText={(value) => updateFormData('ticketPrice', value)}
+          placeholder="Free"
+          keyboardType="decimal-pad"
+          icon="currency-usd"
+          editable={(selectedClub?.finixOnboardingComplete || selectedClub?.finixMerchantAccountActive) === true}
+          style={!(selectedClub?.finixOnboardingComplete || selectedClub?.finixMerchantAccountActive) && styles.disabledInput}
+          onFocus={handleFieldFocus('ticketPrice')}
+        />
+      </View>
 
       {selectedClub && !selectedClub.finixOnboardingComplete && !selectedClub.finixMerchantAccountActive && (
         <View style={styles.warningBox}>
@@ -305,14 +348,17 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
 
       {/* Rally Credits Payout - Only for club admins */}
       {selectedClub && selectedClub.admins.includes(user?.uid || '') && (
-        <GlassInput
-          label="Rally Credits Payout"
-          value={formData.rallyCreditsPayout}
-          onChangeText={(value) => updateFormData('rallyCreditsPayout', value)}
-          placeholder="0"
-          keyboardType="numeric"
-          icon="star-circle"
-        />
+        <View onLayout={handleFieldLayout('rallyCreditsPayout')}>
+          <GlassInput
+            label="Rally Credits Payout"
+            value={formData.rallyCreditsPayout}
+            onChangeText={(value) => updateFormData('rallyCreditsPayout', value)}
+            placeholder="0"
+            keyboardType="numeric"
+            icon="star-circle"
+            onFocus={handleFieldFocus('rallyCreditsPayout')}
+          />
+        </View>
       )}
 
       <GlassSwitch
@@ -326,23 +372,33 @@ export default function EventForm({ onColorsExtracted, onSuccess }: EventFormPro
         label="Require Waiver"
         description="Users must agree to terms before joining"
         value={hasWaiver}
-        onValueChange={setHasWaiver}
+        onValueChange={(value) => {
+          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+          setHasWaiver(value);
+          Keyboard.dismiss();
+        }}
       />
 
       {hasWaiver && (
-        <GlassInput
-          label="Waiver / Terms Text *"
-          value={waiverText}
-          onChangeText={setWaiverText}
-          placeholder="Enter the waiver or terms that attendees must agree to..."
-          multiline
-          numberOfLines={6}
-          icon="file-document-outline"
-        />
+        <View onLayout={handleFieldLayout('waiverText')}>
+          <GlassInput
+            label="Waiver / Terms Text *"
+            value={waiverText}
+            onChangeText={setWaiverText}
+            placeholder="Enter the waiver or terms that attendees must agree to..."
+            multiline
+            numberOfLines={6}
+            icon="file-document-outline"
+            onFocus={handleFieldFocus('waiverText')}
+          />
+        </View>
       )}
 
       <TouchableOpacity
-        onPress={() => setShowQuestionnaireBuilder(true)}
+        onPress={() => {
+          Keyboard.dismiss();
+          setShowQuestionnaireBuilder(true);
+        }}
         activeOpacity={0.7}
         style={styles.configButtonWrapper}
       >

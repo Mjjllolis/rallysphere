@@ -380,16 +380,17 @@ export default function ManageQuestionnaire() {
                   </BlurView>
                 </TouchableOpacity>
 
-                {showAnalytics && analytics.map(q => {
-                  const isChoiceType = q.responseType === 'single_choice' || q.responseType === 'multiple_choice';
+                {showAnalytics && analytics
+                  .filter(q => q.responseType === 'single_choice' || q.responseType === 'multiple_choice')
+                  .map(q => {
                   const isExpanded = expandedQuestions.has(q.questionId);
                   const sortedChoices = q.choiceCounts ? getSortedChoices(q.choiceCounts) : [];
 
                   return (
                     <TouchableOpacity
                       key={q.questionId}
-                      onPress={() => isChoiceType && toggleQuestionExpanded(q.questionId)}
-                      activeOpacity={isChoiceType ? 0.7 : 1}
+                      onPress={() => toggleQuestionExpanded(q.questionId)}
+                      activeOpacity={0.7}
                     >
                       <BlurView
                         intensity={15}
@@ -413,22 +414,16 @@ export default function ManageQuestionnaire() {
                                 {getResponseTypeLabel(q.responseType)}
                               </Text>
                             </View>
-                            {isChoiceType ? (
-                              <IconButton
-                                icon={isExpanded ? 'chevron-up' : 'chevron-down'}
-                                size={18}
-                                iconColor={theme.colors.onSurfaceDisabled}
-                                style={{ margin: 0 }}
-                              />
-                            ) : (
-                              <View style={styles.responseCountBadge}>
-                                <Text style={styles.responseCountText}>{q.totalResponses}</Text>
-                              </View>
-                            )}
+                            <IconButton
+                              icon={isExpanded ? 'chevron-up' : 'chevron-down'}
+                              size={18}
+                              iconColor={theme.colors.onSurfaceDisabled}
+                              style={{ margin: 0 }}
+                            />
                           </View>
 
                           {/* Choice Breakdown - Always visible for choice types */}
-                          {isChoiceType && sortedChoices.length > 0 && (
+                          {sortedChoices.length > 0 && (
                             <View style={styles.choiceBreakdown}>
                               {(isExpanded ? sortedChoices : sortedChoices.slice(0, 3)).map(([choice, count], idx) => {
                                 const percentage = Math.round((count / responses.length) * 100);
