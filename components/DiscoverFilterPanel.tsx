@@ -41,6 +41,7 @@ export default function DiscoverFilterPanel({
 }: DiscoverFilterPanelProps) {
   const theme = useTheme();
   const { isDark } = useThemeToggle();
+  const accent = isDark ? '#8B5CF6' : '#A78BFA';
   const insets = useSafeAreaInsets();
   const translateX = useRef(new Animated.Value(PANEL_WIDTH)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -158,7 +159,7 @@ export default function DiscoverFilterPanel({
                 </TouchableOpacity>
               )}
               <TouchableOpacity
-                style={[styles.applyButton, { backgroundColor: '#60A5FA' }]}
+                style={[styles.applyButton, { backgroundColor: accent }]}
                 onPress={onClose}
                 activeOpacity={0.8}
               >
@@ -180,7 +181,7 @@ export default function DiscoverFilterPanel({
             {/* Sort Section */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Ionicons name="swap-vertical" size={18} color="#60A5FA" />
+                <Ionicons name="swap-vertical" size={18} color={accent} />
                 <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
                   Sort By
                 </Text>
@@ -196,7 +197,7 @@ export default function DiscoverFilterPanel({
                     onPress={() => updateFilter('sortBy', option.id as DiscoverFilters['sortBy'])}
                     activeOpacity={0.7}
                   >
-                    <RadioButton.Android value={option.id} color="#60A5FA" />
+                    <RadioButton.Android value={option.id} color={accent} />
                     <Text style={[styles.radioLabel, { color: theme.colors.onSurface }]}>
                       {option.label}
                     </Text>
@@ -210,7 +211,7 @@ export default function DiscoverFilterPanel({
             {/* Price Section */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Ionicons name="pricetag" size={18} color="#60A5FA" />
+                <Ionicons name="pricetag" size={18} color={accent} />
                 <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
                   Price
                 </Text>
@@ -226,7 +227,7 @@ export default function DiscoverFilterPanel({
                     onPress={() => updateFilter('price', option.id as DiscoverFilters['price'])}
                     activeOpacity={0.7}
                   >
-                    <RadioButton.Android value={option.id} color="#60A5FA" />
+                    <RadioButton.Android value={option.id} color={accent} />
                     <Text style={[styles.radioLabel, { color: theme.colors.onSurface }]}>
                       {option.label}
                     </Text>
@@ -240,7 +241,7 @@ export default function DiscoverFilterPanel({
             {/* Date Range Section */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Ionicons name="calendar" size={18} color="#60A5FA" />
+                <Ionicons name="calendar" size={18} color={accent} />
                 <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
                   Date
                 </Text>
@@ -256,7 +257,7 @@ export default function DiscoverFilterPanel({
                     onPress={() => updateFilter('dateRange', option.id as DiscoverFilters['dateRange'])}
                     activeOpacity={0.7}
                   >
-                    <RadioButton.Android value={option.id} color="#60A5FA" />
+                    <RadioButton.Android value={option.id} color={accent} />
                     <Text style={[styles.radioLabel, { color: theme.colors.onSurface }]}>
                       {option.label}
                     </Text>
@@ -270,7 +271,7 @@ export default function DiscoverFilterPanel({
             {/* Additional Options */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Ionicons name="options" size={18} color="#60A5FA" />
+                <Ionicons name="options" size={18} color={accent} />
                 <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
                   Options
                 </Text>
@@ -283,7 +284,7 @@ export default function DiscoverFilterPanel({
                 <Checkbox.Android
                   status={filters.showVirtual ? 'checked' : 'unchecked'}
                   onPress={() => updateFilter('showVirtual', !filters.showVirtual)}
-                  color="#60A5FA"
+                  color={accent}
                 />
                 <View style={styles.checkboxContent}>
                   <Text style={[styles.radioLabel, { color: theme.colors.onSurface }]}>

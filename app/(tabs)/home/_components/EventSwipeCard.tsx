@@ -631,7 +631,15 @@ export default function EventSwipeCard({
             }}
             style={[
               styles.bottomJoinButton,
-              { backgroundColor: isPastEvent || event.status === 'cancelled' ? theme.colors.surfaceDisabled : theme.colors.primary },
+              {
+                backgroundColor: isPastEvent || event.status === 'cancelled'
+                  ? 'transparent'
+                  : isDark ? 'rgba(96,165,250,0.14)' : 'rgba(37,99,235,0.08)',
+                borderWidth: 1.5,
+                borderColor: isPastEvent || event.status === 'cancelled'
+                  ? theme.colors.onSurfaceDisabled
+                  : isDark ? '#60A5FA' : '#2563EB',
+              },
               (isPastEvent || event.status === 'cancelled') && styles.bottomJoinButtonDisabled
             ]}
           >
@@ -639,7 +647,7 @@ export default function EventSwipeCard({
               variant="titleMedium"
               style={[
                 styles.bottomJoinButtonText,
-                { color: isPastEvent || event.status === 'cancelled' ? theme.colors.onSurfaceDisabled : theme.colors.onPrimary },
+                { color: isPastEvent || event.status === 'cancelled' ? theme.colors.onSurfaceDisabled : (isDark ? '#60A5FA' : '#2563EB') },
                 (isPastEvent || event.status === 'cancelled') && styles.bottomJoinButtonTextDisabled
               ]}
             >

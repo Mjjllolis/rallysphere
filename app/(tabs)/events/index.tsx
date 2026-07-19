@@ -32,6 +32,7 @@ export default function DiscoverScreen() {
   const theme = useTheme();
   const { isDark } = useThemeToggle();
   const { user } = useAuth();
+  const accent = isDark ? '#8B5CF6' : '#A78BFA';
 
   const [events, setEvents] = useState<Event[]>([]);
   const [clubs, setClubs] = useState<Club[]>([]);
@@ -253,7 +254,7 @@ export default function DiscoverScreen() {
               </View>
             </View>
             <View style={styles.featuredInfo}>
-              <Text style={styles.featuredDate}>
+              <Text style={[styles.featuredDate, { color: isDark ? '#8B5CF6' : '#A78BFA' }]}>
                 {formatDate(event.startDate)} • {formatTime(event.startDate)}
               </Text>
               <Text style={styles.featuredTitle} numberOfLines={2}>{event.title}</Text>
@@ -296,7 +297,7 @@ export default function DiscoverScreen() {
             cachePolicy="memory-disk"
           />
         ) : (
-          <LinearGradient colors={['#1B365D', '#60A5FA']} style={styles.featuredImage} />
+          <LinearGradient colors={isDark ? ['#2E1065', '#8B5CF6'] : ['#1B365D', '#60A5FA']} style={styles.featuredImage} />
         )}
         <LinearGradient
           colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.9)']}
@@ -316,7 +317,7 @@ export default function DiscoverScreen() {
             )}
           </View>
           <View style={styles.featuredInfo}>
-            <Text style={styles.featuredCategory}>{club.category}</Text>
+            <Text style={[styles.featuredCategory, { color: isDark ? '#8B5CF6' : '#A78BFA' }]}>{club.category}</Text>
             <Text style={styles.featuredTitle} numberOfLines={2}>{club.name}</Text>
             <Text style={styles.featuredClub} numberOfLines={2}>{club.description}</Text>
             <View style={styles.featuredFooter}>
@@ -354,7 +355,7 @@ export default function DiscoverScreen() {
               />
             ) : (
               <View style={styles.rowImagePlaceholder}>
-                <LinearGradient colors={['#60A5FA', '#1B365D']} style={styles.rowImageGradient}>
+                <LinearGradient colors={isDark ? ['#8B5CF6', '#2E1065'] : ['#60A5FA', '#1B365D']} style={styles.rowImageGradient}>
                   <Ionicons name="calendar" size={28} color="#fff" />
                 </LinearGradient>
               </View>
@@ -363,7 +364,7 @@ export default function DiscoverScreen() {
               <View style={styles.rowHeader}>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.rowTitle, { color: theme.colors.onSurface }]} numberOfLines={1}>{event.title}</Text>
-                  <Text style={styles.rowSubtitle} numberOfLines={1}>{event.clubName}</Text>
+                  <Text style={[styles.rowSubtitle, { color: accent }]} numberOfLines={1}>{event.clubName}</Text>
                 </View>
                 {isAttending && (
                   <View style={styles.smallAttendingBadge}>
@@ -387,12 +388,12 @@ export default function DiscoverScreen() {
               </View>
               <View style={styles.rowFooter}>
                 <View style={styles.rowMetaItem}>
-                  <Ionicons name="people-outline" size={13} color="#60A5FA" />
-                  <Text style={styles.rowAttendeeText}>
+                  <Ionicons name="people-outline" size={13} color={accent} />
+                  <Text style={[styles.rowAttendeeText, { color: accent }]}>
                     {event.attendeeCount ?? event.attendees?.length ?? 0}{event.maxAttendees ? `/${event.maxAttendees}` : ''} going
                   </Text>
                 </View>
-                <Text style={(event.ticketPrice || 0) > 0 ? styles.rowPricePaid : styles.rowPriceFree}>
+                <Text style={(event.ticketPrice || 0) > 0 ? [styles.rowPricePaid, { color: accent }] : styles.rowPriceFree}>
                   {(event.ticketPrice || 0) > 0 ? `$${event.ticketPrice}` : 'Free'}
                 </Text>
               </View>
@@ -422,7 +423,7 @@ export default function DiscoverScreen() {
             />
           ) : (
             <View style={styles.rowImagePlaceholder}>
-              <LinearGradient colors={['#1B365D', '#60A5FA']} style={styles.rowImageGradient}>
+              <LinearGradient colors={isDark ? ['#2E1065', '#8B5CF6'] : ['#1B365D', '#60A5FA']} style={styles.rowImageGradient}>
                 <Ionicons name="people" size={28} color="#fff" />
               </LinearGradient>
             </View>
@@ -438,10 +439,10 @@ export default function DiscoverScreen() {
                     <Ionicons name="star" size={14} color="#FFD700" style={{ marginLeft: 6 }} />
                   )}
                 </View>
-                <Text style={styles.rowSubtitle} numberOfLines={1}>{club.category}</Text>
+                <Text style={[styles.rowSubtitle, { color: accent }]} numberOfLines={1}>{club.category}</Text>
               </View>
-              <View style={styles.entityTypePill}>
-                <Text style={styles.entityTypePillText}>CLUB</Text>
+              <View style={[styles.entityTypePill, { backgroundColor: isDark ? 'rgba(139,92,246,0.18)' : 'rgba(167,139,250,0.15)', borderColor: accent }]}>
+                <Text style={[styles.entityTypePillText, { color: accent }]}>CLUB</Text>
               </View>
             </View>
             <Text style={[styles.rowDescription, { color: theme.colors.onSurfaceVariant }]} numberOfLines={2}>
@@ -449,8 +450,8 @@ export default function DiscoverScreen() {
             </Text>
             <View style={styles.rowFooter}>
               <View style={styles.rowMetaItem}>
-                <Ionicons name="people-outline" size={13} color="#60A5FA" />
-                <Text style={styles.rowAttendeeText}>
+                <Ionicons name="people-outline" size={13} color={accent} />
+                <Text style={[styles.rowAttendeeText, { color: accent }]}>
                   {club.members?.length || 0} {club.members?.length === 1 ? 'member' : 'members'}
                 </Text>
               </View>
@@ -476,11 +477,20 @@ export default function DiscoverScreen() {
         activeOpacity={0.7}
         style={[
           styles.chip,
-          { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline },
-          active && styles.chipActive,
+          { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)', borderColor: theme.colors.outline },
+          active && {
+            backgroundColor: isDark ? 'rgba(139, 92, 246, 0.28)' : 'rgba(167, 139, 250, 0.22)',
+            borderColor: accent,
+          },
         ]}
       >
-        <Text style={[styles.chipText, { color: theme.colors.onSurfaceVariant }, active && styles.chipTextActive]}>
+        <Text
+          style={[
+            styles.chipText,
+            { color: theme.colors.onSurfaceVariant },
+            active && { color: accent },
+          ]}
+        >
           {label}
         </Text>
       </TouchableOpacity>
@@ -496,9 +506,13 @@ export default function DiscoverScreen() {
       <View style={StyleSheet.absoluteFill}>
         <View style={[styles.blackBackground, { backgroundColor: theme.colors.background }]} />
       </View>
-      {/* Subtle Gradient Overlay - matches store */}
+      {/* Gradient Overlay */}
       <LinearGradient
-        colors={['rgba(170, 91, 250, 0.53)', 'rgba(0, 0, 0, 0.48)', isDark ? 'rgba(0, 0, 0, 0)' : 'rgba(248, 250, 252, 0)']}
+        colors={
+          isDark
+            ? ['rgba(139, 92, 246, 0.85)', 'rgba(0, 0, 0, 0.55)', 'rgba(0, 0, 0, 0)']
+            : ['rgba(210, 146, 252, 0.61)', 'rgba(251, 250, 252, 0.63)', 'rgba(167, 139, 250, 0)']
+        }
         locations={[0, 0.25, 1]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
@@ -544,11 +558,11 @@ export default function DiscoverScreen() {
             <BlurView intensity={20} tint={isDark ? 'dark' : 'light'} style={[styles.filterButton, { borderColor: theme.colors.outline }]}>
               <IconButton
                 icon="tune"
-                iconColor={hasActiveFilters ? '#60A5FA' : theme.colors.onSurface}
+                iconColor={hasActiveFilters ? accent : theme.colors.onSurface}
                 size={20}
                 style={{ margin: 0 }}
               />
-              {hasActiveFilters && <View style={styles.filterBadge} />}
+              {hasActiveFilters && <View style={[styles.filterBadge, { backgroundColor: accent }]} />}
             </BlurView>
           </TouchableOpacity>
         </View>
@@ -563,7 +577,7 @@ export default function DiscoverScreen() {
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={accent} />}
           showsVerticalScrollIndicator={false}
         >
           {loading && events.length === 0 && clubs.length === 0 ? (
@@ -725,7 +739,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#60A5FA',
+    backgroundColor: '#8B5CF6',
   },
 
   chipsRow: {
@@ -742,12 +756,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  chipActive: {
-    backgroundColor: '#ac1dff00',
-    borderColor: '#8c01ffb0',
-  },
-  chipText: { fontSize: 14, fontWeight: '600' },
-  chipTextActive: { color: '#fff' },
+  chipText: { fontSize: 14, fontWeight: '500' },
 
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
@@ -782,8 +791,8 @@ const styles = StyleSheet.create({
   featuredContent: { flex: 1, padding: 14, justifyContent: 'space-between' },
   featuredBadges: { flexDirection: 'row', gap: 6 },
   featuredInfo: { gap: 4 },
-  featuredDate: { color: '#60A5FA', fontSize: 12, fontWeight: '700' },
-  featuredCategory: { color: '#60A5FA', fontSize: 11, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
+  featuredDate: { color: '#8B5CF6', fontSize: 12, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  featuredCategory: { color: '#8B5CF6', fontSize: 11, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
   featuredTitle: { color: '#fff', fontSize: 18, fontWeight: '800' },
   featuredClub: { color: 'rgba(255,255,255,0.85)', fontSize: 13 },
   featuredFooter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
@@ -813,7 +822,7 @@ const styles = StyleSheet.create({
   },
   priceBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   clubBadge: {
-    backgroundColor: 'rgba(96, 165, 250, 0.9)',
+    backgroundColor: 'rgba(139, 92, 246, 0.9)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
@@ -844,15 +853,15 @@ const styles = StyleSheet.create({
   rowHeader: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   rowTitleRow: { flexDirection: 'row', alignItems: 'center' },
   rowTitle: { fontSize: 15, fontWeight: '700' },
-  rowSubtitle: { color: '#60A5FA', fontSize: 12, fontWeight: '600', marginTop: 2 },
+  rowSubtitle: { color: '#8B5CF6', fontSize: 12, fontWeight: '600', marginTop: 2 },
   rowDescription: { fontSize: 12, lineHeight: 17 },
   rowMeta: { gap: 3 },
   rowMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   rowMetaText: { fontSize: 12 },
   rowFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 },
-  rowAttendeeText: { color: '#60A5FA', fontSize: 12, fontWeight: '600' },
+  rowAttendeeText: { color: '#8B5CF6', fontSize: 12, fontWeight: '600' },
   rowPriceFree: { color: '#22C55E', fontSize: 13, fontWeight: '700' },
-  rowPricePaid: { color: '#60A5FA', fontSize: 13, fontWeight: '700' },
+  rowPricePaid: { color: '#8B5CF6', fontSize: 13, fontWeight: '700' },
   smallAttendingBadge: {
     backgroundColor: 'rgba(34, 197, 94, 0.2)',
     borderColor: '#22C55E',
@@ -863,12 +872,12 @@ const styles = StyleSheet.create({
   },
   smallAttendingText: { color: '#22C55E', fontSize: 10, fontWeight: '700' },
   entityTypePill: {
-    backgroundColor: 'rgba(96,165,250,0.18)',
-    borderColor: '#60A5FA',
+    backgroundColor: 'rgba(139,92,246,0.18)',
+    borderColor: '#8B5CF6',
     borderWidth: 1,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
   },
-  entityTypePillText: { color: '#60A5FA', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  entityTypePillText: { color: '#8B5CF6', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
 });
