@@ -1262,136 +1262,28 @@ export const setDefaultPaymentInstrument = functions.https.onCall(
 export const createSubMerchantAccount = functions.https.onCall(
   { enforceAppCheck: false, secrets: FINIX_SECRETS },
   async (request: any) => {
-    const data = request.data;
-    const auth = request.auth;
-
-    if (!auth) {
+    // DEPRECATED (2026-06-30): hosted onboarding was replaced by the in-app
+    // direct-API wizard (createClubIdentity → addClubBankAccount →
+    // provisionClubMerchant). This handler used to mint a Finix identity SHELL
+    // (business_name/dba/email only) plus a hosted onboarding_form — but such
+    // shells come back with identity_role UNKNOWN and can never be provisioned,
+    // which silently strands the club (see the RallySphere JsBOR… incident).
+    //
+    // It now hard-fails instead of creating anything, so a stale/old app build
+    // that still calls this endpoint can't stamp another dead shell onto a club.
+    // Kept reachable (not deleted) so old clients get a clear "update the app"
+    // message rather than an opaque not-found error.
+    if (!request.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
     }
-
-    const { clubId, email, clubName, returnUrl } = data;
-
-    if (!clubId || !email || !clubName) {
-      throw new functions.https.HttpsError(
-        "invalid-argument",
-        "Missing required fields: clubId, email, clubName"
-      );
-    }
-
-    try {
-      const db = admin.firestore();
-      const clubDoc = await db.collection("clubs").doc(clubId).get();
-      if (!clubDoc.exists) {
-        throw new functions.https.HttpsError("not-found", "Club not found");
-      }
-      const club = clubDoc.data();
-
-      // Already onboarded
-      if (club?.finixMerchantId && club?.finixOnboardingComplete) {
-        return {
-          identityId: club.finixIdentityId,
-          merchantId: club.finixMerchantId,
-          status: "APPROVED",
-          onboardingUrl: null,
-        };
-      }
-
-      const cfg = getFinixConfig();
-
-      // Create (or reuse) the club's Finix identity shell. The identity lets us
-      // pre-fill the hosted form and look up the merchant record later by identity.
-      let identityId: string = club?.finixIdentityId;
-      if (!identityId) {
-        const identityBody = {
-          entity: {
-            business_name: clubName,
-            doing_business_as: clubName,
-            email,
-          },
-          tags: { club_id: clubId },
-        };
-        console.log(`[createSubMerchantAccount] POST /identities body=`, JSON.stringify(identityBody));
-        const identity = await finixPost("/identities", identityBody);
-        identityId = identity.id;
-        console.log(`[createSubMerchantAccount] created identity ${identityId} for club ${clubId}`);
-      }
-
-      // Build the onboarding form body per Finix hosted-onboarding spec:
-      //   - merchant_processors:      which processor will run KYC + settle (DUMMY_V1 in sandbox, FINIX_V1 in live)
-      //   - onboarding_data:          pre-filled identity/merchant fields
-      //   - onboarding_link_details:  the return + expired-session URLs
-      const returnUrlFinal = returnUrl || `rallysphere://finix-onboarding/return?clubId=${encodeURIComponent(clubId)}`;
-      const refreshUrlFinal = `rallysphere://finix-onboarding/refresh?clubId=${encodeURIComponent(clubId)}`;
-      const feesUrl = process.env.FINIX_FEE_DETAILS_URL || "https://rally-sphere.web.app/fees.html";
-      const processor = isTestMode ? "DUMMY_V1" : "FINIX_V1";
-      // Underwriting cap per transaction. $5,000 covers a high-end paid event / store item.
-      // Override with FINIX_MAX_TXN_CENTS if you need a different ceiling.
-      const maxTxnCents = Number(process.env.FINIX_MAX_TXN_CENTS) || 500000;
-
-      const formBody = {
-        application: cfg.applicationId,
-        merchant_processors: [{ processor }],
-        onboarding_data: {
-          max_transaction_amount: maxTxnCents,
-          identity: {
-            id: identityId,
-            entity: {
-              business_name: clubName,
-              doing_business_as: clubName,
-              email,
-            },
-            tags: { club_id: clubId },
-          },
-        },
-        onboarding_link_details: {
-          return_url: returnUrlFinal,
-          expired_session_url: refreshUrlFinal,
-          fee_details_url: feesUrl,
-          fee_ready: true,
-          tos_acceptance: true,
-        },
-        tags: { club_id: clubId },
-      };
-      console.log(`[createSubMerchantAccount] POST /onboarding_forms body=`, JSON.stringify(formBody));
-      const form = await finixPost("/onboarding_forms", formBody);
-
-      // Finix returns the hosted URL + expiry under `onboarding_link` (not `onboarding_link_details`).
-      const onboardingUrl =
-        form.onboarding_link?.link_url ||
-        form.onboarding_link_details?.link_url ||
-        form.link_url ||
-        form.hosted_url ||
-        form.url ||
-        form.link;
-      if (!onboardingUrl) {
-        throw new Error(`Finix did not return a hosted onboarding URL. Response: ${JSON.stringify(form)}`);
-      }
-
-      const linkExpiresAt =
-        form.onboarding_link?.expires_at || form.onboarding_link_details?.expires_at || null;
-
-      await db.collection("clubs").doc(clubId).update({
-        finixIdentityId: identityId,
-        finixOnboardingFormId: form.id,
-        finixOnboardingUrl: onboardingUrl,
-        finixOnboardingLinkExpiresAt: linkExpiresAt,
-        finixOnboardingStartedAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-
-      console.log(`Finix onboarding form created for club ${clubId}: form=${form.id}`);
-
-      return {
-        identityId,
-        onboardingFormId: form.id,
-        onboardingUrl,
-        status: "PENDING",
-      };
-    } catch (error: any) {
-      console.error("Error creating sub-merchant account:", error);
-      if (error instanceof functions.https.HttpsError) throw error;
-      throw new functions.https.HttpsError("internal", `Failed to start onboarding: ${error.message}`);
-    }
+    console.warn(
+      `createSubMerchantAccount is deprecated but was called by uid=${request.auth.uid} ` +
+        `for club=${request.data?.clubId} — almost certainly a stale app build.`
+    );
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "Payout setup has moved. Please update RallySphere to the latest version, then set up payouts from Manage Payouts."
+    );
   }
 );
 
@@ -1630,6 +1522,34 @@ const buildClubOnboardingDraft = (business: any, controlPerson: any, underwritin
   };
 };
 
+// Finix identity_roles that can back a merchant. An identity created only as a
+// hosted-onboarding shell (createSubMerchantAccount) or as a buyer comes back
+// with role UNKNOWN and CANNOT be provisioned — and PATCHing business data onto
+// it does not upgrade the role. So such an identity must be discarded, not reused.
+const MERCHANT_PROVISIONABLE_ROLES = new Set([
+  "APPLICATION_OWNER",
+  "SENDER",
+  "RECIPIENT",
+  "SELLER",
+]);
+
+// true  -> Finix reports a role that can be provisioned as a merchant (reuse it)
+// false -> role is UNKNOWN / BUYER / none (discard and mint a fresh identity)
+// null  -> identity can't be fetched (404 / wrong env / transient) -> discard too
+const finixIdentityIsProvisionable = async (identityId: string): Promise<boolean | null> => {
+  try {
+    const identity: any = await finixGet(`/identities/${identityId}`);
+    const roles: string[] = Array.isArray(identity?.identity_roles)
+      ? identity.identity_roles
+      : identity?.identity_role
+      ? [identity.identity_role]
+      : [];
+    return roles.some((r) => MERCHANT_PROVISIONABLE_ROLES.has(r));
+  } catch (e) {
+    return null;
+  }
+};
+
 // ---------------------------------------------------------------------------
 // 1) Create / update the club's Finix merchant identity (+ beneficial owners)
 // ---------------------------------------------------------------------------
@@ -1666,11 +1586,29 @@ export const createClubIdentity = functions.https.onCall(
       const body: any = { entity, tags: { club_id: clubId } };
       if (additional) body.additional_underwriting_data = additional;
 
-      // Reuse the existing identity (PATCH) on resume / correction; otherwise create.
+      // Reuse the existing identity (PATCH) on resume / correction — but ONLY if
+      // Finix still considers it provisionable. A stale hosted-onboarding shell
+      // or buyer identity comes back with role UNKNOWN; PATCHing never upgrades
+      // that role, so provisioning would fail forever. In that case discard it
+      // and mint a fresh identity (this is what strands a club otherwise).
       let identityId: string = club.finixIdentityId;
+      let reuseOwners = true;
       if (identityId) {
-        await finixPatch(`/identities/${identityId}`, body);
-      } else {
+        const provisionable = await finixIdentityIsProvisionable(identityId);
+        if (provisionable === true) {
+          await finixPatch(`/identities/${identityId}`, body);
+        } else {
+          console.warn(
+            `createClubIdentity: club ${clubId} identity ${identityId} is not provisionable ` +
+              `(${provisionable === null ? "unfetchable" : "role UNKNOWN/buyer"}); minting a fresh identity`
+          );
+          identityId = "";
+          // Old associated identities were attached to the discarded identity, so
+          // don't carry them over — the owners get re-attached to the new one.
+          reuseOwners = false;
+        }
+      }
+      if (!identityId) {
         const identity = await finixPost("/identities", body);
         identityId = identity.id;
         // Persist the id RIGHT AWAY. If anything below fails (owners, draft
@@ -1684,7 +1622,7 @@ export const createClubIdentity = functions.https.onCall(
 
       // Beneficial owners (>25%) become associated identities under the merchant
       // identity. We replace-on-resume only when none recorded yet to avoid dupes.
-      const ownerIds: string[] = Array.isArray(club.finixOwnerIdentityIds)
+      const ownerIds: string[] = reuseOwners && Array.isArray(club.finixOwnerIdentityIds)
         ? [...club.finixOwnerIdentityIds]
         : [];
       if (Array.isArray(owners) && owners.length && ownerIds.length === 0) {

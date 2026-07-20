@@ -365,50 +365,16 @@ export const refundStoreOrder = async (orderId: string, clubId: string): Promise
 };
 
 // ============================================================================
-// SUB-MERCHANT ACCOUNT (Club Payouts) — Finix Hosted Onboarding
+// SUB-MERCHANT ACCOUNT (Club Payouts)
+//
+// DEPRECATED (2026-06-30): hosted onboarding was removed in favor of the in-app
+// direct-API wizard (createClubIdentity → addClubBankAccount →
+// provisionClubMerchant, below). The `createSubMerchantAccount` wrapper and its
+// StartOnboardingResult type were deleted; the backend callable now hard-fails
+// for any stale client that still calls it. Use the wizard flow instead.
+// getSubMerchantStatus (below) is retained — it's a read-only status check still
+// used by the return screen.
 // ============================================================================
-
-export interface StartOnboardingResult {
-  success: boolean;
-  identityId?: string;
-  merchantId?: string;
-  onboardingFormId?: string;
-  onboardingUrl?: string | null;
-  status?: string;
-  error?: string;
-}
-
-/**
- * Starts (or resumes) hosted onboarding for a club. Returns a URL the club
- * admin should open to complete KYC on Finix's hosted form. Finix redirects
- * to the deep link `rallysphere://finix-onboarding/return?clubId=...` on
- * completion.
- */
-export const createSubMerchantAccount = async (
-  clubId: string,
-  email: string,
-  clubName: string,
-  returnUrl?: string
-): Promise<StartOnboardingResult> => {
-  try {
-    if (!auth.currentUser) {
-      return { success: false, error: 'You must be logged in' };
-    }
-    const fn = httpsCallable(functions, 'createSubMerchantAccount');
-    const result = await fn({ clubId, email, clubName, returnUrl });
-    const data = result.data as any;
-    return {
-      success: true,
-      identityId: data.identityId,
-      merchantId: data.merchantId,
-      onboardingFormId: data.onboardingFormId,
-      onboardingUrl: data.onboardingUrl,
-      status: data.status,
-    };
-  } catch (error: any) {
-    return { success: false, error: error.message || 'Failed to start onboarding' };
-  }
-};
 
 export interface SubMerchantStatusResult {
   success: boolean;

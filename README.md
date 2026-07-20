@@ -187,28 +187,28 @@ firebase deploy --only functions
 
 ## Finix Payouts Setup
 
-RallySphere uses Finix sub-merchant accounts so clubs can receive payouts from paid events. Before clubs can accept payments, they must complete Finix's hosted onboarding flow.
+RallySphere uses Finix sub-merchant accounts so clubs can receive payouts from paid events. Before clubs can accept payments, they must complete the in-app payout onboarding wizard.
 
 ### How It Works
 
-When a club admin sets up payouts in the app:
+Payout onboarding runs entirely **in-app** via a direct-API wizard (migrated 2026-06-30 from the old Finix hosted-onboarding forms, which never wrote completion back and left clubs stranded). When a club admin sets up payouts:
 
-1. User taps **Set up payouts** in club settings
-2. App calls the `createSubMerchantAccount` Cloud Function, which creates a Finix identity and returns a hosted onboarding URL
-3. App opens the URL via `expo-web-browser`
-4. User completes Finix's onboarding (business details, beneficial owners, bank account, Persona selfie + Gov ID verification)
-5. Finix redirects back via deep link: `rallysphere://finix-onboarding/return?clubId=…&identityId=…`
-6. Webhook `underwriting.*` updates the club's Firestore doc: `finixMerchantAccountActive: true`
+1. User taps **Set up payouts** → the `FinixOnboardingWizard` opens (3 stages)
+2. Stage 1 — business + control-person KYC → `createClubIdentity` (creates the Finix merchant identity; on resume it reuses the identity only if it's still provisionable, otherwise mints a fresh one)
+3. Stage 2 — payout bank, tokenized client-side → `addClubBankAccount`
+4. Stage 3 — review & submit → `provisionClubMerchant` (creates the merchant on the identity)
+5. Webhook `merchant.underwriting.*` updates the club's Firestore doc: `finixOnboardingComplete` / `finixMerchantAccountActive`
+
+> **Deprecated:** the old hosted flow (`createSubMerchantAccount` → `/onboarding_forms`) is retired. The callable now hard-fails so stale app builds can't create dead identity shells; there is no hosted URL step anymore.
 
 ### Testing the Flow (Sandbox)
 
 1. In the app, sign in as a club admin
-2. Tap **Set up payouts**
-3. Complete the hosted onboarding in the browser — use Finix sandbox test data:
+2. Tap **Set up payouts** and complete the wizard — use Finix sandbox test data:
    - SSN: `000-00-0000`
    - Bank routing: `110000000`
    - Bank account: `000123456789`
-4. Return to the app and confirm the club shows **Payouts enabled**
+3. Confirm the club shows **Payouts enabled**
 
 ### Revenue Split
 
