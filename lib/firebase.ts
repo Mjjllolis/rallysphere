@@ -1451,47 +1451,19 @@ export const deleteEvent = async (eventId: string) => {
  */
 export const getEventCancellationPreview = async (eventId: string) => {
   try {
-    const ordersResult = await getEventTicketOrders(eventId);
-    if (!ordersResult.success) {
-      return {
-        success: false,
-        error: ordersResult.error,
-        paidCount: 0,
-        freeCount: 0,
-        totalRefund: 0,
-        alreadyRefundedCount: 0,
-      };
-    }
-
-    let paidCount = 0;
-    let freeCount = 0;
-    let totalRefund = 0;
-    let alreadyRefundedCount = 0;
-
-    for (const order of ordersResult.orders) {
-      if (order.status === 'refunded' || order.status === 'cancelled') {
-        alreadyRefundedCount++;
-        continue;
-      }
-      if ((order.totalAmount || 0) > 0 && (order as any).transactionId) {
-        paidCount++;
-        totalRefund += order.totalAmount;
-      } else {
-        freeCount++;
-      }
-    }
-
-    return {
-      success: true,
-      paidCount,
-      freeCount,
-      totalRefund,
-      alreadyRefundedCount,
+    const fn = httpsCallable(functions, 'getEventCancellationPreview');
+    const result = await fn({ eventId });
+    return { success: true as const, ...(result.data as object) } as {
+      success: true;
+      paidCount: number;
+      freeCount: number;
+      totalRefund: number;
+      alreadyRefundedCount: number;
     };
   } catch (error: any) {
     return {
-      success: false,
-      error: error.message,
+      success: false as const,
+      error: error?.message || String(error),
       paidCount: 0,
       freeCount: 0,
       totalRefund: 0,
@@ -2946,25 +2918,6 @@ export const getClubTicketOrders = async (clubId: string) => {
 /**
  * Get ticket orders for a specific event
  */
-export const getEventTicketOrders = async (eventId: string) => {
-  try {
-    const ordersRef = collection(db, 'ticketOrders');
-    const q = query(ordersRef, where('eventId', '==', eventId), orderBy('createdAt', 'desc'));
-
-    const querySnapshot = await getDocs(q);
-    const orders: TicketOrder[] = [];
-
-    querySnapshot.forEach((doc) => {
-      orders.push({ id: doc.id, ...doc.data() } as TicketOrder);
-    });
-
-    return { success: true, orders };
-  } catch (error: any) {
-    // console.error('Error getting event ticket orders:', error);
-    return { success: false, error: error.message, orders: [] };
-  }
-};
-
 /**
  * Save shipping address to user profile
  */

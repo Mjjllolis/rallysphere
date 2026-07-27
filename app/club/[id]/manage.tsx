@@ -109,7 +109,6 @@ export default function ClubManageDashboard() {
     { title: 'Ticket Orders', description: 'View and manage event ticket sales', icon: 'ticket-confirmation', route: `/club/${clubId}/manage-ticket-orders` },
     { title: 'Manage Store', description: 'Add and edit store products', icon: 'store', route: `/club/${clubId}/manage-store` },
     { title: 'Store Orders', description: 'Fulfill customer store orders', icon: 'package-variant', route: `/club/${clubId}/manage-orders`, badge: analytics?.pendingOrders },
-    { title: 'Create Event', description: 'Create a new club event', icon: 'calendar-plus', route: `/(tabs)/create-event?clubId=${clubId}` },
     { title: 'Edit Club', description: 'Update club profile and settings', icon: 'pencil', route: `/club/edit/${clubId}` },
     { title: 'Payouts', description: (club.finixMerchantId || club.finixIdentityId) ? 'Manage payout settings' : 'Connect Payouts', icon: 'bank', route: `/club/${clubId}/payouts` },
     { title: 'Pro Subscription', description: 'Manage club Pro status', icon: 'crown', route: `/club/${clubId}/subscription` },
