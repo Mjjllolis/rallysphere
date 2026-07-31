@@ -10,6 +10,7 @@ import {
   type FinixTokenizationContext,
 } from '../lib/finix';
 import { useDebugLogs } from '../lib/debugContext';
+import PaymentSecurityInfo from './PaymentSecurityInfo';
 
 interface PaymentModalProps {
   visible: boolean;
@@ -203,6 +204,7 @@ export default function PaymentModal({
         <Divider style={styles.divider} />
 
         <Text variant="titleMedium" style={styles.cardTitle}>Payment Method</Text>
+        <PaymentSecurityInfo variant="checkout" style={{ paddingVertical: 4, marginBottom: 4 }} />
 
         {initializing ? (
           <View style={styles.loadingContainer}>

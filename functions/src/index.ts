@@ -221,6 +221,24 @@ async function finixGet<T = any>(path: string, env?: FinixEnv): Promise<T> {
   return res.data;
 }
 
+// Finix documents PUT (not PATCH) for updating an Identity, and its update
+// model binds ONLY `entity` + `tags`. Kept separate from finixPatch so the
+// subscription-enrollment calls below keep their verb.
+async function finixPut<T = any>(path: string, body: any): Promise<T> {
+  const client = getFinixClient();
+  const res = await client.put(path, body);
+  if (res.status >= 400) {
+    const errs = res.data?._embedded?.errors || (res.data?.message ? [{ message: res.data.message }] : []);
+    const details = errs
+      .map((e: any) => `${e.field ? `[${e.field}] ` : ''}${e.message || JSON.stringify(e)}${e.code ? ` (${e.code})` : ''}`)
+      .join('; ');
+    const msg = details || `Finix ${res.status}`;
+    console.error(`Finix ${res.status} on ${res.config?.method?.toUpperCase() || 'REQ'} ${res.config?.url || ''}:`, JSON.stringify(res.data));
+    throw new Error(msg);
+  }
+  return res.data;
+}
+
 async function finixPatch<T = any>(path: string, body: any): Promise<T> {
   const client = getFinixClient();
   const res = await client.patch(path, body);
@@ -1288,6 +1306,198 @@ export const createSubMerchantAccount = functions.https.onCall(
 );
 
 // ============================================================================
+// PUSH NOTIFICATIONS (Expo)
+// Expo's push service is a plain HTTP POST — no SDK needed. Tokens are written
+// to users/{uid}.expoPushTokens[] by the client on launch.
+// ============================================================================
+
+const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
+
+const sendExpoPush = async (
+  tokens: string[],
+  title: string,
+  body: string,
+  data?: Record<string, any>
+): Promise<void> => {
+  const valid = [...new Set(tokens)].filter((t) => typeof t === "string" && t.startsWith("ExponentPushToken"));
+  if (!valid.length) return;
+  // Expo caps a request at 100 messages.
+  for (let i = 0; i < valid.length; i += 100) {
+    const messages = valid.slice(i, i + 100).map((to) => ({ to, title, body, data, sound: "default" }));
+    try {
+      await axios.post(EXPO_PUSH_URL, messages, {
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        timeout: 10000,
+      });
+    } catch (e: any) {
+      // Never let a failed push break the webhook that triggered it.
+      console.warn("sendExpoPush failed:", e?.message || e);
+    }
+  }
+};
+
+const clubAdminUids = (club: any): string[] => {
+  const ids = [...(club?.clubAdmins || club?.admins || []), club?.clubOwner, club?.owner];
+  return [...new Set(ids.filter((v: any) => typeof v === "string" && v))];
+};
+
+const pushTokensForUids = async (
+  db: admin.firestore.Firestore,
+  uids: string[]
+): Promise<string[]> => {
+  if (!uids.length) return [];
+  const snaps = await db.getAll(...uids.map((u) => db.collection("users").doc(u)));
+  return snaps.flatMap((s) => {
+    const d = s.data() || {};
+    const list = Array.isArray(d.expoPushTokens) ? d.expoPushTokens : d.expoPushToken ? [d.expoPushToken] : [];
+    return list.filter((t: any) => typeof t === "string");
+  });
+};
+
+// Tell the club's admins when their payout application moves. Without this the
+// only way to learn Finix wants something is to open the app and tap "Check
+// status" — which nobody does, so applications sit dead for weeks.
+const notifyClubAdminsOfPayoutStatus = async (
+  db: admin.firestore.Firestore,
+  clubDoc: FirebaseFirestore.DocumentSnapshot,
+  info: { status: string; onboardingState?: string | null; action?: { items: FinixActionItem[] } | null }
+): Promise<void> => {
+  try {
+    const club = clubDoc.data() || {};
+    // Only fire on a genuine transition — merchant webhooks repeat constantly.
+    const stateKey = `${info.status}:${info.onboardingState || ""}`;
+    if (club.finixLastNotifiedState === stateKey) return;
+
+    let title: string | null = null;
+    let body = "";
+    if (info.onboardingState === "UPDATE_REQUESTED") {
+      const items = info.action?.items || [];
+      title = "Finix needs a bit more information";
+      body = items.length
+        ? `To finish setting up payouts: ${items.map((i) => i.label).join("; ")}.`
+        : "Open RallySphere to see what's needed to finish setting up payouts.";
+    } else if (info.status === "APPROVED") {
+      title = "Payouts are live";
+      body = `${club.name || "Your club"} can now receive payments.`;
+    } else if (info.status === "DECLINED") {
+      title = "Payout application declined";
+      body = "Finix couldn't approve your payout account. Open RallySphere for details.";
+    }
+    if (!title) return;
+
+    const tokens = await pushTokensForUids(db, clubAdminUids(club));
+    await sendExpoPush(tokens, title, body, { type: "payout_status", clubId: clubDoc.id });
+    await clubDoc.ref.update({ finixLastNotifiedState: stateKey });
+  } catch (e: any) {
+    console.warn("notifyClubAdminsOfPayoutStatus failed:", e?.message || e);
+  }
+};
+
+// ============================================================================
+// "FINIX NEEDS SOMETHING" — turning UPDATE_REQUESTED into a to-do list
+//
+// When underwriting stalls, Finix puts the merchant in UPDATE_REQUESTED and
+// records WHY on the merchant's Verification: `outcomes[]`, each with an
+// `outcome_code` and `remediation_details` saying whether a file must be
+// uploaded or a field corrected. Finix does not tell the seller any of this —
+// so unless we read it and show it, both we and the club are staring at the
+// word "UPDATE_REQUESTED" with no idea what it wants.
+// ============================================================================
+
+// Plain-English labels for the outcome codes we expect to see. Anything not
+// listed falls back to a de-snaked version of the code, so a new code from
+// Finix degrades to readable rather than blank.
+const FINIX_OUTCOME_LABELS: Record<string, string> = {
+  BANK_STATEMENT_ONE_MONTH_REQUESTED: "A bank statement from the last month",
+  BANK_STATEMENT_THREE_MONTH_REQUESTED: "Bank statements from the last three months",
+  VOIDED_CHECK_REQUESTED: "A voided check for your payout account",
+  INVALID_BANK_ACCOUNT: "Correct payout bank account details",
+  INVALID_BUSINESS_TAX_ID: "A corrected business tax ID (EIN)",
+  INVALID_TAX_ID: "A corrected Social Security number",
+  BUSINESS_LICENSE_REQUESTED: "A copy of your business license",
+  ARTICLES_OF_INCORPORATION_REQUESTED: "Your articles of incorporation",
+  GOVERNMENT_ID_REQUESTED: "A photo of the owner's government-issued ID",
+  PROOF_OF_ADDRESS_REQUESTED: "Proof of your business address",
+  PROCESSING_STATEMENT_REQUESTED: "A recent card-processing statement",
+  WEBSITE_REQUESTED: "A working website or social page for the club",
+  INVALID_WEBSITE: "A corrected website address",
+  BUSINESS_DESCRIPTION_REQUESTED: "A fuller description of what your club sells",
+};
+
+const humanizeOutcomeCode = (code: string): string =>
+  FINIX_OUTCOME_LABELS[code] ||
+  code
+    .replace(/_REQUESTED$/, "")
+    .replace(/^INVALID_/, "Corrected ")
+    .split("_")
+    .join(" ")
+    .toLowerCase()
+    .replace(/^./, (c) => c.toUpperCase());
+
+export interface FinixActionItem {
+  code: string;
+  label: string;
+  action: "upload" | "correct" | "unknown";
+  fileType?: string;
+  fieldName?: string;
+}
+
+// Read the merchant's current verification and reduce it to a to-do list.
+// Returns null when there's nothing outstanding (or we can't tell).
+const fetchMerchantActionRequired = async (
+  merchantId: string
+): Promise<{ verificationId: string; summary: string | null; items: FinixActionItem[] } | null> => {
+  try {
+    const merchant: any = await finixGet(`/merchants/${merchantId}`);
+    const verificationId: string | undefined = merchant?.verification;
+    if (!verificationId) return null;
+
+    const v: any = await finixGet(`/verifications/${verificationId}`);
+    const outcomes: any[] = Array.isArray(v?.outcomes) ? v.outcomes : [];
+    if (!outcomes.length) return null;
+
+    const items: FinixActionItem[] = outcomes.map((o: any) => {
+      const rd = o?.remediation_details || {};
+      return {
+        code: o?.outcome_code || "UNKNOWN",
+        label: humanizeOutcomeCode(o?.outcome_code || "UNKNOWN"),
+        action: rd.type === "FILE_UPLOAD" ? "upload" : rd.type === "FIELD_UPDATE" ? "correct" : "unknown",
+        ...(rd.file_type ? { fileType: rd.file_type } : {}),
+        ...(rd.field_name ? { fieldName: rd.field_name } : {}),
+      };
+    });
+
+    return { verificationId, summary: v?.outcome_summary || null, items };
+  } catch (e: any) {
+    console.warn(`fetchMerchantActionRequired(${merchantId}) failed:`, e?.message || e);
+    return null;
+  }
+};
+
+// Write the to-do list onto the club (or clear it once Finix is satisfied).
+// Returns what it wrote so callers can hand it straight back to the client.
+const syncClubActionRequired = async (
+  clubRef: FirebaseFirestore.DocumentReference,
+  merchantId: string | null | undefined,
+  onboardingState: string | null | undefined
+) => {
+  if (!merchantId) return null;
+  const stalled = onboardingState === "UPDATE_REQUESTED";
+  if (!stalled) {
+    // Resolved (or never stalled) — don't leave a stale to-do list behind.
+    await clubRef.update({ finixActionRequired: admin.firestore.FieldValue.delete() }).catch(() => {});
+    return null;
+  }
+  const action = await fetchMerchantActionRequired(merchantId);
+  if (!action) return null;
+  await clubRef.update({
+    finixActionRequired: { ...action, fetchedAt: admin.firestore.FieldValue.serverTimestamp() },
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return action;
+};
+
+// ============================================================================
 // GET SUB-MERCHANT STATUS
 // After the club returns from hosted onboarding, poll this to check if Finix
 // has created/approved the merchant record. Webhook is authoritative but the
@@ -1315,6 +1525,16 @@ export const getSubMerchantStatus = functions.https.onCall(
       // Prefer direct merchant lookup if we have the id
       if (merchantId) {
         const merchant = await finixGet(`/merchants/${merchantId}`);
+        // If Finix is waiting on the club, find out exactly what for.
+        const actionRequired = clubId
+          ? await syncClubActionRequired(
+              db.collection("clubs").doc(clubId),
+              merchant.id,
+              merchant.onboarding_state
+            )
+          : merchant.onboarding_state === "UPDATE_REQUESTED"
+          ? await fetchMerchantActionRequired(merchant.id)
+          : null;
         return {
           status: merchant.onboarding_state || merchant.processing_enabled ? "APPROVED" : "PENDING",
           isComplete: merchant.processing_enabled === true && merchant.settlement_enabled === true,
@@ -1322,6 +1542,8 @@ export const getSubMerchantStatus = functions.https.onCall(
           settlementEnabled: merchant.settlement_enabled === true,
           merchantId: merchant.id,
           identityId: merchant.identity,
+          onboardingState: merchant.onboarding_state || null,
+          actionRequired,
         };
       }
 
@@ -1450,29 +1672,60 @@ const toFinixIdentityEntity = (business: any, controlPerson: any) => {
 
 // Map our underwriting payload + consent metadata to Finix's
 // additional_underwriting_data block.
-const toFinixUnderwriting = (u: any, consent: any) => {
-  if (!u && !consent) return undefined;
+//
+// EVERY field here is filled, by default if the client didn't supply one. An
+// application that arrives with a blank underwriting block is what forces a
+// human at Finix to go ask the merchant questions by hand — which, since Finix
+// doesn't contact our sellers, lands on us. The defaults below describe what a
+// RallySphere club actually is: card-not-present dues / tickets / merch, sold
+// business-to-consumer through the app. Anything the wizard collects overrides.
+const toFinixUnderwriting = (u: any, consent: any, ctx?: { businessName?: string; annualCardVolume?: number }) => {
   u = u || {};
   const nowIso = new Date().toISOString();
+
+  // Fallback average ticket. Prefer what the club told us; otherwise assume a
+  // mid-size club (~500 transactions/yr) against their stated annual volume,
+  // floored at $25 so a blank/zero volume can't produce a nonsense 0.
+  const derivedAvgCard =
+    ctx?.annualCardVolume && ctx.annualCardVolume > 0
+      ? Math.max(2500, Math.round(ctx.annualCardVolume / 500))
+      : 5000;
+
+  const name = ctx?.businessName || "This club";
+  const defaultDescription =
+    `${name} is a sports and recreation club that collects membership dues, event and ` +
+    `tournament entry fees, and merchandise orders from its own members through the ` +
+    `RallySphere mobile app. All payments are card-not-present and initiated by the member ` +
+    `in-app; there is no in-person terminal, no phone or mail ordering, and no resale to ` +
+    `third parties.`;
+
+  const dist = u.cardVolumeDistribution;
+  const bizDist = u.volumeDistributionByBusinessType;
+
   const out: any = {
-    annual_ach_volume: u.annualAchVolume != null ? Number(u.annualAchVolume) : undefined,
-    average_ach_transfer_amount:
-      u.averageAchTransferAmount != null ? Number(u.averageAchTransferAmount) : undefined,
-    average_card_transfer_amount:
-      u.averageCardTransferAmount != null ? Number(u.averageCardTransferAmount) : undefined,
-    business_description: u.businessDescription,
-    refund_policy: u.refundPolicy, // e.g. NO_REFUNDS / MERCHANDISE_EXCHANGE_ONLY / WITHIN_THIRTY_DAYS
-    card_volume_distribution: u.cardVolumeDistribution
-      ? {
-          ecommerce_percentage: Number(u.cardVolumeDistribution.ecommercePercentage ?? 0),
-          card_present_percentage: Number(u.cardVolumeDistribution.cardPresentPercentage ?? 0),
-          mail_order_telephone_order_percentage: Number(
-            u.cardVolumeDistribution.mailOrderTelephoneOrderPercentage ?? 0
-          ),
-        }
-      : undefined,
-    volume_distribution_by_business_type: u.volumeDistributionByBusinessType,
+    annual_ach_volume: Number(u.annualAchVolume ?? 0),
+    average_ach_transfer_amount: Number(u.averageAchTransferAmount ?? derivedAvgCard),
+    average_card_transfer_amount: Number(u.averageCardTransferAmount ?? derivedAvgCard),
+    business_description: u.businessDescription || defaultDescription,
+    // NO_REFUNDS / MERCHANDISE_EXCHANGE_ONLY / WITHIN_30_DAYS / OTHER
+    refund_policy: u.refundPolicy || "WITHIN_30_DAYS",
+    // 100% ecommerce: every charge originates in the app, card-not-present.
+    card_volume_distribution: {
+      ecommerce_percentage: Number(dist?.ecommercePercentage ?? 100),
+      card_present_percentage: Number(dist?.cardPresentPercentage ?? 0),
+      mail_order_telephone_order_percentage: Number(dist?.mailOrderTelephoneOrderPercentage ?? 0),
+    },
+    // Clubs sell to their own members — business-to-consumer, end to end.
+    volume_distribution_by_business_type: {
+      business_to_business_volume_percentage: Number(bizDist?.businessToBusinessVolumePercentage ?? 0),
+      business_to_consumer_volume_percentage: Number(bizDist?.businessToConsumerVolumePercentage ?? 100),
+      consumer_to_consumer_volume_percentage: Number(bizDist?.consumerToConsumerVolumePercentage ?? 0),
+      person_to_person_volume_percentage: Number(bizDist?.personToPersonVolumePercentage ?? 0),
+      other_volume_percentage: Number(bizDist?.otherVolumePercentage ?? 0),
+    },
     // Consent records — Finix wants these with IP / timestamp / user-agent.
+    // The IP is captured server-side from the callable request; a consent record
+    // without one is itself a reason to kick an application to manual review.
     merchant_agreement_accepted: consent?.merchantAgreementAccepted ?? true,
     merchant_agreement_ip_address: consent?.ip,
     merchant_agreement_timestamp: consent?.timestamp || nowIso,
@@ -1582,11 +1835,28 @@ export const createClubIdentity = functions.https.onCall(
 
     try {
       const entity = toFinixIdentityEntity(business, controlPerson);
-      const additional = toFinixUnderwriting(underwriting, consent);
-      const body: any = { entity, tags: { club_id: clubId } };
-      if (additional) body.additional_underwriting_data = additional;
+      // The client can't see its own public IP; take it from the request. Falls
+      // back to whatever the client guessed, then to nothing.
+      const consentIp =
+        (request.rawRequest?.headers?.["x-forwarded-for"] || "").toString().split(",")[0].trim() ||
+        request.rawRequest?.ip ||
+        consent?.ip ||
+        undefined;
+      const additional = toFinixUnderwriting(
+        underwriting,
+        { ...(consent || {}), ip: consentIp },
+        { businessName: business.businessName, annualCardVolume: Number(business.annualCardVolume) || 0 }
+      );
+      // CREATE takes the full payload. UPDATE takes `entity` + `tags` ONLY —
+      // Finix's update model has no `additional_underwriting_data` binding, and
+      // sending it fails the whole request with an unnamed parse error
+      // ("Invalid Field: null; Error near line: 1, column: N", where N points
+      // into that block). That 400 hit every club editing an existing profile.
+      const createBody: any = { entity, tags: { club_id: clubId } };
+      if (additional) createBody.additional_underwriting_data = additional;
+      const updateBody: any = { entity, tags: { club_id: clubId } };
 
-      // Reuse the existing identity (PATCH) on resume / correction — but ONLY if
+      // Reuse the existing identity (PUT) on resume / correction — but ONLY if
       // Finix still considers it provisionable. A stale hosted-onboarding shell
       // or buyer identity comes back with role UNKNOWN; PATCHing never upgrades
       // that role, so provisioning would fail forever. In that case discard it
@@ -1596,7 +1866,7 @@ export const createClubIdentity = functions.https.onCall(
       if (identityId) {
         const provisionable = await finixIdentityIsProvisionable(identityId);
         if (provisionable === true) {
-          await finixPatch(`/identities/${identityId}`, body);
+          await finixPut(`/identities/${identityId}`, updateBody);
         } else {
           console.warn(
             `createClubIdentity: club ${clubId} identity ${identityId} is not provisionable ` +
@@ -1609,10 +1879,10 @@ export const createClubIdentity = functions.https.onCall(
         }
       }
       if (!identityId) {
-        const identity = await finixPost("/identities", body);
+        const identity = await finixPost("/identities", createBody);
         identityId = identity.id;
         // Persist the id RIGHT AWAY. If anything below fails (owners, draft
-        // write), a retry then PATCHes this same identity instead of minting a
+        // write), a retry then PUTs to this same identity instead of minting a
         // new orphan in Finix.
         await clubRef.update({
           finixIdentityId: identityId,
@@ -1649,7 +1919,26 @@ export const createClubIdentity = functions.https.onCall(
         updatedAt: now,
       });
 
-      return { identityId, ownerIdentityIds: ownerIds };
+      // If Finix was waiting on a correction, updating the identity alone does
+      // NOT re-open underwriting — a new Verification has to be created. Without
+      // this, a club fixes exactly what was asked for and nothing happens.
+      let resubmitted = false;
+      if (club.finixMerchantId && club.finixOnboardingState === "UPDATE_REQUESTED") {
+        try {
+          const v = await createMerchantVerification(club.finixMerchantId);
+          resubmitted = true;
+          await clubRef.update({
+            finixLastVerificationId: v.verificationId,
+            finixLastResubmittedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          console.log(`createClubIdentity: resubmitted club ${clubId} for review (${v.verificationId})`);
+        } catch (e: any) {
+          // The correction still saved — don't fail the call over the resubmit.
+          console.warn(`createClubIdentity: resubmit failed for club ${clubId}:`, e?.message || e);
+        }
+      }
+
+      return { identityId, ownerIdentityIds: ownerIds, resubmitted };
     } catch (error: any) {
       console.error("createClubIdentity error:", error);
       throw new functions.https.HttpsError("internal", error.message || "Failed to create identity");
@@ -1709,6 +1998,136 @@ export const addClubBankAccount = functions.https.onCall(
     } catch (error: any) {
       console.error("addClubBankAccount error:", error?.message || error);
       throw new functions.https.HttpsError("internal", error.message || "Failed to add bank account");
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// 2b) Corrections to an ALREADY-SUBMITTED merchant.
+//
+// Updating an Identity does NOT re-open underwriting. Finix only re-reviews
+// when a new Verification is created — so without this, a club that fixes what
+// was asked for (an SSN, an address) sits in UPDATE_REQUESTED forever and
+// nobody can see why. `createClubIdentity` calls this automatically after an
+// update, and it's exposed directly for the manual cases.
+// ---------------------------------------------------------------------------
+const createMerchantVerification = async (merchantId: string) => {
+  const verification: any = await finixPost(`/merchants/${merchantId}/verifications`, {});
+  return {
+    verificationId: verification?.id || null,
+    state: verification?.state || null,
+  };
+};
+
+export const resubmitClubVerification = functions.https.onCall(
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
+  async (request: any) => {
+    const auth = request.auth;
+    if (!auth) throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+
+    const { clubId } = request.data || {};
+    if (!clubId) throw new functions.https.HttpsError("invalid-argument", "Missing required field: clubId");
+
+    const db = admin.firestore();
+    const clubRef = db.collection("clubs").doc(clubId);
+    const clubSnap = await clubRef.get();
+    if (!clubSnap.exists) throw new functions.https.HttpsError("not-found", "Club not found");
+    const club = clubSnap.data() || {};
+
+    const isAdmin =
+      (club.clubAdmins || club.admins || []).includes(auth.uid) ||
+      club.clubOwner === auth.uid ||
+      club.owner === auth.uid;
+    if (!isAdmin && !isRallysphereStaff(request)) {
+      throw new functions.https.HttpsError("permission-denied", "Only club admins can resubmit");
+    }
+    if (!club.finixMerchantId) {
+      throw new functions.https.HttpsError("failed-precondition", "This club has no merchant to resubmit");
+    }
+
+    try {
+      const result = await createMerchantVerification(club.finixMerchantId);
+      await clubRef.update({
+        finixLastVerificationId: result.verificationId,
+        finixLastResubmittedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return result;
+    } catch (error: any) {
+      console.error("resubmitClubVerification error:", error?.message || error);
+      throw new functions.https.HttpsError("internal", error.message || "Failed to resubmit for review");
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// 2c) Attach an additional beneficial owner (>=25%) to an existing identity.
+//
+// Finix requires every 25%+ owner to be on the application. The in-app wizard
+// only ever collects ONE person and hard-codes 100% ownership, so a co-owned
+// business gets rejected — which is one reason the hosted form is now the
+// default path. This exists to repair the clubs already caught by it, without
+// making them start over.
+// ---------------------------------------------------------------------------
+export const addClubBeneficialOwner = functions.https.onCall(
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
+  async (request: any) => {
+    const auth = request.auth;
+    if (!auth) throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+
+    const { clubId, owner, resubmit } = request.data || {};
+    if (!clubId || !owner?.firstName || !owner?.lastName) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Missing required fields: clubId, owner.firstName, owner.lastName"
+      );
+    }
+
+    const db = admin.firestore();
+    const clubRef = db.collection("clubs").doc(clubId);
+    const clubSnap = await clubRef.get();
+    if (!clubSnap.exists) throw new functions.https.HttpsError("not-found", "Club not found");
+    const club = clubSnap.data() || {};
+
+    const isAdmin =
+      (club.clubAdmins || club.admins || []).includes(auth.uid) ||
+      club.clubOwner === auth.uid ||
+      club.owner === auth.uid;
+    if (!isAdmin && !isRallysphereStaff(request)) {
+      throw new functions.https.HttpsError("permission-denied", "Only club admins can add owners");
+    }
+    if (!club.finixIdentityId) {
+      throw new functions.https.HttpsError("failed-precondition", "Create the club identity first");
+    }
+
+    try {
+      // SSN/DOB are forwarded to Finix and never written to Firestore — same
+      // rule as the control person.
+      const assoc: any = await finixPost(`/identities/${club.finixIdentityId}/associated_identities`, {
+        entity: toFinixPersonFields(owner),
+        tags: { club_id: clubId },
+      });
+      if (!assoc?.id) throw new Error("Finix did not return an associated identity id");
+
+      await clubRef.update({
+        finixOwnerIdentityIds: admin.firestore.FieldValue.arrayUnion(assoc.id),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Adding an owner to a merchant that's already under review does nothing
+      // until a new verification is created.
+      let verification = null;
+      if (resubmit !== false && club.finixMerchantId) {
+        verification = await createMerchantVerification(club.finixMerchantId).catch((e: any) => {
+          console.warn(`addClubBeneficialOwner: resubmit failed for club ${clubId}:`, e?.message || e);
+          return null;
+        });
+      }
+
+      return { ownerIdentityId: assoc.id, verification };
+    } catch (error: any) {
+      console.error("addClubBeneficialOwner error:", error?.message || error);
+      throw new functions.https.HttpsError("internal", error.message || "Failed to add beneficial owner");
     }
   }
 );
@@ -1779,6 +2198,298 @@ export const provisionClubMerchant = functions.https.onCall(
     } catch (error: any) {
       console.error("provisionClubMerchant error:", error);
       throw new functions.https.HttpsError("internal", error.message || "Failed to provision merchant");
+    }
+  }
+);
+
+// ============================================================================
+// HOSTED ONBOARDING FORM — the "set up on Finix's site" alternative
+//
+// The in-app wizard above (createClubIdentity → addClubBankAccount →
+// provisionClubMerchant) keeps the admin inside RallySphere but makes US the
+// middleman for everything Finix asks for afterwards: when underwriting wants
+// more documents the merchant gets no notification and can't respond, so a
+// human on our side has to relay it.
+//
+// A Finix-hosted Onboarding Form flips that. The admin completes it in a
+// browser outside the app, and — critically — when Finix later needs more info
+// the SAME form moves to UPDATE_REQUESTED with the requested fields highlighted
+// and file uploaders attached. The merchant re-opens their link and resolves it
+// themselves; no action required from us.
+//
+// The two paths are mutually exclusive per club: a submitted form mints its own
+// Identity + Merchant + Payment Instrument, so it can't be grafted onto a club
+// that already has an identity from the wizard. The club picks one up front and
+// `finixOnboardingMode` records the choice.
+//
+// Deliberately NOT pre-creating an identity shell to attach here: that's what
+// the old createSubMerchantAccount did, and those shells came back with
+// identity_role UNKNOWN, which can never be provisioned as a merchant (see
+// MERCHANT_PROVISIONABLE_ROLES above). Letting the form mint its own identity
+// is what produces a provisionable one.
+// ============================================================================
+
+// Public pages Finix requires on the hosted form. Fees page is served from
+// Firebase Hosting; terms is the app's own /legal/terms route on the web build.
+const ONBOARDING_FEE_DETAILS_URL =
+  process.env.FINIX_FEE_DETAILS_URL || "https://rally-sphere.web.app/fees.html";
+const ONBOARDING_TERMS_URL =
+  process.env.FINIX_TERMS_URL || "https://rally-sphere.web.app/legal/terms";
+// Links are short-lived by design (Finix defaults to 60 min). We mint a fresh
+// one every time the admin taps through, so expiry is never a dead end.
+const ONBOARDING_LINK_MINUTES = 120;
+
+const onboardingLinkDetails = (clubId: string, maxTxnCents: number) => ({
+  return_url: `rallysphere://finix-onboarding/return?clubId=${encodeURIComponent(clubId)}`,
+  expired_session_url: `rallysphere://finix-onboarding/refresh?clubId=${encodeURIComponent(clubId)}`,
+  fee_details_url: ONBOARDING_FEE_DETAILS_URL,
+  terms_of_service_url: ONBOARDING_TERMS_URL,
+  expiration_in_minutes: ONBOARDING_LINK_MINUTES,
+  merchant_max_transaction_amount: maxTxnCents,
+});
+
+// Finix returns the hosted URL under `onboarding_link` on create and at the top
+// level on the /links endpoint. Tolerate both plus older shapes.
+const extractOnboardingLink = (r: any): { url: string | null; expiresAt: string | null } => ({
+  url:
+    r?.onboarding_link?.link_url || r?.link_url || r?.onboarding_link_details?.link_url ||
+    r?.hosted_url || r?.url || null,
+  expiresAt: r?.onboarding_link?.expires_at || r?.expires_at || null,
+});
+
+// Pull the merchant the form created (if it's got that far) so the club doc
+// reflects real Finix state without waiting on a webhook.
+const syncMerchantFromIdentity = async (identityId: string) => {
+  try {
+    const list: any = await finixGet(`/identities/${identityId}/merchants`);
+    const merchant = list?._embedded?.merchants?.[0];
+    if (!merchant?.id) return null;
+    return {
+      merchantId: merchant.id,
+      onboardingState: merchant.onboarding_state || "PROVISIONING",
+      active: merchant.processing_enabled === true && merchant.settlement_enabled === true,
+    };
+  } catch {
+    return null;
+  }
+};
+
+// One callable covers create / resume / update-request re-entry. The client
+// always just asks for "the link" and gets a fresh one plus current status.
+export const getClubOnboardingFormLink = functions.https.onCall(
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
+  async (request: any) => {
+    const auth = request.auth;
+    if (!auth) throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+
+    const { clubId } = request.data || {};
+    if (!clubId) throw new functions.https.HttpsError("invalid-argument", "Missing required field: clubId");
+
+    const db = admin.firestore();
+    const clubRef = db.collection("clubs").doc(clubId);
+    const clubSnap = await clubRef.get();
+    if (!clubSnap.exists) throw new functions.https.HttpsError("not-found", "Club not found");
+    const club = clubSnap.data() || {};
+
+    const isAdmin =
+      (club.clubAdmins || club.admins || []).includes(auth.uid) ||
+      club.clubOwner === auth.uid ||
+      club.owner === auth.uid;
+    if (!isAdmin) throw new functions.https.HttpsError("permission-denied", "Only club admins can set up payouts");
+
+    // The one thing we must never do is mint a SECOND merchant for a club that
+    // already has a working one — that's the duplicate-merchant bug that has
+    // bitten this integration before. So:
+    //   - already has a merchant  -> refuse; corrections go through support
+    //     (or the merchant's own Finix dashboard) until Finix confirms a hosted
+    //     form can be attached to an API-created merchant.
+    //   - identity but no merchant -> SAFE to hand them a hosted form. There's
+    //     nothing to duplicate, and this is precisely the stuck-mid-setup club
+    //     we want to unblock.
+    if (club.finixMerchantId && club.finixOnboardingMode !== "hosted") {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "This club's payout account already exists. Contact support to make changes to it."
+      );
+    }
+
+    const maxTxnCents = Number(process.env.FINIX_MAX_TXN_CENTS) || 500000;
+    const now = admin.firestore.FieldValue.serverTimestamp();
+
+    try {
+      // ---- Existing form: sync state, then mint a fresh link ----
+      if (club.finixOnboardingFormId) {
+        const form: any = await finixGet(`/onboarding_forms/${club.finixOnboardingFormId}`);
+        const formStatus: string = form?.status || "IN_PROGRESS";
+        const identityId: string | null = form?.identity_id || club.finixIdentityId || null;
+
+        const update: any = { finixOnboardingFormStatus: formStatus, updatedAt: now };
+        if (identityId && !club.finixIdentityId) update.finixIdentityId = identityId;
+
+        let merchantId: string | null = club.finixMerchantId || null;
+        let onboardingState: string | null = club.finixOnboardingState || null;
+        if (identityId) {
+          const m = await syncMerchantFromIdentity(identityId);
+          if (m) {
+            merchantId = m.merchantId;
+            onboardingState = m.onboardingState;
+            update.finixMerchantId = m.merchantId;
+            update.finixOnboardingState = m.onboardingState;
+            update.finixMerchantAccountActive = m.active;
+            update.finixOnboardingComplete = m.onboardingState === "APPROVED" || m.active;
+            update.finixOnboardingDeclined = m.onboardingState === "REJECTED";
+            update.finixOnboardingStatus =
+              m.onboardingState === "APPROVED" || m.active
+                ? "APPROVED"
+                : m.onboardingState === "REJECTED"
+                ? "DECLINED"
+                : "PENDING";
+          }
+        }
+
+        // Finix hard-refuses link generation on a COMPLETED form:
+        //   409 "Cannot generate link for Completed onboarding forms"
+        // So the form link is an ONBOARDING door, not a permanent one. That's
+        // survivable because Finix moves the form OUT of Completed and back to
+        // UPDATE_REQUESTED whenever underwriting wants something — i.e. links
+        // exist exactly when the club has something to do. In the steady state
+        // there's nothing to open, and the club's ongoing access is the Finix
+        // dashboard instead. Don't even attempt the call while Completed;
+        // it's a guaranteed 409 on every screen load.
+        let link: { url: string | null; expiresAt: string | null } = { url: null, expiresAt: null };
+        if (formStatus !== "COMPLETED") {
+          try {
+            const res = await finixPost(
+              `/onboarding_forms/${club.finixOnboardingFormId}/links`,
+              onboardingLinkDetails(clubId, maxTxnCents)
+            );
+            link = extractOnboardingLink(res);
+            if (link.url) {
+              update.finixOnboardingUrl = link.url;
+              update.finixOnboardingLinkExpiresAt = link.expiresAt;
+            }
+          } catch (e: any) {
+            console.warn(`onboarding form link refused for club ${clubId}:`, e?.message || e);
+          }
+        }
+
+        await clubRef.update(update);
+        // Same to-do list as the in-app path — the hosted form is where they'll
+        // resolve it, but they still need to know what "it" is before tapping.
+        const actionRequired = await syncClubActionRequired(clubRef, merchantId, onboardingState);
+        return {
+          linkUrl: link.url,
+          expiresAt: link.expiresAt,
+          formStatus,
+          identityId,
+          merchantId,
+          onboardingState,
+          actionRequired,
+          // Finix moves the form here when underwriting wants more from the
+          // merchant — the whole reason this path exists.
+          updateRequested: formStatus === "UPDATE_REQUESTED",
+        };
+      }
+
+      // ---- First time: create the form, prefilled with what we already know ----
+      const draft = club.finixOnboardingDraft || {};
+      const entity: any = {
+        business_name: draft.business?.businessName || club.name,
+        doing_business_as: draft.business?.doingBusinessAs || club.name,
+        email: draft.business?.email || club.contactEmail || undefined,
+        phone: draft.business?.phone || undefined,
+        url: draft.business?.url || club.socialLinks?.website || undefined,
+        // This application only permits MCCs [5045, 7997]; 7997 = Membership
+        // Clubs (Sports/Recreation/Athletic).
+        mcc: draft.business?.mcc || "7997",
+      };
+      Object.keys(entity).forEach((k) => entity[k] === undefined && delete entity[k]);
+
+      // Prefill the underwriting narrative here too. The seller accepts terms on
+      // the form itself, so leave the merchant_agreement_* consent record to
+      // Finix — we only seed the descriptive fields that otherwise arrive blank
+      // and trigger manual questions.
+      const seeded = toFinixUnderwriting(draft.underwriting, null, {
+        businessName: draft.business?.businessName || club.name,
+        annualCardVolume: Number(draft.business?.annualCardVolume) || 0,
+      });
+      delete seeded.merchant_agreement_accepted;
+      delete seeded.merchant_agreement_timestamp;
+      delete seeded.merchant_agreement_ip_address;
+      delete seeded.merchant_agreement_user_agent;
+
+      const baseForm: any = {
+        merchant_processors: [{ processor: isTestMode ? "DUMMY_V1" : "FINIX_V1" }],
+        onboarding_data: {
+          country: "USA",
+          max_transaction_amount: maxTxnCents,
+          entity,
+          additional_underwriting_data: seeded,
+        },
+        onboarding_link_details: onboardingLinkDetails(clubId, maxTxnCents),
+        tags: { club_id: clubId },
+      };
+
+      // If the club already built an identity in the wizard, try to hang the
+      // form off it so their typing isn't wasted. This attach is undocumented —
+      // the retired hosted flow passed `onboarding_data.identity.id` — so if
+      // Finix rejects it, fall back to a plain form, which mints its own
+      // (correctly-roled) identity. Either way the club ends up with a working
+      // link; the orphaned identity is harmless since it has no merchant.
+      let form: any;
+      let attached = false;
+      if (club.finixIdentityId) {
+        try {
+          form = await finixPost("/onboarding_forms", {
+            ...baseForm,
+            onboarding_data: {
+              ...baseForm.onboarding_data,
+              identity: { id: club.finixIdentityId, tags: { club_id: clubId } },
+            },
+          });
+          attached = true;
+        } catch (e: any) {
+          console.warn(
+            `onboarding form attach to identity ${club.finixIdentityId} rejected (${e?.message || e}); ` +
+              `creating a standalone form for club ${clubId}`
+          );
+        }
+      }
+      if (!form) form = await finixPost("/onboarding_forms", baseForm);
+      console.log(`onboarding form ${form?.id} created for club ${clubId} (attached=${attached})`);
+      const link = extractOnboardingLink(form);
+      if (!link.url) {
+        throw new Error(`Finix did not return a hosted onboarding URL. Response: ${JSON.stringify(form)}`);
+      }
+
+      await clubRef.update({
+        finixOnboardingMode: "hosted",
+        // A standalone form mints its own identity on submission, so drop the
+        // stale wizard one — otherwise status lookups chase an identity that
+        // will never have a merchant.
+        ...(attached ? {} : { finixIdentityId: admin.firestore.FieldValue.delete() }),
+        finixOnboardingFormId: form.id,
+        finixOnboardingFormStatus: form.status || "IN_PROGRESS",
+        finixOnboardingUrl: link.url,
+        finixOnboardingLinkExpiresAt: link.expiresAt,
+        finixOnboardingStatus: "PENDING",
+        finixOnboardingStartedAt: club.finixOnboardingStartedAt || now,
+        finixAcceptedByUid: club.finixAcceptedByUid || auth.uid,
+        updatedAt: now,
+      });
+
+      return {
+        linkUrl: link.url,
+        expiresAt: link.expiresAt,
+        formStatus: form.status || "IN_PROGRESS",
+        identityId: form.identity_id || null,
+        merchantId: null,
+        onboardingState: null,
+        updateRequested: false,
+      };
+    } catch (error: any) {
+      console.error("getClubOnboardingFormLink error:", error?.message || error);
+      throw new functions.https.HttpsError("internal", error.message || "Failed to open Finix onboarding");
     }
   }
 );
@@ -1933,6 +2644,57 @@ export const finixWebhook = functions.https.onRequest({ secrets: FINIX_SECRETS }
               finixOnboardingStatus: status,
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
+            // Underwriting stalled → pull the specific items Finix wants and
+            // put them on the club doc; resolved → clear them. This is the only
+            // moment we learn what's being asked for, since Finix tells nobody else.
+            const action = await syncClubActionRequired(doc.ref, merchant.id, onboardingState);
+            await notifyClubAdminsOfPayoutStatus(db, doc, { status, onboardingState, action });
+          }
+        }
+        break;
+      }
+
+      // Hosted onboarding form lifecycle. The status that matters is
+      // UPDATE_REQUESTED — Finix wants more from the merchant, and they can
+      // resolve it themselves by re-opening their form link. Recording it lets
+      // the app show "action needed" instead of a silent stall.
+      case /^onboarding_forms?\./.test(eventType): {
+        const form = event._embedded?.onboarding_forms?.[0] || event.entity || event.data;
+        if (form?.id) {
+          let formDocs = await db
+            .collection("clubs")
+            .where("finixOnboardingFormId", "==", form.id)
+            .limit(1)
+            .get();
+          const clubIdTag = form.tags?.club_id;
+          if (formDocs.empty && clubIdTag) {
+            const byTag = await db.collection("clubs").doc(clubIdTag).get();
+            formDocs = { empty: !byTag.exists, docs: byTag.exists ? [byTag] : [] } as any;
+          }
+          if (formDocs.empty) {
+            console.warn(`Finix onboarding form ${form.id} matched no club`);
+          }
+          for (const doc of formDocs.docs) {
+            const update: any = {
+              finixOnboardingFormStatus: form.status || null,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            };
+            // The form mints its own identity on submission — capture it so
+            // status lookups and payouts resolve without a manual backfill.
+            if (form.identity_id && !doc.data()?.finixIdentityId) {
+              update.finixIdentityId = form.identity_id;
+            }
+            await doc.ref.update(update);
+            // Hosted clubs can fix this themselves — but only if they're told.
+            if (form.status === "UPDATE_REQUESTED") {
+              const merchantId = doc.data()?.finixMerchantId;
+              const action = merchantId ? await fetchMerchantActionRequired(merchantId) : null;
+              await notifyClubAdminsOfPayoutStatus(db, doc, {
+                status: "PENDING",
+                onboardingState: "UPDATE_REQUESTED",
+                action,
+              });
+            }
           }
         }
         break;

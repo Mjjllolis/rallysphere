@@ -1,7 +1,17 @@
 // components/FinixOnboardingWizard.tsx
-// In-app, direct-API Finix merchant onboarding. Replaces the hosted form.
+// Club payout onboarding. Two paths, chosen up front:
 //
-// Presented as a hub of three independent stages the admin completes in order:
+//   1. HOSTED (default) — Finix's own onboarding form, opened in the browser.
+//      Preferred because Finix maintains it: it handles multiple beneficial
+//      owners, document uploads, and the UPDATE_REQUESTED loop where the club
+//      answers underwriting directly. Our wizard can express none of those, and
+//      Finix tunes required fields per application, so anything we hand-roll
+//      drifts out of date silently.
+//   2. IN-APP (secondary, kept) — the direct-API wizard below. Still the path
+//      for clubs already mid-flow, and a fallback if the hosted form can't be
+//      used. Not being removed; just no longer the default.
+//
+// The in-app path is a hub of three independent stages the admin completes in order:
 //   1. Payment Profile  → createClubIdentity()      (business + owner KYC)
 //   2. Bank Account     → addClubBankAccount()       (locked until 1 is done)
 //   3. Review & Submit  → provisionClubMerchant()    (locked until 1 & 2 done)
@@ -16,7 +26,7 @@
 // fields are shown — optional Finix fields (DBA, website, apt line, title,
 // ownership %) use sensible defaults server-side.
 import React, { useState } from 'react';
-import { View, StyleSheet, Platform, Pressable, ScrollView, useWindowDimensions } from 'react-native';
+import { View, StyleSheet, Platform, Pressable, ScrollView, useWindowDimensions, Linking } from 'react-native';
 import { Text, TextInput, Button, useTheme, Checkbox, HelperText, Divider, ProgressBar, Chip, Portal, Modal, IconButton } from 'react-native-paper';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import {
@@ -24,12 +34,16 @@ import {
   addClubBankAccount,
   provisionClubMerchant,
   getSubMerchantStatus,
+  getClubOnboardingFormLink,
   type FinixBusinessInput,
   type FinixPersonInput,
 } from '../lib/finix';
 import { updateClub } from '../lib/firebase';
 import type { Club } from '../lib/firebase';
 import FinixBankTokenizer from './FinixBankTokenizer';
+import PaymentSecurityInfo from './PaymentSecurityInfo';
+import FinixActionRequiredCard from './FinixActionRequiredCard';
+import type { FinixActionRequired } from '../lib/finix';
 
 interface Props {
   club: Club;
@@ -42,6 +56,14 @@ interface Props {
 }
 
 // Values must be Finix's exact business_type enum.
+// Values must be Finix's exact refund_policy enum.
+const REFUND_POLICIES = [
+  ['WITHIN_30_DAYS', 'Refunds within 30 days'],
+  ['MERCHANDISE_EXCHANGE_ONLY', 'Exchanges only'],
+  ['NO_REFUNDS', 'No refunds'],
+  ['OTHER', 'Other'],
+] as const;
+
 const BUSINESS_TYPES = [
   ['LIMITED_LIABILITY_COMPANY', 'LLC'],
   ['CORPORATION', 'Corporation'],
@@ -52,6 +74,10 @@ const BUSINESS_TYPES = [
   ['ASSOCIATION_ESTATE_TRUST', 'Association / Trust'],
   ['TAX_EXEMPT_ORGANIZATION', 'Non-profit'],
 ] as const;
+
+// Public web build — a club's page here doubles as their business website for
+// Finix underwriting when they don't have one of their own.
+const CLUB_PAGE_BASE = process.env.EXPO_PUBLIC_WEB_BASE_URL || 'https://rally-sphere.web.app';
 
 type Addr = { line1: string; line2?: string; city: string; region: string; postalCode: string };
 const emptyAddr: Addr = { line1: '', line2: '', city: '', region: '', postalCode: '' };
@@ -91,7 +117,12 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
     taxId: '', // EIN — secure, never prefilled
     phone: draft.business?.phone || '',
     email: draft.business?.email || club.contactEmail || '',
-    url: draft.business?.url || club.socialLinks?.website || '',
+    // Finix requires a URL and underwriters actually open it to confirm the
+    // business is real. Most clubs have no website, and a blank or junk value
+    // is a guaranteed manual review — so default to the club's own public
+    // RallySphere page, which shows their name, description, events and store.
+    // Editable, so a club with a real site can replace it.
+    url: draft.business?.url || club.socialLinks?.website || `${CLUB_PAGE_BASE}/club/${club.id}`,
     // This Finix application only allows MCCs [5045, 7997]; 7997 = Membership
     // Clubs (Sports/Recreation/Athletic), the right fit for RallySphere clubs.
     mcc: draft.business?.mcc || '7997',
@@ -101,6 +132,18 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
     incorporationDate: (draft.business?.incorporationDate ? new Date(draft.business.incorporationDate) : null) as Date | null,
     address: { ...emptyAddr, ...(draft.business?.address || {}) } as Addr,
   });
+
+  // Underwriting narrative. Finix's reviewers ask a human to chase whatever we
+  // leave blank here — and they chase US, not the club. Everything else in the
+  // block is defaulted server-side; these two are the ones only the club knows.
+  const [uw, setUw] = useState({
+    businessDescription: draft.underwriting?.businessDescription || '',
+    averageTransactionAmount: draft.underwriting?.averageCardTransferAmount
+      ? String(Math.round(draft.underwriting.averageCardTransferAmount / 100))
+      : '',
+    refundPolicy: draft.underwriting?.refundPolicy || 'WITHIN_30_DAYS',
+  });
+  const [refundMenu, setRefundMenu] = useState(false);
   const [bizTypeMenu, setBizTypeMenu] = useState(false);
 
   // --- Control person / primary owner (required fields only) ---
@@ -122,6 +165,24 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
   // the bank step done immediately — independent of the club re-fetch, which can
   // serve a stale cached doc that still lacks finixPayoutPiId.
   const [bankSaved, setBankSaved] = useState(false);
+  // Which setup path this club is on. 'choose' is the fork shown before anything
+  // exists; once either path has produced state at Finix the choice is fixed,
+  // because a hosted form mints its own identity + merchant and can't be merged
+  // with one the wizard already created.
+  const [mode, setMode] = useState<'choose' | 'in_app' | 'hosted'>(
+    club.finixOnboardingMode === 'hosted'
+      ? 'hosted'
+      : club.finixIdentityId || club.finixMerchantId
+      ? 'in_app'
+      : 'choose'
+  );
+  const [formStatus, setFormStatus] = useState<string>(club.finixOnboardingFormStatus || 'IN_PROGRESS');
+  // What Finix is waiting on, if anything. Seeded from the club doc (written by
+  // the webhook) and refreshed by every status check.
+  const [actionRequired, setActionRequired] = useState<FinixActionRequired | null>(
+    (club.finixActionRequired as FinixActionRequired) || null
+  );
+
   const [agree, setAgree] = useState(!!club.finixTosAcceptedAt);
   const [merchantState, setMerchantState] = useState<string>(club.finixOnboardingState || 'PROVISIONING');
   const [statusActive, setStatusActive] = useState<boolean>(!!club.finixMerchantAccountActive);
@@ -146,6 +207,9 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
     biz.businessName.trim() && biz.businessType && biz.taxId.trim() && biz.phone.trim() &&
     biz.email.trim() && biz.url.trim() && Number(biz.annualCardVolume) > 0 && Number(biz.maxTransactionAmount) > 0 &&
     !!biz.incorporationDate &&
+    // Underwriting narrative — a vague description is the #1 reason Finix comes
+    // back with manual questions, so require a real one rather than defaulting.
+    uw.businessDescription.trim().length >= 20 && Number(uw.averageTransactionAmount) > 0 &&
     biz.address.line1.trim() && biz.address.city.trim() && biz.address.region.trim() && biz.address.postalCode.trim();
 
   const ownerValid =
@@ -184,6 +248,14 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
       clubId: club.id,
       business,
       controlPerson,
+      underwriting: {
+        businessDescription: uw.businessDescription.trim() || undefined,
+        averageCardTransferAmount: Number(uw.averageTransactionAmount)
+          ? Math.round(Number(uw.averageTransactionAmount) * 100)
+          : undefined,
+        refundPolicy: uw.refundPolicy,
+      },
+      // IP is filled server-side from the request — the client can't see its own.
       consent: { userAgent: `RallySphere/${Platform.OS}`, merchantAgreementAccepted: true },
     });
     if (!res.success) return fail(res.error || 'Failed to save details');
@@ -214,12 +286,43 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
     setBusy(false); setView('status'); onComplete?.();
   };
 
+  // Mint a fresh hosted-form link and hand off to the browser. Same call covers
+  // first open, resume, and answering an UPDATE_REQUESTED — the server decides.
+  const openHostedForm = async () => {
+    setBusy(true); setError(null);
+    const res = await getClubOnboardingFormLink(club.id);
+    if (!res.success) return fail(res.error || 'Failed to open Finix onboarding');
+    setMode('hosted');
+    setFormStatus(res.formStatus || 'IN_PROGRESS');
+    setActionRequired(res.actionRequired || null);
+    if (res.onboardingState) setMerchantState(res.onboardingState);
+    if (res.merchantId && res.onboardingState === 'APPROVED') setStatusActive(true);
+    if (res.linkUrl) {
+      await Linking.openURL(res.linkUrl).catch(() => setError('Could not open the Finix page. Try again.'));
+    }
+    setBusy(false);
+    onComplete?.();
+  };
+
+  const refreshHostedStatus = async () => {
+    setBusy(true); setError(null);
+    const res = await getClubOnboardingFormLink(club.id);
+    if (!res.success) return fail(res.error || 'Failed to check status');
+    setFormStatus(res.formStatus || formStatus);
+    setActionRequired(res.actionRequired || null);
+    if (res.onboardingState) setMerchantState(res.onboardingState);
+    if (res.onboardingState === 'APPROVED') setStatusActive(true);
+    setBusy(false);
+    onComplete?.();
+  };
+
   const refreshStatus = async () => {
     setBusy(true); setError(null);
     const res = await getSubMerchantStatus({ clubId: club.id, merchantId: club.finixMerchantId, identityId: club.finixIdentityId });
     if (res.success) {
       setMerchantState(res.status || merchantState);
       setStatusActive(!!res.isComplete);
+      setActionRequired(res.actionRequired || null);
       if (res.isComplete && !club.finixMerchantAccountActive) {
         await updateClub(club.id, {
           finixMerchantId: res.merchantId || club.finixMerchantId,
@@ -251,7 +354,104 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
 
   return (
     <View>
+      {/* ---------- FORK: where do you want to do this? ---------- */}
+      {mode === 'choose' && (
+        <View>
+          <Text variant="titleMedium" style={styles.h}>Set up payouts</Text>
+          <Text variant="bodySmall" style={styles.note}>
+            Finix is our payment processor. Every club is verified by them before payouts can start.
+          </Text>
+
+          {/* Finix's own form is the default path. It handles the things our
+              wizard can't: multiple owners, document uploads, and — when
+              underwriting asks for more — letting the club answer directly
+              instead of routing every request through RallySphere support. */}
+          <PathCard
+            title="Set up with Finix"
+            subtitle="Opens Finix in your browser and walks you through it. If they need anything else later — a document, another owner's details — they ask you directly and you handle it there."
+            actionLabel="Continue with Finix"
+            recommended
+            onPress={openHostedForm}
+            loading={busy}
+            disabled={busy}
+          />
+
+          {/* Kept as a secondary path, not removed: it's the only option for
+              anything the hosted form can't express, and clubs mid-flow are
+              still on it. */}
+          <Button
+            mode="text"
+            compact
+            disabled={busy}
+            onPress={() => { setError(null); setMode('in_app'); }}
+            style={{ marginTop: 4 }}
+          >
+            Or enter your details in RallySphere
+          </Button>
+          <Text variant="bodySmall" style={[styles.note, { marginTop: 4 }]}>
+            Entering them here works too, but if Finix asks for documents afterwards they’ll come to us and
+            we’ll have to pass them along — which is slower. You can still switch to Finix any time before
+            your application is submitted.
+          </Text>
+          {error && <HelperText type="error" visible>{error}</HelperText>}
+        </View>
+      )}
+
+      {/* ---------- HOSTED: the club is doing this on Finix's site ---------- */}
+      {mode === 'hosted' && (
+        <View>
+          <Text variant="titleMedium" style={styles.h}>
+            {statusActive ? 'Payouts active' : formStatus === 'UPDATE_REQUESTED' ? 'Finix needs more info' : 'Setting up with Finix'}
+          </Text>
+          <Text variant="bodySmall" style={styles.note}>
+            {statusActive
+              ? 'Your club can now receive payments.'
+              : formStatus === 'UPDATE_REQUESTED'
+              ? 'Finix has asked for additional information or documents. Open your form to see exactly what they need and upload it — no need to go through us.'
+              : formStatus === 'COMPLETED'
+              ? `Your application is with Finix. Status: ${merchantState}. Usually 1–2 business days.`
+              : 'Your form is waiting on Finix’s site. Open it to finish — your progress is saved.'}
+          </Text>
+
+          {/* Hosted clubs can resolve this themselves — the button reopens the
+              very form Finix flagged, with its uploaders attached. */}
+          {!statusActive && actionRequired && (
+            <FinixActionRequiredCard
+              action={actionRequired}
+              onResolve={openHostedForm}
+              resolveLabel="Open my Finix form"
+              loading={busy}
+              style={{ marginBottom: 16 }}
+            />
+          )}
+
+          {!statusActive && !actionRequired && (
+            <Button
+              mode="contained"
+              icon="open-in-new"
+              loading={busy}
+              disabled={busy}
+              onPress={openHostedForm}
+              style={styles.next}
+            >
+              {formStatus === 'UPDATE_REQUESTED' ? 'Provide requested info' : formStatus === 'COMPLETED' ? 'Open my Finix form' : 'Continue on Finix'}
+            </Button>
+          )}
+          <Button mode="outlined" icon="refresh" loading={busy} disabled={busy} onPress={refreshHostedStatus} style={styles.next}>
+            Check status
+          </Button>
+
+          <PaymentSecurityInfo variant="payout" style={{ marginTop: 16 }} />
+          {error && <HelperText type="error" visible>{error}</HelperText>}
+
+          {!embedded && (
+            <Button mode="text" onPress={() => onComplete?.()} style={{ marginTop: 16 }}>Save &amp; close</Button>
+          )}
+        </View>
+      )}
+
       {/* ---------- HUB: the three stages (always visible; sub-steps are modal) ---------- */}
+      {mode === 'in_app' && (
       <View>
           <ProgressBar progress={completedStages / 3} color={theme.colors.primary} style={styles.progress} />
           <Text variant="labelLarge" style={{ marginBottom: 16, color: theme.colors.onSurfaceVariant }}>
@@ -301,10 +501,22 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
             </Text>
           )}
 
+          {/* Escape hatch for anyone stuck mid-setup. Safe until the merchant
+              exists (server refuses after that, to avoid a duplicate merchant). */}
+          {!submitted && (
+            <>
+              <Button mode="text" compact icon="open-in-new" loading={busy} disabled={busy} onPress={openHostedForm} style={{ marginTop: 12 }}>
+                Rather finish this on Finix’s site?
+              </Button>
+              {error && <HelperText type="error" visible>{error}</HelperText>}
+            </>
+          )}
+
           {!embedded && (
             <Button mode="text" onPress={() => onComplete?.()} style={{ marginTop: 16 }}>Save &amp; close</Button>
           )}
       </View>
+      )}
 
       {/* Sub-steps open in a modal popup so they don't crowd the card — or the
           Benefits box behind it — while an application is in progress. */}
@@ -374,9 +586,50 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
           {field('Business phone', biz.phone, (t) => setBiz({ ...biz, phone: t }), { keyboardType: 'phone-pad' })}
           {field('Business email', biz.email, (t) => setBiz({ ...biz, email: t }), { keyboardType: 'email-address', autoCapitalize: 'none' })}
           {field('Website', biz.url, (t) => setBiz({ ...biz, url: t }), { keyboardType: 'url', autoCapitalize: 'none', placeholder: 'https://…' })}
+          <Text variant="bodySmall" style={styles.note}>
+            No website? Leave this as your RallySphere club page — Finix just needs somewhere that shows what your club does.
+          </Text>
           {field('Estimated annual card sales (USD)', biz.annualCardVolume, (t) => setBiz({ ...biz, annualCardVolume: t.replace(/[^0-9]/g, '') }), { keyboardType: 'number-pad', left: <TextInput.Affix text="$" /> })}
           {field('Largest single charge (USD)', biz.maxTransactionAmount, (t) => setBiz({ ...biz, maxTransactionAmount: t.replace(/[^0-9]/g, '') }), { keyboardType: 'number-pad', left: <TextInput.Affix text="$" /> })}
           <DateField label="Incorporation date" value={biz.incorporationDate} onChange={(d) => setBiz({ ...biz, incorporationDate: d })} fieldBg={fieldBg} maximumDate={today} dark={isDark} />
+
+          {field('Typical purchase amount (USD)', uw.averageTransactionAmount, (t) => setUw({ ...uw, averageTransactionAmount: t.replace(/[^0-9]/g, '') }), { keyboardType: 'number-pad', left: <TextInput.Affix text="$" />, placeholder: 'e.g. 50' })}
+
+          {/* Same inline-dropdown pattern as business type — no portal. */}
+          <View>
+            <Pressable onPress={() => setRefundMenu((v) => !v)}>
+              <View pointerEvents="none">
+                <TextInput
+                  mode="outlined" label="Refund policy" editable={false}
+                  value={REFUND_POLICIES.find((r) => r[0] === uw.refundPolicy)?.[1] || ''}
+                  right={<TextInput.Icon icon={refundMenu ? 'menu-up' : 'menu-down'} />}
+                  style={[styles.input, fieldBg]}
+                />
+              </View>
+            </Pressable>
+            {refundMenu && (
+              <View style={[styles.dropdown, { backgroundColor: isDark ? '#1B2236' : '#FFFFFF', borderColor: theme.colors.outline }]}>
+                {REFUND_POLICIES.map(([val, label]) => (
+                  <Pressable
+                    key={val}
+                    onPress={() => { setUw({ ...uw, refundPolicy: val }); setRefundMenu(false); }}
+                    style={({ pressed }) => [styles.dropdownItem, pressed && { backgroundColor: theme.colors.elevation.level3 }]}
+                  >
+                    <Text variant="bodyLarge" style={{ color: val === uw.refundPolicy ? theme.colors.primary : theme.colors.onSurface }}>{label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {field('What does your club sell?', uw.businessDescription, (t) => setUw({ ...uw, businessDescription: t }), {
+            multiline: true,
+            numberOfLines: 3,
+            placeholder: 'e.g. Weekly league dues, tournament entry fees, and team jerseys for our members.',
+          })}
+          <Text variant="bodySmall" style={styles.note}>
+            Finix reviews this by hand. The more specific you are, the less likely they come back with questions.
+          </Text>
 
           <Text variant="labelLarge" style={styles.subh}>Business address</Text>
           {addrFields(biz.address, (a) => setBiz({ ...biz, address: a }))}
@@ -411,6 +664,7 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
         <View>
           <Text variant="titleMedium" style={styles.h}>Payout bank account</Text>
           <Text variant="bodySmall" style={styles.note}>Where your payouts are deposited. Entered securely — account numbers never touch RallySphere’s servers.</Text>
+          <PaymentSecurityInfo variant="payout" style={{ marginBottom: 8 }} />
           {busy ? (
             <Text variant="bodyMedium" style={{ marginVertical: 16 }}>Adding bank account…</Text>
           ) : (
@@ -455,12 +709,23 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
       {/* ---------- STATUS ---------- */}
       {view === 'status' && (
         <View style={{ alignItems: 'center', paddingTop: 8 }}>
-          <Text variant="titleMedium" style={[styles.h, { textAlign: 'center' }]}>{statusActive ? 'Payouts active' : 'Application submitted'}</Text>
-          <Text variant="bodyMedium" style={[styles.note, { textAlign: 'center' }]}>
-            {statusActive
-              ? 'Your club can now receive payments.'
-              : `Status: ${merchantState}. Finix is reviewing your application — usually within 1–2 business days. You’ll be notified when it’s approved.`}
+          <Text variant="titleMedium" style={[styles.h, { textAlign: 'center' }]}>
+            {statusActive ? 'Payouts active' : actionRequired ? 'Action needed' : 'Application submitted'}
           </Text>
+          {!actionRequired && (
+            <Text variant="bodyMedium" style={[styles.note, { textAlign: 'center' }]}>
+              {statusActive
+                ? 'Your club can now receive payments.'
+                : `Status: ${merchantState}. Finix is reviewing your application — usually within 1–2 business days. You’ll be notified when it’s approved.`}
+            </Text>
+          )}
+
+          {/* In-app clubs have no self-serve door to Finix — no uploader, and
+              the hosted form can't be attached to a merchant the API created.
+              So we tell them exactly what's wanted and take it from there. */}
+          {!statusActive && actionRequired && (
+            <FinixActionRequiredCard action={actionRequired} style={{ marginBottom: 12, alignSelf: 'stretch' }} />
+          )}
           {!statusActive && (
             <Button mode="outlined" loading={busy} disabled={busy} onPress={refreshStatus} icon="refresh" style={styles.next}>Check status</Button>
           )}
@@ -534,6 +799,41 @@ function ReviewRow({ label, value }: { label: string; value?: string }) {
     <View style={styles.reviewRow}>
       <Text variant="bodySmall" style={{ opacity: 0.7 }}>{label}</Text>
       <Text variant="bodyMedium">{value || '—'}</Text>
+    </View>
+  );
+}
+
+// One of the two setup paths on the opening fork. Deliberately verbose about
+// the consequence — who handles Finix's follow-up questions — because that's
+// the only difference the club actually feels.
+function PathCard({
+  title, subtitle, actionLabel, recommended, onPress, loading, disabled,
+}: {
+  title: string;
+  subtitle: string;
+  actionLabel: string;
+  recommended?: boolean;
+  onPress: () => void;
+  loading?: boolean;
+  disabled?: boolean;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={[styles.pathCard, { borderColor: recommended ? theme.colors.primary : theme.colors.outline, backgroundColor: theme.colors.elevation.level1 }]}>
+      <View style={styles.pathHead}>
+        <Text variant="titleSmall" style={{ fontWeight: '600', flex: 1, color: theme.colors.onSurface }}>{title}</Text>
+        {recommended && (
+          <Chip compact mode="flat" textStyle={{ fontSize: 11 }} style={{ backgroundColor: theme.colors.primaryContainer }}>
+            Recommended
+          </Chip>
+        )}
+      </View>
+      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, lineHeight: 18, marginTop: 4 }}>
+        {subtitle}
+      </Text>
+      <Button mode={recommended ? 'contained' : 'outlined'} onPress={onPress} loading={loading} disabled={disabled} style={{ marginTop: 12 }}>
+        {actionLabel}
+      </Button>
     </View>
   );
 }
@@ -612,6 +912,8 @@ const styles = StyleSheet.create({
   dropdown: { marginTop: -6, marginBottom: 12, borderRadius: 10, borderWidth: 1, overflow: 'hidden' },
   dropdownItem: { paddingVertical: 14, paddingHorizontal: 16 },
   stageRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginBottom: 10, borderRadius: 12, borderWidth: 1 },
+  pathCard: { padding: 16, marginBottom: 12, borderRadius: 12, borderWidth: 1 },
+  pathHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   stageBadge: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   stageBadgeText: { fontSize: 14, fontWeight: '700' },
   modalCard: { margin: 16, borderRadius: 16, overflow: 'hidden' },

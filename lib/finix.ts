@@ -376,6 +376,25 @@ export const refundStoreOrder = async (orderId: string, clubId: string): Promise
 // used by the return screen.
 // ============================================================================
 
+/**
+ * One thing Finix is waiting on before it will approve the merchant. Derived
+ * server-side from the Verification's `outcomes[]` — Finix never tells the
+ * seller directly, so this is the only way a club learns what's being asked.
+ */
+export interface FinixActionItem {
+  code: string;
+  label: string;                    // plain English, safe to render as-is
+  action: 'upload' | 'correct' | 'unknown';
+  fileType?: string;
+  fieldName?: string;
+}
+
+export interface FinixActionRequired {
+  verificationId: string;
+  summary: string | null;
+  items: FinixActionItem[];
+}
+
 export interface SubMerchantStatusResult {
   success: boolean;
   status?: string;
@@ -384,6 +403,8 @@ export interface SubMerchantStatusResult {
   settlementEnabled?: boolean;
   merchantId?: string;
   identityId?: string;
+  onboardingState?: string | null;
+  actionRequired?: FinixActionRequired | null;
   error?: string;
 }
 
@@ -486,6 +507,46 @@ export const createClubIdentity = async (
   }
 };
 
+/**
+ * Add a beneficial owner (>=25%) to a club that already has an identity.
+ * Finix requires every such owner on the application; the in-app wizard only
+ * collects one person, so this repairs clubs rejected for a missing co-owner.
+ * Automatically resubmits for review unless `resubmit: false`.
+ */
+export const addClubBeneficialOwner = async (
+  clubId: string,
+  owner: FinixPersonInput,
+  resubmit = true
+): Promise<{ success: boolean; ownerIdentityId?: string; verification?: any; error?: string }> => {
+  try {
+    if (!auth.currentUser) return { success: false, error: 'You must be logged in' };
+    const fn = httpsCallable(functions, 'addClubBeneficialOwner');
+    const result = await fn({ clubId, owner, resubmit });
+    const data = result.data as any;
+    return { success: true, ownerIdentityId: data.ownerIdentityId, verification: data.verification };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to add beneficial owner' };
+  }
+};
+
+/**
+ * Ask Finix to re-review a merchant after a correction. Updating an Identity
+ * does NOT reopen underwriting on its own — a new Verification must be created.
+ */
+export const resubmitClubVerification = async (
+  clubId: string
+): Promise<{ success: boolean; verificationId?: string; state?: string; error?: string }> => {
+  try {
+    if (!auth.currentUser) return { success: false, error: 'You must be logged in' };
+    const fn = httpsCallable(functions, 'resubmitClubVerification');
+    const result = await fn({ clubId });
+    const data = result.data as any;
+    return { success: true, verificationId: data.verificationId, state: data.state };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to resubmit for review' };
+  }
+};
+
 export const addClubBankAccount = async (
   clubId: string,
   tokenId: string,
@@ -513,6 +574,41 @@ export const provisionClubMerchant = async (
     return { success: true, merchantId: data.merchantId, onboardingState: data.onboardingState };
   } catch (error: any) {
     return { success: false, error: error.message || 'Failed to submit application' };
+  }
+};
+
+// ============================================================================
+// HOSTED ONBOARDING FORM — "set up on Finix's site" alternative to the wizard
+//
+// One call covers create / resume / re-entry. Always returns a FRESH link
+// (Finix's expire in ~1–2h), plus the current form + merchant status. When
+// `updateRequested` is true, Finix is asking the merchant for more information
+// and they can supply it themselves by reopening the link — that's the whole
+// point of this path.
+// ============================================================================
+
+export interface ClubOnboardingFormLink {
+  success: boolean;
+  linkUrl?: string | null;
+  expiresAt?: string | null;
+  formStatus?: string;          // IN_PROGRESS / COMPLETED / UPDATE_REQUESTED
+  identityId?: string | null;
+  merchantId?: string | null;
+  onboardingState?: string | null;
+  updateRequested?: boolean;
+  actionRequired?: FinixActionRequired | null;
+  error?: string;
+}
+
+export const getClubOnboardingFormLink = async (clubId: string): Promise<ClubOnboardingFormLink> => {
+  try {
+    if (!auth.currentUser) return { success: false, error: 'You must be logged in' };
+    const fn = httpsCallable(functions, 'getClubOnboardingFormLink');
+    const result = await fn({ clubId });
+    const data = result.data as any;
+    return { success: true, ...data };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to open Finix onboarding' };
   }
 };
 

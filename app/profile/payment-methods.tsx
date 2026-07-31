@@ -18,6 +18,7 @@ import {
   type SavedPaymentInstrument,
   type FinixTokenizationContext,
 } from '../../lib/finix';
+import PaymentSecurityInfo from '../../components/PaymentSecurityInfo';
 
 const formatBrand = (brand: string | null): string => {
   if (!brand) return 'Card';
@@ -406,6 +407,7 @@ export default function PaymentMethodsScreen() {
           </View>
 
           <View style={[styles.modalFooter, { paddingBottom: 24 }]}>
+            <PaymentSecurityInfo variant="checkout" align="center" style={{ marginBottom: 8 }} />
             <TouchableOpacity
               onPress={handleAddSubmit}
               disabled={!formReady || submitting}

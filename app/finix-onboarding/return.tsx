@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text, Button, ActivityIndicator, useTheme, Card } from 'react-native-paper';
 import { router, useLocalSearchParams } from 'expo-router';
-import { getSubMerchantStatus } from '../../lib/finix';
+import { getSubMerchantStatus, getClubOnboardingFormLink } from '../../lib/finix';
 import { updateClub, getClub } from '../../lib/firebase';
 
 export default function FinixOnboardingReturn() {
@@ -31,6 +31,25 @@ export default function FinixOnboardingReturn() {
       }
 
       const club = clubResult.club;
+
+      // Hosted form: the identity + merchant were minted BY the form, so we
+      // may not know their ids yet. This callable reads the form, links them to
+      // the club, and reports current state — don't wait on the webhook.
+      if (club.finixOnboardingFormId && !club.finixMerchantAccountActive) {
+        const sync = await getClubOnboardingFormLink(club.id);
+        if (sync.success) {
+          if (sync.onboardingState === 'APPROVED') {
+            setSuccess(true);
+            setTimeout(() => handleContinue(), 3000);
+          } else {
+            setPending(true);
+            setTimeout(() => handleContinue(), 3500);
+          }
+          setLoading(false);
+          return;
+        }
+      }
+
       const lookupIdentityId = (identityId as string) || club.finixIdentityId;
       if (!lookupIdentityId && !club.finixMerchantId) {
         setError('No payout application found for this club');

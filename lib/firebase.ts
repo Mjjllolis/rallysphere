@@ -148,9 +148,21 @@ export interface Club {
   finixPayoutPiId?: string;               // payout bank payment_instrument
   finixPayoutBankLast4?: string | null;
   finixOnboardingState?: string;          // raw Finix onboarding_state (PROVISIONING/APPROVED/UPDATE_REQUESTED/REJECTED)
+  // What Finix is waiting on, when onboarding_state is UPDATE_REQUESTED.
+  // Written by the webhook / status syncs; cleared once Finix is satisfied.
+  finixActionRequired?: {
+    verificationId: string;
+    summary: string | null;
+    items: { code: string; label: string; action: 'upload' | 'correct' | 'unknown'; fileType?: string; fieldName?: string }[];
+  };
   finixOnboardingDraft?: any;             // non-sensitive saved form for resume (no SSN/EIN/bank#)
-  // Legacy hosted-onboarding fields (kept for back-compat / cleanup)
+  // Which path this club took. 'hosted' = Finix-hosted Onboarding Form (the
+  // admin finishes it in a browser and handles Finix's later info requests
+  // themselves); anything else = the in-app wizard. Set once, at the fork.
+  finixOnboardingMode?: 'in_app' | 'hosted';
+  // Hosted-form fields (also used by the legacy flow's leftovers)
   finixOnboardingFormId?: string;
+  finixOnboardingFormStatus?: string;     // IN_PROGRESS / COMPLETED / UPDATE_REQUESTED
   finixOnboardingUrl?: string;
   finixOnboardingComplete?: boolean;
   finixOnboardingDeclined?: boolean;
@@ -867,7 +879,11 @@ export const getClubs = async (userId?: string) => {
         // Finix payouts (hosted onboarding)
         finixIdentityId: data.finixIdentityId,
         finixMerchantId: data.finixMerchantId,
+        finixOnboardingMode: data.finixOnboardingMode,
+        finixOnboardingState: data.finixOnboardingState,
+        finixActionRequired: data.finixActionRequired,
         finixOnboardingFormId: data.finixOnboardingFormId,
+        finixOnboardingFormStatus: data.finixOnboardingFormStatus,
         finixOnboardingUrl: data.finixOnboardingUrl,
         finixOnboardingComplete: data.finixOnboardingComplete,
         finixOnboardingDeclined: data.finixOnboardingDeclined,
@@ -929,7 +945,11 @@ export const getClub = async (clubId: string) => {
         // Finix payouts (hosted onboarding)
         finixIdentityId: data.finixIdentityId,
         finixMerchantId: data.finixMerchantId,
+        finixOnboardingMode: data.finixOnboardingMode,
+        finixOnboardingState: data.finixOnboardingState,
+        finixActionRequired: data.finixActionRequired,
         finixOnboardingFormId: data.finixOnboardingFormId,
+        finixOnboardingFormStatus: data.finixOnboardingFormStatus,
         finixOnboardingUrl: data.finixOnboardingUrl,
         finixOnboardingComplete: data.finixOnboardingComplete,
         finixOnboardingDeclined: data.finixOnboardingDeclined,

@@ -21,6 +21,7 @@ import {
   type FinixTokenizationContext,
   type SavedPaymentInstrument,
 } from '../lib/finix';
+import PaymentSecurityInfo from './PaymentSecurityInfo';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SLIDE_DURATION = 280;
@@ -826,6 +827,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
                     </View>
                   </View>
                   <Text variant="labelMedium" style={[styles.sectionLabel, { marginBottom: 4 }]}>PAYMENT METHOD</Text>
+                  <PaymentSecurityInfo variant="checkout" style={{ paddingVertical: 4 }} />
                 </View>
 
                 {/* Body: either saved-card picker or fresh-card WebView */}

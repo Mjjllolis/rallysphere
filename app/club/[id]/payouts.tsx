@@ -10,6 +10,7 @@ import { useAuth, useThemeToggle } from '../../_layout';
 import { getClub } from '../../../lib/firebase';
 import type { Club } from '../../../lib/firebase';
 import FinixPayoutsSetup from '../../../components/FinixPayoutsSetup';
+import FinixManageAccountCard from '../../../components/FinixManageAccountCard';
 
 export default function ClubPayoutsScreen() {
   const theme = useTheme();
@@ -144,6 +145,13 @@ export default function ClubPayoutsScreen() {
             acceptedByUid={user?.uid}
             onStatusChange={loadClubData}
           />
+
+          {/* Permanent link back to Finix. Verification requests and document
+              re-checks arrive AFTER approval, so this can't live inside the
+              onboarding flow — that's gone by then. */}
+          {isAdmin && (club.finixMerchantId || club.finixOnboardingFormId) && (
+            <FinixManageAccountCard club={club} onStatusChange={loadClubData} style={{ marginTop: 16 }} />
+          )}
         </ScrollView>
       </SafeAreaView>
     </View>

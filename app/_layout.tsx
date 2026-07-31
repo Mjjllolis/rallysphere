@@ -5,6 +5,7 @@ import { Platform, Linking, Alert, useColorScheme } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { Provider as PaperProvider, MD3LightTheme, MD3DarkTheme } from 'react-native-paper';
 import { onAuthStateChange, type User } from '../lib/firebase';
+import { registerPushTokenForUser } from '../hooks/usePushToken';
 import { initAppCheck } from '../lib/appCheck';
 import * as SecureStore from 'expo-secure-store';
 import * as SplashScreen from 'expo-splash-screen';
@@ -244,6 +245,12 @@ export default function RootLayout() {
       // console.log('Auth state changed:', user ? `User: ${user.email}` : 'No user');
       setUser(user);
       setAuthLoading(false);
+      // Attach this device's push token to the user so the server can reach
+      // them — e.g. when Finix stalls a payout application waiting on documents.
+      // Fire-and-forget: it must never gate rendering or sign-in.
+      if (user?.uid) {
+        registerPushTokenForUser(user.uid).catch(() => {});
+      }
     });
 
     // Cleanup function

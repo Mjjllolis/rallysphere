@@ -23,6 +23,7 @@ import {
 } from '../lib/finix';
 import { useThemeToggle } from '../app/_layout';
 import { useDebugLogs } from '../lib/debugContext';
+import PaymentSecurityInfo from './PaymentSecurityInfo';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SLIDE_DURATION = 280;
@@ -794,6 +795,9 @@ export default function StorePaymentSheet({
                   <Text style={[styles.sectionTitle, { color: theme.colors.onSurfaceVariant, paddingHorizontal: 20, marginBottom: 4 }]}>
                     PAYMENT METHOD
                   </Text>
+                  <View style={{ paddingHorizontal: 20 }}>
+                    <PaymentSecurityInfo variant="checkout" style={{ paddingVertical: 4 }} />
+                  </View>
 
                   {/* Body — saved-card picker or Finix WebView */}
                   {initializingPayment || !finixContext ? (
