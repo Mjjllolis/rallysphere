@@ -2921,6 +2921,11 @@ export const leaveEventWithRefund = functions.https.onCall(
       leaveBatch.delete(leaveEventRef.collection("attendees").doc(userId));
       // Defensive: also remove any waitlist subcollection doc in case state is inconsistent
       leaveBatch.delete(leaveEventRef.collection("waitlist").doc(userId));
+      // Clean up questionnaire responses and waiver signatures so they don't
+      // flood admin analytics for users no longer attending, and so the user
+      // can re-register fresh if they rejoin.
+      leaveBatch.delete(leaveEventRef.collection("questionnaireResponses").doc(userId));
+      leaveBatch.delete(leaveEventRef.collection("waiverSignatures").doc(userId));
       await leaveBatch.commit();
 
       // Forfeit rally credits
@@ -3208,6 +3213,82 @@ export const cancelEvent = functions.https.onCall(
       freeCancelled,
       totalRefunded,
       failures,
+    };
+  }
+);
+
+export const getEventCancellationPreview = functions.https.onCall(
+  { enforceAppCheck: false },
+  async (request: any) => {
+    const data = request.data;
+    const auth = request.auth;
+
+    if (!auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const { eventId } = data || {};
+    if (!eventId) {
+      throw new functions.https.HttpsError("invalid-argument", "Missing required field: eventId");
+    }
+
+    const db = admin.firestore();
+    const eventRef = db.collection("events").doc(eventId);
+    const eventSnap = await eventRef.get();
+    if (!eventSnap.exists) {
+      throw new functions.https.HttpsError("not-found", "Event not found");
+    }
+    const event = eventSnap.data() as any;
+
+    // Authorize: event creator OR club admin/owner (same check as cancelEvent)
+    const isCreator = event.createdBy === auth.uid;
+    let isAuthorized = isCreator;
+    if (!isAuthorized && event.clubId) {
+      const clubSnap = await db.collection("clubs").doc(event.clubId).get();
+      if (clubSnap.exists) {
+        const club = clubSnap.data() as any;
+        const admins: string[] = club?.clubAdmins || club?.admins || [];
+        const owner = club?.clubOwner || club?.owner;
+        isAuthorized = admins.includes(auth.uid) || owner === auth.uid;
+      }
+    }
+    if (!isAuthorized) {
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "Only the event creator or a club admin can view this event's cancellation preview"
+      );
+    }
+
+    const ordersSnap = await db
+      .collection("ticketOrders")
+      .where("eventId", "==", eventId)
+      .get();
+
+    let paidCount = 0;
+    let freeCount = 0;
+    let totalRefund = 0;
+    let alreadyRefundedCount = 0;
+
+    for (const orderDoc of ordersSnap.docs) {
+      const order = orderDoc.data() as any;
+      if (order.status === "refunded" || order.status === "cancelled") {
+        alreadyRefundedCount += 1;
+        continue;
+      }
+      if ((order.totalAmount || 0) > 0 && order.transactionId) {
+        paidCount += 1;
+        totalRefund += order.totalAmount;
+      } else {
+        freeCount += 1;
+      }
+    }
+
+    return {
+      success: true,
+      paidCount,
+      freeCount,
+      totalRefund,
+      alreadyRefundedCount,
     };
   }
 );

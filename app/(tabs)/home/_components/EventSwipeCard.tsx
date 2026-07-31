@@ -164,15 +164,19 @@ export default function EventSwipeCard({
     }
   };
 
-  const joinFreeEvent = async () => {
+  const joinFreeEvent = async (registrationData?: RegistrationData | null) => {
     if (!user) return;
     setIsJoining(true);
     try {
       const result = await joinEvent(event.id, user.uid);
       if (result.success) {
-        // Save registration data AFTER successful join
-        if (pendingRegistrationData) {
-          await saveRegistrationData(pendingRegistrationData);
+        // Save registration data AFTER successful join. Use the value passed in
+        // directly rather than relying on `pendingRegistrationData` state, since
+        // state updates from the same tick (see handleRegistrationComplete) may
+        // not have flushed yet.
+        const dataToSave = registrationData !== undefined ? registrationData : pendingRegistrationData;
+        if (dataToSave) {
+          await saveRegistrationData(dataToSave);
           setPendingRegistrationData(null);
         }
 
@@ -292,14 +296,18 @@ export default function EventSwipeCard({
   };
 
   const handleRegistrationComplete = async (registrationData: RegistrationData) => {
-    // Store registration data - will be saved AFTER successful join
+    // Store registration data for the paid-event flow (read later in
+    // handlePaymentSuccess, once payment completes asynchronously).
     setPendingRegistrationData(registrationData);
 
     // Registration flow completed - proceed with joining
     if (event.ticketPrice && event.ticketPrice > 0) {
       setPaymentSheetVisible(true);
     } else {
-      await joinFreeEvent();
+      // Pass registrationData directly instead of relying on the state set
+      // above, since joinFreeEvent runs in the same tick and would otherwise
+      // read the stale (pre-update) value of pendingRegistrationData.
+      await joinFreeEvent(registrationData);
     }
   };
 
@@ -676,9 +684,7 @@ export default function EventSwipeCard({
         visible={paymentSheetVisible}
         event={event}
         onDismiss={() => setPaymentSheetVisible(false)}
-        onSuccess={async () => {
-          await refreshEventData();
-        }}
+        onSuccess={handlePaymentSuccess}
       />
 
       {/* Event Registration Flow (Questionnaire + Waiver) */}

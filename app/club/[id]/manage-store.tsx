@@ -40,6 +40,7 @@ import * as ImagePicker from 'expo-image-picker';
 import GlassInput from '../../../components/GlassInput';
 
 const CATEGORIES = ['Merch', 'Equipment', 'Snacks', 'Etc'];
+const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
 
 export default function ManageStoreScreen() {
   const theme = useTheme();
@@ -70,6 +71,7 @@ export default function ManageStoreScreen() {
   });
 
   const [variants, setVariants] = useState<StoreItemVariant[]>([]);
+  const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [deliveryOption, setDeliveryOption] = useState<'pickup' | 'delivery' | 'both'>('both');
 
   const keyboardTranslateY = useState(new Animated.Value(0))[0];
@@ -184,6 +186,7 @@ export default function ManageStoreScreen() {
       images: [],
     });
     setVariants([]);
+    setSelectedSizes([]);
     setDeliveryOption('both');
     setModalVisible(true);
   };
@@ -204,6 +207,7 @@ export default function ManageStoreScreen() {
       images: item.images || [],
     });
     setVariants(item.variants || []);
+    setSelectedSizes(item.variants?.find((v) => v.name === 'Size')?.options || []);
 
     // Set delivery option
     if (item.pickupOnly) {
@@ -256,6 +260,12 @@ export default function ManageStoreScreen() {
     setFormData({ ...formData, images: newImages });
   };
 
+  const toggleSize = (size: string) => {
+    setSelectedSizes((prev) =>
+      prev.includes(size) ? prev.filter((s) => s !== size) : [...prev, size]
+    );
+  };
+
   const handleSave = async () => {
     if (!user || !club) return;
 
@@ -296,6 +306,12 @@ export default function ManageStoreScreen() {
     try {
       setSaving(true);
 
+      const otherVariants = variants.filter((v) => v.name !== 'Size');
+      const finalVariants: StoreItemVariant[] =
+        selectedSizes.length > 0
+          ? [...otherVariants, { id: 'size', name: 'Size', options: selectedSizes }]
+          : otherVariants;
+
       const itemData = {
         clubId,
         clubName: club.name,
@@ -310,7 +326,7 @@ export default function ManageStoreScreen() {
         pickupOnly: deliveryOption === 'pickup',
         pickupAddress: formData.pickupAddress.trim(),
         inventory,
-        variants,
+        variants: finalVariants,
         isActive: true,
         createdBy: user.uid,
       };
@@ -677,12 +693,36 @@ export default function ManageStoreScreen() {
                       <Chip
                         key={cat}
                         selected={formData.category === cat}
+                        showSelectedCheck={false}
                         onPress={() => setFormData({ ...formData, category: cat })}
                         style={styles.categoryChip}
                         mode={formData.category === cat ? "flat" : "outlined"}
                         selectedColor={theme.colors.primary}
                       >
                         {cat}
+                      </Chip>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Size Chips */}
+                <View style={styles.categorySection}>
+                  <Text style={[styles.sectionLabel, { color: theme.colors.onSurface }]}>Available Sizes</Text>
+                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8 }}>
+                    Select the sizes buyers can choose from. Leave blank if this product has no sizes.
+                  </Text>
+                  <View style={styles.categoryChips}>
+                    {SIZES.map((size) => (
+                      <Chip
+                        key={size}
+                        selected={selectedSizes.includes(size)}
+                        showSelectedCheck={false}
+                        onPress={() => toggleSize(size)}
+                        style={styles.categoryChip}
+                        mode={selectedSizes.includes(size) ? "flat" : "outlined"}
+                        selectedColor={theme.colors.primary}
+                      >
+                        {size}
                       </Chip>
                     ))}
                   </View>
@@ -1019,10 +1059,11 @@ const styles = StyleSheet.create({
     margin: 20,
     borderRadius: 16,
     height: '85%',
-    overflow: 'hidden',
   },
   modalAnimatedWrapper: {
     flex: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
   },
   modalInner: {
     flex: 1,
