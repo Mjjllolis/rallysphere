@@ -14,6 +14,7 @@ import GlassButton from '../GlassButton';
 import GlassDateTimePicker from '../GlassDateTimePicker';
 import GlassTagInput from '../GlassTagInput';
 import QuestionnaireBuilderSheet from '../QuestionnaireBuilderSheet';
+import LocationAutocompleteInput, { SelectedLocation } from '../LocationAutocompleteInput';
 import type { Club, Question, Questionnaire } from '../../lib/firebase';
 
 interface EventFormProps {
@@ -48,12 +49,14 @@ export default function EventForm({ onColorsExtracted, onSuccess, onScrollToFiel
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    location: '',
+    locationDetails: '',
     maxAttendees: '',
     ticketPrice: '',
     currency: 'USD',
     rallyCreditsPayout: '',
   });
+
+  const [selectedLocation, setSelectedLocation] = useState<SelectedLocation | null>(null);
 
   const [tags, setTags] = useState<string[]>([]);
   const [isPublic, setIsPublic] = useState(true);
@@ -100,7 +103,7 @@ export default function EventForm({ onColorsExtracted, onSuccess, onScrollToFiel
       formData.title.trim().length > 0 &&
       formData.description.trim().length > 0 &&
       selectedClub !== null &&
-      formData.location.trim().length > 0 &&
+      selectedLocation !== null &&
       endDate > startDate &&
       (!hasWaiver || waiverText.trim().length > 0) &&
       (!hasQuestionnaire || questions.length > 0)
@@ -120,8 +123,8 @@ export default function EventForm({ onColorsExtracted, onSuccess, onScrollToFiel
       Alert.alert('Error', 'Please select a club');
       return false;
     }
-    if (!formData.location.trim()) {
-      Alert.alert('Error', 'Location is required');
+    if (!selectedLocation) {
+      Alert.alert('Error', 'Please select a valid location from the suggestions');
       return false;
     }
     if (endDate <= startDate) {
@@ -171,6 +174,11 @@ export default function EventForm({ onColorsExtracted, onSuccess, onScrollToFiel
       // console.log('Max Attendees Value:', maxAttendeesValue);
       // console.log('Rally Credits Payout:', rallyCreditsPayoutValue);
 
+      const locationDetail = formData.locationDetails.trim();
+      const location = locationDetail
+        ? `${locationDetail}, ${selectedLocation!.description}`
+        : selectedLocation!.description;
+
       const eventData = {
         title: formData.title.trim(),
         description: formData.description.trim(),
@@ -180,7 +188,8 @@ export default function EventForm({ onColorsExtracted, onSuccess, onScrollToFiel
         createdBy: user.uid,
         startDate: new Date(startDate),
         endDate: new Date(endDate),
-        location: formData.location.trim(),
+        location,
+        locationCoords: { latitude: selectedLocation!.latitude, longitude: selectedLocation!.longitude },
         isVirtual: false,
         maxAttendees: maxAttendeesValue,
         coverImage: coverImageUrl,
@@ -276,13 +285,25 @@ export default function EventForm({ onColorsExtracted, onSuccess, onScrollToFiel
       </View>
 
       <View onLayout={handleFieldLayout('location')}>
-        <GlassInput
+        <LocationAutocompleteInput
+          variant="glass"
           label="Location *"
-          value={formData.location}
-          onChangeText={(value) => updateFormData('location', value)}
-          placeholder="e.g., Student Center Room 201"
-          icon="map-marker"
+          value={selectedLocation}
+          onSelect={setSelectedLocation}
+          accentColor={theme.colors.primary}
+          placeholder="Search for an address or venue"
           onFocus={handleFieldFocus('location')}
+        />
+      </View>
+
+      <View onLayout={handleFieldLayout('locationDetails')}>
+        <GlassInput
+          label="Room / Building Details (optional)"
+          value={formData.locationDetails}
+          onChangeText={(value) => updateFormData('locationDetails', value)}
+          placeholder="e.g., Room 201, 2nd Floor"
+          icon="map-marker-outline"
+          onFocus={handleFieldFocus('locationDetails')}
         />
       </View>
 

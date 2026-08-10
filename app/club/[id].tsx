@@ -354,7 +354,7 @@ export default function ClubDetailScreen() {
       />
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.onSurface} />}>
-        {/* Hero Header with Dark Gradient */}
+        {/* Hero Image */}
         <View style={styles.heroSection}>
           {club.coverImage ? (
             <ExpoImage
@@ -372,121 +372,164 @@ export default function ClubDetailScreen() {
             />
           )}
 
-          {/* Gradient overlay for text readability */}
-          <LinearGradient
-            colors={isDark ? ['transparent', 'transparent', 'rgba(15,15,35,0.6)', 'rgba(15,15,35,0.95)'] : ['transparent', 'transparent', 'rgba(255,255,255,0.6)', 'rgba(255,255,255,0.95)']}
-            locations={[0, 0.5, 0.8, 1]}
-            style={styles.heroUnifiedGradient}
-          >
-            {/* Top Controls */}
-            <View style={styles.topControls}>
-              <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.controlButtonBlur}>
-                <IconButton
-                  icon="arrow-left"
-                  iconColor={theme.colors.onSurface}
-                  size={24}
-                  onPress={() => router.back()}
-                />
-              </BlurView>
+          {/* Top Controls */}
+          <View style={styles.topControls}>
+            <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.controlButtonBlur}>
+              <IconButton
+                icon="arrow-left"
+                iconColor="#fff"
+                size={22}
+                onPress={() => router.back()}
+              />
+            </BlurView>
 
-              <View style={styles.rightControls}>
-                {/* RallyCredits Display */}
-                {user && (isJoined || isAdmin || isOwner) && userCredits && (
-                  <TouchableOpacity
-                    onPress={() => router.push(`/club/${club.id}/redeem-credits`)}
-                    activeOpacity={0.7}
-                  >
-                    <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.creditsChip}>
-                      <View style={styles.creditsContent}>
-                        <IconButton
-                          icon="star-circle"
-                          iconColor="#FFD700"
-                          size={20}
-                          style={{ margin: 0 }}
-                        />
-                        <Text variant="titleMedium" style={[styles.creditsText, { color: theme.colors.onSurface }]}>
-                          {userCredits.clubCredits?.[clubId] || 0}
-                        </Text>
-                      </View>
+            <View style={styles.rightControls}>
+              {/* RallyCredits Display */}
+              {user && (isJoined || isAdmin || isOwner) && userCredits && (
+                <TouchableOpacity
+                  onPress={() => router.push(`/club/${club.id}/redeem-credits`)}
+                  activeOpacity={0.7}
+                >
+                  <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.creditsChip}>
+                    <View style={styles.creditsContent}>
+                      <IconButton
+                        icon="star-circle"
+                        iconColor="#FFD700"
+                        size={20}
+                        style={{ margin: 0 }}
+                      />
+                      <Text variant="titleMedium" style={[styles.creditsText, { color: '#fff' }]}>
+                        {userCredits.clubCredits?.[clubId] || 0}
+                      </Text>
+                    </View>
+                  </BlurView>
+                </TouchableOpacity>
+              )}
+
+              {/* Admin/Owner: Direct link to dashboard */}
+              {(isAdmin || isOwner) && (
+                <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.controlButtonBlur}>
+                  <IconButton
+                    icon="menu"
+                    iconColor="#fff"
+                    size={22}
+                    onPress={() => router.push(`/club/${club.id}/manage`)}
+                  />
+                </BlurView>
+              )}
+
+              {/* Regular member: Menu with Leave option */}
+              {isJoined && !isAdmin && !isOwner && (
+                <View>
+                  <TouchableOpacity onPress={() => setMenuVisible(prev => !prev)} activeOpacity={0.7}>
+                    <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.controlButtonBlur}>
+                      <IconButton
+                        icon="dots-vertical"
+                        iconColor="#fff"
+                        size={22}
+                      />
                     </BlurView>
                   </TouchableOpacity>
-                )}
 
-                {/* Admin/Owner: Direct link to dashboard */}
-                {(isAdmin || isOwner) && (
-                  <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.controlButtonBlur}>
-                    <IconButton
-                      icon="menu"
-                      iconColor={theme.colors.onSurface}
-                      size={24}
-                      onPress={() => router.push(`/club/${club.id}/manage`)}
-                    />
-                  </BlurView>
-                )}
-
-                {/* Regular member: Menu with Leave option */}
-                {isJoined && !isAdmin && !isOwner && (
-                  <View>
-                    <TouchableOpacity onPress={() => setMenuVisible(prev => !prev)} activeOpacity={0.7}>
-                      <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.controlButtonBlur}>
-                        <IconButton
-                          icon="menu"
-                          iconColor={theme.colors.onSurface}
-                          size={24}
-                        />
-                      </BlurView>
-                    </TouchableOpacity>
-
-                    {menuVisible && (
-                      <View style={[styles.customMenu, { backgroundColor: isDark ? 'rgba(30,41,59,0.95)' : 'rgba(255,255,255,0.95)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
-                        <TouchableOpacity
-                          style={styles.customMenuItem}
-                          onPress={() => { setMenuVisible(false); handleLeaveClub(); }}
-                        >
-                          <IconButton icon="exit-to-app" size={18} iconColor={theme.colors.onSurface} style={{ margin: 0 }} />
-                          <Text style={[styles.customMenuText, { color: theme.colors.onSurface }]}>Leave Club</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-                )}
-              </View>
-            </View>
-
-            {/* Club Info Overlay */}
-            <View style={styles.heroContent}>
-              {club.logo ? (
-                <ExpoImage source={{ uri: club.logo }} style={styles.heroLogo} transition={200} cachePolicy="memory-disk" />
-              ) : (
-                <View style={styles.heroLogoInitials}>
-                  <Text style={[styles.heroLogoInitialsText, { color: theme.colors.onSurface }]}>{getClubInitials(club.name)}</Text>
+                  {menuVisible && (
+                    <View style={[styles.customMenu, { backgroundColor: isDark ? 'rgba(30,41,59,0.95)' : 'rgba(255,255,255,0.95)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
+                      <TouchableOpacity
+                        style={styles.customMenuItem}
+                        onPress={() => { setMenuVisible(false); handleLeaveClub(); }}
+                      >
+                        <IconButton icon="exit-to-app" size={18} iconColor={theme.colors.onSurface} style={{ margin: 0 }} />
+                        <Text style={[styles.customMenuText, { color: theme.colors.onSurface }]}>Leave Club</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               )}
-              <View style={styles.heroTitleContainer}>
-                <Text variant="displaySmall" style={[styles.heroTitle, { color: theme.colors.onSurface }]}>
+            </View>
+          </View>
+        </View>
+
+        {/* Header Info Section */}
+        <View style={styles.headerInfoSection}>
+          <View style={styles.avatarNameRow}>
+            {club.logo ? (
+              <ExpoImage source={{ uri: club.logo }} style={styles.clubAvatar} transition={200} cachePolicy="memory-disk" />
+            ) : (
+              <View style={[styles.clubAvatar, styles.clubAvatarInitials]}>
+                <Text style={[styles.clubAvatarInitialsText, { color: theme.colors.onSurface }]}>{getClubInitials(club.name)}</Text>
+              </View>
+            )}
+            <View style={styles.nameColumn}>
+              <View style={styles.nameRow}>
+                <Text variant="headlineMedium" style={[styles.clubName, { color: theme.colors.onSurface }]} numberOfLines={2}>
                   {club.name}
                 </Text>
                 {club.isPro && (
-                  <Chip
-                    icon="crown"
-                    style={styles.proChip}
-                    textStyle={styles.proChipText}
-                    mode="flat"
-                  >
+                  <Chip icon="crown" style={styles.proChip} textStyle={styles.proChipText} mode="flat">
                     PRO
                   </Chip>
                 )}
               </View>
-              <View style={styles.heroMeta}>
-                <Chip style={[styles.heroCategoryChip, { backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }]} textStyle={[styles.heroChipText, { color: theme.colors.onSurface }]}>
-                  {club.category}
+              {!!club.category && (
+                <Chip
+                  style={[styles.categoryChip, { borderColor: '#60A5FA', backgroundColor: isDark ? 'rgba(96,165,250,0.15)' : 'rgba(96,165,250,0.08)' }]}
+                  textStyle={styles.categoryChipText}
+                  mode="outlined"
+                >
+                  {club.category.toUpperCase()}
                 </Chip>
-                <Text variant="titleSmall" style={[styles.heroMembers, { color: theme.colors.onSurfaceVariant }]}>
-                  {club.members.length} Members
-                </Text>
-              </View>
+              )}
+            </View>
+          </View>
 
-              {user && !isJoined && (
+          {!!club.description && (
+            <Text variant="bodyLarge" style={[styles.clubDescription, { color: theme.colors.onSurfaceVariant }]}>
+              {club.description}
+            </Text>
+          )}
+
+          <View style={styles.membersActionRow}>
+            <View style={styles.memberAvatarsGroup}>
+              {Array.from(membersData.entries()).slice(0, 4).map(([userId, member], index) => (
+                member.avatar ? (
+                  <ExpoImage
+                    key={userId}
+                    source={{ uri: member.avatar }}
+                    style={[styles.stackedAvatar, { marginLeft: index === 0 ? 0 : -12, zIndex: 4 - index, borderColor: theme.colors.background }]}
+                    transition={200}
+                    cachePolicy="memory-disk"
+                  />
+                ) : (
+                  <View
+                    key={userId}
+                    style={[styles.stackedAvatar, styles.stackedAvatarInitials, { marginLeft: index === 0 ? 0 : -12, zIndex: 4 - index, borderColor: theme.colors.background }]}
+                  >
+                    <Text style={styles.stackedAvatarInitialsText}>
+                      {`${member.firstName?.[0] || ''}${member.lastName?.[0] || ''}`.toUpperCase() || '?'}
+                    </Text>
+                  </View>
+                )
+              ))}
+              <Text variant="titleSmall" style={[styles.memberCountText, { color: theme.colors.onSurfaceVariant }]}>
+                {club.members.length} member{club.members.length === 1 ? '' : 's'}
+              </Text>
+            </View>
+
+            {user && (
+              isJoined ? (
+                isAdmin || isOwner ? (
+                  <View style={styles.joinedPill}>
+                    <Text style={styles.joinedPillText}>Joined</Text>
+                    <IconButton icon="check" size={16} iconColor="#1D4ED8" style={{ margin: 0 }} />
+                  </View>
+                ) : (
+                  <TouchableOpacity onPress={() => setMenuVisible(prev => !prev)} activeOpacity={0.8}>
+                    <View style={styles.joinedPill}>
+                      <Text style={styles.joinedPillText}>Joined</Text>
+                      <IconButton icon="check" size={16} iconColor="#1D4ED8" style={{ margin: 0 }} />
+                    </View>
+                  </TouchableOpacity>
+                )
+              ) : (
                 <Button
                   mode="contained"
                   onPress={() => {
@@ -497,57 +540,56 @@ export default function ClubDetailScreen() {
                     }
                   }}
                   loading={actionLoading}
-                  style={styles.heroJoinButton}
-                  contentStyle={styles.heroJoinButtonContent}
-                  labelStyle={styles.heroJoinButtonLabel}
+                  style={styles.joinButtonCompact}
+                  contentStyle={styles.joinButtonCompactContent}
+                  labelStyle={styles.joinButtonCompactLabel}
                 >
                   Join Club
                 </Button>
-              )}
+              )
+            )}
+          </View>
 
-              {/* Subscription Buttons */}
-              {user && isJoined && club.subscriptionEnabled && club.subscriptionPrice && (
-                <View style={styles.subscriptionSection}>
-                  {isSubscribed ? (
-                    <View style={styles.subscribedContainer}>
-                      <Chip
-                        icon="check-circle"
-                        style={styles.subscribedChip}
-                        textStyle={[styles.subscribedChipText, { color: theme.colors.onSurface }]}
-                      >
-                        Subscribed
-                      </Chip>
-                      <TouchableOpacity onPress={handleCancelSubscription} disabled={subscriptionLoading}>
-                        <Text style={[styles.cancelSubscriptionText, { color: theme.colors.onSurfaceVariant }]}>
-                          {subscriptionLoading ? 'Processing...' : 'Cancel'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <View style={styles.subscribeContainer}>
-                      <Button
-                        mode="contained"
-                        onPress={handleSubscribe}
-                        loading={subscriptionLoading}
-                        style={styles.subscribeButton}
-                        contentStyle={styles.heroJoinButtonContent}
-                        labelStyle={styles.heroJoinButtonLabel}
-                        icon="star"
-                      >
-                        Subscribe - ${club.subscriptionPrice}/mo
-                      </Button>
-                      {club.subscriptionDescription && (
-                        <Text style={[styles.subscriptionDescription, { color: theme.colors.onSurfaceVariant }]}>
-                          {club.subscriptionDescription}
-                        </Text>
-                      )}
-                    </View>
+          {/* Subscription Buttons */}
+          {user && isJoined && club.subscriptionEnabled && club.subscriptionPrice && (
+            <View style={styles.subscriptionSection}>
+              {isSubscribed ? (
+                <View style={styles.subscribedContainer}>
+                  <Chip
+                    icon="check-circle"
+                    style={styles.subscribedChip}
+                    textStyle={[styles.subscribedChipText, { color: theme.colors.onSurface }]}
+                  >
+                    Subscribed
+                  </Chip>
+                  <TouchableOpacity onPress={handleCancelSubscription} disabled={subscriptionLoading}>
+                    <Text style={[styles.cancelSubscriptionText, { color: theme.colors.onSurfaceVariant }]}>
+                      {subscriptionLoading ? 'Processing...' : 'Cancel'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.subscribeContainer}>
+                  <Button
+                    mode="contained"
+                    onPress={handleSubscribe}
+                    loading={subscriptionLoading}
+                    style={styles.subscribeButton}
+                    contentStyle={styles.heroJoinButtonContent}
+                    labelStyle={styles.heroJoinButtonLabel}
+                    icon="star"
+                  >
+                    Subscribe - ${club.subscriptionPrice}/mo
+                  </Button>
+                  {club.subscriptionDescription && (
+                    <Text style={[styles.subscriptionDescription, { color: theme.colors.onSurfaceVariant }]}>
+                      {club.subscriptionDescription}
+                    </Text>
                   )}
                 </View>
               )}
             </View>
-          </LinearGradient>
-
+          )}
         </View>
 
         {/* Content Section */}
@@ -1016,20 +1058,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   heroSection: {
-    height: 450,
+    height: 280,
     position: 'relative',
   },
   coverImage: {
     width: '100%',
-    height: 450,
-  },
-  heroUnifiedGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 450,
-    zIndex: 1,
+    height: 280,
   },
   topControls: {
     position: 'absolute',
@@ -1074,52 +1108,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
   },
-  heroContent: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 24,
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    zIndex: 2,
-    alignItems: 'center',
-  },
-  heroLogo: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 3,
-    borderColor: '#fff',
-    marginBottom: 16,
-  },
-  heroLogoInitials: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 3,
-    borderColor: '#fff',
-    marginBottom: 16,
-    backgroundColor: '#60A5FA',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  heroLogoInitialsText: {
-    fontSize: 36,
-    fontWeight: 'bold',
-  },
-  heroTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-  },
-  heroTitle: {
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
   proChip: {
     backgroundColor: '#FFD700',
     height: 28,
@@ -1129,24 +1117,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 12,
   },
-  heroMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 20,
-  },
-  heroCategoryChip: {
-  },
-  heroChipText: {
-  },
-  heroMembers: {
-  },
-  heroJoinButton: {
-    minWidth: 200,
-    paddingHorizontal: 40,
-    borderRadius: 25,
-    marginBottom: 16,
-  },
   heroJoinButtonContent: {
     paddingVertical: 8,
   },
@@ -1154,9 +1124,116 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  subscriptionSection: {
-    marginTop: 8,
+  headerInfoSection: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  avatarNameRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 14,
+  },
+  clubAvatar: {
+    width: 84,
+    height: 84,
+    borderRadius: 20,
+    borderWidth: 3,
+    borderColor: '#fff',
+    marginTop: -56,
+    backgroundColor: '#fff',
+  },
+  clubAvatarInitials: {
+    backgroundColor: '#60A5FA',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  clubAvatarInitialsText: {
+    fontSize: 30,
+    fontWeight: 'bold',
+  },
+  nameColumn: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: 6,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  clubName: {
+    fontWeight: 'bold',
+  },
+  categoryChip: {
+    alignSelf: 'flex-start',
+  },
+  categoryChipText: {
+    color: '#60A5FA',
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+  clubDescription: {
+    marginTop: 16,
+    lineHeight: 22,
+  },
+  membersActionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  memberAvatarsGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
+  },
+  stackedAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+  },
+  stackedAvatarInitials: {
+    backgroundColor: '#60A5FA',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stackedAvatarInitialsText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+  memberCountText: {
+    marginLeft: 10,
+  },
+  joinedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(96,165,250,0.15)',
+    borderRadius: 20,
+    paddingLeft: 16,
+    paddingRight: 6,
+  },
+  joinedPillText: {
+    color: '#1D4ED8',
+    fontWeight: 'bold',
+    fontSize: 15,
+  },
+  joinButtonCompact: {
+    borderRadius: 20,
+  },
+  joinButtonCompactContent: {
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+  },
+  joinButtonCompactLabel: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  subscriptionSection: {
+    marginTop: 16,
+    alignItems: 'flex-start',
   },
   subscribedContainer: {
     flexDirection: 'row',

@@ -819,7 +819,14 @@ export const createClub = async (clubData: any) => {
     if (clubData.socialLinks && Object.keys(clubData.socialLinks).length > 0) {
       club.socialLinks = clubData.socialLinks;
     }
-    
+    if (clubData.location) {
+      club.location = clubData.location;
+      const coords = clubData.locationCoords || await geocodeLocation(clubData.location);
+      if (coords) {
+        club.locationCoords = coords;
+      }
+    }
+
     const docRef = await addDoc(collection(db, 'clubs'), club);
     
     return { success: true, clubId: docRef.id };
@@ -876,6 +883,7 @@ export const getClubs = async (userId?: string) => {
         contactEmail: data.contactEmail,
         socialLinks: data.socialLinks,
         location: data.location,
+        locationCoords: data.locationCoords,
         // Finix payouts (hosted onboarding)
         finixIdentityId: data.finixIdentityId,
         finixMerchantId: data.finixMerchantId,
@@ -942,6 +950,7 @@ export const getClub = async (clubId: string) => {
         contactEmail: data.contactEmail,
         socialLinks: data.socialLinks,
         location: data.location,
+        locationCoords: data.locationCoords,
         // Finix payouts (hosted onboarding)
         finixIdentityId: data.finixIdentityId,
         finixMerchantId: data.finixMerchantId,
@@ -1292,6 +1301,19 @@ export const updateClub = async (clubId: string, clubData: any) => {
     }
     if (clubData.location !== undefined) {
       updateData.location = clubData.location;
+      if (!clubData.location) {
+        // Address was cleared — drop any coords from a previous address so the
+        // club doesn't keep showing up at a location it no longer claims.
+        updateData.locationCoords = deleteField();
+      } else if (clubData.locationCoords) {
+        updateData.locationCoords = clubData.locationCoords;
+      } else {
+        // Geocode the new/changed address since no coords were provided
+        const coords = await geocodeLocation(clubData.location);
+        if (coords) {
+          updateData.locationCoords = coords;
+        }
+      }
     }
     // Finix payouts (hosted onboarding)
     if (clubData.finixIdentityId !== undefined) {
@@ -2354,6 +2376,8 @@ export const subscribeToClubs = (userId: string, callback: (clubs: Club[]) => vo
           tags: data.tags,
           contactEmail: data.contactEmail,
           socialLinks: data.socialLinks,
+          location: data.location,
+          locationCoords: data.locationCoords,
           // Finix payouts (hosted onboarding)
           finixIdentityId: data.finixIdentityId,
           finixMerchantId: data.finixMerchantId,

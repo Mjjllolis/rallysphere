@@ -11,6 +11,7 @@ import {
   Keyboard,
   Platform,
   Easing,
+  InteractionManager,
 } from 'react-native';
 import {
   Text,
@@ -347,9 +348,16 @@ export default function ManageStoreScreen() {
         const result = await createStoreItem(itemData as any);
 
         if (result.success) {
-          Alert.alert('Success', 'Product added successfully');
           await loadData();
           setModalVisible(false);
+          // Land on the shop home first, then push the new listing on top of it —
+          // same stack shape as if the admin had tapped the item from the store page,
+          // so the back button lands back on the shop home. Wait for that navigation's
+          // transition to finish before pushing, rather than guessing a fixed delay.
+          router.navigate('/(tabs)/store');
+          InteractionManager.runAfterInteractions(() => {
+            router.push(`/(tabs)/store/${result.itemId}`);
+          });
         } else {
           Alert.alert('Error', result.error || 'Failed to add product');
         }
