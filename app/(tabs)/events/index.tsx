@@ -21,6 +21,7 @@ import { useAuth, useThemeToggle } from '../../_layout';
 import { getEvents, getClubs } from '../../../lib/firebase';
 import type { Event, Club } from '../../../lib/firebase';
 import DiscoverFilterPanel, { DiscoverFilters } from '../../../components/DiscoverFilterPanel';
+import { getDistanceMiles } from '../../../lib/location';
 
 const { width } = Dimensions.get('window');
 const FEATURED_CARD_WIDTH = width * 0.75;
@@ -46,6 +47,7 @@ export default function DiscoverScreen() {
     dateRange: 'any',
     sortBy: 'soonest',
     showVirtual: false,
+    location: null,
   });
 
   const defaultFilters: DiscoverFilters = {
@@ -53,13 +55,15 @@ export default function DiscoverScreen() {
     dateRange: 'any',
     sortBy: 'soonest',
     showVirtual: false,
+    location: null,
   };
 
   const hasActiveFilters =
     filters.price !== 'all' ||
     filters.dateRange !== 'any' ||
     filters.sortBy !== 'soonest' ||
-    filters.showVirtual;
+    filters.showVirtual ||
+    !!filters.location;
 
   useEffect(() => {
     load();
@@ -152,6 +156,15 @@ export default function DiscoverScreen() {
       result = result.filter((e) => e.isVirtual);
     }
 
+    // Location filter
+    if (filters.location) {
+      const { latitude, longitude, radiusMiles } = filters.location;
+      result = result.filter((e) => {
+        if (!e.locationCoords) return false;
+        return getDistanceMiles(latitude, longitude, e.locationCoords.latitude, e.locationCoords.longitude) <= radiusMiles;
+      });
+    }
+
     // Sort
     if (filters.sortBy === 'soonest') {
       result.sort((a, b) => {
@@ -173,14 +186,34 @@ export default function DiscoverScreen() {
   }, [events, q, filters]);
 
   const filteredClubs = useMemo(() => {
-    if (!q) return clubs;
-    return clubs.filter(
-      (c) =>
-        c.name?.toLowerCase().includes(q) ||
-        c.description?.toLowerCase().includes(q) ||
-        c.category?.toLowerCase().includes(q)
-    );
-  }, [clubs, q]);
+    let result = [...clubs];
+
+    if (q) {
+      result = result.filter(
+        (c) =>
+          c.name?.toLowerCase().includes(q) ||
+          c.description?.toLowerCase().includes(q) ||
+          c.category?.toLowerCase().includes(q)
+      );
+    }
+
+    // Location filter — same city/radius as events. Only clubs with a saved
+    // address (set via the edit-club screen, which geocodes it on save) have
+    // locationCoords; clubs without one are excluded, same as unlocated events.
+    if (filters.location) {
+      const { latitude, longitude, radiusMiles } = filters.location;
+      result = result
+        .filter((c) => !!c.locationCoords)
+        .filter((c) => getDistanceMiles(latitude, longitude, c.locationCoords!.latitude, c.locationCoords!.longitude) <= radiusMiles)
+        .sort(
+          (a, b) =>
+            getDistanceMiles(latitude, longitude, a.locationCoords!.latitude, a.locationCoords!.longitude) -
+            getDistanceMiles(latitude, longitude, b.locationCoords!.latitude, b.locationCoords!.longitude)
+        );
+    }
+
+    return result;
+  }, [clubs, q, filters.location]);
 
   const featuredEvents = useMemo(
     () =>
@@ -191,14 +224,14 @@ export default function DiscoverScreen() {
     [filteredEvents]
   );
 
-  const featuredClubs = useMemo(
-    () =>
-      [...filteredClubs]
-        .filter((c) => c.logo || c.coverImage)
-        .sort((a, b) => (b.members?.length || 0) - (a.members?.length || 0))
-        .slice(0, 5),
-    [filteredClubs]
-  );
+  const featuredClubs = useMemo(() => {
+    const withImage = filteredClubs.filter((c) => c.logo || c.coverImage);
+    if (filters.location) {
+      // Already sorted nearest-first by filteredClubs when a location filter is active
+      return withImage.slice(0, 5);
+    }
+    return [...withImage].sort((a, b) => (b.members?.length || 0) - (a.members?.length || 0)).slice(0, 5);
+  }, [filteredClubs, filters.location]);
 
   const showEvents = filter === 'all' || filter === 'events';
   const showClubs = filter === 'all' || filter === 'clubs';
@@ -364,7 +397,7 @@ export default function DiscoverScreen() {
               <View style={styles.rowHeader}>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.rowTitle, { color: theme.colors.onSurface }]} numberOfLines={1}>{event.title}</Text>
-                  <Text style={[styles.rowSubtitle, { color: accent }]} numberOfLines={1}>{event.clubName}</Text>
+                  <Text style={[styles.rowSubtitle, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>{event.clubName}</Text>
                 </View>
                 {isAttending && (
                   <View style={styles.smallAttendingBadge}>
@@ -388,8 +421,8 @@ export default function DiscoverScreen() {
               </View>
               <View style={styles.rowFooter}>
                 <View style={styles.rowMetaItem}>
-                  <Ionicons name="people-outline" size={13} color={accent} />
-                  <Text style={[styles.rowAttendeeText, { color: accent }]}>
+                  <Ionicons name="people-outline" size={13} color={theme.colors.onSurfaceVariant} />
+                  <Text style={[styles.rowAttendeeText, { color: theme.colors.onSurfaceVariant }]}>
                     {event.attendeeCount ?? event.attendees?.length ?? 0}{event.maxAttendees ? `/${event.maxAttendees}` : ''} going
                   </Text>
                 </View>
@@ -439,7 +472,7 @@ export default function DiscoverScreen() {
                     <Ionicons name="star" size={14} color="#FFD700" style={{ marginLeft: 6 }} />
                   )}
                 </View>
-                <Text style={[styles.rowSubtitle, { color: accent }]} numberOfLines={1}>{club.category}</Text>
+                <Text style={[styles.rowSubtitle, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>{club.category}</Text>
               </View>
               <View style={[styles.entityTypePill, { backgroundColor: isDark ? 'rgba(139,92,246,0.18)' : 'rgba(167,139,250,0.15)', borderColor: accent }]}>
                 <Text style={[styles.entityTypePillText, { color: accent }]}>CLUB</Text>
@@ -450,8 +483,8 @@ export default function DiscoverScreen() {
             </Text>
             <View style={styles.rowFooter}>
               <View style={styles.rowMetaItem}>
-                <Ionicons name="people-outline" size={13} color={accent} />
-                <Text style={[styles.rowAttendeeText, { color: accent }]}>
+                <Ionicons name="people-outline" size={13} color={theme.colors.onSurfaceVariant} />
+                <Text style={[styles.rowAttendeeText, { color: theme.colors.onSurfaceVariant }]}>
                   {club.members?.length || 0} {club.members?.length === 1 ? 'member' : 'members'}
                 </Text>
               </View>
@@ -853,13 +886,13 @@ const styles = StyleSheet.create({
   rowHeader: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   rowTitleRow: { flexDirection: 'row', alignItems: 'center' },
   rowTitle: { fontSize: 15, fontWeight: '700' },
-  rowSubtitle: { color: '#8B5CF6', fontSize: 12, fontWeight: '600', marginTop: 2 },
+  rowSubtitle: { fontSize: 12, fontWeight: '600', marginTop: 2 },
   rowDescription: { fontSize: 12, lineHeight: 17 },
   rowMeta: { gap: 3 },
   rowMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   rowMetaText: { fontSize: 12 },
   rowFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 },
-  rowAttendeeText: { color: '#8B5CF6', fontSize: 12, fontWeight: '600' },
+  rowAttendeeText: { fontSize: 12, fontWeight: '600' },
   rowPriceFree: { color: '#22C55E', fontSize: 13, fontWeight: '700' },
   rowPricePaid: { color: '#8B5CF6', fontSize: 13, fontWeight: '700' },
   smallAttendingBadge: {

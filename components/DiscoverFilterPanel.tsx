@@ -13,15 +13,24 @@ import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeToggle } from '../app/_layout';
+import LocationAutocompleteInput, { SelectedLocation } from './LocationAutocompleteInput';
 
 const { width } = Dimensions.get('window');
 const PANEL_WIDTH = width * 0.8;
+
+export const DEFAULT_LOCATION_RADIUS_MILES = 25;
+const RADIUS_OPTIONS_MILES = [5, 10, 25, 50, 100];
+
+export interface LocationFilter extends SelectedLocation {
+  radiusMiles: number;
+}
 
 export interface DiscoverFilters {
   price: 'all' | 'free' | 'paid';
   dateRange: 'any' | 'today' | 'week' | 'month';
   sortBy: 'soonest' | 'popular' | 'newest';
   showVirtual: boolean;
+  location: LocationFilter | null;
 }
 
 interface DiscoverFilterPanelProps {
@@ -111,7 +120,8 @@ export default function DiscoverFilterPanel({
     filters.price !== 'all' ||
     filters.dateRange !== 'any' ||
     filters.sortBy !== 'soonest' ||
-    filters.showVirtual;
+    filters.showVirtual ||
+    !!filters.location;
 
   return (
     <View style={[StyleSheet.absoluteFill, { zIndex: 1000 }]} pointerEvents={visible ? 'auto' : 'none'}>
@@ -178,6 +188,60 @@ export default function DiscoverFilterPanel({
             style={styles.scrollView}
             contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 24) }}
           >
+            {/* Location Section */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="location" size={18} color={accent} />
+                <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
+                  Location
+                </Text>
+              </View>
+              <LocationAutocompleteInput
+                value={filters.location}
+                accentColor={accent}
+                includedPrimaryTypes={['locality']}
+                placeholder="e.g. Houston, TX"
+                onSelect={(loc) =>
+                  updateFilter(
+                    'location',
+                    loc
+                      ? { ...loc, radiusMiles: filters.location?.radiusMiles ?? DEFAULT_LOCATION_RADIUS_MILES }
+                      : null
+                  )
+                }
+              />
+              {filters.location && (
+                <View style={styles.radiusSection}>
+                  <Text style={[styles.radiusLabel, { color: theme.colors.onSurfaceVariant }]}>
+                    Within
+                  </Text>
+                  <View style={styles.radiusChips}>
+                    {RADIUS_OPTIONS_MILES.map((r) => {
+                      const active = filters.location?.radiusMiles === r;
+                      return (
+                        <TouchableOpacity
+                          key={r}
+                          onPress={() => updateFilter('location', { ...filters.location!, radiusMiles: r })}
+                          style={[
+                            styles.radiusChip,
+                            { borderColor: theme.colors.outline },
+                            active && { backgroundColor: accent, borderColor: accent },
+                          ]}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.radiusChipText, { color: active ? '#fff' : theme.colors.onSurface }]}>
+                            {r} mi
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+            </View>
+
+            <Divider style={styles.divider} />
+
             {/* Sort Section */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
@@ -397,5 +461,30 @@ const styles = StyleSheet.create({
   },
   divider: {
     marginVertical: 4,
+  },
+  radiusSection: {
+    marginTop: 14,
+  },
+  radiusLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  radiusChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  radiusChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  radiusChipText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
 });
