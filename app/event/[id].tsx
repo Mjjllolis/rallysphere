@@ -736,6 +736,36 @@ export default function EventDetailScreen() {
                 </Text>
               </View>
             </View>
+
+            {/* Stacked preview of who's attending */}
+            {attendeeCountValue > 0 && (
+              <View style={styles.attendeeAvatarsGroup}>
+                {event.attendees.slice(0, 4).map((userId, index) => {
+                  const attendee = attendeesData.get(userId);
+                  return attendee?.avatar ? (
+                    <ExpoImage
+                      key={userId}
+                      source={{ uri: attendee.avatar }}
+                      style={[styles.stackedAttendeeAvatar, { marginLeft: index === 0 ? 0 : -12, zIndex: 4 - index, borderColor: theme.colors.background }]}
+                      transition={200}
+                      cachePolicy="memory-disk"
+                    />
+                  ) : (
+                    <View
+                      key={userId}
+                      style={[styles.stackedAttendeeAvatar, styles.stackedAttendeeAvatarInitials, { marginLeft: index === 0 ? 0 : -12, zIndex: 4 - index, borderColor: theme.colors.background }]}
+                    >
+                      <Text style={styles.stackedAttendeeAvatarInitialsText}>
+                        {attendee ? `${attendee.firstName?.[0] || ''}${attendee.lastName?.[0] || ''}`.toUpperCase() || '?' : '?'}
+                      </Text>
+                    </View>
+                  );
+                })}
+                <Text variant="titleSmall" style={[styles.attendeeCountText, { color: theme.colors.onSurfaceVariant }]}>
+                  {attendeeCountValue} attending
+                </Text>
+              </View>
+            )}
           </View>
           {/* Divider */}
           <View style={[styles.divider, { backgroundColor: theme.colors.outline }]} />
@@ -1744,6 +1774,30 @@ const styles = StyleSheet.create({
   },
   quickInfoText: {
     marginLeft: -8,
+  },
+  attendeeAvatarsGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  stackedAttendeeAvatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 2,
+  },
+  stackedAttendeeAvatarInitials: {
+    backgroundColor: '#60A5FA',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stackedAttendeeAvatarInitialsText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+  attendeeCountText: {
+    marginLeft: 10,
   },
   content: {
     flex: 1,
