@@ -11,6 +11,7 @@ import {
 } from '../lib/finix';
 import { useDebugLogs } from '../lib/debugContext';
 import PaymentSecurityInfo from './PaymentSecurityInfo';
+import { calcServiceFee } from '../constants/fees';
 
 interface PaymentModalProps {
   visible: boolean;
@@ -22,11 +23,8 @@ interface PaymentModalProps {
   currency?: string;
 }
 
-const SERVICE_FEE_PERCENTAGE = 0.10;
-const SERVICE_FEE_FIXED = 0.29;
-
 function calcBreakdown(ticketPrice: number) {
-  const processingFee = Math.round(((ticketPrice * SERVICE_FEE_PERCENTAGE) + SERVICE_FEE_FIXED) * 100) / 100;
+  const processingFee = calcServiceFee(ticketPrice);
   return {
     ticketPrice,
     processingFee,
@@ -61,7 +59,6 @@ export default function PaymentModal({
   const [formReady, setFormReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'ach' | 'apple_pay' | 'google_pay'>('card');
 
   const breakdown = calcBreakdown(ticketPrice);
 
@@ -99,8 +96,6 @@ export default function PaymentModal({
       if (msg.type === 'ready') {
         setFormReady(!!msg.ready);
         if (!msg.ready) Alert.alert('Error', msg.error || 'Failed to load payment form');
-      } else if (msg.type === 'tab') {
-        setPaymentMethod(msg.paymentMethod || 'card');
       } else if (msg.type === 'token') {
         await processPayment(msg.tokenId, msg.paymentMethod || 'card', msg.fraudSessionId);
       } else if (msg.type === 'error') {
@@ -127,12 +122,9 @@ export default function PaymentModal({
 
       if (result.success) {
         idempotencyRef.current = null; // charge captured — next purchase gets a fresh key
-        const isAch = method === 'ach';
         Alert.alert(
-          isAch ? 'ACH Authorization Confirmed' : 'Payment Successful!',
-          isAch
-            ? 'You authorized a one-time ACH debit from your bank account for this ticket. The debit may take 3–5 business days to clear, and you will receive a confirmation email. To revoke or dispute this authorization, contact support@rallysphere.com.'
-            : 'You have successfully joined the event. Your ticket has been confirmed.',
+          'Payment Successful!',
+          'You have successfully joined the event. Your ticket has been confirmed.',
           [{ text: 'OK', onPress: () => { onSuccess(); onDismiss(); } }]
         );
       } else {
@@ -158,7 +150,6 @@ export default function PaymentModal({
     ? buildFinixTokenizeUrl({
         context,
         amount: breakdown.totalAmount,
-        ach: true,
         wallets: true,
         external: true,
       })
@@ -237,7 +228,7 @@ export default function PaymentModal({
             disabled={loading || !formReady}
             style={styles.button}
           >
-            {paymentMethod === 'ach' ? `Authorize & Pay $${breakdown.totalAmount.toFixed(2)}` : `Pay $${breakdown.totalAmount.toFixed(2)}`}
+            {`Pay $${breakdown.totalAmount.toFixed(2)}`}
           </Button>
         </View>
 

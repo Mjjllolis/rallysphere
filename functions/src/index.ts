@@ -4,6 +4,7 @@ import * as admin from "firebase-admin";
 import axios, { AxiosInstance } from "axios";
 import { v4 as uuidv4 } from "uuid";
 import * as crypto from "crypto";
+import { calcServiceFee } from "./fees";
 
 admin.initializeApp();
 // Skip undefined fields on writes instead of throwing. Optional form fields
@@ -158,12 +159,19 @@ const getFinixClient = (environment: FinixEnv = DEFAULT_ENV): AxiosInstance => {
   return clientInstances[environment]!;
 };
 
-// Master switch for the staff sandbox override. OFF = the app is production-only;
-// every request runs against DEFAULT_ENV regardless of the Debug toggle. The full
-// env-switching plumbing (getFinixConfig(env), per-request env, staff check) is
-// kept intact, so sandbox testing can be re-enabled later by flipping this to
-// `true` and redeploying — no other code changes needed.
-const ALLOW_SANDBOX_OVERRIDE = false;
+// Master switch for the staff sandbox override.
+//
+// ON: verified @rallysphere.com staff can route their own requests to Finix
+// sandbox via the in-app Debug toggle. Everyone else always runs against
+// DEFAULT_ENV, so normal users are unaffected. OFF: the app is production-only
+// and the toggle does nothing.
+//
+// This is a security boundary, not a convenience flag — a bug in
+// isRallysphereStaff below means a normal user could force sandbox and get real
+// goods for fake money. Both checkout AND onboarding honour it, so a staff
+// member in sandbox creates sandbox merchants and sandbox charges consistently;
+// assertClubEnv stops those sandbox ids from ever landing on a live club.
+const ALLOW_SANDBOX_OVERRIDE = true;
 
 // Decide which Finix environment a request runs against. When the override is on,
 // only verified @rallysphere.com staff may force sandbox (via the in-app Debug
@@ -171,6 +179,18 @@ const ALLOW_SANDBOX_OVERRIDE = false;
 // boundary that prevents a normal user from forcing sandbox to get free goods.
 const isRallysphereStaff = (request: any): boolean => {
   const token = request?.auth?.token || {};
+  // Primary signal: a `staff` custom claim, set with scripts/set-staff-claim.js.
+  //
+  // This used to check for a verified @rallysphere.com email — which could never
+  // pass for ANY user, because RallySphere authenticates purely by phone (SMS
+  // OTP, see signInWithPhoneNumber in lib/firebase.ts) and Firebase phone
+  // accounts carry no email or email_verified claim at all. The result was a
+  // sandbox override that silently did nothing no matter how it was configured.
+  //
+  // A custom claim is the right primitive here: it rides in the ID token, the
+  // client cannot set it, and it works regardless of sign-in method.
+  if (token.staff === true) return true;
+  // Retained in case an email-based staff account is ever added.
   const email = String(token.email || "").toLowerCase();
   return token.email_verified === true && email.endsWith("@rallysphere.com");
 };
@@ -206,6 +226,13 @@ async function finixPost<T = any>(path: string, body: any, idempotencyKey?: stri
   return res.data;
 }
 
+// finixPost with the environment first, for call sites whose body is a
+// multi-line object literal — appending a trailing env argument there would mean
+// rewriting the whole literal just to thread one value.
+async function finixPostEnv<T = any>(env: FinixEnv, path: string, body: any): Promise<T> {
+  return finixPost<T>(path, body, undefined, env);
+}
+
 async function finixGet<T = any>(path: string, env?: FinixEnv): Promise<T> {
   const client = getFinixClient(env);
   const res = await client.get(path);
@@ -224,8 +251,8 @@ async function finixGet<T = any>(path: string, env?: FinixEnv): Promise<T> {
 // Finix documents PUT (not PATCH) for updating an Identity, and its update
 // model binds ONLY `entity` + `tags`. Kept separate from finixPatch so the
 // subscription-enrollment calls below keep their verb.
-async function finixPut<T = any>(path: string, body: any): Promise<T> {
-  const client = getFinixClient();
+async function finixPut<T = any>(path: string, body: any, env?: FinixEnv): Promise<T> {
+  const client = getFinixClient(env);
   const res = await client.put(path, body);
   if (res.status >= 400) {
     const errs = res.data?._embedded?.errors || (res.data?.message ? [{ message: res.data.message }] : []);
@@ -239,8 +266,8 @@ async function finixPut<T = any>(path: string, body: any): Promise<T> {
   return res.data;
 }
 
-async function finixPatch<T = any>(path: string, body: any): Promise<T> {
-  const client = getFinixClient();
+async function finixPatch<T = any>(path: string, body: any, env?: FinixEnv): Promise<T> {
+  const client = getFinixClient(env);
   const res = await client.patch(path, body);
   if (res.status >= 400) {
     const errs = res.data?._embedded?.errors || (res.data?.message ? [{ message: res.data.message }] : []);
@@ -732,10 +759,8 @@ export const createEventTransaction = functions.https.onCall(
         );
       }
 
-      // Fee calc — supplemental fee passed to buyer: 10% + $0.29
-      const SERVICE_FEE_PERCENTAGE = 0.10;
-      const SERVICE_FEE_FIXED = 0.29;
-      const processingFee = Math.round(((ticketPrice * SERVICE_FEE_PERCENTAGE) + SERVICE_FEE_FIXED) * 100) / 100;
+      // Supplemental fee passed to the buyer; the club receives the full price.
+      const processingFee = calcServiceFee(ticketPrice);
       const totalAmount = ticketPrice + processingFee;
       const clubAmount = ticketPrice;
 
@@ -819,7 +844,8 @@ export const createEventTransaction = functions.https.onCall(
       }
       await batch.commit();
 
-      // ACH settles async; card settles fast. Map Finix state → our status.
+      // Map Finix state → our status. Cards usually settle immediately, but a
+      // transfer can still land PENDING, so don't assume SUCCEEDED.
       const orderStatus = transfer.state === "SUCCEEDED" ? "confirmed" : "pending";
       const paymentStatus = transfer.state === "SUCCEEDED" ? "succeeded" : "pending";
 
@@ -981,10 +1007,8 @@ export const createStoreTransaction = functions.https.onCall(
       const itemAndShipping = subtotal + shipping;
       const taxAmount = 0;
 
-      const SERVICE_FEE_PERCENTAGE = 0.10;
-      const SERVICE_FEE_FIXED = 0.29;
       const originalItemAndShipping = itemPrice + shipping;
-      const processingFee = Math.round(((originalItemAndShipping * SERVICE_FEE_PERCENTAGE) + SERVICE_FEE_FIXED) * 100) / 100;
+      const processingFee = calcServiceFee(originalItemAndShipping);
       const clubAmount = itemAndShipping + taxAmount;
       const totalAmount = itemAndShipping + taxAmount + processingFee;
 
@@ -1445,14 +1469,15 @@ export interface FinixActionItem {
 // Read the merchant's current verification and reduce it to a to-do list.
 // Returns null when there's nothing outstanding (or we can't tell).
 const fetchMerchantActionRequired = async (
-  merchantId: string
+  merchantId: string,
+  env?: FinixEnv
 ): Promise<{ verificationId: string; summary: string | null; items: FinixActionItem[] } | null> => {
   try {
-    const merchant: any = await finixGet(`/merchants/${merchantId}`);
+    const merchant: any = await finixGet(`/merchants/${merchantId}`, env);
     const verificationId: string | undefined = merchant?.verification;
     if (!verificationId) return null;
 
-    const v: any = await finixGet(`/verifications/${verificationId}`);
+    const v: any = await finixGet(`/verifications/${verificationId}`, env);
     const outcomes: any[] = Array.isArray(v?.outcomes) ? v.outcomes : [];
     if (!outcomes.length) return null;
 
@@ -1479,7 +1504,8 @@ const fetchMerchantActionRequired = async (
 const syncClubActionRequired = async (
   clubRef: FirebaseFirestore.DocumentReference,
   merchantId: string | null | undefined,
-  onboardingState: string | null | undefined
+  onboardingState: string | null | undefined,
+  env?: FinixEnv
 ) => {
   if (!merchantId) return null;
   const stalled = onboardingState === "UPDATE_REQUESTED";
@@ -1488,7 +1514,7 @@ const syncClubActionRequired = async (
     await clubRef.update({ finixActionRequired: admin.firestore.FieldValue.delete() }).catch(() => {});
     return null;
   }
-  const action = await fetchMerchantActionRequired(merchantId);
+  const action = await fetchMerchantActionRequired(merchantId, env);
   if (!action) return null;
   await clubRef.update({
     finixActionRequired: { ...action, fetchedAt: admin.firestore.FieldValue.serverTimestamp() },
@@ -1514,26 +1540,31 @@ export const getSubMerchantStatus = functions.https.onCall(
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
     }
 
-    const { identityId, merchantId, clubId } = data;
+    const { identityId, merchantId, clubId, debug } = data;
     if (!identityId && !merchantId && !clubId) {
       throw new functions.https.HttpsError("invalid-argument", "Provide identityId, merchantId, or clubId");
     }
+
+    // Read-only, so no assertClubEnv here — but the lookup still has to run
+    // against the env that owns the ids, or every status check returns 404.
+    const finixEnv = resolveFinixEnv(request, debug);
 
     try {
       const db = admin.firestore();
 
       // Prefer direct merchant lookup if we have the id
       if (merchantId) {
-        const merchant = await finixGet(`/merchants/${merchantId}`);
+        const merchant = await finixGet(`/merchants/${merchantId}`, finixEnv);
         // If Finix is waiting on the club, find out exactly what for.
         const actionRequired = clubId
           ? await syncClubActionRequired(
               db.collection("clubs").doc(clubId),
               merchant.id,
-              merchant.onboarding_state
+              merchant.onboarding_state,
+              finixEnv
             )
           : merchant.onboarding_state === "UPDATE_REQUESTED"
-          ? await fetchMerchantActionRequired(merchant.id)
+          ? await fetchMerchantActionRequired(merchant.id, finixEnv)
           : null;
         return {
           status: merchant.onboarding_state || merchant.processing_enabled ? "APPROVED" : "PENDING",
@@ -1553,7 +1584,7 @@ export const getSubMerchantStatus = functions.https.onCall(
         return { status: "PENDING", isComplete: false };
       }
 
-      const list = await finixGet(`/identities/${lookupIdentityId}/merchants`);
+      const list = await finixGet(`/identities/${lookupIdentityId}/merchants`, finixEnv);
       const merchants = list?._embedded?.merchants || [];
       if (merchants.length === 0) {
         return { status: "PENDING", isComplete: false, identityId: lookupIdentityId };
@@ -1703,8 +1734,13 @@ const toFinixUnderwriting = (u: any, consent: any, ctx?: { businessName?: string
   const bizDist = u.volumeDistributionByBusinessType;
 
   const out: any = {
-    annual_ach_volume: Number(u.annualAchVolume ?? 0),
-    average_ach_transfer_amount: Number(u.averageAchTransferAmount ?? derivedAvgCard),
+    // RallySphere does not accept ACH from buyers — cards and wallets only — so
+    // both of these are flatly zero. They must NOT fall back to the card figures:
+    // reporting a card-sized ACH average while accepting no ACH misdescribes the
+    // business to underwriting, and it's the kind of inconsistency that earns a
+    // manual review. (The club's payout bank is settlement, not ACH acceptance.)
+    annual_ach_volume: 0,
+    average_ach_transfer_amount: 0,
     average_card_transfer_amount: Number(u.averageCardTransferAmount ?? derivedAvgCard),
     business_description: u.businessDescription || defaultDescription,
     // NO_REFUNDS / MERCHANDISE_EXCHANGE_ONLY / WITHIN_30_DAYS / OTHER
@@ -1726,10 +1762,20 @@ const toFinixUnderwriting = (u: any, consent: any, ctx?: { businessName?: string
     // Consent records — Finix wants these with IP / timestamp / user-agent.
     // The IP is captured server-side from the callable request; a consent record
     // without one is itself a reason to kick an application to manual review.
+    //
+    // Two separate consents, deliberately not collapsed into one: the merchant
+    // agreement is the club accepting the RallySphere + Finix terms, the credit
+    // check is them authorizing underwriting to pull on the business and its
+    // owner. The wizard gates both behind the same Continue button, but Finix
+    // stores and audits them independently.
     merchant_agreement_accepted: consent?.merchantAgreementAccepted ?? true,
     merchant_agreement_ip_address: consent?.ip,
     merchant_agreement_timestamp: consent?.timestamp || nowIso,
     merchant_agreement_user_agent: consent?.userAgent,
+    credit_check_allowed: consent?.creditCheckAllowed ?? true,
+    credit_check_ip_address: consent?.ip,
+    credit_check_timestamp: consent?.timestamp || nowIso,
+    credit_check_user_agent: consent?.userAgent,
   };
   Object.keys(out).forEach((k) => out[k] === undefined && delete out[k]);
   return out;
@@ -1737,7 +1783,7 @@ const toFinixUnderwriting = (u: any, consent: any, ctx?: { businessName?: string
 
 // Persist only the NON-sensitive parts of the form so the wizard can resume
 // without re-entering everything. Never includes tax_id / SSN / bank numbers.
-const buildClubOnboardingDraft = (business: any, controlPerson: any, underwriting: any) => {
+const buildClubOnboardingDraft = (business: any, controlPerson: any, underwriting: any, owners?: any[]) => {
   const scrub = (p: any) =>
     p
       ? {
@@ -1771,6 +1817,10 @@ const buildClubOnboardingDraft = (business: any, controlPerson: any, underwritin
         }
       : undefined,
     controlPerson: scrub(controlPerson),
+    // Additional 25%+ owners, scrubbed the same way. Without these the wizard
+    // silently drops every co-owner on resume, and the club re-submits an
+    // application that's missing exactly what Finix asked for.
+    owners: Array.isArray(owners) ? owners.map(scrub).filter(Boolean) : [],
     underwriting,
   };
 };
@@ -1789,9 +1839,39 @@ const MERCHANT_PROVISIONABLE_ROLES = new Set([
 // true  -> Finix reports a role that can be provisioned as a merchant (reuse it)
 // false -> role is UNKNOWN / BUYER / none (discard and mint a fresh identity)
 // null  -> identity can't be fetched (404 / wrong env / transient) -> discard too
-const finixIdentityIsProvisionable = async (identityId: string): Promise<boolean | null> => {
+// ---------------------------------------------------------------------------
+// Cross-environment guard for club payout records.
+//
+// A club doc holds exactly one finixIdentityId / finixMerchantId, and those ids
+// are environment-specific — a sandbox merchant does not exist in live and vice
+// versa. Without this, onboarding a club in sandbox overwrites its live ids and
+// every real charge afterwards fails against a merchant that isn't there. The
+// failure is silent at write time and only shows up at the till, which is the
+// worst possible place to find it.
+//
+// So: stamp the environment the first time we write payout state, and refuse
+// any later write from a different one.
+// ---------------------------------------------------------------------------
+const assertClubEnv = (club: any, env: FinixEnv, clubId: string): void => {
+  const stamped: FinixEnv | undefined = club?.finixEnv;
+  // Nothing recorded yet — either a fresh club, or one onboarded before this
+  // guard existed. Anything with existing payout state predates sandbox
+  // onboarding entirely, so treat it as live rather than letting sandbox claim it.
+  const effective: FinixEnv | undefined =
+    stamped || (club?.finixIdentityId || club?.finixMerchantId ? "live" : undefined);
+  if (effective && effective !== env) {
+    console.warn(`assertClubEnv: refused ${env} write to club ${clubId} (belongs to ${effective})`);
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      `This club's payout account belongs to the ${effective} environment; you're in ${env}. ` +
+        `Use a different club for ${env} testing — overwriting would break its real payouts.`
+    );
+  }
+};
+
+const finixIdentityIsProvisionable = async (identityId: string, env?: FinixEnv): Promise<boolean | null> => {
   try {
-    const identity: any = await finixGet(`/identities/${identityId}`);
+    const identity: any = await finixGet(`/identities/${identityId}`, env);
     const roles: string[] = Array.isArray(identity?.identity_roles)
       ? identity.identity_roles
       : identity?.identity_role
@@ -1812,7 +1892,7 @@ export const createClubIdentity = functions.https.onCall(
     const auth = request.auth;
     if (!auth) throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
 
-    const { clubId, business, controlPerson, owners, underwriting, consent } = request.data || {};
+    const { clubId, business, controlPerson, owners, underwriting, consent, debug } = request.data || {};
     if (!clubId || !business?.businessName || !controlPerson?.firstName) {
       throw new functions.https.HttpsError(
         "invalid-argument",
@@ -1832,6 +1912,9 @@ export const createClubIdentity = functions.https.onCall(
       club.clubOwner === auth.uid ||
       club.owner === auth.uid;
     if (!isAdmin) throw new functions.https.HttpsError("permission-denied", "Only club admins can set up payouts");
+
+    const finixEnv = resolveFinixEnv(request, debug);
+    assertClubEnv(club, finixEnv, clubId);
 
     try {
       const entity = toFinixIdentityEntity(business, controlPerson);
@@ -1864,9 +1947,9 @@ export const createClubIdentity = functions.https.onCall(
       let identityId: string = club.finixIdentityId;
       let reuseOwners = true;
       if (identityId) {
-        const provisionable = await finixIdentityIsProvisionable(identityId);
+        const provisionable = await finixIdentityIsProvisionable(identityId, finixEnv);
         if (provisionable === true) {
-          await finixPut(`/identities/${identityId}`, updateBody);
+          await finixPut(`/identities/${identityId}`, updateBody, finixEnv);
         } else {
           console.warn(
             `createClubIdentity: club ${clubId} identity ${identityId} is not provisionable ` +
@@ -1879,13 +1962,16 @@ export const createClubIdentity = functions.https.onCall(
         }
       }
       if (!identityId) {
-        const identity = await finixPost("/identities", createBody);
+        const identity = await finixPost("/identities", createBody, undefined, finixEnv);
         identityId = identity.id;
         // Persist the id RIGHT AWAY. If anything below fails (owners, draft
         // write), a retry then PUTs to this same identity instead of minting a
         // new orphan in Finix.
         await clubRef.update({
           finixIdentityId: identityId,
+          // Stamp the environment alongside the very first id we persist, so
+          // assertClubEnv can protect every later write.
+          finixEnv,
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
       }
@@ -1901,7 +1987,7 @@ export const createClubIdentity = functions.https.onCall(
           const assoc = await finixPost(`/identities/${identityId}/associated_identities`, {
             entity: toFinixPersonFields(o),
             tags: { club_id: clubId },
-          });
+          }, undefined, finixEnv);
           if (assoc?.id) ownerIds.push(assoc.id);
         }
       }
@@ -1909,10 +1995,11 @@ export const createClubIdentity = functions.https.onCall(
       const now = admin.firestore.FieldValue.serverTimestamp();
       await clubRef.update({
         finixIdentityId: identityId,
+        finixEnv,
         finixOwnerIdentityIds: ownerIds,
         finixOnboardingStatus: "PENDING",
         finixOnboardingStartedAt: club.finixOnboardingStartedAt || now,
-        finixOnboardingDraft: buildClubOnboardingDraft(business, controlPerson, underwriting),
+        finixOnboardingDraft: buildClubOnboardingDraft(business, controlPerson, underwriting, owners),
         finixTosAcceptedAt: club.finixTosAcceptedAt || now,
         finixFeesAcceptedAt: club.finixFeesAcceptedAt || now,
         finixAcceptedByUid: club.finixAcceptedByUid || auth.uid,
@@ -1925,7 +2012,7 @@ export const createClubIdentity = functions.https.onCall(
       let resubmitted = false;
       if (club.finixMerchantId && club.finixOnboardingState === "UPDATE_REQUESTED") {
         try {
-          const v = await createMerchantVerification(club.finixMerchantId);
+          const v = await createMerchantVerification(club.finixMerchantId, finixEnv);
           resubmitted = true;
           await clubRef.update({
             finixLastVerificationId: v.verificationId,
@@ -1957,7 +2044,7 @@ export const addClubBankAccount = functions.https.onCall(
     const auth = request.auth;
     if (!auth) throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
 
-    const { clubId, tokenId, ssnLast4 } = request.data || {};
+    const { clubId, tokenId, ssnLast4, debug } = request.data || {};
     if (!clubId || !tokenId) {
       throw new functions.https.HttpsError("invalid-argument", "Missing required fields: clubId, tokenId");
     }
@@ -1983,10 +2070,13 @@ export const addClubBankAccount = functions.https.onCall(
       throw new functions.https.HttpsError("failed-precondition", "Create the club identity before adding a bank account");
     }
 
+    const finixEnv = resolveFinixEnv(request, debug);
+    assertClubEnv(club, finixEnv, clubId);
+
     try {
       // Tokenized bank → payment_instrument on the club's identity.
-      const piId = await createPaymentInstrumentFromToken(tokenId, club.finixIdentityId);
-      const details = await fetchPaymentInstrumentDetails(piId).catch(() => ({ last4: null } as any));
+      const piId = await createPaymentInstrumentFromToken(tokenId, club.finixIdentityId, finixEnv);
+      const details = await fetchPaymentInstrumentDetails(piId, finixEnv).catch(() => ({ last4: null } as any));
 
       await clubRef.update({
         finixPayoutPiId: piId,
@@ -2011,8 +2101,8 @@ export const addClubBankAccount = functions.https.onCall(
 // nobody can see why. `createClubIdentity` calls this automatically after an
 // update, and it's exposed directly for the manual cases.
 // ---------------------------------------------------------------------------
-const createMerchantVerification = async (merchantId: string) => {
-  const verification: any = await finixPost(`/merchants/${merchantId}/verifications`, {});
+const createMerchantVerification = async (merchantId: string, env?: FinixEnv) => {
+  const verification: any = await finixPost(`/merchants/${merchantId}/verifications`, {}, undefined, env);
   return {
     verificationId: verification?.id || null,
     state: verification?.state || null,
@@ -2025,7 +2115,7 @@ export const resubmitClubVerification = functions.https.onCall(
     const auth = request.auth;
     if (!auth) throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
 
-    const { clubId } = request.data || {};
+    const { clubId, debug } = request.data || {};
     if (!clubId) throw new functions.https.HttpsError("invalid-argument", "Missing required field: clubId");
 
     const db = admin.firestore();
@@ -2045,8 +2135,11 @@ export const resubmitClubVerification = functions.https.onCall(
       throw new functions.https.HttpsError("failed-precondition", "This club has no merchant to resubmit");
     }
 
+    const finixEnv = resolveFinixEnv(request, debug);
+    assertClubEnv(club, finixEnv, clubId);
+
     try {
-      const result = await createMerchantVerification(club.finixMerchantId);
+      const result = await createMerchantVerification(club.finixMerchantId, finixEnv);
       await clubRef.update({
         finixLastVerificationId: result.verificationId,
         finixLastResubmittedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -2061,13 +2154,215 @@ export const resubmitClubVerification = functions.https.onCall(
 );
 
 // ---------------------------------------------------------------------------
+// 2d) Documents for a FILE_UPLOAD remediation.
+//
+// Most of what underwriting stalls on is a document, not a field — a voided
+// check, a bank statement, a photo ID. Finix takes these in two calls: create a
+// File record linked to the merchant, then push the bytes to a separate
+// multipart endpoint. Without this the club emails support and a human uploads
+// by hand, which quietly adds days to every stalled application.
+// ---------------------------------------------------------------------------
+
+// File `type` values Finix accepts for underwriting documents. Validated here so
+// a typo surfaces as a clear error instead of a raw Finix 400 shown to a club.
+const FINIX_FILE_TYPES = new Set([
+  "BANK_STATEMENT_ONE_MONTH",
+  "BANK_STATEMENT_THREE_MONTHS",
+  "BUSINESS_INCORPORATION_DOCUMENT",
+  "BUSINESS_REGISTRATION_DOCUMENT",
+  "BUSINESS_TAX_ID_DOCUMENT",
+  "BUSINESS_TAX_EXEMPTION_STATUS_DOCUMENT",
+  "BUSINESS_ADDRESS_DOCUMENT",
+  "BUSINESS_OWNERSHIP_STRUCTURE",
+  "OWNER_GOVERNMENT_ISSUED_PHOTO_ID",
+  "OWNER_TAX_ID_DOCUMENT",
+]);
+
+// Callable payloads cap out around 10MB and base64 inflates by ~33%, so hold the
+// raw file well under that. A photographed document is an order below this; a
+// multi-month bank statement PDF is the one that can realistically hit it.
+const MAX_DOCUMENT_BYTES = 6 * 1024 * 1024;
+
+// What an underwriting reviewer can actually open. Kept in step with
+// DOCUMENT_MIME_TYPES in FinixActionRequiredCard — the client filters the
+// picker, this rejects anything that gets past it.
+const FINIX_DOCUMENT_MIME_TYPES = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/heic",
+  "image/heif",
+]);
+
+const uploadFinixFile = async (opts: {
+  merchantId: string;
+  clubId: string;
+  fileType: string;
+  displayName: string;
+  fileName: string;
+  mimeType: string;
+  bytes: Buffer;
+  env?: FinixEnv;
+}): Promise<{ fileId: string; status: string | null }> => {
+  const file: any = await finixPost(
+    "/files",
+    {
+      display_name: opts.displayName,
+      linked_to: opts.merchantId,
+      type: opts.fileType,
+      tags: { club_id: opts.clubId },
+    },
+    undefined,
+    opts.env
+  );
+  if (!file?.id) throw new Error("Finix did not return a file id");
+
+  // The bytes go to a separate multipart endpoint. The multipart body is built
+  // by hand rather than handed to a FormData polyfill: the shared axios client
+  // defaults to application/json, and being explicit about the boundary is the
+  // difference between this working and a 400 that says nothing useful.
+  // Quotes are stripped from the filename so it can't break out of the header.
+  const safeName = opts.fileName.replace(/["\r\n]/g, "").slice(0, 120) || "document";
+  const boundary = `----RallySphere${uuidv4().replace(/-/g, "")}`;
+  const body = Buffer.concat([
+    Buffer.from(
+      `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="file"; filename="${safeName}"\r\n` +
+        `Content-Type: ${opts.mimeType}\r\n\r\n`,
+      "utf8"
+    ),
+    opts.bytes,
+    Buffer.from(`\r\n--${boundary}--\r\n`, "utf8"),
+  ]);
+
+  const client = getFinixClient(opts.env);
+  const res = await client.post(`/files/${file.id}/upload`, body, {
+    headers: { "Content-Type": `multipart/form-data; boundary=${boundary}` },
+    maxBodyLength: Infinity,
+    maxContentLength: Infinity,
+  });
+  if (res.status >= 400) {
+    console.error(`Finix ${res.status} uploading file ${file.id}:`, JSON.stringify(res.data));
+    throw new Error(res.data?.message || `Finix rejected the upload (${res.status})`);
+  }
+  return { fileId: String(file.id), status: res.data?.status || null };
+};
+
+export const uploadClubDocument = functions.https.onCall(
+  { enforceAppCheck: false, secrets: FINIX_SECRETS },
+  async (request: any) => {
+    const auth = request.auth;
+    if (!auth) throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+
+    const { clubId, fileType, fileName, mimeType, contentBase64, displayName, resubmit = true, debug } =
+      request.data || {};
+    if (!clubId || !fileType || !contentBase64) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Missing required fields: clubId, fileType, contentBase64"
+      );
+    }
+    if (!FINIX_FILE_TYPES.has(fileType)) {
+      throw new functions.https.HttpsError("invalid-argument", `Unsupported document type: ${fileType}`);
+    }
+    const resolvedMime = String(mimeType || "").toLowerCase() || "application/pdf";
+    if (!FINIX_DOCUMENT_MIME_TYPES.has(resolvedMime)) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Documents must be a PDF or an image (JPEG, PNG, or HEIC)."
+      );
+    }
+
+    const bytes = Buffer.from(String(contentBase64), "base64");
+    if (!bytes.length) {
+      throw new functions.https.HttpsError("invalid-argument", "The file appears to be empty");
+    }
+    if (bytes.length > MAX_DOCUMENT_BYTES) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        `That file is ${(bytes.length / 1024 / 1024).toFixed(1)}MB. Please send one under ${MAX_DOCUMENT_BYTES / 1024 / 1024}MB.`
+      );
+    }
+
+    const db = admin.firestore();
+    const clubRef = db.collection("clubs").doc(clubId);
+    const clubSnap = await clubRef.get();
+    if (!clubSnap.exists) throw new functions.https.HttpsError("not-found", "Club not found");
+    const club = clubSnap.data() || {};
+
+    const isAdmin =
+      (club.clubAdmins || club.admins || []).includes(auth.uid) ||
+      club.clubOwner === auth.uid ||
+      club.owner === auth.uid;
+    if (!isAdmin && !isRallysphereStaff(request)) {
+      throw new functions.https.HttpsError("permission-denied", "Only club admins can upload documents");
+    }
+    if (!club.finixMerchantId) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "This club has no Finix merchant to attach documents to"
+      );
+    }
+
+    const finixEnv = resolveFinixEnv(request, debug);
+    assertClubEnv(club, finixEnv, clubId);
+
+    try {
+      const result = await uploadFinixFile({
+        merchantId: club.finixMerchantId,
+        clubId,
+        fileType,
+        displayName: displayName || `${fileType} — ${club.name || clubId}`,
+        fileName: fileName || `${fileType.toLowerCase()}`,
+        mimeType: resolvedMime,
+        bytes,
+        env: finixEnv,
+      });
+
+      // Record what was sent so the UI can show it and support can audit it.
+      // A plain Date, not serverTimestamp — arrayUnion rejects sentinels.
+      await clubRef.update({
+        finixUploadedDocuments: admin.firestore.FieldValue.arrayUnion({
+          fileId: result.fileId,
+          fileType,
+          fileName: fileName || null,
+          uploadedByUid: auth.uid,
+          uploadedAt: new Date(),
+        }),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Uploading alone doesn't reopen underwriting — only a new Verification
+      // does. Same trap as a field correction, so resubmit by default.
+      let verification: { verificationId: string | null; state: string | null } | null = null;
+      if (resubmit) {
+        try {
+          verification = await createMerchantVerification(club.finixMerchantId, finixEnv);
+          const merchant: any = await finixGet(`/merchants/${club.finixMerchantId}`, finixEnv).catch(() => null);
+          await syncClubActionRequired(clubRef, club.finixMerchantId, merchant?.onboarding_state, finixEnv);
+        } catch (e: any) {
+          // The document IS uploaded at this point; failing the whole call would
+          // invite a duplicate upload. Report success and let them retry review.
+          console.warn(`uploadClubDocument: resubmit failed for club ${clubId}:`, e?.message || e);
+        }
+      }
+
+      return { fileId: result.fileId, status: result.status, verification };
+    } catch (error: any) {
+      console.error("uploadClubDocument error:", error?.message || error);
+      throw new functions.https.HttpsError("internal", error.message || "Failed to upload document");
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
 // 2c) Attach an additional beneficial owner (>=25%) to an existing identity.
 //
-// Finix requires every 25%+ owner to be on the application. The in-app wizard
-// only ever collects ONE person and hard-codes 100% ownership, so a co-owned
-// business gets rejected — which is one reason the hosted form is now the
-// default path. This exists to repair the clubs already caught by it, without
-// making them start over.
+// Finix requires every 25%+ owner to be on the application. The wizard now
+// collects them up front, but ownership changes after approval and clubs
+// onboarded before that existed are still missing co-owners — so this stays as
+// the way to add one without starting over.
 // ---------------------------------------------------------------------------
 export const addClubBeneficialOwner = functions.https.onCall(
   { enforceAppCheck: false, secrets: FINIX_SECRETS },
@@ -2075,7 +2370,7 @@ export const addClubBeneficialOwner = functions.https.onCall(
     const auth = request.auth;
     if (!auth) throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
 
-    const { clubId, owner, resubmit } = request.data || {};
+    const { clubId, owner, resubmit, debug } = request.data || {};
     if (!clubId || !owner?.firstName || !owner?.lastName) {
       throw new functions.https.HttpsError(
         "invalid-argument",
@@ -2100,10 +2395,13 @@ export const addClubBeneficialOwner = functions.https.onCall(
       throw new functions.https.HttpsError("failed-precondition", "Create the club identity first");
     }
 
+    const finixEnv = resolveFinixEnv(request, debug);
+    assertClubEnv(club, finixEnv, clubId);
+
     try {
       // SSN/DOB are forwarded to Finix and never written to Firestore — same
       // rule as the control person.
-      const assoc: any = await finixPost(`/identities/${club.finixIdentityId}/associated_identities`, {
+      const assoc: any = await finixPostEnv(finixEnv, `/identities/${club.finixIdentityId}/associated_identities`, {
         entity: toFinixPersonFields(owner),
         tags: { club_id: clubId },
       });
@@ -2118,7 +2416,7 @@ export const addClubBeneficialOwner = functions.https.onCall(
       // until a new verification is created.
       let verification = null;
       if (resubmit !== false && club.finixMerchantId) {
-        verification = await createMerchantVerification(club.finixMerchantId).catch((e: any) => {
+        verification = await createMerchantVerification(club.finixMerchantId, finixEnv).catch((e: any) => {
           console.warn(`addClubBeneficialOwner: resubmit failed for club ${clubId}:`, e?.message || e);
           return null;
         });
@@ -2142,7 +2440,7 @@ export const provisionClubMerchant = functions.https.onCall(
     const auth = request.auth;
     if (!auth) throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
 
-    const { clubId } = request.data || {};
+    const { clubId, debug } = request.data || {};
     if (!clubId) throw new functions.https.HttpsError("invalid-argument", "Missing required field: clubId");
 
     const db = admin.firestore();
@@ -2168,9 +2466,14 @@ export const provisionClubMerchant = functions.https.onCall(
       return { merchantId: club.finixMerchantId, onboardingState: club.finixOnboardingState || "PROVISIONING" };
     }
 
+    const finixEnv = resolveFinixEnv(request, debug);
+    assertClubEnv(club, finixEnv, clubId);
+
     try {
-      const processor = isTestMode ? "DUMMY_V1" : "FINIX_V1";
-      const merchant = await finixPost(`/identities/${club.finixIdentityId}/merchants`, {
+      // Processor follows the REQUEST's environment, not the deployment default —
+      // a sandbox merchant provisioned against FINIX_V1 would be rejected.
+      const processor = finixEnv === "live" ? "FINIX_V1" : "DUMMY_V1";
+      const merchant = await finixPostEnv(finixEnv, `/identities/${club.finixIdentityId}/merchants`, {
         processor,
         tags: { club_id: clubId },
       });
@@ -2405,18 +2708,26 @@ export const getClubOnboardingFormLink = functions.https.onCall(
       };
       Object.keys(entity).forEach((k) => entity[k] === undefined && delete entity[k]);
 
-      // Prefill the underwriting narrative here too. The seller accepts terms on
-      // the form itself, so leave the merchant_agreement_* consent record to
-      // Finix — we only seed the descriptive fields that otherwise arrive blank
-      // and trigger manual questions.
+      // Prefill the underwriting narrative here too. The seller accepts terms
+      // and authorizes the credit check on the form itself, so leave both
+      // consent records to Finix — asserting them from here would attribute a
+      // consent to an IP and user-agent that never saw the agreement. We only
+      // seed the descriptive fields that otherwise arrive blank and trigger
+      // manual questions.
       const seeded = toFinixUnderwriting(draft.underwriting, null, {
         businessName: draft.business?.businessName || club.name,
         annualCardVolume: Number(draft.business?.annualCardVolume) || 0,
       });
-      delete seeded.merchant_agreement_accepted;
-      delete seeded.merchant_agreement_timestamp;
-      delete seeded.merchant_agreement_ip_address;
-      delete seeded.merchant_agreement_user_agent;
+      for (const k of [
+        "merchant_agreement_accepted",
+        "merchant_agreement_timestamp",
+        "merchant_agreement_ip_address",
+        "merchant_agreement_user_agent",
+        "credit_check_allowed",
+        "credit_check_timestamp",
+        "credit_check_ip_address",
+        "credit_check_user_agent",
+      ]) delete seeded[k];
 
       const baseForm: any = {
         merchant_processors: [{ processor: isTestMode ? "DUMMY_V1" : "FINIX_V1" }],
@@ -2497,13 +2808,18 @@ export const getClubOnboardingFormLink = functions.https.onCall(
 // ============================================================================
 // FINIX WEBHOOK
 // Events we subscribe to in Finix dashboard:
-//   - merchant.underwriting.approved / .declined
+//   - merchant.created / .updated / .underwritten (approved / declined)
+//   - verification.created / .updated — carries the outcomes[] behind an
+//     UPDATE_REQUESTED; the merchant event alone says only that it stalled
+//   - onboarding_form.updated (legacy hosted path)
 //   - transfer.updated (state transitions: PENDING → SUCCEEDED / FAILED)
 //   - dispute.created / .updated
 //   - subscription_schedule_enrollment.updated
 //
-// Signature verification: Finix signs webhooks with HMAC-SHA256 of the raw
-// body using FINIX_WEBHOOK_SECRET. Header: `Finix-Signature`.
+// Auth: HTTP Basic is what the dashboard's webhook form configures and is
+// preferred; the HMAC-SHA256 `Finix-Signature` path (FINIX_WEBHOOK_SECRET) is
+// the fallback. With neither configured the handler refuses live traffic
+// outright rather than accepting unverified events — see below.
 // ============================================================================
 
 export const finixWebhook = functions.https.onRequest({ secrets: FINIX_SECRETS }, async (req, res) => {
@@ -2525,6 +2841,23 @@ export const finixWebhook = functions.https.onRequest({ secrets: FINIX_SECRETS }
 
     // Primary auth: HTTP Basic (the auth type the Finix dashboard webhook form
     // configures — Finix sends our chosen creds in the Authorization header).
+    // Fail closed. An unauthenticated caller who reaches this endpoint can flip
+    // finixMerchantAccountActive and mark orders paid, so a missing secret must
+    // never degrade into "skip verification" — in sandbox that's a nuisance, in
+    // live it's the whole trust boundary. Sandbox keeps the open path so local
+    // and CI runs don't need creds, and says so loudly.
+    if (!cfg.webhookBasicUser && !cfg.webhookBasicPass && !cfg.webhookSecret) {
+      if (cfg.environment === "live") {
+        console.error(
+          "[finixWebhook] Refusing request: no webhook auth configured for the live environment. " +
+            "Set FINIX_WEBHOOK_BASIC_USER_LIVE/FINIX_WEBHOOK_BASIC_PASS_LIVE (or FINIX_WEBHOOK_SECRET_LIVE) and redeploy."
+        );
+        res.status(503).send("Webhook auth not configured");
+        return;
+      }
+      console.warn("[finixWebhook] No webhook auth configured — accepting unverified request (sandbox only).");
+    }
+
     if (cfg.webhookBasicUser || cfg.webhookBasicPass) {
       const authz = String(req.headers["authorization"] || "");
       const expected = "Basic " + Buffer.from(`${cfg.webhookBasicUser}:${cfg.webhookBasicPass}`).toString("base64");
@@ -2692,6 +3025,53 @@ export const finixWebhook = functions.https.onRequest({ secrets: FINIX_SECRETS }
               await notifyClubAdminsOfPayoutStatus(db, doc, {
                 status: "PENDING",
                 onboardingState: "UPDATE_REQUESTED",
+                action,
+              });
+            }
+          }
+        }
+        break;
+      }
+
+      // Verification lifecycle. This is where update-request detail actually
+      // lands: Finix writes outcomes[] onto the Verification, and the merchant
+      // event that follows carries none of it. Handling the verification event
+      // directly means the club's to-do list refreshes on the event that
+      // changed it, instead of waiting for the next merchant event or for
+      // someone to hit "Check status".
+      case /^verifications?\./.test(eventType): {
+        const verification = event._embedded?.verifications?.[0] || event.entity || event.data;
+        const merchantId: string | undefined = verification?.merchant;
+        if (merchantId) {
+          const clubDocs = await db
+            .collection("clubs")
+            .where("finixMerchantId", "==", merchantId)
+            .limit(1)
+            .get();
+          if (clubDocs.empty) {
+            console.warn(`Finix verification ${verification?.id} (merchant=${merchantId}) matched no club`);
+          }
+          for (const doc of clubDocs.docs) {
+            // Read the merchant rather than trusting the verification's own
+            // state: UPDATE_REQUESTED lives on the merchant, and a FAILED
+            // verification mid-provisioning isn't always a stall.
+            const merchant: any = await finixGet(`/merchants/${merchantId}`).catch((e: any) => {
+              console.warn(`verification handler: merchant ${merchantId} fetch failed:`, e?.message || e);
+              return null;
+            });
+            const onboardingState: string | null = merchant?.onboarding_state || null;
+            await doc.ref.update({
+              finixOnboardingState: onboardingState ?? doc.data()?.finixOnboardingState ?? null,
+              finixLastVerificationId: verification?.id || null,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            const action = await syncClubActionRequired(doc.ref, merchantId, onboardingState);
+            if (onboardingState === "UPDATE_REQUESTED") {
+              // Deduped downstream on finixLastNotifiedState, so the repeat
+              // verification events Finix emits don't turn into repeat pushes.
+              await notifyClubAdminsOfPayoutStatus(db, doc, {
+                status: "PENDING",
+                onboardingState,
                 action,
               });
             }

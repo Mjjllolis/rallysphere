@@ -22,6 +22,7 @@ import {
   type SavedPaymentInstrument,
 } from '../lib/finix';
 import PaymentSecurityInfo from './PaymentSecurityInfo';
+import { calcServiceFee } from '../constants/fees';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SLIDE_DURATION = 280;
@@ -62,7 +63,6 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
   const [formReady, setFormReady] = useState(false);
   const [initializingPayment, setInitializingPayment] = useState(false);
   const [feeBreakdown, setFeeBreakdown] = useState<any>(null);
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'ach' | 'apple_pay' | 'google_pay'>('card');
   const [diagLog, setDiagLog] = useState<string[]>([]);
   const [webViewHeight, setWebViewHeight] = useState<number>(480);
   const [step, setStep] = useState<'summary' | 'payment'>('summary');
@@ -75,11 +75,10 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
 
   const tokenizeUrl = useMemo(() => {
     if (!finixContext) return null;
-    // Step 2 is card/ACH only — Apple Pay lives on the summary screen.
+    // Step 2 is card only — Apple Pay lives on the summary screen.
     return buildFinixTokenizeUrl({
       context: finixContext,
       amount: feeBreakdown?.totalAmount,
-      ach: true,
       wallets: false,
       external: true,
       debug: debugLogs,
@@ -234,9 +233,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
   const loadFeeBreakdown = (ticketPrice?: number) => {
     const priceToUse = ticketPrice ?? event.ticketPrice;
     if (!priceToUse) return;
-    const SERVICE_FEE_PERCENTAGE = 0.10;
-    const SERVICE_FEE_FIXED = 0.29;
-    const processingFee = Math.round(((priceToUse * SERVICE_FEE_PERCENTAGE) + SERVICE_FEE_FIXED) * 100) / 100;
+    const processingFee = calcServiceFee(priceToUse);
     setFeeBreakdown({
       ticketPrice: priceToUse,
       processingFee,
@@ -404,8 +401,6 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
         if (!msg.ready) {
           setDiagLog((prev) => [...prev.slice(-19), `[ready=false] ${msg.error || 'unknown'}`]);
         }
-      } else if (msg.type === 'tab') {
-        setPaymentMethod(msg.paymentMethod || 'card');
       } else if (msg.type === 'token') {
         await processPayment(msg.tokenId, msg.paymentMethod || 'card', msg.fraudSessionId, {
           savePaymentMethod: saveNewCard && (msg.paymentMethod || 'card') === 'card',
@@ -495,12 +490,9 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
           ).catch(() => { /* non-fatal */ });
         }
 
-        const isAch = method === 'ach';
         Alert.alert(
-          isAch ? 'ACH Authorization Confirmed' : 'Payment Successful!',
-          isAch
-            ? 'You authorized a one-time ACH debit from your bank account for this ticket. The debit may take 3–5 business days to clear, and you will receive a confirmation email. To revoke or dispute this authorization, contact support@rallysphere.com.'
-            : 'You have successfully purchased a ticket for this event.',
+          'Payment Successful!',
+          'You have successfully purchased a ticket for this event.',
           [{ text: 'OK', onPress: () => { onSuccess(); onDismiss(); } }]
         );
       } else {
@@ -923,8 +915,10 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
                       )}
                     </View>
 
-                    {/* Save-card opt-in (only for fresh card flow). Wallet/ACH paths can't be saved. */}
-                    {paymentMethod === 'card' && (
+                    {/* Save-card opt-in. This step is card-only — wallets live on
+                        the summary screen and are single-use, so nothing here
+                        needs to branch on payment method. */}
+                    {(
                       <View style={[styles.content, { paddingTop: 0, paddingBottom: 4 }]}>
                         <TouchableOpacity
                           onPress={() => setSaveNewCard((v) => !v)}
@@ -967,9 +961,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
                       <ActivityIndicator color="#fff" />
                     ) : (
                       <Text style={styles.continueButtonText}>
-                        {paymentMethod === 'ach'
-                          ? `Authorize & Pay ${feeBreakdown ? formatPrice(feeBreakdown.totalAmount, event.currency) : formatPrice(discountedTicketPrice, event.currency)}`
-                          : `Pay ${feeBreakdown ? formatPrice(feeBreakdown.totalAmount, event.currency) : formatPrice(discountedTicketPrice, event.currency)}`}
+                        {`Pay ${feeBreakdown ? formatPrice(feeBreakdown.totalAmount, event.currency) : formatPrice(discountedTicketPrice, event.currency)}`}
                       </Text>
                     )}
                   </TouchableOpacity>

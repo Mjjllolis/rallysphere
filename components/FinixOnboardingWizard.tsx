@@ -1,17 +1,15 @@
 // components/FinixOnboardingWizard.tsx
-// Club payout onboarding. Two paths, chosen up front:
+// Club payout onboarding, entirely in-app against the Finix API.
 //
-//   1. HOSTED (default) — Finix's own onboarding form, opened in the browser.
-//      Preferred because Finix maintains it: it handles multiple beneficial
-//      owners, document uploads, and the UPDATE_REQUESTED loop where the club
-//      answers underwriting directly. Our wizard can express none of those, and
-//      Finix tunes required fields per application, so anything we hand-roll
-//      drifts out of date silently.
-//   2. IN-APP (secondary, kept) — the direct-API wizard below. Still the path
-//      for clubs already mid-flow, and a fallback if the hosted form can't be
-//      used. Not being removed; just no longer the default.
+// Finix's own hosted onboarding form used to be offered alongside this and was
+// removed on 2026-06-30 (see lib/finix.ts and functions/src/index.ts). The
+// server callable and the rallysphere://finix-onboarding/* landing routes are
+// still there so already-installed builds don't break, but nothing in the app
+// mints a new hosted form. Because we now own the form, we also own Finix's
+// required onboarding language — see constants/legalDocs.ts, and don't reword
+// those strings.
 //
-// The in-app path is a hub of three independent stages the admin completes in order:
+// The wizard is a hub of three independent stages the admin completes in order:
 //   1. Payment Profile  → createClubIdentity()      (business + owner KYC)
 //   2. Bank Account     → addClubBankAccount()       (locked until 1 is done)
 //   3. Review & Submit  → provisionClubMerchant()    (locked until 1 & 2 done)
@@ -26,15 +24,16 @@
 // fields are shown — optional Finix fields (DBA, website, apt line, title,
 // ownership %) use sensible defaults server-side.
 import React, { useState } from 'react';
-import { View, StyleSheet, Platform, Pressable, ScrollView, useWindowDimensions, Linking } from 'react-native';
+import { View, StyleSheet, Platform, Pressable, ScrollView, useWindowDimensions, Linking, KeyboardAvoidingView } from 'react-native';
 import { Text, TextInput, Button, useTheme, Checkbox, HelperText, Divider, ProgressBar, Chip, Portal, Modal, IconButton } from 'react-native-paper';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useRouter } from 'expo-router';
+import { useDebugLogs } from '../lib/debugContext';
 import {
   createClubIdentity,
   addClubBankAccount,
   provisionClubMerchant,
   getSubMerchantStatus,
-  getClubOnboardingFormLink,
   type FinixBusinessInput,
   type FinixPersonInput,
 } from '../lib/finix';
@@ -44,6 +43,25 @@ import FinixBankTokenizer from './FinixBankTokenizer';
 import PaymentSecurityInfo from './PaymentSecurityInfo';
 import FinixActionRequiredCard from './FinixActionRequiredCard';
 import type { FinixActionRequired } from '../lib/finix';
+import {
+  FINIX_TERMS_URL,
+  FINIX_BANK_ACCOUNT_CONSENT,
+  FINIX_VERIFICATION_CONSENT,
+  FINIX_TOS_CONSENT,
+} from '../constants/legalDocs';
+import { SELLER_FEE_DISCLOSURE, SERVICE_FEE_LABEL, FEE_SCHEDULE_URL } from '../constants/fees';
+import FinixOwnerForm, {
+  SecureField,
+  DateField,
+  FinixAddressFields,
+  emptyFinixAddr,
+  emptyFinixOwner,
+  finixOwnerValid,
+  finixOwnerMissing,
+  toFinixOwnerInput,
+  type FinixAddr,
+  type FinixOwnerDraft,
+} from './FinixOwnerForm';
 
 interface Props {
   club: Club;
@@ -79,8 +97,14 @@ const BUSINESS_TYPES = [
 // Finix underwriting when they don't have one of their own.
 const CLUB_PAGE_BASE = process.env.EXPO_PUBLIC_WEB_BASE_URL || 'https://rally-sphere.web.app';
 
-type Addr = { line1: string; line2?: string; city: string; region: string; postalCode: string };
-const emptyAddr: Addr = { line1: '', line2: '', city: '', region: '', postalCode: '' };
+// Person shape, validation, and the field renderer all live in FinixOwnerForm —
+// the same form is used here and on the "add an owner" flow for approved clubs.
+type Addr = FinixAddr;
+const emptyAddr = emptyFinixAddr;
+type Person = FinixOwnerDraft;
+const emptyPerson = emptyFinixOwner;
+const personValid = finixOwnerValid;
+const toPersonInput = toFinixOwnerInput;
 
 // The wizard is a hub with these views. 'hub' is the landing screen listing the
 // three stages; the others are the individual sub-flows.
@@ -91,12 +115,22 @@ const fmtDate = (d: Date | null): string =>
 
 export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete, themeName, embedded }: Props) {
   const theme = useTheme();
+  const router = useRouter();
+  // Staff sandbox toggle. Every Finix call in this wizard carries it so the
+  // identity, bank, merchant and status checks all land in the SAME environment
+  // — a half-sandbox application is worse than none.
+  const { debugLogs } = useDebugLogs();
   const { height: winH } = useWindowDimensions();
   const isDark = themeName !== 'light';
   const draft = club.finixOnboardingDraft || {};
   // Outlined inputs mask the outline behind the floating label with this color;
   // match the card surface so labels don't get a black notch.
-  const fieldBg = { backgroundColor: theme.colors.elevation.level1 };
+  // OPAQUE, not theme.colors.elevation.* — those are rgba with 0.4–0.8 alpha in
+  // the dark theme, so the screen behind bled through the modal and through the
+  // notch each outlined label punches in its border. A form you're reading data
+  // into has to be solid.
+  const surfaceSolid = isDark ? '#131D33' : '#FFFFFF';
+  const fieldBg = { backgroundColor: surfaceSolid };
 
   // Always land on the hub (the 3-stage overview). Sub-steps open in a modal;
   // the hub's stage 3 opens the status view when the merchant is already submitted.
@@ -130,6 +164,12 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
     annualCardVolume: draft.business?.annualCardVolume ? String(Math.round(draft.business.annualCardVolume / 100)) : '50000',
     maxTransactionAmount: draft.business?.maxTransactionAmount ? String(Math.round(draft.business.maxTransactionAmount / 100)) : '5000',
     incorporationDate: (draft.business?.incorporationDate ? new Date(draft.business.incorporationDate) : null) as Date | null,
+    // What participants see on their card statement. Was silently derived as
+    // businessName.slice(0, 20), which truncates a long legal name mid-word —
+    // an unrecognisable descriptor is a leading cause of chargebacks, so the
+    // club gets to choose it.
+    statementDescriptor:
+      draft.business?.defaultStatementDescriptor || (draft.business?.businessName || club.name || '').slice(0, 20),
     address: { ...emptyAddr, ...(draft.business?.address || {}) } as Addr,
   });
 
@@ -146,16 +186,43 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
   const [refundMenu, setRefundMenu] = useState(false);
   const [bizTypeMenu, setBizTypeMenu] = useState(false);
 
-  // --- Control person / primary owner (required fields only) ---
-  const [owner, setOwner] = useState({
+  // --- Control person / primary owner ---
+  const [owner, setOwner] = useState<Person>({
+    ...emptyPerson(),
     firstName: draft.controlPerson?.firstName || '',
     lastName: draft.controlPerson?.lastName || '',
-    taxId: '', // SSN — secure, never prefilled
-    dob: null as Date | null, // never prefilled
+    title: draft.controlPerson?.title || 'Owner',
+    ownershipPercentage:
+      draft.controlPerson?.principalPercentageOwnership != null
+        ? String(draft.controlPerson.principalPercentageOwnership)
+        : '100',
     phone: draft.controlPerson?.phone || '',
     email: draft.controlPerson?.email || club.contactEmail || '',
     address: { ...emptyAddr, ...(draft.controlPerson?.address || {}) } as Addr,
   });
+
+  // --- Additional beneficial owners (25%+) ---
+  // Finix requires EVERY 25%+ owner on the application. Collecting only the
+  // control person is what gets co-owned LLCs and partnerships rejected.
+  const [extraOwners, setExtraOwners] = useState<Person[]>(() =>
+    (draft.owners || []).map((o: any) => ({
+      ...emptyPerson(),
+      firstName: o?.firstName || '',
+      lastName: o?.lastName || '',
+      title: o?.title || '',
+      ownershipPercentage: o?.principalPercentageOwnership != null ? String(o.principalPercentageOwnership) : '',
+      phone: o?.phone || '',
+      email: o?.email || '',
+      address: { ...emptyAddr, ...(o?.address || {}) } as Addr,
+    }))
+  );
+  // Which additional owner's form is expanded. -1 = none.
+  const [openOwner, setOpenOwner] = useState(-1);
+
+  // A sole proprietorship has exactly one owner by definition, so the extra
+  // owners step is noise there — skip it rather than ask a question with only
+  // one valid answer.
+  const needsOwnersStep = !!biz.businessType && biz.businessType !== 'INDIVIDUAL_SOLE_PROPRIETORSHIP';
 
   const [bankLast4, setBankLast4] = useState<string | null>(club.finixPayoutBankLast4 || null);
   // Last 4 of the account owner's SSN, collected on the bank step and submitted
@@ -165,18 +232,6 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
   // the bank step done immediately — independent of the club re-fetch, which can
   // serve a stale cached doc that still lacks finixPayoutPiId.
   const [bankSaved, setBankSaved] = useState(false);
-  // Which setup path this club is on. 'choose' is the fork shown before anything
-  // exists; once either path has produced state at Finix the choice is fixed,
-  // because a hosted form mints its own identity + merchant and can't be merged
-  // with one the wizard already created.
-  const [mode, setMode] = useState<'choose' | 'in_app' | 'hosted'>(
-    club.finixOnboardingMode === 'hosted'
-      ? 'hosted'
-      : club.finixIdentityId || club.finixMerchantId
-      ? 'in_app'
-      : 'choose'
-  );
-  const [formStatus, setFormStatus] = useState<string>(club.finixOnboardingFormStatus || 'IN_PROGRESS');
   // What Finix is waiting on, if anything. Seeded from the club doc (written by
   // the webhook) and refreshed by every status check.
   const [actionRequired, setActionRequired] = useState<FinixActionRequired | null>(
@@ -184,6 +239,11 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
   );
 
   const [agree, setAgree] = useState(!!club.finixTosAcceptedAt);
+  // Consent gate on the Payment Profile stage. Separate from `agree` because
+  // it's collected earlier and covers a different assertion: submitting the
+  // owner step is what creates the Finix Identity carrying the merchant
+  // agreement and credit-check consent records.
+  const [profileAgree, setProfileAgree] = useState(!!club.finixIdentityId);
   const [merchantState, setMerchantState] = useState<string>(club.finixOnboardingState || 'PROVISIONING');
   const [statusActive, setStatusActive] = useState<boolean>(!!club.finixMerchantAccountActive);
 
@@ -198,24 +258,58 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
   // Once submitted, the application is under review at Finix until it's active.
   // During that window the admin can view everything but must not edit the
   // profile or bank — a change mid-underwriting would desync us from Finix.
-  const reviewLock = submitted && !statusActive;
+  //
+  // UPDATE_REQUESTED is the deliberate exception: Finix has stopped reviewing
+  // and is asking for corrections, so editing is exactly what's wanted. Leaving
+  // the lock on here is what strands a club — we tell them to fix a field and
+  // then disable the row that holds it.
+  const updateRequested = merchantState === 'UPDATE_REQUESTED' || !!actionRequired;
+  const reviewLock = submitted && !statusActive && !updateRequested;
 
   const today = new Date();
   const fail = (msg: string) => { setError(msg); setBusy(false); };
 
-  const businessValid =
-    biz.businessName.trim() && biz.businessType && biz.taxId.trim() && biz.phone.trim() &&
-    biz.email.trim() && biz.url.trim() && Number(biz.annualCardVolume) > 0 && Number(biz.maxTransactionAmount) > 0 &&
-    !!biz.incorporationDate &&
+  // A LIST of what's outstanding, not a bare boolean — so a greyed-out button can
+  // say why instead of leaving you hunting for the one field you missed.
+  // Every field here is required by Finix; there are no optional ones on this step.
+  const businessMissing: string[] = [
+    !biz.businessName.trim() && 'Legal business name',
+    !biz.businessType && 'Business type',
+    !biz.taxId.trim() && 'EIN (Tax ID)',
+    !biz.phone.trim() && 'Business phone',
+    !biz.email.trim() && 'Business email',
+    !biz.url.trim() && 'Website',
+    !(Number(biz.annualCardVolume) > 0) && 'Estimated annual card sales',
+    !(Number(biz.maxTransactionAmount) > 0) && 'Largest single charge',
+    !biz.incorporationDate && 'Incorporation date',
+    !biz.statementDescriptor.trim() && 'Statement descriptor',
+    !(Number(uw.averageTransactionAmount) > 0) && 'Typical purchase amount',
     // Underwriting narrative — a vague description is the #1 reason Finix comes
     // back with manual questions, so require a real one rather than defaulting.
-    uw.businessDescription.trim().length >= 20 && Number(uw.averageTransactionAmount) > 0 &&
-    biz.address.line1.trim() && biz.address.city.trim() && biz.address.region.trim() && biz.address.postalCode.trim();
+    uw.businessDescription.trim().length < 20 &&
+      `A fuller answer to “What does your club sell?” (at least 20 characters — you have ${uw.businessDescription.trim().length})`,
+    !biz.address.line1.trim() && 'Street address',
+    !biz.address.city.trim() && 'City',
+    !biz.address.region.trim() && 'State',
+    !biz.address.postalCode.trim() && 'ZIP code',
+  ].filter(Boolean) as string[];
+  const businessValid = businessMissing.length === 0;
 
-  const ownerValid =
-    owner.firstName.trim() && owner.lastName.trim() && owner.taxId.trim() && !!owner.dob &&
-    owner.phone.trim() && owner.email.trim() &&
-    owner.address.line1.trim() && owner.address.city.trim() && owner.address.region.trim() && owner.address.postalCode.trim();
+  const ownerValid = personValid(owner);
+  const ownerMissing = finixOwnerMissing(owner);
+  // Each incomplete extra owner names itself, so "Owner 2: SSN" points straight
+  // at the card to open rather than making you expand each one to find it.
+  const extraOwnersMissing = extraOwners.flatMap((o, i) =>
+    finixOwnerMissing(o, `${o.firstName.trim() || `Owner ${i + 2}`}`)
+  );
+
+  // Total declared ownership can legitimately be under 100 (holders below 25%
+  // don't have to be listed), but it can never exceed it.
+  const totalOwnership =
+    (Number(owner.ownershipPercentage) || 0) +
+    extraOwners.reduce((sum, o) => sum + (Number(o.ownershipPercentage) || 0), 0);
+  const ownershipOverAllocated = totalOwnership > 100;
+  const extraOwnersValid = extraOwners.every(personValid) && !ownershipOverAllocated;
 
   const submitIdentity = async () => {
     setBusy(true); setError(null);
@@ -230,24 +324,16 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
       annualCardVolume: Math.round((Number(biz.annualCardVolume) || 0) * 100),
       maxTransactionAmount: Math.round((Number(biz.maxTransactionAmount) || 0) * 100),
       incorporationDate: fmtDate(biz.incorporationDate) || undefined,
-      defaultStatementDescriptor: biz.businessName.trim().slice(0, 20),
+      defaultStatementDescriptor: biz.statementDescriptor.trim().slice(0, 20),
       address: { ...biz.address, country: 'USA' },
-    };
-    const controlPerson: FinixPersonInput = {
-      firstName: owner.firstName.trim(),
-      lastName: owner.lastName.trim(),
-      title: 'Owner',                       // default (field hidden)
-      principalPercentageOwnership: 100,    // default (field hidden)
-      taxId: owner.taxId.replace(/\D/g, ''),
-      dob: fmtDate(owner.dob),
-      phone: owner.phone.trim(),
-      email: owner.email.trim(),
-      address: { ...owner.address, country: 'USA' },
     };
     const res = await createClubIdentity({
       clubId: club.id,
       business,
-      controlPerson,
+      controlPerson: toPersonInput(owner),
+      // Every 25%+ owner beyond the control person. The server turns each into
+      // an associated identity under the merchant identity.
+      owners: extraOwners.filter(personValid).map(toPersonInput),
       underwriting: {
         businessDescription: uw.businessDescription.trim() || undefined,
         averageCardTransferAmount: Number(uw.averageTransactionAmount)
@@ -256,7 +342,14 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
         refundPolicy: uw.refundPolicy,
       },
       // IP is filled server-side from the request — the client can't see its own.
-      consent: { userAgent: `RallySphere/${Platform.OS}`, merchantAgreementAccepted: true },
+      // Both flags are only reachable once the club has ticked the consent box
+      // and seen the linked terms directly above this step's Continue button.
+      consent: {
+        userAgent: `RallySphere/${Platform.OS}`,
+        merchantAgreementAccepted: true,
+        creditCheckAllowed: true,
+      },
+      debug: debugLogs,
     });
     if (!res.success) return fail(res.error || 'Failed to save details');
     setIdentityDone(true);
@@ -269,7 +362,7 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
       return;
     }
     setBusy(true); setError(null);
-    const res = await addClubBankAccount(club.id, tokenId, bankSsnLast4);
+    const res = await addClubBankAccount(club.id, tokenId, bankSsnLast4, debugLogs);
     if (!res.success) return fail(res.error || 'Failed to add bank account');
     setBankSaved(true);
     setBankLast4(res.last4 || null);
@@ -279,46 +372,16 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
   const submitApplication = async () => {
     if (!agree) { setError('Please accept the terms to submit.'); return; }
     setBusy(true); setError(null);
-    const res = await provisionClubMerchant(club.id);
+    const res = await provisionClubMerchant(club.id, debugLogs);
     if (!res.success) return fail(res.error || 'Failed to submit application');
     setMerchantState(res.onboardingState || 'PROVISIONING');
     setStatusActive(res.onboardingState === 'APPROVED');
     setBusy(false); setView('status'); onComplete?.();
   };
 
-  // Mint a fresh hosted-form link and hand off to the browser. Same call covers
-  // first open, resume, and answering an UPDATE_REQUESTED — the server decides.
-  const openHostedForm = async () => {
-    setBusy(true); setError(null);
-    const res = await getClubOnboardingFormLink(club.id);
-    if (!res.success) return fail(res.error || 'Failed to open Finix onboarding');
-    setMode('hosted');
-    setFormStatus(res.formStatus || 'IN_PROGRESS');
-    setActionRequired(res.actionRequired || null);
-    if (res.onboardingState) setMerchantState(res.onboardingState);
-    if (res.merchantId && res.onboardingState === 'APPROVED') setStatusActive(true);
-    if (res.linkUrl) {
-      await Linking.openURL(res.linkUrl).catch(() => setError('Could not open the Finix page. Try again.'));
-    }
-    setBusy(false);
-    onComplete?.();
-  };
-
-  const refreshHostedStatus = async () => {
-    setBusy(true); setError(null);
-    const res = await getClubOnboardingFormLink(club.id);
-    if (!res.success) return fail(res.error || 'Failed to check status');
-    setFormStatus(res.formStatus || formStatus);
-    setActionRequired(res.actionRequired || null);
-    if (res.onboardingState) setMerchantState(res.onboardingState);
-    if (res.onboardingState === 'APPROVED') setStatusActive(true);
-    setBusy(false);
-    onComplete?.();
-  };
-
   const refreshStatus = async () => {
     setBusy(true); setError(null);
-    const res = await getSubMerchantStatus({ clubId: club.id, merchantId: club.finixMerchantId, identityId: club.finixIdentityId });
+    const res = await getSubMerchantStatus({ clubId: club.id, merchantId: club.finixMerchantId, identityId: club.finixIdentityId, debug: debugLogs });
     if (res.success) {
       setMerchantState(res.status || merchantState);
       setStatusActive(!!res.isComplete);
@@ -337,185 +400,141 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
   };
 
   // ---- shared field renderers ----
-  const field = (label: string, value: string, onChangeText: (t: string) => void, extra?: any) => (
-    <TextInput mode="outlined" label={label} value={value} onChangeText={onChangeText} style={[styles.input, fieldBg]} {...extra} />
-  );
+  // autoCorrect/spellCheck are OFF by default. iOS turns them on otherwise, and
+  // autocorrect rewriting a *controlled* TextInput mid-keystroke is what makes
+  // typing feel like the field is fighting back — it replaces words you already
+  // committed. None of these fields (legal names, addresses, EIN, business
+  // descriptions) benefit from it, and a mangled legal name goes to underwriting.
+  // `extra` is spread last so any field can opt back in.
+  // UNCONTROLLED (defaultValue, not value). Every keystroke re-renders this whole
+  // wizard; a controlled input re-applies its `value` on each render, and when JS
+  // lags the native field by even one frame the value it re-applies is stale —
+  // the caret jumps back and eats a character. Letting the native input own the
+  // text removes that loop; onChangeText still keeps state current.
+  //
+  // Fields that REWRITE input as you type (digit-stripping, upper-casing) pass
+  // `controlled: true` and keep `value`, because the rewrite has to be shown back.
+  const field = (label: string, value: string, onChangeText: (t: string) => void, extra?: any) => {
+    const { controlled, ...rest } = extra || {};
+    return (
+      <TextInput
+        mode="outlined"
+        label={label}
+        {...(controlled ? { value } : { defaultValue: value })}
+        onChangeText={onChangeText}
+        autoCorrect={false}
+        spellCheck={false}
+        autoCapitalize="sentences"
+        style={[styles.input, fieldBg]}
+        {...rest}
+      />
+    );
+  };
 
-  const addrFields = (a: Addr, set: (a: Addr) => void) => (
-    <>
-      {field('Street address', a.line1, (t) => set({ ...a, line1: t }))}
-      <View style={styles.row}>
-        <TextInput mode="outlined" label="City" value={a.city} onChangeText={(t) => set({ ...a, city: t })} style={[styles.input, styles.flex2, fieldBg]} />
-        <TextInput mode="outlined" label="State" value={a.region} maxLength={2} autoCapitalize="characters" onChangeText={(t) => set({ ...a, region: t.toUpperCase() })} style={[styles.input, styles.flex1, fieldBg]} />
-      </View>
-      {field('ZIP code', a.postalCode, (t) => set({ ...a, postalCode: t }), { keyboardType: 'number-pad' })}
-    </>
+  // The Finix-mandated ToS sentence, rendered verbatim with both documents
+  // linked. Shown at every point the club "continues" into a commitment — the
+  // step that creates the Identity, and the final submit.
+  const tosLine = () => (
+    <Text variant="bodySmall" style={[styles.tosLine, { color: theme.colors.onSurfaceVariant }]}>
+      {FINIX_TOS_CONSENT.prefix}
+      <Text style={[styles.link, { color: theme.colors.primary }]} onPress={() => router.push('/legal/terms')}>
+        {FINIX_TOS_CONSENT.ownLabel}
+      </Text>
+      {FINIX_TOS_CONSENT.middle}
+      <Text
+        style={[styles.link, { color: theme.colors.primary }]}
+        onPress={() => Linking.openURL(FINIX_TERMS_URL).catch(() => setError('Could not open the Finix Terms of Service.'))}
+      >
+        {FINIX_TOS_CONSENT.finixLabel}
+      </Text>
+      {FINIX_TOS_CONSENT.suffix}
+      {/* Privacy sits alongside the mandated sentence rather than inside it —
+          the Finix wording is fixed and must not be altered, but a club agreeing
+          to share owner SSNs and bank details should be one tap from our privacy
+          policy. */}
+      {'  '}
+      <Text
+        style={[styles.link, { color: theme.colors.primary }]}
+        onPress={() => router.push('/legal/privacy')}
+      >
+        Privacy Policy
+      </Text>
+    </Text>
   );
 
   return (
     <View>
-      {/* ---------- FORK: where do you want to do this? ---------- */}
-      {mode === 'choose' && (
-        <View>
-          <Text variant="titleMedium" style={styles.h}>Set up payouts</Text>
-          <Text variant="bodySmall" style={styles.note}>
-            Finix is our payment processor. Every club is verified by them before payouts can start.
-          </Text>
+      {/* ---------- HUB: the three stages (sub-steps open in the modal below) ---------- */}
+      <ProgressBar progress={completedStages / 3} color={theme.colors.primary} style={styles.progress} />
+      <Text variant="labelLarge" style={{ marginBottom: 16, color: theme.colors.onSurfaceVariant }}>
+        {completedStages} of 3 complete
+      </Text>
 
-          {/* Finix's own form is the default path. It handles the things our
-              wizard can't: multiple owners, document uploads, and — when
-              underwriting asks for more — letting the club answer directly
-              instead of routing every request through RallySphere support. */}
-          <PathCard
-            title="Set up with Finix"
-            subtitle="Opens Finix in your browser and walks you through it. If they need anything else later — a document, another owner's details — they ask you directly and you handle it there."
-            actionLabel="Continue with Finix"
-            recommended
-            onPress={openHostedForm}
-            loading={busy}
-            disabled={busy}
-          />
-
-          {/* Kept as a secondary path, not removed: it's the only option for
-              anything the hosted form can't express, and clubs mid-flow are
-              still on it. */}
-          <Button
-            mode="text"
-            compact
-            disabled={busy}
-            onPress={() => { setError(null); setMode('in_app'); }}
-            style={{ marginTop: 4 }}
-          >
-            Or enter your details in RallySphere
-          </Button>
-          <Text variant="bodySmall" style={[styles.note, { marginTop: 4 }]}>
-            Entering them here works too, but if Finix asks for documents afterwards they’ll come to us and
-            we’ll have to pass them along — which is slower. You can still switch to Finix any time before
-            your application is submitted.
-          </Text>
-          {error && <HelperText type="error" visible>{error}</HelperText>}
-        </View>
+      {/* Surfaced on the hub, not just inside the status modal — a club that
+          never opens "View application status" would otherwise never learn
+          Finix is waiting on them. */}
+      {!statusActive && actionRequired && (
+        <FinixActionRequiredCard
+          action={actionRequired}
+          clubId={club.id}
+          onResubmitted={refreshStatus}
+          loading={busy}
+          style={{ marginBottom: 16 }}
+        />
       )}
 
-      {/* ---------- HOSTED: the club is doing this on Finix's site ---------- */}
-      {mode === 'hosted' && (
-        <View>
-          <Text variant="titleMedium" style={styles.h}>
-            {statusActive ? 'Payouts active' : formStatus === 'UPDATE_REQUESTED' ? 'Finix needs more info' : 'Setting up with Finix'}
-          </Text>
-          <Text variant="bodySmall" style={styles.note}>
-            {statusActive
-              ? 'Your club can now receive payments.'
-              : formStatus === 'UPDATE_REQUESTED'
-              ? 'Finix has asked for additional information or documents. Open your form to see exactly what they need and upload it — no need to go through us.'
-              : formStatus === 'COMPLETED'
-              ? `Your application is with Finix. Status: ${merchantState}. Usually 1–2 business days.`
-              : 'Your form is waiting on Finix’s site. Open it to finish — your progress is saved.'}
-          </Text>
+      <StageRow
+        n={1}
+        title="Payment Profile"
+        subtitle="Business & owner identity verification (KYC)"
+        status={profileDone ? 'done' : 'todo'}
+        actionLabel={reviewLock ? undefined : (profileDone ? 'Edit' : 'Set up')}
+        onPress={() => { if (reviewLock) return; setError(null); setStep(0); setView('profile'); }}
+      />
+      <StageRow
+        n={2}
+        title="Bank Account"
+        subtitle="Where your payouts are deposited"
+        status={bankDone ? 'done' : profileDone ? 'todo' : 'locked'}
+        value={bankDone && bankLast4 ? `•••• ${bankLast4}` : undefined}
+        actionLabel={reviewLock ? undefined : (bankDone ? 'Change' : 'Add')}
+        lockedHint="Complete your Payment Profile first"
+        disabled={!profileDone}
+        onPress={() => { if (reviewLock) return; setError(null); setView('bank'); }}
+      />
+      <StageRow
+        n={3}
+        title="Review & Submit"
+        subtitle="Send your application to Finix for approval"
+        status={submitted ? 'done' : profileDone && bankDone ? 'todo' : 'locked'}
+        actionLabel={submitted ? 'View status' : 'Review'}
+        lockedHint="Finish both steps above first"
+        disabled={!submitted && !(profileDone && bankDone)}
+        onPress={() => { setError(null); setView(submitted ? 'status' : 'submit'); }}
+      />
 
-          {/* Hosted clubs can resolve this themselves — the button reopens the
-              very form Finix flagged, with its uploaders attached. */}
-          {!statusActive && actionRequired && (
-            <FinixActionRequiredCard
-              action={actionRequired}
-              onResolve={openHostedForm}
-              resolveLabel="Open my Finix form"
-              loading={busy}
-              style={{ marginBottom: 16 }}
-            />
-          )}
-
-          {!statusActive && !actionRequired && (
-            <Button
-              mode="contained"
-              icon="open-in-new"
-              loading={busy}
-              disabled={busy}
-              onPress={openHostedForm}
-              style={styles.next}
-            >
-              {formStatus === 'UPDATE_REQUESTED' ? 'Provide requested info' : formStatus === 'COMPLETED' ? 'Open my Finix form' : 'Continue on Finix'}
-            </Button>
-          )}
-          <Button mode="outlined" icon="refresh" loading={busy} disabled={busy} onPress={refreshHostedStatus} style={styles.next}>
-            Check status
-          </Button>
-
-          <PaymentSecurityInfo variant="payout" style={{ marginTop: 16 }} />
-          {error && <HelperText type="error" visible>{error}</HelperText>}
-
-          {!embedded && (
-            <Button mode="text" onPress={() => onComplete?.()} style={{ marginTop: 16 }}>Save &amp; close</Button>
-          )}
-        </View>
+      {/* Once submitted, a clear button to open the live application status. */}
+      {submitted && (
+        <Button mode="contained" icon="refresh" onPress={() => { setError(null); setView('status'); }} style={styles.next}>
+          View application status
+        </Button>
       )}
 
-      {/* ---------- HUB: the three stages (always visible; sub-steps are modal) ---------- */}
-      {mode === 'in_app' && (
-      <View>
-          <ProgressBar progress={completedStages / 3} color={theme.colors.primary} style={styles.progress} />
-          <Text variant="labelLarge" style={{ marginBottom: 16, color: theme.colors.onSurfaceVariant }}>
-            {completedStages} of 3 complete
-          </Text>
+      {reviewLock && (
+        <Text variant="bodySmall" style={{ marginTop: 12, textAlign: 'center', color: theme.colors.onSurfaceVariant }}>
+          Your application is under review — these details are locked until it’s approved.
+        </Text>
+      )}
+      {submitted && !statusActive && updateRequested && (
+        <Text variant="bodySmall" style={{ marginTop: 12, textAlign: 'center', color: theme.colors.onSurfaceVariant }}>
+          Editing is unlocked so you can make the corrections Finix asked for.
+        </Text>
+      )}
 
-          <StageRow
-            n={1}
-            title="Payment Profile"
-            subtitle="Business & owner identity verification (KYC)"
-            status={profileDone ? 'done' : 'todo'}
-            actionLabel={reviewLock ? undefined : (profileDone ? 'Edit' : 'Set up')}
-            onPress={() => { if (reviewLock) return; setError(null); setStep(0); setView('profile'); }}
-          />
-          <StageRow
-            n={2}
-            title="Bank Account"
-            subtitle="Where your payouts are deposited"
-            status={bankDone ? 'done' : profileDone ? 'todo' : 'locked'}
-            value={bankDone && bankLast4 ? `•••• ${bankLast4}` : undefined}
-            actionLabel={reviewLock ? undefined : (bankDone ? 'Change' : 'Add')}
-            lockedHint="Complete your Payment Profile first"
-            disabled={!profileDone}
-            onPress={() => { if (reviewLock) return; setError(null); setView('bank'); }}
-          />
-          <StageRow
-            n={3}
-            title="Review & Submit"
-            subtitle="Send your application to Finix for approval"
-            status={submitted ? 'done' : profileDone && bankDone ? 'todo' : 'locked'}
-            actionLabel={submitted ? 'View status' : 'Review'}
-            lockedHint="Finish both steps above first"
-            disabled={!submitted && !(profileDone && bankDone)}
-            onPress={() => { setError(null); setView(submitted ? 'status' : 'submit'); }}
-          />
+      {error && <HelperText type="error" visible style={{ marginTop: 8 }}>{error}</HelperText>}
 
-          {/* Once submitted, a clear button to open the live application status. */}
-          {submitted && (
-            <Button mode="contained" icon="refresh" onPress={() => { setError(null); setView('status'); }} style={styles.next}>
-              View application status
-            </Button>
-          )}
-
-          {reviewLock && (
-            <Text variant="bodySmall" style={{ marginTop: 12, textAlign: 'center', color: theme.colors.onSurfaceVariant }}>
-              Your application is under review — these details are locked until it’s approved.
-            </Text>
-          )}
-
-          {/* Escape hatch for anyone stuck mid-setup. Safe until the merchant
-              exists (server refuses after that, to avoid a duplicate merchant). */}
-          {!submitted && (
-            <>
-              <Button mode="text" compact icon="open-in-new" loading={busy} disabled={busy} onPress={openHostedForm} style={{ marginTop: 12 }}>
-                Rather finish this on Finix’s site?
-              </Button>
-              {error && <HelperText type="error" visible>{error}</HelperText>}
-            </>
-          )}
-
-          {!embedded && (
-            <Button mode="text" onPress={() => onComplete?.()} style={{ marginTop: 16 }}>Save &amp; close</Button>
-          )}
-      </View>
+      {!embedded && (
+        <Button mode="text" onPress={() => onComplete?.()} style={{ marginTop: 16 }}>Save &amp; close</Button>
       )}
 
       {/* Sub-steps open in a modal popup so they don't crowd the card — or the
@@ -524,11 +543,22 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
         <Modal
           visible={view !== 'hub'}
           onDismiss={() => { setError(null); setView('hub'); }}
-          contentContainerStyle={[styles.modalCard, { backgroundColor: theme.colors.elevation.level2 }]}
+          contentContainerStyle={[styles.modalCard, { backgroundColor: surfaceSolid, borderColor: theme.colors.outline, borderWidth: StyleSheet.hairlineWidth }]}
         >
-          <ScrollView style={{ maxHeight: winH * 0.8 }} contentContainerStyle={styles.modalScrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          {/* Always-visible back control. On the owner sub-step it steps back to
-              the business sub-step; everywhere else it closes to the hub. */}
+          {/* Without this the iOS keyboard covers the lower half of the form and
+              you type blind into a field you can't see. */}
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView
+            style={{ maxHeight: winH * 0.8 }}
+            contentContainerStyle={styles.modalScrollContent}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="none"
+            showsVerticalScrollIndicator={false}
+          >
+          {/* Always-visible back control. Inside the Payment Profile flow it
+              walks back a sub-step (skipping the owners step for sole props,
+              the same way forward navigation does); everywhere else it closes
+              to the hub. */}
           <View style={styles.modalHead}>
             <Button
               mode="text"
@@ -537,8 +567,11 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
               contentStyle={{ marginLeft: -4 }}
               onPress={() => {
                 setError(null);
-                if (view === 'profile' && step === 1) setStep(0);
-                else setView('hub');
+                if (view === 'profile' && step > 0) {
+                  setStep(step === 3 && !needsOwnersStep ? 1 : step - 1);
+                } else {
+                  setView('hub');
+                }
               }}
             >
               Back
@@ -549,6 +582,9 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
       {view === 'profile' && step === 0 && (
         <View>
           <Text variant="titleMedium" style={styles.h}>Business details</Text>
+          <Text variant="bodySmall" style={styles.note}>
+            Finix requires all of these — there are no optional fields on this step.
+          </Text>
           {field('Legal business name', biz.businessName, (t) => setBiz({ ...biz, businessName: t }))}
 
           {/* Inline dropdown — expands directly below the field. No portal, so it
@@ -593,6 +629,12 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
           {field('Largest single charge (USD)', biz.maxTransactionAmount, (t) => setBiz({ ...biz, maxTransactionAmount: t.replace(/[^0-9]/g, '') }), { keyboardType: 'number-pad', left: <TextInput.Affix text="$" /> })}
           <DateField label="Incorporation date" value={biz.incorporationDate} onChange={(d) => setBiz({ ...biz, incorporationDate: d })} fieldBg={fieldBg} maximumDate={today} dark={isDark} />
 
+          {field('Statement descriptor', biz.statementDescriptor, (t) => setBiz({ ...biz, statementDescriptor: t }), { maxLength: 20 })}
+          <Text variant="bodySmall" style={styles.note}>
+            What participants see on their card statement — up to 20 characters. Make it recognisable, or
+            they may not know what the charge was and dispute it.
+          </Text>
+
           {field('Typical purchase amount (USD)', uw.averageTransactionAmount, (t) => setUw({ ...uw, averageTransactionAmount: t.replace(/[^0-9]/g, '') }), { keyboardType: 'number-pad', left: <TextInput.Affix text="$" />, placeholder: 'e.g. 50' })}
 
           {/* Same inline-dropdown pattern as business type — no portal. */}
@@ -624,7 +666,10 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
 
           {field('What does your club sell?', uw.businessDescription, (t) => setUw({ ...uw, businessDescription: t }), {
             multiline: true,
-            numberOfLines: 3,
+            // Explicit height, not numberOfLines — that prop is Android-only on
+            // RN's TextInput, so on iOS this rendered as a single cramped line
+            // for a field we ask people to write a paragraph in.
+            style: [styles.input, styles.multiline, fieldBg],
             placeholder: 'e.g. Weekly league dues, tournament entry fees, and team jerseys for our members.',
           })}
           <Text variant="bodySmall" style={styles.note}>
@@ -632,9 +677,24 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
           </Text>
 
           <Text variant="labelLarge" style={styles.subh}>Business address</Text>
-          {addrFields(biz.address, (a) => setBiz({ ...biz, address: a }))}
+          <FinixAddressFields value={biz.address} onChange={(a) => setBiz({ ...biz, address: a })} fieldBg={fieldBg} />
 
-          <Button mode="contained" disabled={!businessValid} onPress={() => { setError(null); setStep(1); }} style={styles.next}>Continue</Button>
+          <Button
+            mode="contained"
+            onPress={() => {
+              // Deliberately NOT `disabled` — a dead button tells you nothing.
+              // Pressing it names exactly what's outstanding.
+              if (businessMissing.length) {
+                setError(`Still needed: ${businessMissing.join(', ')}`);
+                return;
+              }
+              setError(null);
+              setStep(1);
+            }}
+            style={[styles.next, !businessValid && styles.incompleteBtn]}
+          >
+            Continue
+          </Button>
         </View>
       )}
 
@@ -643,19 +703,173 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
         <View>
           <Text variant="titleMedium" style={styles.h}>Owner / control person</Text>
           <Text variant="bodySmall" style={styles.note}>The primary person who controls the business — required by federal “know your customer” rules.</Text>
-          <View style={styles.row}>
-            <TextInput mode="outlined" label="First name" value={owner.firstName} onChangeText={(t) => setOwner({ ...owner, firstName: t })} style={[styles.input, styles.flex1, fieldBg]} />
-            <TextInput mode="outlined" label="Last name" value={owner.lastName} onChangeText={(t) => setOwner({ ...owner, lastName: t })} style={[styles.input, styles.flex1, fieldBg]} />
+          {/* Finix-mandated verification consent. Verbatim — see legalDocs.ts. */}
+          <Text variant="bodySmall" style={styles.requiredNotice}>{FINIX_VERIFICATION_CONSENT}</Text>
+
+          <FinixOwnerForm value={owner} onChange={setOwner} themeName={themeName} />
+
+          <Button
+            mode="contained"
+            onPress={() => {
+              if (ownerMissing.length) {
+                setError(`Still needed: ${ownerMissing.join(', ')}`);
+                return;
+              }
+              setError(null);
+              setStep(needsOwnersStep ? 2 : 3);
+            }}
+            style={[styles.next, !ownerValid && styles.incompleteBtn]}
+          >
+            Continue
+          </Button>
+        </View>
+      )}
+
+      {/* ---------- PROFILE · STEP 2: OTHER 25%+ OWNERS ---------- */}
+      {view === 'profile' && step === 2 && (
+        <View>
+          <Text variant="titleMedium" style={styles.h}>Other owners</Text>
+          <Text variant="bodySmall" style={styles.note}>
+            Finix requires everyone who owns 25% or more of the business to be listed. If{' '}
+            {owner.firstName.trim() || 'the person you just entered'} is the only owner at 25% or more,
+            skip this — otherwise your application will be held up.
+          </Text>
+
+          <View style={[styles.ownerTally, { borderColor: theme.colors.outline }]}>
+            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+              {owner.firstName.trim() || 'Control person'} {owner.ownershipPercentage || 0}%
+              {extraOwners.length > 0 && ` + ${extraOwners.length} more`}
+            </Text>
+            <Text variant="bodySmall" style={{ fontWeight: '700', color: ownershipOverAllocated ? theme.colors.error : theme.colors.onSurface }}>
+              {totalOwnership}% total
+            </Text>
           </View>
-          <SecureField label="SSN" value={owner.taxId} onChangeText={(t) => setOwner({ ...owner, taxId: t })} fieldBg={fieldBg} />
-          <DateField label="Date of birth" value={owner.dob} onChange={(d) => setOwner({ ...owner, dob: d })} fieldBg={fieldBg} maximumDate={today} dark={isDark} />
-          {field('Phone', owner.phone, (t) => setOwner({ ...owner, phone: t }), { keyboardType: 'phone-pad' })}
-          {field('Email', owner.email, (t) => setOwner({ ...owner, email: t }), { keyboardType: 'email-address', autoCapitalize: 'none' })}
+          {ownershipOverAllocated && (
+            <HelperText type="error" visible>Ownership adds up to more than 100%.</HelperText>
+          )}
 
-          <Text variant="labelLarge" style={styles.subh}>Home address</Text>
-          {addrFields(owner.address, (a) => setOwner({ ...owner, address: a }))}
+          {extraOwners.map((p, i) => {
+            const expanded = openOwner === i;
+            const complete = personValid(p);
+            return (
+              <View key={i} style={[styles.ownerCard, { borderColor: complete ? theme.colors.outline : theme.colors.error, backgroundColor: theme.colors.elevation.level1 }]}>
+                <Pressable onPress={() => setOpenOwner(expanded ? -1 : i)} style={styles.ownerHead}>
+                  <View style={{ flex: 1 }}>
+                    <Text variant="titleSmall" style={{ fontWeight: '600', color: theme.colors.onSurface }}>
+                      {`${p.firstName} ${p.lastName}`.trim() || `Owner ${i + 2}`}
+                    </Text>
+                    <Text variant="bodySmall" style={{ color: complete ? theme.colors.onSurfaceVariant : theme.colors.error }}>
+                      {complete ? `${p.title || 'Owner'} · ${p.ownershipPercentage}%` : 'Incomplete — tap to finish'}
+                    </Text>
+                  </View>
+                  <IconButton
+                    icon="delete-outline"
+                    size={20}
+                    style={{ margin: 0 }}
+                    onPress={() => {
+                      setExtraOwners(extraOwners.filter((_, j) => j !== i));
+                      setOpenOwner(-1);
+                    }}
+                  />
+                  <Text style={{ color: theme.colors.onSurfaceVariant }}>{expanded ? '▲' : '▼'}</Text>
+                </Pressable>
+                {expanded && (
+                  <View style={{ marginTop: 12 }}>
+                    <FinixOwnerForm value={p} onChange={(next) => setExtraOwners(extraOwners.map((o, j) => (j === i ? next : o)))} themeName={themeName} />
+                  </View>
+                )}
+              </View>
+            );
+          })}
 
-          <Button mode="contained" loading={busy} disabled={!ownerValid || busy} onPress={submitIdentity} style={styles.next}>Continue</Button>
+          <Button
+            mode="outlined"
+            icon="plus"
+            onPress={() => { setExtraOwners([...extraOwners, emptyPerson()]); setOpenOwner(extraOwners.length); }}
+            style={{ marginTop: 8 }}
+          >
+            Add another owner
+          </Button>
+
+          <Button
+            mode="contained"
+            onPress={() => {
+              if (ownershipOverAllocated) {
+                setError('Ownership adds up to more than 100%. Adjust the percentages.');
+                return;
+              }
+              if (extraOwnersMissing.length) {
+                setError(`Still needed: ${extraOwnersMissing.join(', ')}`);
+                return;
+              }
+              setError(null);
+              setStep(3);
+            }}
+            style={[styles.next, !extraOwnersValid && styles.incompleteBtn]}
+          >
+            {extraOwners.length ? 'Continue' : 'No other 25%+ owners'}
+          </Button>
+        </View>
+      )}
+
+      {/* ---------- PROFILE · STEP 3: CONSENT & SUBMIT PROFILE ---------- */}
+      {view === 'profile' && step === 3 && (
+        <View>
+          <Text variant="titleMedium" style={styles.h}>Confirm and continue</Text>
+          <Text variant="bodySmall" style={styles.note}>
+            This sends your business and owner details to Finix for verification.
+          </Text>
+
+          <ReviewRow label="Business" value={biz.businessName} />
+          <ReviewRow label="Control person" value={`${owner.firstName} ${owner.lastName}`.trim()} />
+          <ReviewRow
+            label="Owners listed"
+            value={`${1 + extraOwners.filter(personValid).length} · ${totalOwnership}% total`}
+          />
+          <Divider style={{ marginVertical: 12 }} />
+
+          {/* This button is what creates the Finix Identity — and the Identity
+              carries the merchant_agreement_* and credit_check_* consent
+              records. So the terms have to be presented here, not only on the
+              later Review & Submit step. */}
+          <Pressable onPress={() => setProfileAgree(!profileAgree)} style={styles.consentRow}>
+            {/* Checkbox.Android on BOTH platforms: the generic <Checkbox> maps to
+                Checkbox.IOS on iOS, which draws a checkmark when ticked and
+                literally nothing when unticked — an invisible control on a step
+                you cannot pass without ticking it. */}
+            <Checkbox.Android
+              status={profileAgree ? 'checked' : 'unchecked'}
+              onPress={() => setProfileAgree(!profileAgree)}
+              color={theme.colors.primary}
+              uncheckedColor={theme.colors.onSurfaceVariant}
+            />
+            <Text variant="bodySmall" style={styles.consentText}>
+              I authorize a credit and identity check on the business and every owner listed above.
+            </Text>
+          </Pressable>
+          {tosLine()}
+
+          <Button
+            mode="contained"
+            loading={busy}
+            disabled={busy}
+            onPress={() => {
+              const missing = [...ownerMissing, ...extraOwnersMissing];
+              if (missing.length) {
+                setError(`Still needed: ${missing.join(', ')}`);
+                return;
+              }
+              if (!profileAgree) {
+                setError('Please tick the box authorising the credit and identity check.');
+                return;
+              }
+              setError(null);
+              submitIdentity();
+            }}
+            style={[styles.next, (!ownerValid || !extraOwnersValid || !profileAgree) && styles.incompleteBtn]}
+          >
+            Continue
+          </Button>
         </View>
       )}
 
@@ -664,6 +878,8 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
         <View>
           <Text variant="titleMedium" style={styles.h}>Payout bank account</Text>
           <Text variant="bodySmall" style={styles.note}>Where your payouts are deposited. Entered securely — account numbers never touch RallySphere’s servers.</Text>
+          {/* Finix-mandated bank account language. Verbatim — see legalDocs.ts. */}
+          <Text variant="bodySmall" style={styles.requiredNotice}>{FINIX_BANK_ACCOUNT_CONSENT}</Text>
           <PaymentSecurityInfo variant="payout" style={{ marginBottom: 8 }} />
           {busy ? (
             <Text variant="bodyMedium" style={{ marginVertical: 16 }}>Adding bank account…</Text>
@@ -691,17 +907,51 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
           <ReviewRow label="Owner" value={`${owner.firstName || draft.controlPerson?.firstName || ''} ${owner.lastName || draft.controlPerson?.lastName || ''}`.trim() || '—'} />
           <ReviewRow label="Payout bank" value={bankLast4 ? `•••• ${bankLast4}` : 'Added'} />
           <Divider style={{ marginVertical: 12 }} />
+
+          {/* Finix "Presenting Fees": what we charge has to be clear and
+              prominent at the moment the club commits — not buried in a policy
+              document. Numbers come from constants/fees.ts, the same source the
+              server uses to build the transfer, so this can't drift. */}
+          <View style={[styles.feeCard, { borderColor: theme.colors.outline, backgroundColor: theme.colors.elevation.level1 }]}>
+            <Text variant="labelLarge" style={{ color: theme.colors.onSurface }}>Fees</Text>
+            <View style={styles.feeRow}>
+              <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>Cost to your club</Text>
+              <Text variant="bodyMedium" style={{ fontWeight: '700', color: theme.colors.onSurface }}>$0.00</Text>
+            </View>
+            <View style={styles.feeRow}>
+              <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>Buyer pays, per order</Text>
+              <Text variant="bodyMedium" style={{ fontWeight: '700', color: theme.colors.onSurface }}>{SERVICE_FEE_LABEL}</Text>
+            </View>
+            <Text variant="bodySmall" style={{ marginTop: 8, lineHeight: 18, color: theme.colors.onSurfaceVariant }}>
+              {SELLER_FEE_DISCLOSURE}
+            </Text>
+            <Button
+              mode="text"
+              compact
+              onPress={() => Linking.openURL(FEE_SCHEDULE_URL).catch(() => setError('Could not open the fee schedule.'))}
+              style={{ alignSelf: 'flex-start', marginTop: 4 }}
+            >
+              View full fee schedule
+            </Button>
+          </View>
+
           <Pressable onPress={() => setAgree(!agree)} style={styles.consentRow}>
-            <Checkbox
+            <Checkbox.Android
               status={agree ? 'checked' : 'unchecked'}
               onPress={() => setAgree(!agree)}
               color={theme.colors.primary}
               uncheckedColor={theme.colors.onSurfaceVariant}
             />
             <Text variant="bodySmall" style={styles.consentText}>
-              I confirm the information is accurate and I agree to the RallySphere and Finix merchant terms, fee schedule, and authorize a credit/identity check.
+              I confirm the information above is accurate, and I authorize a credit and identity check.
             </Text>
           </Pressable>
+
+          {/* Kept out of the checkbox row above so a link tap can't toggle the
+              checkbox, and so the sentence stays verbatim rather than being
+              folded into our own copy. */}
+          {tosLine()}
+
           <Button mode="contained" loading={busy} disabled={busy || !agree} onPress={submitApplication} style={styles.next}>Submit application</Button>
         </View>
       )}
@@ -724,7 +974,12 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
               the hosted form can't be attached to a merchant the API created.
               So we tell them exactly what's wanted and take it from there. */}
           {!statusActive && actionRequired && (
-            <FinixActionRequiredCard action={actionRequired} style={{ marginBottom: 12, alignSelf: 'stretch' }} />
+            <FinixActionRequiredCard
+              action={actionRequired}
+              clubId={club.id}
+              onResubmitted={refreshStatus}
+              style={{ marginBottom: 12, alignSelf: 'stretch' }}
+            />
           )}
           {!statusActive && (
             <Button mode="outlined" loading={busy} disabled={busy} onPress={refreshStatus} icon="refresh" style={styles.next}>Check status</Button>
@@ -735,105 +990,20 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
 
             {error && <HelperText type="error" visible style={{ marginTop: 8 }}>{error}</HelperText>}
           </ScrollView>
+          </KeyboardAvoidingView>
         </Modal>
       </Portal>
     </View>
   );
 }
 
-// Secure text field (SSN / EIN) with a show/hide toggle.
-function SecureField({ label, value, onChangeText, fieldBg }: { label: string; value: string; onChangeText: (t: string) => void; fieldBg: any }) {
-  const [hidden, setHidden] = useState(true);
-  return (
-    <TextInput
-      mode="outlined"
-      label={label}
-      value={value}
-      onChangeText={onChangeText}
-      secureTextEntry={hidden}
-      keyboardType="number-pad"
-      autoCapitalize="none"
-      autoCorrect={false}
-      textContentType="oneTimeCode"
-      right={<TextInput.Icon icon={hidden ? 'eye-off' : 'eye'} forceTextInputFocus={false} onPress={() => setHidden((h) => !h)} />}
-      style={[styles.input, fieldBg]}
-    />
-  );
-}
 
-// Date field backed by the native date picker. Tap to reveal an inline spinner.
-function DateField({ label, value, onChange, fieldBg, maximumDate, dark }: { label: string; value: Date | null; onChange: (d: Date) => void; fieldBg: any; maximumDate?: Date; dark?: boolean }) {
-  const [open, setOpen] = useState(false);
-  const display = value ? value.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : '';
-  return (
-    <View>
-      <Pressable onPress={() => setOpen((o) => !o)}>
-        <View pointerEvents="none">
-          <TextInput mode="outlined" label={label} editable={false} value={display} right={<TextInput.Icon icon="calendar" />} style={[styles.input, fieldBg]} />
-        </View>
-      </Pressable>
-      {open && (
-        <View style={[styles.pickerWrap, fieldBg]}>
-          <DateTimePicker
-            value={value || new Date(2000, 0, 1)}
-            mode="date"
-            display="spinner"
-            maximumDate={maximumDate}
-            themeVariant={dark ? 'dark' : 'light'}
-            onChange={(_e, d) => {
-              if (Platform.OS === 'android') setOpen(false);
-              if (d) onChange(d);
-            }}
-          />
-          {Platform.OS === 'ios' && (
-            <Button mode="contained" onPress={() => setOpen(false)} style={{ alignSelf: 'flex-end', marginTop: 4 }} compact>Done</Button>
-          )}
-        </View>
-      )}
-    </View>
-  );
-}
 
 function ReviewRow({ label, value }: { label: string; value?: string }) {
   return (
     <View style={styles.reviewRow}>
       <Text variant="bodySmall" style={{ opacity: 0.7 }}>{label}</Text>
       <Text variant="bodyMedium">{value || '—'}</Text>
-    </View>
-  );
-}
-
-// One of the two setup paths on the opening fork. Deliberately verbose about
-// the consequence — who handles Finix's follow-up questions — because that's
-// the only difference the club actually feels.
-function PathCard({
-  title, subtitle, actionLabel, recommended, onPress, loading, disabled,
-}: {
-  title: string;
-  subtitle: string;
-  actionLabel: string;
-  recommended?: boolean;
-  onPress: () => void;
-  loading?: boolean;
-  disabled?: boolean;
-}) {
-  const theme = useTheme();
-  return (
-    <View style={[styles.pathCard, { borderColor: recommended ? theme.colors.primary : theme.colors.outline, backgroundColor: theme.colors.elevation.level1 }]}>
-      <View style={styles.pathHead}>
-        <Text variant="titleSmall" style={{ fontWeight: '600', flex: 1, color: theme.colors.onSurface }}>{title}</Text>
-        {recommended && (
-          <Chip compact mode="flat" textStyle={{ fontSize: 11 }} style={{ backgroundColor: theme.colors.primaryContainer }}>
-            Recommended
-          </Chip>
-        )}
-      </View>
-      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, lineHeight: 18, marginTop: 4 }}>
-        {subtitle}
-      </Text>
-      <Button mode={recommended ? 'contained' : 'outlined'} onPress={onPress} loading={loading} disabled={disabled} style={{ marginTop: 12 }}>
-        {actionLabel}
-      </Button>
     </View>
   );
 }
@@ -901,19 +1071,33 @@ const styles = StyleSheet.create({
   subh: { marginTop: 12, marginBottom: 4, opacity: 0.8 },
   note: { marginBottom: 12, opacity: 0.7, lineHeight: 18 },
   input: { marginBottom: 12 },
+  // Reads as not-yet-ready without being dead: still pressable, so tapping it
+  // explains what's outstanding instead of doing nothing.
+  incompleteBtn: { opacity: 0.55 },
+  // Enough room for the 2–3 sentences underwriting actually wants. textAlignVertical
+  // keeps the caret at the top on Android instead of vertically centred.
+  multiline: { minHeight: 96, textAlignVertical: 'top' },
   row: { flexDirection: 'row', gap: 10 },
   flex1: { flex: 1 },
   flex2: { flex: 2 },
   next: { marginTop: 16 },
   consentRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, paddingRight: 8 },
   consentText: { flex: 1, fontSize: 11, lineHeight: 15, opacity: 0.75 },
+  // Finix-mandated notices. Slightly more present than `note` — they're a
+  // disclosure requirement, not a hint, and must not read as fine print.
+  requiredNotice: { marginBottom: 12, lineHeight: 18, opacity: 0.9 },
+  feeCard: { padding: 14, marginBottom: 14, borderRadius: 12, borderWidth: 1 },
+  feeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5 },
+  tosLine: { marginBottom: 4, lineHeight: 18 },
+  link: { textDecorationLine: 'underline' },
   reviewRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
   pickerWrap: { borderRadius: 10, marginTop: -4, marginBottom: 12, paddingHorizontal: 8 },
   dropdown: { marginTop: -6, marginBottom: 12, borderRadius: 10, borderWidth: 1, overflow: 'hidden' },
   dropdownItem: { paddingVertical: 14, paddingHorizontal: 16 },
   stageRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginBottom: 10, borderRadius: 12, borderWidth: 1 },
-  pathCard: { padding: 16, marginBottom: 12, borderRadius: 12, borderWidth: 1 },
-  pathHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  ownerCard: { padding: 14, marginTop: 10, borderRadius: 12, borderWidth: 1 },
+  ownerHead: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  ownerTally: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, borderRadius: 10, borderWidth: 1, marginBottom: 4 },
   stageBadge: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   stageBadgeText: { fontSize: 14, fontWeight: '700' },
   modalCard: { margin: 16, borderRadius: 16, overflow: 'hidden' },

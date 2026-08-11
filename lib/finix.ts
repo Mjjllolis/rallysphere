@@ -66,13 +66,17 @@ const DEFAULT_TOKENIZE_URL = 'https://rally-sphere.web.app/checkout/tokenize.htm
 
 /**
  * Build the URL to load in the checkout WebView. The page hosts the Finix
- * Tokenization Form(s) for card + ACH + wallets; it postMessages a token back
- * to the RN host on success.
+ * Tokenization Form(s) for card + wallets; it postMessages a token back to the
+ * RN host on success.
+ *
+ * Buyer-side ACH is NOT offered — we declare zero ACH volume to Finix
+ * underwriting, so accepting it here would misrepresent the business. Note that
+ * `bankOnly` below is a different thing entirely: it collects a CLUB's payout
+ * (settlement) bank account during onboarding, which is required.
  */
 export function buildFinixTokenizeUrl(opts: {
   context: FinixTokenizationContext;
   amount?: number;
-  ach?: boolean;
   wallets?: boolean;
   walletsOnly?: boolean;
   /** Render ONLY the bank-account form — for collecting a club's payout bank during onboarding. */
@@ -90,7 +94,6 @@ export function buildFinixTokenizeUrl(opts: {
   // Merchant id seeds Finix.Auth() in the form so it can produce a fraud session id.
   if (opts.context.merchantId) p.set('merchantId', opts.context.merchantId);
   if (opts.amount != null) p.set('amount', opts.amount.toFixed(2));
-  if (opts.ach) p.set('ach', 'true');
   if (opts.wallets) p.set('wallets', 'true');
   if (opts.walletsOnly) p.set('walletsOnly', 'true');
   if (opts.bankOnly) p.set('bankOnly', 'true');
@@ -155,7 +158,7 @@ export interface CreateEventTransactionParams {
   savedPaymentInstrumentId?: string;
   savePaymentMethod?: boolean;
   fraudSessionId?: string;
-  paymentMethod?: 'card' | 'ach' | 'apple_pay' | 'google_pay';
+  paymentMethod?: 'card' | 'apple_pay' | 'google_pay';
   idempotencyKey?: string;
   /** Staff-only: route this charge to Finix sandbox (enforced server-side). */
   debug?: boolean;
@@ -231,7 +234,7 @@ export interface CreateStoreTransactionParams {
   savedPaymentInstrumentId?: string;
   savePaymentMethod?: boolean;
   fraudSessionId?: string;
-  paymentMethod?: 'card' | 'ach' | 'apple_pay' | 'google_pay';
+  paymentMethod?: 'card' | 'apple_pay' | 'google_pay';
   idempotencyKey?: string;
   /** Staff-only: route this charge to Finix sandbox (enforced server-side). */
   debug?: boolean;
@@ -409,7 +412,7 @@ export interface SubMerchantStatusResult {
 }
 
 export const getSubMerchantStatus = async (
-  args: { identityId?: string; merchantId?: string; clubId?: string }
+  args: { identityId?: string; merchantId?: string; clubId?: string; debug?: boolean }
 ): Promise<SubMerchantStatusResult> => {
   try {
     if (!auth.currentUser) {
@@ -471,8 +474,9 @@ export interface FinixPersonInput {
 }
 
 export interface FinixUnderwritingInput {
-  annualAchVolume?: number;
-  averageAchTransferAmount?: number;
+  // No ACH fields — RallySphere accepts cards and wallets only, and the server
+  // reports zero ACH volume unconditionally. Adding them back here would let a
+  // caller contradict what underwriting has been told.
   averageCardTransferAmount?: number;
   businessDescription?: string;
   refundPolicy?: string;
@@ -490,7 +494,18 @@ export interface CreateClubIdentityParams {
   controlPerson: FinixPersonInput;
   owners?: FinixPersonInput[];
   underwriting?: FinixUnderwritingInput;
-  consent?: { ip?: string; userAgent?: string; merchantAgreementAccepted?: boolean; timestamp?: string };
+  // Finix records both consents on the Identity, each with its own IP /
+  // timestamp / user-agent. `ip` is ignored if sent — the callable takes it
+  // from the request, since a client can't see its own address.
+  consent?: {
+    ip?: string;
+    userAgent?: string;
+    timestamp?: string;
+    merchantAgreementAccepted?: boolean;
+    creditCheckAllowed?: boolean;
+  };
+  /** Staff-only: route this onboarding to Finix sandbox (enforced server-side). */
+  debug?: boolean;
 }
 
 export const createClubIdentity = async (
@@ -508,6 +523,36 @@ export const createClubIdentity = async (
 };
 
 /**
+ * Send a document Finix asked for during underwriting (a voided check, bank
+ * statement, photo ID…). `fileType` must be the `fileType` from the matching
+ * FinixActionItem — that's Finix's own enum, echoed back from the verification
+ * outcome, so passing it through is what links the upload to the request.
+ *
+ * Resubmits for review by default: uploading alone does not reopen underwriting.
+ */
+export const uploadClubDocument = async (params: {
+  clubId: string;
+  fileType: string;
+  contentBase64: string;
+  fileName?: string;
+  mimeType?: string;
+  displayName?: string;
+  resubmit?: boolean;
+  /** Staff-only: route this upload to Finix sandbox (enforced server-side). */
+  debug?: boolean;
+}): Promise<{ success: boolean; fileId?: string; status?: string | null; error?: string }> => {
+  try {
+    if (!auth.currentUser) return { success: false, error: 'You must be logged in' };
+    const fn = httpsCallable(functions, 'uploadClubDocument');
+    const result = await fn(params);
+    const data = result.data as any;
+    return { success: true, fileId: data.fileId, status: data.status };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to upload document' };
+  }
+};
+
+/**
  * Add a beneficial owner (>=25%) to a club that already has an identity.
  * Finix requires every such owner on the application; the in-app wizard only
  * collects one person, so this repairs clubs rejected for a missing co-owner.
@@ -516,12 +561,13 @@ export const createClubIdentity = async (
 export const addClubBeneficialOwner = async (
   clubId: string,
   owner: FinixPersonInput,
-  resubmit = true
+  resubmit = true,
+  debug?: boolean
 ): Promise<{ success: boolean; ownerIdentityId?: string; verification?: any; error?: string }> => {
   try {
     if (!auth.currentUser) return { success: false, error: 'You must be logged in' };
     const fn = httpsCallable(functions, 'addClubBeneficialOwner');
-    const result = await fn({ clubId, owner, resubmit });
+    const result = await fn({ clubId, owner, resubmit, debug });
     const data = result.data as any;
     return { success: true, ownerIdentityId: data.ownerIdentityId, verification: data.verification };
   } catch (error: any) {
@@ -534,12 +580,13 @@ export const addClubBeneficialOwner = async (
  * does NOT reopen underwriting on its own — a new Verification must be created.
  */
 export const resubmitClubVerification = async (
-  clubId: string
+  clubId: string,
+  debug?: boolean
 ): Promise<{ success: boolean; verificationId?: string; state?: string; error?: string }> => {
   try {
     if (!auth.currentUser) return { success: false, error: 'You must be logged in' };
     const fn = httpsCallable(functions, 'resubmitClubVerification');
-    const result = await fn({ clubId });
+    const result = await fn({ clubId, debug });
     const data = result.data as any;
     return { success: true, verificationId: data.verificationId, state: data.state };
   } catch (error: any) {
@@ -550,12 +597,13 @@ export const resubmitClubVerification = async (
 export const addClubBankAccount = async (
   clubId: string,
   tokenId: string,
-  ssnLast4?: string
+  ssnLast4?: string,
+  debug?: boolean
 ): Promise<{ success: boolean; paymentInstrumentId?: string; last4?: string | null; error?: string }> => {
   try {
     if (!auth.currentUser) return { success: false, error: 'You must be logged in' };
     const fn = httpsCallable(functions, 'addClubBankAccount');
-    const result = await fn({ clubId, tokenId, ssnLast4 });
+    const result = await fn({ clubId, tokenId, ssnLast4, debug });
     const data = result.data as any;
     return { success: true, paymentInstrumentId: data.paymentInstrumentId, last4: data.last4 };
   } catch (error: any) {
@@ -564,12 +612,13 @@ export const addClubBankAccount = async (
 };
 
 export const provisionClubMerchant = async (
-  clubId: string
+  clubId: string,
+  debug?: boolean
 ): Promise<{ success: boolean; merchantId?: string; onboardingState?: string; error?: string }> => {
   try {
     if (!auth.currentUser) return { success: false, error: 'You must be logged in' };
     const fn = httpsCallable(functions, 'provisionClubMerchant');
-    const result = await fn({ clubId });
+    const result = await fn({ clubId, debug });
     const data = result.data as any;
     return { success: true, merchantId: data.merchantId, onboardingState: data.onboardingState };
   } catch (error: any) {
@@ -600,6 +649,15 @@ export interface ClubOnboardingFormLink {
   error?: string;
 }
 
+/**
+ * LEGACY (retired 2026-06-30). Mints/reads a Finix-hosted Onboarding Form.
+ *
+ * Nothing in the app calls this to START a flow any more — the in-app wizard is
+ * the only onboarding path. It survives for exactly two reasons: the
+ * rallysphere://finix-onboarding/return landing route still uses it to reconcile
+ * a club that came back from a form, and already-installed builds still call the
+ * callable. Do not wire it into new UI.
+ */
 export const getClubOnboardingFormLink = async (clubId: string): Promise<ClubOnboardingFormLink> => {
   try {
     if (!auth.currentUser) return { success: false, error: 'You must be logged in' };

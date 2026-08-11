@@ -28,12 +28,12 @@ const CONTENT: Record<Variant, { title: string; blocks: Block[] }> = {
       {
         icon: 'clipboard-text-outline',
         title: 'What we collect',
-        body: 'The card or bank account details you enter to pay. For bank (ACH) payments, that’s your account and routing numbers.',
+        body: 'The card details you enter to pay — the card number, expiry, and security code.',
       },
       {
         icon: 'shield-lock-outline',
         title: 'How it’s protected',
-        body: 'You enter them in a secure form hosted by Finix, our payment processor. Your card and bank numbers are turned into a one-time token and sent straight to Finix — they never pass through or get stored on RallySphere’s servers.',
+        body: 'You enter them in a secure form hosted by Finix, our payment processor. Your card number is turned into a one-time token and sent straight to Finix — it never passes through or gets stored on RallySphere’s servers.',
       },
       {
         icon: 'bank-outline',

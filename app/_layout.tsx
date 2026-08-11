@@ -1,7 +1,9 @@
 // app/_layout.tsx
 import '../lib/silence-logs';
 import React, { useEffect, useState, createContext, useContext, useMemo } from 'react';
-import { Platform, Linking, Alert, useColorScheme } from 'react-native';
+import { Platform, Linking, Alert, useColorScheme, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import SandboxBanner from '../components/SandboxBanner';
 import { Stack, useRouter } from 'expo-router';
 import { Provider as PaperProvider, MD3LightTheme, MD3DarkTheme } from 'react-native-paper';
 import { onAuthStateChange, type User } from '../lib/firebase';
@@ -370,21 +372,32 @@ export default function RootLayout() {
 
   const content = (
     <PaperProvider theme={theme}>
-      <Stack screenOptions={{ headerShown: false, animation: 'none' }} />
+      {/* Sandbox strip sits above the navigator so it survives every screen
+          change — it renders nothing unless staff have Debug on. */}
+      <View style={{ flex: 1 }}>
+        <SandboxBanner />
+        <Stack screenOptions={{ headerShown: false, animation: 'none' }} />
+      </View>
     </PaperProvider>
   );
 
   return (
-    <AuthContext.Provider value={{ user, isLoading: authLoading }}>
-      <ThemeContext.Provider value={{ isDark, themePreference, setThemePreference, isLoading: themeLoading }}>
-        <FavoritesProvider>
-          <CartProvider>
-            <DebugProvider>
-              {content}
-            </DebugProvider>
-          </CartProvider>
-        </FavoritesProvider>
-      </ThemeContext.Provider>
-    </AuthContext.Provider>
+    // SafeAreaProvider at the root: expo-router nests one around the navigator,
+    // but SandboxBanner renders OUTSIDE that, and useSafeAreaInsets throws
+    // without a provider above it. Nesting is harmless — each consumer reads
+    // its nearest provider, so existing screens are unaffected.
+    <SafeAreaProvider>
+      <AuthContext.Provider value={{ user, isLoading: authLoading }}>
+        <ThemeContext.Provider value={{ isDark, themePreference, setThemePreference, isLoading: themeLoading }}>
+          <FavoritesProvider>
+            <CartProvider>
+              <DebugProvider>
+                {content}
+              </DebugProvider>
+            </CartProvider>
+          </FavoritesProvider>
+        </ThemeContext.Provider>
+      </AuthContext.Provider>
+    </SafeAreaProvider>
   );
 }

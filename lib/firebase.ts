@@ -156,10 +156,16 @@ export interface Club {
     items: { code: string; label: string; action: 'upload' | 'correct' | 'unknown'; fileType?: string; fieldName?: string }[];
   };
   finixOnboardingDraft?: any;             // non-sensitive saved form for resume (no SSN/EIN/bank#)
-  // Which path this club took. 'hosted' = Finix-hosted Onboarding Form (the
-  // admin finishes it in a browser and handles Finix's later info requests
-  // themselves); anything else = the in-app wizard. Set once, at the fork.
+  // LEGACY. Which path this club took, back when a fork existed. 'hosted' was
+  // the Finix-hosted Onboarding Form, retired 2026-06-30; every club now uses
+  // the in-app wizard. Read-only now — kept so existing docs stay parseable,
+  // never written by new code.
   finixOnboardingMode?: 'in_app' | 'hosted';
+  // Which Finix environment this club's payout ids belong to. Stamped on the
+  // first write and enforced server-side by assertClubEnv — a sandbox merchant
+  // id does not exist in live, so mixing them silently breaks real charges.
+  // Absent on clubs onboarded before this existed; those are treated as live.
+  finixEnv?: 'sandbox' | 'live';
   // Hosted-form fields (also used by the legacy flow's leftovers)
   finixOnboardingFormId?: string;
   finixOnboardingFormStatus?: string;     // IN_PROGRESS / COMPLETED / UPDATE_REQUESTED

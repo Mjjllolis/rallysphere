@@ -19,14 +19,14 @@
 
     .pane { display: none; }
     .pane.active { display: block; }
-    #card-form, #ach-form { min-height: 180px; }
+    #card-form, #bank-form { min-height: 180px; }
 
     .wallet-row { display: flex; gap: 8px; margin-bottom: 12px; }
 
-    .ach-auth { background: #F1F5F9; border-radius: 8px; padding: 12px; margin-top: 12px; font-size: 12px; line-height: 1.4; color: #475569; }
-    body.dark .ach-auth { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.7); }
-    .ach-auth strong { display: block; margin-bottom: 6px; color: #0F172A; }
-    body.dark .ach-auth strong { color: #FFFFFF; }
+    .bank-auth { background: #F1F5F9; border-radius: 8px; padding: 12px; margin-top: 12px; font-size: 12px; line-height: 1.4; color: #475569; }
+    body.dark .bank-auth { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.7); }
+    .bank-auth strong { display: block; margin-bottom: 6px; color: #0F172A; }
+    body.dark .bank-auth strong { color: #FFFFFF; }
 
     .error { display: none; margin-top: 12px; padding: 10px; background: #FEF2F2; border-radius: 8px; color: #DC2626; font-size: 13px; }
     body.dark .error { background: rgba(239,68,68,0.12); color: #FCA5A5; }
@@ -78,9 +78,11 @@
 
     <div class="or-divider" id="wallet-divider" style="display: none;"><span>or</span></div>
 
+    <!-- Buyers pay by card or wallet only; there is no bank tab. The bank pane
+         below exists solely for bankOnly mode (a club's PAYOUT account during
+         merchant onboarding), which hides these tabs entirely. -->
     <div class="tabs" id="tabs">
       <div class="tab active" data-tab="card">Card</div>
-      <div class="tab" data-tab="ach" id="tab-ach" style="display:none;">Bank (ACH)</div>
     </div>
 
     <div id="pane-card" class="pane active">
@@ -88,16 +90,18 @@
       <button class="submit" id="btn-submit-card" disabled>Continue</button>
     </div>
 
-    <div id="pane-ach" class="pane">
-      <div id="ach-form"></div>
-      <div class="ach-auth" id="ach-auth-text">
-        <strong>ACH Authorization</strong>
-        By clicking Continue, I authorize RallySphere to electronically debit my bank account
-        for <span id="ach-amount">the amount shown above</span> as a one-time ACH debit.
-        I understand I may only revoke this authorization by contacting RallySphere
-        at <span id="support-email">support@rallysphere.com</span> at least 3 business days before the scheduled debit.
+    <!-- Payout-bank pane (bankOnly mode only). No debit authorization here: we
+         never debit this account, we deposit to it. -->
+    <div id="pane-bank" class="pane">
+      <div id="bank-form"></div>
+      <div class="bank-auth" id="bank-auth-text">
+        <strong>Payout bank authorization</strong>
+        By adding this account, I authorize RallySphere and its payment processor Finix
+        to deposit payout funds to this bank account and to verify it. I confirm I am
+        authorized to use this business bank account. Questions?
+        <span id="support-email">support@rallysphere.com</span>
       </div>
-      <button class="submit" id="btn-submit-ach">Continue</button>
+      <button class="submit" id="btn-submit-bank">Continue</button>
     </div>
 
     <div id="error" class="error"></div>
@@ -153,7 +157,6 @@
       const env = params.get('env') || 'sandbox';
       const appId = params.get('appId') || '';
       const merchantId = params.get('merchantId') || '';
-      const ach = params.get('ach') === 'true';
       const wallets = params.get('wallets') === 'true';
       // walletsOnly renders just the Apple Pay button (compact embed on a summary screen).
       const walletsOnly = params.get('walletsOnly') === 'true';
@@ -201,26 +204,18 @@
           });
         }
       }
-      // In bank-only mode (payout onboarding), show only the bank form and swap
-      // the debit-authorization copy for a payout-bank authorization.
+      // In bank-only mode (payout onboarding), show only the bank form.
       if (bankOnly) {
         ['tabs', 'wallet-divider', 'pane-card', 'wallets'].forEach(function (id) {
           var el = document.getElementById(id);
           if (el) el.style.display = 'none';
         });
-        var apane = document.getElementById('pane-ach');
-        if (apane) apane.classList.add('active');
-        var authText = document.getElementById('ach-auth-text');
-        if (authText) {
-          authText.innerHTML = '<strong>Payout bank authorization</strong>' +
-            'By adding this account, I authorize RallySphere and its payment processor Finix ' +
-            'to deposit payout funds to this bank account and to verify it. I confirm I am ' +
-            'authorized to use this business bank account.';
-        }
+        var bpane = document.getElementById('pane-bank');
+        if (bpane) bpane.classList.add('active');
       }
       // In wallets-only mode, hide everything except the Apple Pay button.
       if (walletsOnly) {
-        ['tabs', 'wallet-divider', 'pane-card', 'pane-ach', 'diag-panel', 'loading'].forEach(function (id) {
+        ['tabs', 'wallet-divider', 'pane-card', 'pane-bank', 'diag-panel', 'loading'].forEach(function (id) {
           var el = document.getElementById(id);
           if (el) el.style.display = 'none';
         });
@@ -229,23 +224,19 @@
         var wr = document.getElementById('wallets');
         if (wr) wr.style.margin = '0';
       }
-      diag('params-parsed', { env: env, hasAppId: !!appId, ach: ach, wallets: wallets, walletsOnly: walletsOnly, external: external, theme: theme });
+      diag('params-parsed', { env: env, hasAppId: !!appId, wallets: wallets, walletsOnly: walletsOnly, bankOnly: bankOnly, external: external, theme: theme });
 
-      // #support-email lives inside #ach-auth-text, which bankOnly mode rewrites
-      // above — so it may no longer exist. Guard it, or the whole init throws and
-      // the form freezes on "Loading…".
+      // #support-email lives inside the bank pane, which isn't rendered in every
+      // mode. Guard it, or the whole init throws and the form freezes on "Loading…".
       var supportEmailEl = document.getElementById('support-email');
       if (supportEmailEl) supportEmailEl.textContent = supportEmail;
-      // Name the exact debit amount in the ACH authorization for NACHA specificity.
-      if (amount) {
-        var achAmountEl = document.getElementById('ach-amount');
-        if (achAmountEl) achAmountEl.textContent = '$' + amount;
-      }
 
       if (external) {
         // Hide in-form submit buttons — parent sheet will trigger submit.
-        document.getElementById('btn-submit-card').style.display = 'none';
-        document.getElementById('btn-submit-ach').style.display = 'none';
+        var cardBtn = document.getElementById('btn-submit-card');
+        if (cardBtn) cardBtn.style.display = 'none';
+        var bankBtn = document.getElementById('btn-submit-bank');
+        if (bankBtn) bankBtn.style.display = 'none';
       }
 
       function postToNative(payload) {
@@ -389,17 +380,15 @@
       }, 5000);
       } // end if (!bankOnly) — card form skipped during payout-bank onboarding
 
-      // --- ACH / bank form (checkout ACH tab OR payout-bank onboarding) ---
+      // --- Bank form (payout-bank onboarding only) ---
       // NOTE: var (function-scoped), NOT let — the submit click handler lives
-      // outside this `if (!walletsOnly)` block and must be able to see achForm.
+      // outside this `if (!walletsOnly)` block and must be able to see bankForm.
       // With `let` it was block-scoped and the handler threw ReferenceError,
       // which is why the Continue button silently did nothing.
-      var achForm = null;
-      var achFormHasErrors = true;  // assume invalid until the form reports otherwise
-      var achFormTouched = false;   // has the user interacted / has onUpdate fired?
-      if (ach || bankOnly) {
-        const tabAch = document.getElementById('tab-ach');
-        if (tabAch) tabAch.style.display = 'block';
+      var bankForm = null;
+      var bankFormHasErrors = true;  // assume invalid until the form reports otherwise
+      var bankFormTouched = false;   // has the user interacted / has onUpdate fired?
+      if (bankOnly) {
         // Always clear the bankOnly loading overlay no matter what happens below,
         // so the screen can never freeze on "Loading…".
         var clearBankLoading = function () {
@@ -425,15 +414,15 @@
           }
         } else {
           try {
-            achForm = bankFormFactory('ach-form', {
+            bankForm = bankFormFactory('bank-form', {
               ...commonOptions,
               onLoad: () => { if (bankOnly) { clearBankLoading(); postToNative({ type: 'ready', ready: true }); } },
               onUpdate: (state, metadata, formHasErrors) => {
                 // Track validity but DON'T disable the button — a dead button gives
                 // the user no feedback. We validate on click and show a message.
-                achFormHasErrors = !!formHasErrors;
-                achFormTouched = true;
-                diag('ach-form-update', { formHasErrors: !!formHasErrors });
+                bankFormHasErrors = !!formHasErrors;
+                bankFormTouched = true;
+                diag('bank-form-update', { formHasErrors: !!formHasErrors });
               },
             });
             diag('bank-form-created', { bankOnly: bankOnly });
@@ -642,27 +631,10 @@
       });
 
       // --- External submit trigger ---
-      // Parent WebView calls window.__submit() to tokenize the active tab.
+      // Parent WebView calls window.__submit() to tokenize the card form. Only
+      // checkout uses external mode, and checkout is card-only — the payout-bank
+      // flow drives its own in-page button below.
       window.__submit = function () {
-        const activeTab = document.querySelector('.tab.active');
-        const which = activeTab ? activeTab.getAttribute('data-tab') : 'card';
-        if (which === 'ach' && achForm) {
-          clearError();
-          achForm.submit(env, appId, function (err, res) {
-            if (err) {
-              showError(err.message || 'Bank account tokenization failed');
-              postToNative({ type: 'error', message: err.message || 'ACH tokenization failed' });
-              return;
-            }
-            postToNative({
-              type: 'token',
-              tokenId: res?.data?.id,
-              paymentMethod: 'ach',
-              fraudSessionId: getFraudSessionId(),
-            });
-          });
-          return;
-        }
         if (cardForm) {
           clearError();
           cardForm.submit(env, appId, function (err, res) {
@@ -707,53 +679,41 @@
       window.addEventListener('load', function () { reportHeight(true); });
       setTimeout(function () { reportHeight(true); }, 100);
       setTimeout(function () { reportHeight(true); }, 1000);
-      // After 3s, stop the interval poll — at this point the form is loaded
-      // and the only legitimate height change is a tab switch (Card↔ACH),
-      // which we report explicitly below.
+      // After 3s, stop the interval poll — at this point the form is loaded and
+      // there is nothing left that legitimately changes the height.
       setTimeout(function () {
         settled = true;
         clearInterval(settleInterval);
         reportHeight(true);
       }, 3000);
 
-      // Broadcast which tab is currently active so parent can update button label
-      // (e.g. "Pay $X" vs "Authorize & Pay").
-      function broadcastTab() {
-        const activeTab = document.querySelector('.tab.active');
-        const which = activeTab ? activeTab.getAttribute('data-tab') : 'card';
-        postToNative({ type: 'tab', paymentMethod: which === 'ach' ? 'ach' : 'card' });
-      }
-      document.querySelectorAll('.tab').forEach(function (t) {
-        t.addEventListener('click', broadcastTab);
-      });
-
-      // --- Submit ACH ---
-      const btnAch = document.getElementById('btn-submit-ach');
-      if (btnAch) {
-        btnAch.addEventListener('click', function () {
-          diag('ach-submit-click', { hasForm: !!achForm, touched: achFormTouched, hasErrors: achFormHasErrors });
-          if (!achForm) return;
+      // --- Submit payout bank (bankOnly mode) ---
+      const btnBank = document.getElementById('btn-submit-bank');
+      if (btnBank) {
+        btnBank.addEventListener('click', function () {
+          diag('bank-submit-click', { hasForm: !!bankForm, touched: bankFormTouched, hasErrors: bankFormHasErrors });
+          if (!bankForm) return;
           clearError();
           // Give the user real feedback instead of a silent no-op when the form
           // is incomplete or invalid.
-          if (achFormTouched && achFormHasErrors) {
+          if (bankFormTouched && bankFormHasErrors) {
             showError('Please enter a valid account number, routing number, and account type.');
             return;
           }
           this.disabled = true;
-          achForm.submit(env, appId, function (err, res) {
+          bankForm.submit(env, appId, function (err, res) {
             if (err) {
-              diag('ach-submit-error', { msg: String(err && (err.message || err)) });
+              diag('bank-submit-error', { msg: String(err && (err.message || err)) });
               showError(err.message || 'Bank account tokenization failed');
-              btnAch.disabled = false;
-              postToNative({ type: 'error', message: err.message || 'ACH tokenization failed' });
+              btnBank.disabled = false;
+              postToNative({ type: 'error', message: err.message || 'Bank account tokenization failed' });
               return;
             }
-            diag('ach-submit-token', { hasId: !!(res && res.data && res.data.id) });
+            diag('bank-submit-token', { hasId: !!(res && res.data && res.data.id) });
             postToNative({
               type: 'token',
               tokenId: res?.data?.id,
-              paymentMethod: 'ach',
+              paymentMethod: 'bank',
               fraudSessionId: getFraudSessionId(),
             });
           });

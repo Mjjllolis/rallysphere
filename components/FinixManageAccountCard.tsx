@@ -1,24 +1,30 @@
 // components/FinixManageAccountCard.tsx
 // The club's permanent door to Finix — shown once payouts are set up, not just
-// during onboarding.
+// during onboarding. It has to stay reachable forever: verification requests,
+// document re-checks and re-verifications all land AFTER approval, which is
+// exactly when an onboarding-only entry point has already disappeared.
 //
 // There is no Finix login we can provision for a sub-merchant: Finix's Users API
 // issues API key pairs, and Dashboard team invites are scoped to OUR whole
-// platform account. What a club CAN have is a hosted Onboarding Form link, which
-// is a short-lived bearer-token URL we mint on demand. So the "portal" is this
-// button, and it has to stay reachable forever — verification requests, document
-// re-checks and re-verifications all land AFTER approval, which is exactly when
-// an onboarding-only entry point has already disappeared.
+// platform account. Hosted Onboarding Form links used to fill that gap, but that
+// path was retired (2026-06-30) — so the club's self-serve surface is now the
+// action list below plus a Dashboard invite we provision by hand.
 import React, { useState } from 'react';
-import { View, StyleSheet, Linking } from 'react-native';
-import { Text, Button, useTheme, HelperText } from 'react-native-paper';
-import { getClubOnboardingFormLink, type FinixActionRequired } from '../lib/finix';
+import { View, StyleSheet, Linking, ScrollView, useWindowDimensions } from 'react-native';
+import { Text, Button, useTheme, HelperText, Portal, Modal, IconButton } from 'react-native-paper';
+import { addClubBeneficialOwner, type FinixActionRequired } from '../lib/finix';
 import type { Club } from '../lib/firebase';
 import FinixActionRequiredCard from './FinixActionRequiredCard';
+import { useDebugLogs } from '../lib/debugContext';
+import FinixOwnerForm, {
+  emptyFinixOwner,
+  finixOwnerValid,
+  toFinixOwnerInput,
+  type FinixOwnerDraft,
+} from './FinixOwnerForm';
 
-// Finix's merchant-facing dashboard. This is the seller's ongoing account —
-// transactions, settlements, disputes, documents — and is a different thing
-// from the hosted onboarding form link (a one-off verification page).
+// Finix's merchant-facing dashboard — the seller's ongoing account: transactions,
+// settlements, disputes, documents.
 //
 // It is NOT self-serve: a Dashboard user has to exist for this merchant before
 // the owner can sign in, and Finix exposes no API to create one — the invite is
@@ -38,20 +44,38 @@ interface Props {
 
 export default function FinixManageAccountCard({ club, onStatusChange, style }: Props) {
   const theme = useTheme();
-  const [busy, setBusy] = useState(false);
+  const { debugLogs } = useDebugLogs();
+  const { height: winH } = useWindowDimensions();
   const [error, setError] = useState<string | null>(null);
   // Informational, not a failure — e.g. no mail client to hand off to.
   const [notice, setNotice] = useState<string | null>(null);
-  const [action, setAction] = useState<FinixActionRequired | null>(
-    (club.finixActionRequired as FinixActionRequired) || null
-  );
+  // Derived, not state: the webhook writes finixActionRequired onto the club and
+  // the parent refetches after onStatusChange, so reading the prop each render is
+  // what keeps this current. Held in state it would freeze at the first value.
+  const action = (club.finixActionRequired as FinixActionRequired) || null;
 
-  // Finix refuses to generate a link once a form is Completed (409). It only
-  // reopens when underwriting asks for something, which flips the form back to
-  // UPDATE_REQUESTED. So offer the form link only when there's genuinely
-  // something to open — otherwise the button is guaranteed to fail.
-  const hosted = club.finixOnboardingMode === 'hosted';
-  const formOpenable = hosted && (!!action || club.finixOnboardingFormStatus !== 'COMPLETED');
+  // "Add an owner" sheet.
+  const [ownerOpen, setOwnerOpen] = useState(false);
+  const [ownerBusy, setOwnerBusy] = useState(false);
+  const [ownerAdded, setOwnerAdded] = useState(false);
+  const [newOwner, setNewOwner] = useState<FinixOwnerDraft>(emptyFinixOwner());
+
+  const submitOwner = async () => {
+    setOwnerBusy(true);
+    setError(null);
+    // resubmit defaults to true server-side: adding an owner changes who
+    // underwriting has to check, so it needs a fresh Verification to take effect.
+    const res = await addClubBeneficialOwner(club.id, toFinixOwnerInput(newOwner), true, debugLogs);
+    setOwnerBusy(false);
+    if (!res.success) {
+      setError(res.error || 'Could not add that owner. Try again.');
+      return;
+    }
+    setOwnerOpen(false);
+    setNewOwner(emptyFinixOwner());
+    setOwnerAdded(true);
+    onStatusChange?.();
+  };
 
   // Raw Finix onboarding_state means nothing to a club owner. Say what it means
   // for them and, crucially, whether the ball is in their court.
@@ -68,6 +92,7 @@ export default function FinixManageAccountCard({ club, onStatusChange, style }: 
     if (club.finixMerchantId) {
       return { label: 'In review', detail: 'Finix is reviewing your application — usually 1–2 business days. We’ll notify you.', tone: 'wait' };
     }
+    // Legacy: clubs that started on the retired hosted form and never finished.
     if (club.finixOnboardingFormId) {
       return { label: 'Not finished', detail: 'Your application hasn’t been submitted yet.', tone: 'act' };
     }
@@ -76,25 +101,6 @@ export default function FinixManageAccountCard({ club, onStatusChange, style }: 
   const status = statusLine();
   const toneColor =
     status.tone === 'good' ? '#10B981' : status.tone === 'act' ? theme.colors.error : theme.colors.onSurfaceVariant;
-
-  const open = async () => {
-    setBusy(true);
-    setError(null);
-    const res = await getClubOnboardingFormLink(club.id);
-    if (!res.success) {
-      setError(res.error || 'Could not open Finix');
-      setBusy(false);
-      return;
-    }
-    setAction(res.actionRequired || null);
-    if (res.linkUrl) {
-      await Linking.openURL(res.linkUrl).catch(() => setError('Could not open the Finix page. Try again.'));
-    } else {
-      setError('Nothing to review at Finix right now.');
-    }
-    setBusy(false);
-    onStatusChange?.();
-  };
 
   return (
     <View style={[styles.card, { borderColor: theme.colors.outline, backgroundColor: theme.colors.elevation.level1 }, style]}>
@@ -109,27 +115,43 @@ export default function FinixManageAccountCard({ club, onStatusChange, style }: 
         {status.detail}
       </Text>
       <Text variant="bodySmall" style={{ marginTop: 8, color: theme.colors.onSurfaceVariant, lineHeight: 18 }}>
-        {formOpenable
-          ? 'Finix processes your payments and verifies your club. Open your Finix page to finish up or respond to anything they ask for.'
-          : hosted
-          ? 'Finix processes your payments and verifies your club. If they need anything from you later, it’ll appear here and you can send it to them directly.'
-          : 'Finix processes your payments and verifies your club. If they ever need documents from you, we’ll show them here and pass them along.'}
+        Finix processes your payments and verifies your club. If they ever need anything from you,
+        it’ll appear here — corrections you can make yourself, documents we’ll pass along for you.
       </Text>
 
       {action && (
         <FinixActionRequiredCard
           action={action}
-          onResolve={hosted ? open : undefined}
-          resolveLabel="Open my Finix page"
-          loading={busy}
+          // Corrections happen in Payment Profile; this gives the club the
+          // re-review button, since fixing details alone won't reopen
+          // underwriting — Finix only re-reviews on a new Verification.
+          clubId={club.id}
+          onResubmitted={onStatusChange}
           style={{ marginTop: 12 }}
         />
       )}
 
-      {formOpenable && !action && (
-        <Button mode="outlined" icon="open-in-new" onPress={open} loading={busy} disabled={busy} style={{ marginTop: 12 }}>
-          Open my Finix page
-        </Button>
+      {/* Beneficial owners. Finix requires every 25%+ owner on the application,
+          and ownership changes after approval — a new partner buys in, a founder
+          is bought out. Without this the only fix is a support ticket. */}
+      {club.finixMerchantId && (
+        <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.outline }}>
+          <Text variant="titleSmall" style={{ fontWeight: '600', color: theme.colors.onSurface }}>
+            Business owners
+          </Text>
+          <Text variant="bodySmall" style={{ marginTop: 4, color: theme.colors.onSurfaceVariant, lineHeight: 18 }}>
+            Finix requires everyone who owns 25% or more of the business to be on file. Add anyone who
+            isn’t — payouts can be paused if the list is incomplete.
+          </Text>
+          <Button mode="outlined" icon="account-plus-outline" onPress={() => setOwnerOpen(true)} style={{ marginTop: 12 }}>
+            Add an owner
+          </Button>
+          {ownerAdded && (
+            <Text variant="bodySmall" style={{ marginTop: 8, fontWeight: '600', color: theme.colors.onSurface }}>
+              Owner added and sent to Finix for review.
+            </Text>
+          )}
+        </View>
       )}
 
       {/* Ongoing account access, available on both paths once a merchant exists. */}
@@ -179,6 +201,42 @@ export default function FinixManageAccountCard({ club, onStatusChange, style }: 
         </Text>
       )}
       {error && <HelperText type="error" visible>{error}</HelperText>}
+
+      {/* Add-an-owner sheet. Same form the onboarding wizard uses, so the two
+          can't drift into asking for different fields. */}
+      <Portal>
+        <Modal
+          visible={ownerOpen}
+          onDismiss={() => { if (!ownerBusy) { setOwnerOpen(false); setError(null); } }}
+          contentContainerStyle={[styles.modalCard, { backgroundColor: theme.dark ? '#131D33' : '#FFFFFF', borderColor: theme.colors.outline, borderWidth: StyleSheet.hairlineWidth }]}
+        >
+          <ScrollView style={{ maxHeight: winH * 0.8 }} contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
+            <View style={styles.modalHead}>
+              <Text variant="titleMedium" style={{ fontWeight: 'bold', flex: 1, color: theme.colors.onSurface }}>
+                Add an owner
+              </Text>
+              <IconButton icon="close" size={22} style={{ margin: 0 }} disabled={ownerBusy} onPress={() => { setOwnerOpen(false); setError(null); }} />
+            </View>
+            <Text variant="bodySmall" style={{ marginBottom: 12, color: theme.colors.onSurfaceVariant, lineHeight: 18 }}>
+              Anyone owning 25% or more of the business. Adding them sends the account back to Finix for
+              review — payouts keep working while they check.
+            </Text>
+
+            <FinixOwnerForm value={newOwner} onChange={setNewOwner} />
+
+            <Button
+              mode="contained"
+              loading={ownerBusy}
+              disabled={ownerBusy || !finixOwnerValid(newOwner)}
+              onPress={submitOwner}
+              style={{ marginTop: 16 }}
+            >
+              Add owner
+            </Button>
+            {error && <HelperText type="error" visible>{error}</HelperText>}
+          </ScrollView>
+        </Modal>
+      </Portal>
     </View>
   );
 }
@@ -187,4 +245,6 @@ const styles = StyleSheet.create({
   card: { padding: 16, borderRadius: 12, borderWidth: 1 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   dot: { width: 8, height: 8, borderRadius: 4 },
+  modalCard: { margin: 16, borderRadius: 16, overflow: 'hidden' },
+  modalHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
 });

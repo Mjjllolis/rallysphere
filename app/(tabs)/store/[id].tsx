@@ -24,6 +24,7 @@ import { useFavorites } from '../../../lib/favoritesContext';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import StorePaymentSheet from '../../../components/StorePaymentSheet';
+import { calcServiceFee } from '../../../constants/fees';
 
 const { width } = Dimensions.get('window');
 
@@ -123,10 +124,8 @@ export default function StoreItemDetailScreen() {
     const shipping = deliveryMethod === 'shipping' ? (item.shippingCost || 0) : 0;
     const subtotal = itemTotal + shipping;
 
-    // Processing fee: 10% + $0.29 (matches event tickets and server-side charge)
-    const PROCESSING_FEE_PERCENTAGE = 0.10;
-    const PROCESSING_FEE_FIXED = 0.29;
-    const processingFee = (subtotal * PROCESSING_FEE_PERCENTAGE) + PROCESSING_FEE_FIXED;
+    // Matches event tickets and the server-side charge — same constants.
+    const processingFee = calcServiceFee(subtotal);
 
     const total = subtotal + processingFee;
 

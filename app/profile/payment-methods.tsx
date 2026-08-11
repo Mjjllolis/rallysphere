@@ -206,7 +206,6 @@ export default function PaymentMethodsScreen() {
     if (!finixContext || !addOpen) return null;
     return buildFinixTokenizeUrl({
       context: finixContext,
-      ach: false,            // saved cards only — ACH save UX is different
       wallets: false,        // wallets are inherently single-use
       external: true,        // we drive submit from the parent button
       theme: isDark ? 'dark' : 'light',

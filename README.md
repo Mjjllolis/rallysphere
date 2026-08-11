@@ -20,10 +20,10 @@ RallySphere uses **Finix** for payments and payouts (decision locked 2026-04-21)
 
 | Area | Decision |
 |---|---|
-| Sub-merchant onboarding | Finix **Hosted Onboarding Forms** (Persona selfie + Gov ID) |
+| Sub-merchant onboarding | **In-app wizard** against the Finix API. Hosted Onboarding Forms were retired 2026-06-30 — because we own the form, we also own Finix's required language (see `constants/legalDocs.ts`) |
 | Card tokenization | **WebView + Finix Tokenization Form** hosted on Firebase Hosting at `/checkout/tokenize.html` |
-| Buyer fees | **Supplemental Fee** — keep 10% + $0.29 passed to buyer |
-| ACH | **Included at launch** with NACHA authorization language |
+| Buyer fees | **Supplemental Fee** — 10% + $0.29 passed to buyer; club receives 100% of its listed price (`constants/fees.ts`) |
+| ACH | **Not offered.** Buyers pay by card or wallet only, and we declare zero ACH volume to underwriting. The bank form in `tokenize.html` is `bankOnly` mode — a club's *payout* account, which we deposit to and never debit |
 | Apple Pay / Google Pay | **Included at launch** via Tokenization Form wallet buttons |
 | Subscriptions | Finix `subscription_schedules` + enrollments (Rally Pro + club tiers) |
 
@@ -31,7 +31,9 @@ RallySphere uses **Finix** for payments and payouts (decision locked 2026-04-21)
 
 Verify each before requesting Finix to check the sandbox:
 
-- [ ] **Onboarding process confirmed**: Hosted Onboarding Forms
+- [ ] **Onboarding process confirmed**: in-app wizard via the Finix API
+- [ ] **Required onboarding language present**: bank-account consent, verification consent, ToS click-through (ours + Finix_V1), and fee presentation — all verbatim, see `constants/legalDocs.ts`
+- [ ] **Beneficial owners**: every 25%+ owner listed; ownership totals ≤ 100%
 - [ ] **Successful transaction**: Finix test card `4000000000000002` → `transfer.succeeded` webhook → `payments` doc `status: "succeeded"`
 - [ ] **Failed transaction**: Decline card `4000000000000036` → `transfer.failed` webhook → `payments` doc `status: "failed"`
 - [ ] **Successful refund**: Admin refund → reversal in Finix dashboard → `ticketOrders` doc `status: "refunded"`
@@ -40,9 +42,7 @@ Verify each before requesting Finix to check the sandbox:
 - [ ] **Fraud Session ID**: emitted by Tokenization Form, forwarded, attached to `/transfers` as tag
 - [ ] **Finix Tokenization Form**: form origin is `js.finix.com/v/1/finix.js`
 - [ ] **Webhooks listening**: disputes + merchant onboarding minimum; confirm `webhookEvents` Firestore docs on test fires
-- [ ] **ACH authorization language**: visible before ACH submit, matches NACHA-approved copy
-- [ ] **ACH confirmation language**: shown on post-submit screen
-- [ ] **ACH returns/reversals tested**: test routing `110000000` + return test → order flips to `failed`
+- [ ] **Update requests**: force an `UPDATE_REQUESTED`, confirm the outcomes render as a to-do list, a document upload attaches, and re-review is triggered
 
 ### Post-cert (production launch)
 
@@ -55,9 +55,7 @@ Verify each before requesting Finix to check the sandbox:
 
 ### Open items (user input needed)
 
-- [ ] Support email for ACH authorization language (e.g. `support@rallysphere.com`)
 - [ ] Apple Pay merchant ID name (suggested `merchant.com.rallysphere.payments`)
-- [ ] Exact fee disclosure wording for onboarding form
 
 ---
 

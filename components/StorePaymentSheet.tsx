@@ -24,6 +24,7 @@ import {
 import { useThemeToggle } from '../app/_layout';
 import { useDebugLogs } from '../lib/debugContext';
 import PaymentSecurityInfo from './PaymentSecurityInfo';
+import { calcServiceFee } from '../constants/fees';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SLIDE_DURATION = 280;
@@ -87,7 +88,6 @@ export default function StorePaymentSheet({
   const [finixContext, setFinixContext] = useState<FinixTokenizationContext | null>(null);
   const [formReady, setFormReady] = useState(false);
   const [initializingPayment, setInitializingPayment] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'ach' | 'apple_pay' | 'google_pay'>('card');
 
   // Saved payment methods state
   const [savedInstruments, setSavedInstruments] = useState<SavedPaymentInstrument[]>([]);
@@ -250,10 +250,8 @@ export default function StorePaymentSheet({
     }
 
     const subtotal = Math.max(0, itemPrice - rewardDiscountAmount);
-    const SERVICE_FEE_PERCENTAGE = 0.10;
-    const SERVICE_FEE_FIXED = 0.29;
     const originalItemAndShipping = itemPrice + shipping;
-    const processingFee = Math.round(((originalItemAndShipping * SERVICE_FEE_PERCENTAGE) + SERVICE_FEE_FIXED) * 100) / 100;
+    const processingFee = calcServiceFee(originalItemAndShipping);
     const totalAmount = subtotal + shipping + processingFee;
 
     setServerBreakdown({
@@ -369,8 +367,6 @@ export default function StorePaymentSheet({
       if (msg.type === 'ready') {
         setFormReady(!!msg.ready);
         if (!msg.ready) Alert.alert('Error', msg.error || 'Failed to load payment form');
-      } else if (msg.type === 'tab') {
-        setPaymentMethod(msg.paymentMethod || 'card');
       } else if (msg.type === 'token') {
         await processPaymentWithToken(msg.tokenId, msg.paymentMethod || 'card', msg.fraudSessionId, {
           savePaymentMethod: saveNewCard && (msg.paymentMethod || 'card') === 'card',
@@ -440,13 +436,7 @@ export default function StorePaymentSheet({
           await spendRallyCredits(userId, item.clubId, selectedReward.creditsRequired,
             selectedReward.id, `Store discount: ${item.name}`).catch(() => {});
         }
-        const isAch = method === 'ach';
-        Alert.alert(
-          isAch ? 'ACH Authorization Confirmed' : 'Purchase Successful!',
-          isAch
-            ? 'You authorized a one-time ACH debit from your bank account for this order. The debit may take 3–5 business days to clear, and we\'ll ship your order once funds settle. To revoke or dispute this authorization, contact support@rallysphere.com.'
-            : 'Your order has been placed successfully.'
-        );
+        Alert.alert('Purchase Successful!', 'Your order has been placed successfully.');
         onSuccess();
         onDismiss();
       } else {
@@ -853,7 +843,6 @@ export default function StorePaymentSheet({
                             const u = buildFinixTokenizeUrl({
                               context: finixContext,
                               amount: totals.total,
-                              ach: true,
                               wallets: false,
                               external: true,
                               debug: debugLogs,
@@ -884,7 +873,9 @@ export default function StorePaymentSheet({
                           </ScrollView>
                         </View>
                       )}
-                      {paymentMethod === 'card' && (
+                      {/* This step is card-only; wallets are single-use and
+                          handled elsewhere, so there's nothing to branch on. */}
+                      {(
                         <View style={{ paddingHorizontal: 20, paddingTop: 4 }}>
                           <TouchableOpacity onPress={() => setSaveNewCard((v) => !v)} activeOpacity={0.7} style={styles.saveCardRow}>
                             <View
@@ -929,11 +920,7 @@ export default function StorePaymentSheet({
                               <ActivityIndicator color="white" />
                             ) : (
                               <Text style={styles.purchaseButtonText}>
-                                {totals.total === 0
-                                  ? 'Confirm (Free)'
-                                  : paymentMethod === 'ach'
-                                    ? `Authorize & Pay $${totals.total.toFixed(2)}`
-                                    : `Pay $${totals.total.toFixed(2)}`}
+                                {totals.total === 0 ? 'Confirm (Free)' : `Pay $${totals.total.toFixed(2)}`}
                               </Text>
                             )}
                           </LinearGradient>

@@ -706,3 +706,46 @@ Email: support@rallysphere.com
 
 export const EFFECTIVE_DATE = "14th May 2026";
 export const SUPPORT_EMAIL = "support@rallysphere.com";
+
+// ---------------------------------------------------------------------------
+// FINIX-MANDATED ONBOARDING LANGUAGE
+//
+// When a platform builds its own seller onboarding form against the Finix API
+// (rather than using Finix's hosted form), Finix requires these exact sentences
+// be shown, plus a link to the Finix Terms of Service for the seller's country
+// and processor. They are quoted verbatim from Finix's "Seller Onboarding via
+// API" requirements.
+//
+// DO NOT REWORD. Surrounding explanatory copy is ours to write; these strings
+// are not. Changing them is a certification failure, not a style choice.
+// ---------------------------------------------------------------------------
+
+/**
+ * Finix ToS for USA sellers on the FINIX_V1 processor — our application.
+ * Other combinations use different documents:
+ *   USA / LITLE_V1 or VANTIV_V1 → .../flex/v2/finix-terms-of-service.html
+ *   Canada / FINIX_V1          → .../flex/v3/finix-terms-of-service-canada.html
+ */
+export const FINIX_TERMS_URL =
+  "https://finix-hosted-content.s3.amazonaws.com/flex/v3/finix-terms-of-service.html";
+
+/** Shown when collecting the payout bank account. */
+export const FINIX_BANK_ACCOUNT_CONSENT =
+  "You agree to use this bank account for legitimate business purposes, and not for personal, family, or household purposes.";
+
+/** Shown where identity/KYC details are collected. */
+export const FINIX_VERIFICATION_CONSENT =
+  "The information you provide will be used to verify your identity. Additional information may be requested.";
+
+/**
+ * Shown at the point of submission. Split so "Terms of Service" and "Finix
+ * Terms of Service" can be rendered as links while the sentence stays verbatim:
+ * "By continuing, you agree to our Terms of Service and the Finix Terms of Service."
+ */
+export const FINIX_TOS_CONSENT = {
+  prefix: "By continuing, you agree to our ",
+  ownLabel: "Terms of Service",
+  middle: " and the ",
+  finixLabel: "Finix Terms of Service",
+  suffix: ".",
+} as const;

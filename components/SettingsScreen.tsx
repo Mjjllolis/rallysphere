@@ -16,6 +16,7 @@ import { router } from 'expo-router';
 import { logout, auth } from '../lib/firebase';
 import { useThemeToggle } from '../app/_layout';
 import { useDebugLogs } from '../lib/debugContext';
+import { useIsStaff } from '../hooks/useIsStaff';
 import GlassSwitch from './GlassSwitch';
 
 interface SettingsScreenProps {
@@ -29,7 +30,10 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
   const theme = useTheme();
   // Debug = Finix sandbox mode; restricted to RallySphere staff. The server
   // also enforces this, so hiding the toggle is defense-in-depth, not the gate.
-  const isStaff = (auth.currentUser?.email || '').toLowerCase().endsWith('@rallysphere.com');
+  // Reads the `staff` custom claim — this used to check currentUser.email, which
+  // is ALWAYS null because the app signs in by phone, so the toggle was hidden
+  // from everyone including actual staff.
+  const isStaff = useIsStaff();
   const [deleteAccountModalVisible, setDeleteAccountModalVisible] = React.useState(false);
 
   const handleSignOut = async () => {
