@@ -23,8 +23,8 @@
 // forwarded to Finix; they are NOT persisted to Firestore. Only the required
 // fields are shown — optional Finix fields (DBA, website, apt line, title,
 // ownership %) use sensible defaults server-side.
-import React, { useState } from 'react';
-import { View, StyleSheet, Platform, Pressable, ScrollView, useWindowDimensions, Linking, KeyboardAvoidingView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, Platform, Pressable, ScrollView, useWindowDimensions, Linking, Keyboard } from 'react-native';
 import { Text, TextInput, Button, useTheme, Checkbox, HelperText, Divider, ProgressBar, Chip, Portal, Modal, IconButton } from 'react-native-paper';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
@@ -139,6 +139,25 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Keyboard height, measured directly. The sub-step forms live in a Paper
+  // Modal, whose wrapper centers the card vertically — and a KeyboardAvoidingView
+  // in `padding` mode inside a centered parent oscillates forever: the padding
+  // grows the card, centering moves the card up, the KAV re-measures a new `y`,
+  // and recomputes a different padding. That feedback loop is what made the form
+  // flicker up and down while a field was focused. Offsetting the ABSOLUTELY
+  // POSITIONED wrapper instead breaks the loop — its layout can't depend on its
+  // own content.
+  const [kbHeight, setKbHeight] = useState(0);
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillChangeFrame' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvt as any, (e: any) => {
+      setKbHeight(Math.max(0, winH - (e?.endCoordinates?.screenY ?? winH)));
+    });
+    const hide = Keyboard.addListener(hideEvt as any, () => setKbHeight(0));
+    return () => { show.remove(); hide.remove(); };
+  }, [winH]);
 
   // Live stage-completion flags. Seeded from the club doc, then flipped locally
   // as each sub-flow finishes so the hub reflects progress without a reload.
@@ -543,13 +562,15 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
         <Modal
           visible={view !== 'hub'}
           onDismiss={() => { setError(null); setView('hub'); }}
+          // Shrink the (absolutely positioned) wrapper by the keyboard height so
+          // the card re-centers in the space left above it. Without this the iOS
+          // keyboard covers the lower half of the form and you type blind into a
+          // field you can't see.
+          style={kbHeight > 0 ? { marginBottom: kbHeight } : undefined}
           contentContainerStyle={[styles.modalCard, { backgroundColor: surfaceSolid, borderColor: theme.colors.outline, borderWidth: StyleSheet.hairlineWidth }]}
         >
-          {/* Without this the iOS keyboard covers the lower half of the form and
-              you type blind into a field you can't see. */}
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView
-            style={{ maxHeight: winH * 0.8 }}
+            style={{ maxHeight: Math.max(240, (winH - kbHeight) * 0.85) }}
             contentContainerStyle={styles.modalScrollContent}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="none"
@@ -990,7 +1011,6 @@ export default function FinixOnboardingWizard({ club, acceptedByUid, onComplete,
 
             {error && <HelperText type="error" visible style={{ marginTop: 8 }}>{error}</HelperText>}
           </ScrollView>
-          </KeyboardAvoidingView>
         </Modal>
       </Portal>
     </View>

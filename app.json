@@ -21,7 +21,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.rallysphere.app",
-      "buildNumber": "58",
+      "buildNumber": "60",
       "icon": {
         "light": "./assets/Logo.png",
         "dark": "./assets/Logo-dark.png"
@@ -57,18 +57,24 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       [
         "expo-image-picker",
         {
           "photosPermission": "RallySphere uses your photo library so you can choose images from your device — for example, to set your profile picture, add a logo when creating a club, or attach a photo to an event you're posting.",
-          "cameraPermission": "RallySphere uses your camera so you can photograph documents your payment processor asks for during club verification, such as a voided check or a government-issued ID."
+          "cameraPermission": "RallySphere uses your camera so club organizers can photograph the verification documents our payment processor requires before a club can be paid out — for example, taking a picture of a voided check or a government-issued ID and uploading it directly, instead of scanning it to your photo library first.",
+          "microphonePermission": false
         }
       ],
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "RallySphere needs your location to show nearby events."
+          "locationWhenInUsePermission": "RallySphere uses your location to show events happening near you — for example, the Local feed lists only events within a distance radius you pick, so a pickup game two miles away shows up and one across the state doesn't."
         }
       ],
       "expo-video",
