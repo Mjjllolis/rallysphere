@@ -27,6 +27,7 @@ import { useAuth, useThemeToggle } from '../../../_layout';
 import { joinEvent, getEventById, bookmarkEvent, unbookmarkEvent, getUserBookmarks, likeEvent, unlikeEvent, getUserLikes, getClub, storeWaiverSignature, submitQuestionnaireResponse } from '../../../../lib/firebase';
 import PaymentSheet from '../../../../components/PaymentSheet';
 import EventRegistrationFlow, { RegistrationData } from '../../../../components/EventRegistrationFlow';
+import { buildEventShareContent } from '../../../../lib/eventShare';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const ALBUM_WIDTH = SCREEN_WIDTH * 0.85;
@@ -394,23 +395,9 @@ export default function EventSwipeCard({
     router.push(`/event/${event.id}`);
   };
 
-  // Generate link with id
-  const getShareUrl = () => {
-    return `https://rallysphere.app/event/${event.id}`;
-  };
-
   const handleShare = async () => {
     try {
-      const shareUrl = getShareUrl();
-      const message = Platform.OS === 'ios'
-        ? `Check out this event: ${event.title} by ${event.clubName}`
-        : `Check out this event: ${event.title} by ${event.clubName}\n\n${shareUrl}`;
-
-      const result = await Share.share({
-        message,
-        url: shareUrl,
-        title: event.title,
-      });
+      const result = await Share.share(buildEventShareContent(event));
 
       if (result.action === Share.sharedAction) {
         if (result.activityType) {

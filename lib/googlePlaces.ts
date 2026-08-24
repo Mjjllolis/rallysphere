@@ -37,8 +37,18 @@ function getRestrictionHeaders(): Record<string, string> {
   return {};
 }
 
+// Google requires this to be a UUID (at most 36 characters) — anything longer
+// gets rejected with an INVALID_ARGUMENT 400.
 export function createSessionToken(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback UUID v4 for environments without crypto.randomUUID
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 export interface PlacePrediction {
@@ -52,21 +62,30 @@ export async function fetchPlacePredictions(
   includedPrimaryTypes?: string[]
 ): Promise<PlacePrediction[]> {
   const apiKey = getApiKey();
-  const res = await fetch(`${PLACES_BASE}/places:autocomplete`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Goog-Api-Key': apiKey,
-      ...getRestrictionHeaders(),
-    },
-    body: JSON.stringify({
-      input,
-      sessionToken,
-      ...(includedPrimaryTypes ? { includedPrimaryTypes } : {}),
-    }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${PLACES_BASE}/places:autocomplete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        ...getRestrictionHeaders(),
+      },
+      body: JSON.stringify({
+        input,
+        sessionToken,
+        ...(includedPrimaryTypes ? { includedPrimaryTypes } : {}),
+      }),
+    });
+  } catch (networkError) {
+    console.error('Places Autocomplete (New) network error:', networkError);
+    throw networkError;
+  }
   const data = await res.json();
-  if (data.error) throw new Error(data.error.message || 'Location search is unavailable');
+  if (data.error) {
+    console.error('Places Autocomplete (New) error:', res.status, JSON.stringify(data.error));
+    throw new Error(data.error.message || 'Location search is unavailable');
+  }
 
   const suggestions = data.suggestions || [];
   return suggestions

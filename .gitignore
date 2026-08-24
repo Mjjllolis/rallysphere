@@ -16,6 +16,7 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+credentials.json
 
 # Metro
 .metro-health-check*
@@ -38,6 +39,7 @@ yarn-error.*
 functions/.env
 functions/.env.test
 functions/.env.production
+functions/.env.rally-sphere
 functions/.env.bak
 
 # Any backup files anywhere (never commit snapshots of secrets)

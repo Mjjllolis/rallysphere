@@ -4263,3 +4263,155 @@ export const fixEventsAndCredits = functions.https.onCall(
     }
   }
 );
+
+// ============================================================================
+// EVENT LINK PREVIEW (Open Graph)
+// ============================================================================
+
+const OG_DEFAULT_IMAGE = "https://rally-sphere.web.app/og-default.png";
+// App Store Connect assigns this numeric ID permanently the moment the app
+// record is created — it never changes, so this link is correct today even
+// though the listing isn't public yet. Before the first release is approved
+// it resolves to Apple's standard "not available" page (a soft failure);
+// the instant the app goes live this same URL just starts working, with no
+// code change or redeploy needed here.
+const APP_STORE_URL = "https://apps.apple.com/app/id6754649814";
+const APP_STORE_ID = "6754649814";
+
+// Apple's public lookup API reports whether an App Store listing is actually
+// live — resultCount is 0 until the app's first version is approved and
+// released, even though the numeric ID (and therefore APP_STORE_URL) is
+// valid from the moment the app record is created. Checking this at render
+// time means the preview page starts offering a real "Open in App Store"
+// link the instant the app goes live, with no code change or redeploy here.
+// Any failure (timeout, network, unexpected shape) safely defaults to
+// "not live" — never claim the store link works when we're not sure.
+async function isAppStoreLive(): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2500);
+    const res = await fetch(`https://itunes.apple.com/lookup?id=${APP_STORE_ID}`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) return false;
+    const data = (await res.json()) as { resultCount?: number };
+    return (data.resultCount ?? 0) > 0;
+  } catch (error) {
+    console.error("Error checking App Store availability:", error);
+    return false;
+  }
+}
+
+function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export const eventPreview = functions.https.onRequest(async (req, res) => {
+  const eventId = req.path.split("/").filter(Boolean).pop() || "";
+  const appLink = `rallysphere://event/${eventId}`;
+
+  let title = "RallySphere Event";
+  let description = "Open this event in the RallySphere app.";
+  let image = OG_DEFAULT_IMAGE;
+
+  const appStoreLivePromise = isAppStoreLive();
+
+  try {
+    const db = admin.firestore();
+    const eventDoc = await db.collection("events").doc(eventId).get();
+    // This reads via the Admin SDK, which bypasses Firestore's security
+    // rules (the same rules that restrict a private event's title/image to
+    // authenticated members in the app). Only use the real event details
+    // here if the event is actually public — a private event keeps the
+    // generic fallback above instead of leaking its details to anyone with
+    // the link.
+    if (eventDoc.exists && eventDoc.data()?.isPublic === true) {
+      const event = eventDoc.data() as any;
+      title = event.title || title;
+      description = event.clubName ? `by ${event.clubName}` : description;
+      if (event.coverImage) {
+        image = event.coverImage;
+      }
+    }
+  } catch (error) {
+    console.error("Error loading event for preview:", error);
+  }
+
+  const appStoreLive = await appStoreLivePromise;
+
+  const safeTitle = escapeHtml(title);
+  const safeDescription = escapeHtml(description);
+  const safeImage = escapeHtml(image);
+  const safeAppLink = escapeHtml(appLink);
+  const pageUrl = escapeHtml(`https://rally-sphere.web.app${req.path}`);
+
+  res.set("Cache-Control", "public, max-age=300, s-maxage=600");
+  res.status(200).send(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${safeTitle}</title>
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="${safeTitle}" />
+  <meta property="og:description" content="${safeDescription}" />
+  <meta property="og:image" content="${safeImage}" />
+  <meta property="og:url" content="${pageUrl}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${safeTitle}" />
+  <meta name="twitter:description" content="${safeDescription}" />
+  <meta name="twitter:image" content="${safeImage}" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  body { margin: 0; background: #0f0f23; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; box-sizing: border-box; }
+  .card { max-width: 420px; }
+  img { width: 100%; aspect-ratio: 1.91 / 1; object-fit: cover; border-radius: 16px; margin-bottom: 24px; }
+  h1 { font-size: 22px; margin: 0 0 8px; }
+  p { color: #9aa0b4; margin: 0 0 24px; line-height: 1.4; }
+  a.button { display: inline-block; background: #60A5FA; color: #fff; text-decoration: none; padding: 14px 28px; border-radius: 12px; font-weight: 600; }
+  p.status { margin: 12px 0 0; font-size: 14px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <img src="${safeImage}" alt="${safeTitle}" />
+    <h1>${safeTitle}</h1>
+    <p>${safeDescription}</p>
+    <a class="button" href="#" onclick="openApp(); return false;">Open in RallySphere</a>
+    <p id="storeStatus" class="status" style="display:none;">Coming soon to the App Store</p>
+  </div>
+  <script>
+    var appStoreLive = ${appStoreLive ? "true" : "false"};
+    // Only runs on a deliberate tap of the button above — no auto-attempt on
+    // load. Try the app first; only act on the fallback if the tab is still
+    // visible a moment later (a successful app-open backgrounds Safari,
+    // which pauses this timer, so people who have the app never see it).
+    // The fallback itself only navigates to the App Store once Apple's own
+    // lookup confirms the listing is actually public — before that, tapping
+    // just reveals "Coming soon" in place rather than sending anyone to a
+    // dead Apple page.
+    function openApp() {
+      var fallbackTimer = setTimeout(function () {
+        if (appStoreLive) {
+          window.location.href = ${JSON.stringify(APP_STORE_URL)};
+        } else {
+          document.getElementById("storeStatus").style.display = "block";
+        }
+      }, 1500);
+      document.addEventListener("visibilitychange", function onHide() {
+        if (document.hidden) {
+          clearTimeout(fallbackTimer);
+          document.removeEventListener("visibilitychange", onHide);
+        }
+      });
+      window.location.href = "${safeAppLink}";
+    }
+  </script>
+</body>
+</html>`);
+});

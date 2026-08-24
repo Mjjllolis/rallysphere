@@ -21,7 +21,7 @@ import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import { sendPhoneVerification, app } from '../../lib/firebase';
 
 export default function PhoneAuthScreen() {
-    const { mode } = useLocalSearchParams<{ mode?: string }>();
+    const { mode, redirectEventId } = useLocalSearchParams<{ mode?: string; redirectEventId?: string }>();
     const isSignUp = mode !== 'signin';
 
     const [phone, setPhone] = useState('');
@@ -67,19 +67,13 @@ export default function PhoneAuthScreen() {
         try {
             const result = await sendPhoneVerification(formatted, recaptchaVerifier.current);
             if (result.success) {
-                router.push({ pathname: '/(auth)/verify-otp', params: { phone: formatted } });
+                router.push({ pathname: '/(auth)/verify-otp', params: { phone: formatted, redirectEventId } });
             } else {
                 Alert.alert('Error', result.error || 'Failed to send code. Try again.');
             }
         } finally {
             setLoading(false);
         }
-    };
-
-    const handleDevBypass = () => {
-        // For testing: skip phone verification step
-        const testPhone = '+10000000000';
-        router.push({ pathname: '/(auth)/verify-otp', params: { phone: testPhone } });
     };
 
     // Sign-in screen uses video background, sign-up uses simple gradient
@@ -199,11 +193,6 @@ export default function PhoneAuthScreen() {
         <SafeAreaView style={styles.containerOriginal}>
             <StatusBar barStyle="light-content" />
             <LinearGradient colors={['#6366f1', '#8b5cf6', '#1a1a2e']} style={StyleSheet.absoluteFill} />
-
-            {/* Button for testing (skips verification) */}
-            <TouchableOpacity onPress={handleDevBypass} style={styles.devBypassButton}>
-                <Text style={styles.devBypassText}>Skip (dev)</Text>
-            </TouchableOpacity>
 
             <FirebaseRecaptchaVerifierModal
                 ref={recaptchaVerifier}
@@ -477,16 +466,5 @@ const styles = StyleSheet.create({
     backTextOriginal: {
         color: 'rgba(255,255,255,0.6)',
         fontSize: 14,
-    },
-    devBypassButton: {
-        position: 'absolute',
-        top: 60,
-        right: 20,
-        zIndex: 10,
-    },
-    devBypassText: {
-        color: 'rgba(255,255,255,0.5)',
-        fontSize: 12,
-        textDecorationLine: 'underline',
     },
 });

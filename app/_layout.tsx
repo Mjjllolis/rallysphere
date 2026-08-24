@@ -1,6 +1,6 @@
 // app/_layout.tsx
 import '../lib/silence-logs';
-import React, { useEffect, useState, createContext, useContext, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useCallback, createContext, useContext, useMemo } from 'react';
 import { Platform, Linking, Alert, useColorScheme, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import SandboxBanner from '../components/SandboxBanner';
@@ -260,85 +260,166 @@ export default function RootLayout() {
   }, []);
 
   // Deep link handler
-  useEffect(() => {
-    const handleDeepLink = async (event: { url: string }) => {
-      const url = event.url;
+  // A link can arrive via Linking.getInitialURL() during a cold start, before
+  // the Stack below has mounted (RootLayout still returns null while
+  // authLoading/themeLoading are true). Calling router.push/replace before
+  // the navigator exists throws and leaves the app stuck on the splash
+  // screen, so any URL that arrives that early is stashed and replayed once
+  // the Stack is actually up.
+  const pendingDeepLinkRef = useRef<string | null>(null);
 
-      if (url.includes('payment-return')) {
-        return;
-      }
+  const processDeepLink = useCallback((url: string) => {
+    if (url.includes('payment-return')) {
+      return;
+    }
 
-      // Handle payment success
-      if (url.includes('payment-success')) {
-        const urlParams = new URLSearchParams(url.split('?')[1]);
-        const eventId = urlParams.get('event_id');
+    // Handle payment success
+    if (url.includes('payment-success')) {
+      const urlParams = new URLSearchParams(url.split('?')[1]);
+      const eventId = urlParams.get('event_id');
 
-        Alert.alert(
-          'Payment Successful!',
-          'You have successfully purchased your ticket. You are now registered for the event.',
-          [
-            {
-              text: 'View Event',
-              onPress: () => {
-                if (eventId) {
-                  router.push(`/event/${eventId}`);
-                }
-              },
+      Alert.alert(
+        'Payment Successful!',
+        'You have successfully purchased your ticket. You are now registered for the event.',
+        [
+          {
+            text: 'View Event',
+            onPress: () => {
+              if (eventId) {
+                router.push(`/event/${eventId}`);
+              }
             },
-            {
-              text: 'OK',
-              style: 'cancel',
-            },
-          ]
-        );
-      }
+          },
+          {
+            text: 'OK',
+            style: 'cancel',
+          },
+        ]
+      );
+      return;
+    }
 
-      // Handle payment cancellation
-      if (url.includes('payment-cancel')) {
-        const urlParams = new URLSearchParams(url.split('?')[1]);
-        const eventId = urlParams.get('event_id');
+    // Handle payment cancellation
+    if (url.includes('payment-cancel')) {
+      const urlParams = new URLSearchParams(url.split('?')[1]);
+      const eventId = urlParams.get('event_id');
 
-        Alert.alert(
-          'Payment Cancelled',
-          'Your payment was cancelled. You can try again anytime.',
-          [
-            {
-              text: 'Try Again',
-              onPress: () => {
-                if (eventId) {
-                  router.push(`/event/${eventId}`);
-                }
-              },
+      Alert.alert(
+        'Payment Cancelled',
+        'Your payment was cancelled. You can try again anytime.',
+        [
+          {
+            text: 'Try Again',
+            onPress: () => {
+              if (eventId) {
+                router.push(`/event/${eventId}`);
+              }
             },
-            {
-              text: 'OK',
-              style: 'cancel',
-            },
-          ]
-        );
-        return;
-      }
+          },
+          {
+            text: 'OK',
+            style: 'cancel',
+          },
+        ]
+      );
+      return;
+    }
 
-      // Any other unrecognized deep link — go home
-      if (url.includes('rallysphere://')) {
+    // Any other deep link — either the custom scheme (rallysphere://event/abc123,
+    // used by the web preview page's fallback redirect) or a Universal Link
+    // (https://rally-sphere.web.app/event/abc123, delivered directly by iOS
+    // when the app has the associated domain) — route to the matching
+    // in-app screen instead of always bouncing to Home.
+    const isCustomScheme = url.startsWith('rallysphere://');
+    const isUniversalLink = /^https?:\/\/(rally-sphere\.web\.app|rallysphere\.app)\//.test(url);
+    if (isCustomScheme || isUniversalLink) {
+      const path = url
+        .replace(/^rallysphere:\/\//, '')
+        .replace(/^https?:\/\/[^/]+\//, '')
+        .split('?')[0]
+        .replace(/\/$/, '');
+      try {
+        if (!path) {
+          router.replace('/(tabs)/home');
+          return;
+        }
+        // A shared event link for a signed-out visitor: events can be
+        // private (Firestore only allows authenticated reads for those), and
+        // even a public one drops a stranger into a screen built entirely
+        // around an existing member. Show a lightweight preview + sign-in /
+        // create-account prompt instead, and send them on to the real event
+        // once they're in.
+        const eventMatch = path.match(/^event\/([^/]+)$/);
+        if (eventMatch && !user) {
+          router.push({ pathname: '/event-preview/[id]', params: { id: eventMatch[1] } });
+          return;
+        }
+        // Signed in already: land on a clean Home first rather than pushing
+        // straight from whatever index.tsx's own (async, racing) redirect
+        // left as the current screen — otherwise the destination can appear
+        // before Home has settled underneath it, or get pushed a second time
+        // once that redirect resolves. Replacing with Home first then
+        // pushing the real destination guarantees a deterministic
+        // Home-then-destination stack, so Back always goes to a clean Home.
         router.replace('/(tabs)/home');
+        router.push(`/${path}` as any);
+      } catch (error) {
+        console.log('[DeepLink] Failed to navigate:', error);
+      }
+    }
+  }, [router, user]);
+
+  // Keep a ref to the latest processDeepLink (it changes identity whenever
+  // `user` changes) so the mount-once effect below can always call the
+  // current version without needing to re-subscribe / re-query
+  // getInitialURL on every auth change — that re-querying is what used to
+  // replay the same cold-start link a second time and stack the event
+  // screen on top of itself.
+  const processDeepLinkRef = useRef(processDeepLink);
+  processDeepLinkRef.current = processDeepLink;
+
+  const readyRef = useRef(false);
+  useEffect(() => {
+    readyRef.current = !authLoading && !themeLoading;
+  }, [authLoading, themeLoading]);
+
+  useEffect(() => {
+    const handleIncomingUrl = (event: { url: string }) => {
+      if (readyRef.current) {
+        processDeepLinkRef.current(event.url);
+      } else {
+        // Navigator isn't mounted yet — replay this once it is.
+        pendingDeepLinkRef.current = event.url;
       }
     };
 
     // Listen for deep links when app is already open
-    const subscription = Linking.addEventListener('url', handleDeepLink);
+    const subscription = Linking.addEventListener('url', handleIncomingUrl);
 
-    // Check if app was opened via deep link
+    // Check if app was opened via deep link. Runs exactly once for the life
+    // of the app instance, matching what Linking.getInitialURL() itself
+    // guarantees.
     Linking.getInitialURL().then((url) => {
       if (url) {
-        handleDeepLink({ url });
+        handleIncomingUrl({ url });
       }
     });
 
     return () => {
       subscription.remove();
     };
-  }, [router]);
+  }, []);
+
+  // Replay a deep link that arrived before the Stack had mounted. This is
+  // the only place pendingDeepLinkRef is consumed, so a given URL is handed
+  // to processDeepLink exactly once.
+  useEffect(() => {
+    if (!authLoading && !themeLoading && pendingDeepLinkRef.current) {
+      const url = pendingDeepLinkRef.current;
+      pendingDeepLinkRef.current = null;
+      processDeepLink(url);
+    }
+  }, [authLoading, themeLoading, processDeepLink]);
 
   // Hide splash screen when ready
   useEffect(() => {

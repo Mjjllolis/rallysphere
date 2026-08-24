@@ -19,7 +19,7 @@ import { confirmOTPCode } from '../../lib/firebase';
 const OTP_LENGTH = 6;
 
 export default function VerifyOTPScreen() {
-    const { phone } = useLocalSearchParams<{ phone: string }>();
+    const { phone, redirectEventId } = useLocalSearchParams<{ phone: string; redirectEventId?: string }>();
     const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
     const [loading, setLoading] = useState(false);
     const inputs = useRef<(RNTextInput | null)[]>([]);
@@ -77,7 +77,15 @@ export default function VerifyOTPScreen() {
             const result = await confirmOTPCode(code);
             if (result.success) {
                 if (result.isNewUser) {
-                    router.replace('/(auth)/profile-setup');
+                    router.replace({ pathname: '/(auth)/profile-setup', params: { redirectEventId } });
+                } else if (redirectEventId) {
+                    // Land on a clean Home first — dismissAll() drops the whole
+                    // phone-auth/verify-otp stack so Back from the event never
+                    // resurfaces the sign-in flow — then push the event on top
+                    // of that clean stack so Back from there goes to Home.
+                    router.dismissAll();
+                    router.replace('/(tabs)/home');
+                    router.push(`/event/${redirectEventId}`);
                 } else {
                     router.replace('/(tabs)/home');
                 }

@@ -574,8 +574,17 @@ export const onAuthStateChange = (callback: (user: User | null) => void) => {
   return onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
     if (firebaseUser) {
       try {
-        // Get additional user data from Firestore
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+        // Get additional user data from Firestore. A cold app launch (e.g.
+        // opening a shared link from a locked phone) can catch the network/App
+        // Check handshake before it's warmed up; without a timeout a stalled
+        // read here leaves the caller's loading state — and the splash screen
+        // gated on it — stuck forever.
+        const userDoc = await Promise.race([
+          getDoc(doc(db, 'users', firebaseUser.uid)),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Timed out loading user profile')), 8000)
+          ),
+        ]);
         const userData = userDoc.data();
         
         const user: User = {

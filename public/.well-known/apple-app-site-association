@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "66YBRZM5J5.com.rallysphere.app",
+        "paths": ["/event/*"]
+      }
+    ]
+  }
+}

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Linking,
 } from 'react-native';
 import { Text, IconButton, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -284,7 +285,19 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
               <Text style={[styles.sectionTitle, { color: theme.colors.onSurfaceVariant }]}>Support</Text>
 
               <TouchableOpacity
-                onPress={() => Alert.alert('Coming Soon', 'Help & support will be available soon!')}
+                onPress={async () => {
+                  const mailtoUrl = 'mailto:info@rallysphere.com';
+                  try {
+                    const canOpen = await Linking.canOpenURL(mailtoUrl);
+                    if (canOpen) {
+                      await Linking.openURL(mailtoUrl);
+                    } else {
+                      Alert.alert('No Mail App Found', 'Please email us at info@rallysphere.com');
+                    }
+                  } catch (error) {
+                    Alert.alert('No Mail App Found', 'Please email us at info@rallysphere.com');
+                  }
+                }}
               >
                 <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.settingItem, { borderColor: theme.colors.outline }]}>
                   <View style={styles.settingContent}>

@@ -36,6 +36,14 @@ export default function ProfilePage() {
   const [userClubs, setUserClubs] = useState<Club[]>([]);
   const [pastEvents, setPastEvents] = useState<Event[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [bioExpanded, setBioExpanded] = useState(false);
+  const [bioTruncated, setBioTruncated] = useState(false);
+
+  const handleBioTextLayout = (e: { nativeEvent: { lines: any[] } }) => {
+    if (!bioExpanded && e.nativeEvent.lines.length > 2) {
+      setBioTruncated(true);
+    }
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -265,7 +273,23 @@ export default function ProfilePage() {
                   : user.displayName || 'User'}
               </Text>
               {profile?.bio && (
-                <Text style={[styles.userBio, { color: theme.colors.onSurfaceVariant }]}>{profile.bio}</Text>
+                <View style={styles.bioWrap}>
+                  <Text
+                    style={[styles.userBio, { color: theme.colors.onSurfaceVariant }]}
+                    numberOfLines={bioExpanded ? undefined : 2}
+                    onTextLayout={handleBioTextLayout}
+                  >
+                    {profile.bio}
+                  </Text>
+                  {bioTruncated && !bioExpanded && (
+                    <BlurView intensity={25} tint={isDark ? 'dark' : 'light'} style={styles.bioFade} pointerEvents="none" />
+                  )}
+                  {bioTruncated && (
+                    <TouchableOpacity onPress={() => setBioExpanded(prev => !prev)} activeOpacity={0.7}>
+                      <Text style={styles.bioViewMoreText}>{bioExpanded ? 'View less' : 'View more'}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               )}
 
               {/* User Details */}
@@ -586,11 +610,28 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: 'center',
   },
+  bioWrap: {
+    marginBottom: 12,
+    alignItems: 'center',
+  },
   userBio: {
     fontSize: 15,
     textAlign: 'center',
-    marginBottom: 12,
     lineHeight: 20,
+  },
+  bioFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 20,
+    overflow: 'hidden',
+  },
+  bioViewMoreText: {
+    color: '#60A5FA',
+    fontWeight: '600',
+    fontSize: 13,
+    marginTop: 4,
   },
   detailsRow: {
     flexDirection: 'row',

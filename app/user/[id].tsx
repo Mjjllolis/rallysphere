@@ -42,7 +42,15 @@ export default function UserProfileScreen() {
   // track when each section finishes loading so skeletons know when to hide
   const [clubsReady, setClubsReady] = useState(false);
   const [eventsReady, setEventsReady] = useState(false);
+  const [bioExpanded, setBioExpanded] = useState(false);
+  const [bioTruncated, setBioTruncated] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
+
+  const handleBioTextLayout = (e: { nativeEvent: { lines: any[] } }) => {
+    if (!bioExpanded && e.nativeEvent.lines.length > 2) {
+      setBioTruncated(true);
+    }
+  };
 
   // fetch profile, clubs, and past events in parallel
   useEffect(() => {
@@ -150,7 +158,25 @@ export default function UserProfileScreen() {
 
             <View style={styles.userInfo}>
               <Text style={[styles.userName, { color: theme.colors.onSurface }]}>{displayName}</Text>
-              {profile?.bio && <Text style={[styles.userBio, { color: theme.colors.onSurfaceVariant }]}>{profile.bio}</Text>}
+              {profile?.bio && (
+                <View style={styles.bioWrap}>
+                  <Text
+                    style={[styles.userBio, { color: theme.colors.onSurfaceVariant }]}
+                    numberOfLines={bioExpanded ? undefined : 2}
+                    onTextLayout={handleBioTextLayout}
+                  >
+                    {profile.bio}
+                  </Text>
+                  {bioTruncated && !bioExpanded && (
+                    <BlurView intensity={25} tint={isDark ? 'dark' : 'light'} style={styles.bioFade} pointerEvents="none" />
+                  )}
+                  {bioTruncated && (
+                    <TouchableOpacity onPress={() => setBioExpanded(prev => !prev)} activeOpacity={0.7}>
+                      <Text style={styles.bioViewMoreText}>{bioExpanded ? 'View less' : 'View more'}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
               <View style={styles.detailsRow}>
                 {profile?.university && <Text style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>🏫 {profile.university}</Text>}
                 {profile?.location && <Text style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>📍 {profile.location}</Text>}
@@ -276,7 +302,10 @@ const styles = StyleSheet.create({
   emojiText: { fontSize: 56 },
   userInfo: { alignItems: 'center', marginBottom: 4 },
   userName: { fontSize: 24, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
-  userBio: { fontSize: 15, textAlign: 'center', marginBottom: 12, lineHeight: 20, paddingHorizontal: 16 },
+  bioWrap: { marginBottom: 12, alignItems: 'center' },
+  userBio: { fontSize: 15, textAlign: 'center', lineHeight: 20, paddingHorizontal: 16 },
+  bioFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 20, overflow: 'hidden' },
+  bioViewMoreText: { color: '#60A5FA', fontWeight: '600', fontSize: 13, marginTop: 4 },
   detailsRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 12 },
   detailText: { fontSize: 14 },
   instagramLink: { flexDirection: 'row', alignItems: 'center', marginLeft: -8 },

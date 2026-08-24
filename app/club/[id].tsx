@@ -43,6 +43,8 @@ export default function ClubDetailScreen() {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [descExpanded, setDescExpanded] = useState(false);
+  const [descTruncated, setDescTruncated] = useState(false);
 
   useEffect(() => {
     if (clubId) {
@@ -284,6 +286,15 @@ export default function ClubDetailScreen() {
     return words.map(word => word.charAt(0).toUpperCase()).join('').slice(0, 3);
   };
 
+  // Text's onTextLayout only reports the lines that were actually rendered,
+  // so with numberOfLines={2} it never reports more than 2 — measure an
+  // invisible, unclipped copy of the same text to detect real truncation.
+  const handleDescriptionMeasure = (e: { nativeEvent: { lines: any[] } }) => {
+    if (e.nativeEvent.lines.length > 2) {
+      setDescTruncated(true);
+    }
+  };
+
   if (loading || !club) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -460,31 +471,55 @@ export default function ClubDetailScreen() {
             )}
             <View style={styles.nameColumn}>
               <View style={styles.nameRow}>
-                <Text variant="headlineMedium" style={[styles.clubName, { color: theme.colors.onSurface }]} numberOfLines={2}>
+                <Text variant="headlineMedium" style={[styles.clubName, { color: theme.colors.onSurface }]}>
                   {club.name}
                 </Text>
-                {club.isPro && (
-                  <Chip icon="crown" style={styles.proChip} textStyle={styles.proChipText} mode="flat">
-                    PRO
-                  </Chip>
-                )}
+                <View style={styles.badgeGroup}>
+                  {club.isPro && (
+                    <Chip icon="crown" style={styles.proChip} textStyle={styles.proChipText} mode="flat">
+                      PRO
+                    </Chip>
+                  )}
+                  {!!club.category && (
+                    <Chip
+                      style={[styles.categoryChip, { borderColor: '#60A5FA', backgroundColor: isDark ? 'rgba(96,165,250,0.15)' : 'rgba(96,165,250,0.08)' }]}
+                      textStyle={styles.categoryChipText}
+                      mode="outlined"
+                    >
+                      {club.category.toUpperCase()}
+                    </Chip>
+                  )}
+                </View>
               </View>
-              {!!club.category && (
-                <Chip
-                  style={[styles.categoryChip, { borderColor: '#60A5FA', backgroundColor: isDark ? 'rgba(96,165,250,0.15)' : 'rgba(96,165,250,0.08)' }]}
-                  textStyle={styles.categoryChipText}
-                  mode="outlined"
-                >
-                  {club.category.toUpperCase()}
-                </Chip>
-              )}
             </View>
           </View>
 
           {!!club.description && (
-            <Text variant="bodyLarge" style={[styles.clubDescription, { color: theme.colors.onSurfaceVariant }]}>
-              {club.description}
-            </Text>
+            <View style={styles.descriptionWrap}>
+              <Text
+                variant="bodyLarge"
+                style={[styles.clubDescription, styles.descriptionMeasure, { color: theme.colors.onSurfaceVariant }]}
+                onTextLayout={handleDescriptionMeasure}
+                pointerEvents="none"
+              >
+                {club.description}
+              </Text>
+              <Text
+                variant="bodyLarge"
+                style={[styles.clubDescription, { color: theme.colors.onSurfaceVariant }]}
+                numberOfLines={descExpanded ? undefined : 2}
+              >
+                {club.description}
+              </Text>
+              {descTruncated && !descExpanded && (
+                <BlurView intensity={25} tint={isDark ? 'dark' : 'light'} style={styles.descriptionFade} pointerEvents="none" />
+              )}
+              {descTruncated && (
+                <TouchableOpacity onPress={() => setDescExpanded(prev => !prev)} activeOpacity={0.7}>
+                  <Text style={styles.viewMoreText}>{descExpanded ? 'View less' : 'View more'}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           )}
 
           <View style={styles.membersActionRow}>
@@ -666,17 +701,6 @@ export default function ClubDetailScreen() {
           {/* Details Tab */}
           {activeTab === 'details' && (
             <>
-              {/* Description */}
-              <View style={styles.section}>
-                <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
-                  About
-                </Text>
-                <Text variant="bodyLarge" style={[styles.description, { color: theme.colors.onSurfaceVariant }]}>
-                  {club.description}
-                </Text>
-              </View>
-              <View style={[styles.divider, { backgroundColor: theme.colors.outline }]} />
-
               {/* Details */}
               {(club.location || club.university || club.contactEmail) && (
                 <>
@@ -1153,29 +1177,58 @@ const styles = StyleSheet.create({
   },
   nameColumn: {
     flex: 1,
-    justifyContent: 'center',
-    gap: 6,
   },
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
   },
   clubName: {
+    flexShrink: 1,
+    minWidth: 0,
     fontWeight: 'bold',
   },
+  badgeGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 0,
+    marginLeft: 8,
+  },
   categoryChip: {
-    alignSelf: 'flex-start',
+    alignSelf: 'center',
   },
   categoryChipText: {
     color: '#60A5FA',
     fontSize: 11,
     fontWeight: 'bold',
   },
-  clubDescription: {
+  descriptionWrap: {
     marginTop: 16,
+  },
+  clubDescription: {
     lineHeight: 22,
+  },
+  descriptionMeasure: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    opacity: 0,
+    zIndex: -1,
+  },
+  descriptionFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 22,
+    overflow: 'hidden',
+  },
+  viewMoreText: {
+    color: '#60A5FA',
+    fontWeight: '600',
+    fontSize: 13,
+    marginTop: 4,
   },
   membersActionRow: {
     flexDirection: 'row',
@@ -1291,9 +1344,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontWeight: 'bold',
     marginBottom: 12,
-  },
-  description: {
-    lineHeight: 26,
   },
   statsContainer: {
     flexDirection: 'row',

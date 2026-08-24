@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useNavigation } from 'expo-router';
+import { router, useNavigation, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getAuth } from 'firebase/auth';
 import { createUserProfile, logout } from '../../lib/firebase';
@@ -58,6 +58,7 @@ const CONFETTI_COLORS = ['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', 
 
 export default function ProfileSetupScreen() {
     const navigation = useNavigation();
+    const { redirectEventId } = useLocalSearchParams<{ redirectEventId?: string }>();
 
     const [currentStep, setCurrentStep] = useState(STEPS.NAME);
     const [firstName, setFirstName] = useState('');
@@ -549,7 +550,18 @@ export default function ProfileSetupScreen() {
 
                             <View style={styles.completeButtonContainer}>
                                 <TouchableOpacity
-                                    onPress={() => router.replace('/(tabs)/home')}
+                                    onPress={() => {
+                                        // Land on a clean Home first — dismissAll() drops the
+                                        // whole phone-auth/verify-otp/profile-setup stack so
+                                        // Back from the event never resurfaces the sign-up
+                                        // flow — then push the event on top of that clean
+                                        // stack so Back from there goes to Home.
+                                        router.dismissAll();
+                                        router.replace('/(tabs)/home');
+                                        if (redirectEventId) {
+                                            router.push(`/event/${redirectEventId}`);
+                                        }
+                                    }}
                                     style={styles.button}
                                     activeOpacity={0.8}
                                 >

@@ -1,6 +1,6 @@
 // app/event/[id].tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Linking, Dimensions, TouchableOpacity, ActivityIndicator, Modal, Animated, TextInput, Pressable, Platform, RefreshControl, Keyboard } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Linking, Dimensions, TouchableOpacity, ActivityIndicator, Modal, Animated, TextInput, Pressable, Platform, RefreshControl, Keyboard, Share } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import {
   Text,
@@ -26,6 +26,7 @@ import CancelEventSheet from '../../components/CancelEventSheet';
 import RallyCreditsPaidModal from '../../components/RallyCreditsPaidModal';
 import EventRegistrationFlow, { RegistrationData } from '../../components/EventRegistrationFlow';
 import { generateAndShareWaiverPDF } from '../../lib/waiverPdf';
+import { buildEventShareContent } from '../../lib/eventShare';
 
 const { width } = Dimensions.get('window');
 
@@ -508,6 +509,15 @@ export default function EventDetailScreen() {
     }
   };
 
+  const handleShare = async () => {
+    if (!event) return;
+    try {
+      await Share.share(buildEventShareContent(event));
+    } catch (error) {
+      Alert.alert('Error', 'Failed to share event');
+    }
+  };
+
   const formatDate = (date: any) => {
     if (!date) return '';
     const eventDate = date.toDate ? date.toDate() : new Date(date);
@@ -682,9 +692,14 @@ export default function EventDetailScreen() {
               </View>
             )}
 
-            <Text variant="headlineMedium" style={[styles.eventTitle, { color: theme.colors.onSurface }]}>
-              {event.title}
-            </Text>
+            <View style={styles.titleRow}>
+              <Text variant="headlineMedium" style={[styles.eventTitle, { color: theme.colors.onSurface, flex: 1 }]}>
+                {event.title}
+              </Text>
+              <TouchableOpacity onPress={handleShare} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Ionicons name="share-outline" size={24} color={theme.colors.onSurface} />
+              </TouchableOpacity>
+            </View>
 
             <TouchableOpacity
               onPress={() => router.push(`/club/${event.clubId}`)}
@@ -1808,6 +1823,11 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 0,
     marginBottom: 0,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   eventTitle: {
     fontWeight: 'bold',

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   Dimensions,
+  Alert,
 } from 'react-native';
 import {
   Text,
@@ -102,7 +103,7 @@ export default function ClubManageDashboard() {
     { title: 'Event Check-in', description: 'Check in attendees and award credits', icon: 'qrcode-scan', route: `/club/${clubId}/event-checkin` },
     { title: 'Questionnaires', description: 'View questionnaire responses from event attendees', icon: 'clipboard-text-outline', route: `/club/${clubId}/manage-questionnaire` },
     { title: 'Member Management', description: 'Manage members and join requests', icon: 'account-group', route: `/club/${clubId}/manage-members`, badge: pendingRequests },
-    { title: 'Subscribers', description: 'Manage subscriber settings and pricing', icon: 'star-circle', route: `/club/${clubId}/manage-subscriptions`, badge: club?.subscribers?.length || 0 },
+    { title: 'Subscribers', description: 'Manage subscriber settings and pricing', icon: 'star-circle', route: `/club/${clubId}/manage-subscriptions`, badge: club?.subscribers?.length || 0, comingSoon: true },
     { title: 'Analytics', description: 'View club performance metrics', icon: 'chart-line', route: `/club/${clubId}/analytics` },
     { title: 'Rally Credit Rewards', description: 'Set up rewards members can redeem', icon: 'star-settings', route: `/club/${clubId}/rally-credit-redemptions` },
     { title: 'Manage Member Credits', description: 'Add, remove, or adjust member credits', icon: 'cash-multiple', route: `/club/${clubId}/manage-credits` },
@@ -111,7 +112,7 @@ export default function ClubManageDashboard() {
     { title: 'Store Orders', description: 'Fulfill customer store orders', icon: 'package-variant', route: `/club/${clubId}/manage-orders`, badge: analytics?.pendingOrders },
     { title: 'Edit Club', description: 'Update club profile and settings', icon: 'pencil', route: `/club/edit/${clubId}` },
     { title: 'Payouts', description: (club.finixMerchantId || club.finixIdentityId) ? 'Manage payout settings' : 'Connect Payouts', icon: 'bank', route: `/club/${clubId}/payouts` },
-    { title: 'Pro Subscription', description: 'Manage club Pro status', icon: 'crown', route: `/club/${clubId}/subscription` },
+    { title: 'Pro Subscription', description: 'Manage club Pro status', icon: 'crown', route: `/club/${clubId}/subscription`, comingSoon: true },
   ];
 
   return (
@@ -186,7 +187,9 @@ export default function ClubManageDashboard() {
             {adminActions.map((action, index) => (
               <TouchableOpacity
                 key={index}
-                onPress={() => router.push(action.route as any)}
+                onPress={() => action.comingSoon
+                  ? Alert.alert('🚀 Subscriptions Coming Soon', "Stay tuned for future updates!")
+                  : router.push(action.route as any)}
                 activeOpacity={0.7}
               >
                 <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={[styles.actionCard, { borderColor: theme.colors.outline }]}>
