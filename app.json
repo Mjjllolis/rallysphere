@@ -21,8 +21,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.rallysphere.app",
-      "buildNumber": "60",
-      "associatedDomains": ["applinks:rally-sphere.web.app"],
+      "buildNumber": "61",
+      "associatedDomains": [
+        "applinks:rally-sphere.web.app"
+      ],
       "icon": {
         "light": "./assets/Logo.png",
         "dark": "./assets/Logo-dark.png"
