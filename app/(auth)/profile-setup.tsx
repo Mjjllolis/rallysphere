@@ -4,7 +4,6 @@ import {
     StyleSheet,
     Alert,
     TouchableOpacity,
-    StatusBar,
     KeyboardAvoidingView,
     Platform,
     TextInput as RNTextInput,
@@ -18,6 +17,8 @@ import { router, useNavigation, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getAuth } from 'firebase/auth';
 import { createUserProfile, logout } from '../../lib/firebase';
+import AuthBackground from '../../components/auth/AuthBackground';
+import GlassCard from '../../components/auth/GlassCard';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -345,9 +346,8 @@ export default function ProfileSetupScreen() {
     }));
 
     return (
+        <AuthBackground>
         <SafeAreaView style={styles.container}>
-            <StatusBar barStyle="light-content" />
-            <LinearGradient colors={['#0F172A', '#1E1B4B', '#2E1065']} style={StyleSheet.absoluteFill} />
 
             {/* Back Button - Top Left */}
             {currentStep > STEPS.NAME && currentStep !== STEPS.COMPLETE && (
@@ -362,19 +362,6 @@ export default function ProfileSetupScreen() {
             {currentStep !== STEPS.COMPLETE && (
                 <TouchableOpacity onPress={handleNotYou} style={styles.notYouButton}>
                     <Text style={styles.notYouText}>Not you?</Text>
-                </TouchableOpacity>
-            )}
-
-            {/* Dev Back Button - Top Right on Complete Screen */}
-            {currentStep === STEPS.COMPLETE && (
-                <TouchableOpacity
-                    onPress={() => {
-                        slideX.value = withTiming(-width * 2, { duration: 300, easing: Easing.out(Easing.cubic) });
-                        setCurrentStep(STEPS.LOCATION);
-                    }}
-                    style={styles.notYouButton}
-                >
-                    <Text style={styles.notYouText}>← Back (dev)</Text>
                 </TouchableOpacity>
             )}
 
@@ -395,7 +382,8 @@ export default function ProfileSetupScreen() {
                 <Animated.View style={[styles.stepsContainer, containerStyle]}>
                     {/* Step 1: Name */}
                     <View style={styles.step}>
-                        <View style={styles.stepContent}>
+                        <View style={styles.grabber} />
+                        <GlassCard contentStyle={styles.stepContent}>
                             <Text style={styles.stepTitle}>What's your name?</Text>
                             <Text style={styles.stepSubtitle}>Let's get to know you</Text>
 
@@ -432,26 +420,25 @@ export default function ProfileSetupScreen() {
                                 activeOpacity={0.8}
                             >
                                 <LinearGradient
-                                    colors={['#FFFFFF', '#F3F4F6']}
+                                    colors={['#4F8CC9', '#3B64A1']}
                                     start={{ x: 0, y: 0 }}
                                     end={{ x: 0, y: 1 }}
                                     style={styles.buttonGradient}
                                 >
-                                    <Text style={[styles.buttonText, styles.buttonTextDark]}>Continue</Text>
+                                    <Text style={styles.buttonText}>Continue</Text>
                                 </LinearGradient>
                             </TouchableOpacity>
-                        </View>
+                        </GlassCard>
                     </View>
 
                     {/* Step 2: Email */}
                     <View style={styles.step}>
-                        <View style={styles.stepContent}>
+                        <View style={styles.grabber} />
+                        <GlassCard contentStyle={styles.stepContent}>
                             <Text style={styles.stepTitle}>What's your email?</Text>
-                            <Text style={styles.stepSubtitle}>We'll send you ride updates</Text>
 
                             <View style={styles.inputGroup}>
                                 <View style={styles.emailInputContainer}>
-                                    <Text style={styles.emailIcon}>📧</Text>
                                     <RNTextInput
                                         ref={emailRef}
                                         value={email}
@@ -476,20 +463,21 @@ export default function ProfileSetupScreen() {
                                 activeOpacity={0.8}
                             >
                                 <LinearGradient
-                                    colors={['#FFFFFF', '#F3F4F6']}
+                                    colors={['#4F8CC9', '#3B64A1']}
                                     start={{ x: 0, y: 0 }}
                                     end={{ x: 0, y: 1 }}
                                     style={styles.buttonGradient}
                                 >
-                                    <Text style={[styles.buttonText, styles.buttonTextDark]}>Continue</Text>
+                                    <Text style={styles.buttonText}>Continue</Text>
                                 </LinearGradient>
                             </TouchableOpacity>
-                        </View>
+                        </GlassCard>
                     </View>
 
                     {/* Step 3: Location Services */}
                     <View style={styles.step}>
-                        <View style={styles.stepContent}>
+                        <View style={styles.grabber} />
+                        <GlassCard contentStyle={styles.stepContent}>
                             <View style={styles.locationHeroContainer}>
                                 <Text style={styles.locationHero}>📍</Text>
                             </View>
@@ -529,7 +517,7 @@ export default function ProfileSetupScreen() {
                             <TouchableOpacity onPress={handleSkipLocation} disabled={loading}>
                                 <Text style={styles.skipText}>Skip for now</Text>
                             </TouchableOpacity>
-                        </View>
+                        </GlassCard>
                     </View>
 
                     <View style={styles.step}>
@@ -595,7 +583,8 @@ export default function ProfileSetupScreen() {
                     </View>
                 </Animated.View>
             </KeyboardAvoidingView>
-        </SafeAreaView>
+            </SafeAreaView>
+        </AuthBackground>
     );
 }
 
@@ -666,7 +655,7 @@ const styles = StyleSheet.create({
         padding: 8,
     },
     notYouText: {
-        color: '#60A5FA',
+        color: '#8FBEE6',
         fontSize: 14,
         fontWeight: '600',
         textDecorationLine: 'underline',
@@ -694,8 +683,8 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
     },
     progressDotCompleted: {
-        backgroundColor: '#3B82F6',
-        shadowColor: '#3B82F6',
+        backgroundColor: '#4F8CC9',
+        shadowColor: '#4F8CC9',
         shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.6,
         shadowRadius: 6,
@@ -706,23 +695,32 @@ const styles = StyleSheet.create({
     },
     step: {
         width,
-        paddingHorizontal: 24,
-        justifyContent: 'center',
+        paddingHorizontal: 20,
+        justifyContent: 'flex-end',
+        paddingBottom: Platform.OS === 'ios' ? 42 : 24,
+    },
+    grabber: {
+        alignSelf: 'center',
+        width: 40,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: 'rgba(255,255,255,0.35)',
+        marginBottom: 14,
     },
     stepContent: {
         gap: 24,
+        padding: 24,
     },
     stepTitle: {
-        fontSize: 32,
-        fontWeight: 'bold',
+        fontSize: 22,
+        fontWeight: '500',
         color: '#FFFFFF',
         textAlign: 'center',
-        textShadowColor: 'rgba(59,130,246,0.3)',
-        textShadowOffset: { width: 0, height: 2 },
-        textShadowRadius: 8,
+        letterSpacing: 0.2,
     },
     stepSubtitle: {
-        fontSize: 16,
+        fontSize: 14,
+        fontWeight: '400',
         color: 'rgba(255,255,255,0.7)',
         textAlign: 'center',
         marginTop: -16,
@@ -731,7 +729,7 @@ const styles = StyleSheet.create({
         gap: 16,
     },
     input: {
-        backgroundColor: 'rgba(255,255,255,0.08)',
+        backgroundColor: 'rgba(255,255,255,0.12)',
         borderRadius: 16,
         paddingHorizontal: 20,
         paddingVertical: 16,
@@ -739,7 +737,7 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         color: '#FFFFFF',
         borderWidth: 2,
-        borderColor: 'rgba(255,255,255,0.15)',
+        borderColor: 'rgba(255,255,255,0.22)',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
@@ -749,10 +747,10 @@ const styles = StyleSheet.create({
     emailInputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.08)',
+        backgroundColor: 'rgba(255,255,255,0.12)',
         borderRadius: 16,
         borderWidth: 2,
-        borderColor: 'rgba(255,255,255,0.15)',
+        borderColor: 'rgba(255,255,255,0.22)',
         paddingLeft: 16,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
@@ -773,35 +771,21 @@ const styles = StyleSheet.create({
     },
     button: {
         borderRadius: 16,
-        overflow: 'visible',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.25,
-        shadowRadius: 12,
-        elevation: 5,
-        position: 'relative',
+        overflow: 'hidden',
     },
     buttonGradient: {
         paddingVertical: 18,
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: 16,
-        borderBottomWidth: 5,
-        borderBottomColor: '#D1D5DB',
-        borderRightWidth: 4,
-        borderRightColor: '#D1D5DB',
     },
     buttonGradientDisabled: {
-        borderBottomColor: '#334155',
-        borderRightColor: '#334155',
+        opacity: 0.55,
     },
-    buttonGradientGreen: {
-        borderBottomColor: '#047857',
-        borderRightColor: '#047857',
-    },
+    buttonGradientGreen: {},
     buttonText: {
-        fontSize: 17,
-        fontWeight: '700',
+        fontSize: 16,
+        fontWeight: '600',
         color: '#FFFFFF',
         letterSpacing: 0.5,
     },
@@ -817,13 +801,13 @@ const styles = StyleSheet.create({
         width: 120,
         height: 120,
         borderRadius: 60,
-        backgroundColor: 'rgba(59,130,246,0.15)',
+        backgroundColor: 'rgba(79,140,201,0.15)',
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 16,
         borderWidth: 3,
-        borderColor: 'rgba(59,130,246,0.3)',
-        shadowColor: '#3B82F6',
+        borderColor: 'rgba(79,140,201,0.3)',
+        shadowColor: '#4F8CC9',
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.3,
         shadowRadius: 16,
@@ -916,13 +900,13 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         textAlign: 'center',
         marginBottom: 16,
-        textShadowColor: 'rgba(59,130,246,0.4)',
+        textShadowColor: 'rgba(79,140,201,0.4)',
         textShadowOffset: { width: 0, height: 3 },
         textShadowRadius: 10,
     },
     completeSubtitle: {
         fontSize: 24,
-        color: '#60A5FA',
+        color: '#8FBEE6',
         textAlign: 'center',
         marginBottom: 16,
         fontWeight: '600',

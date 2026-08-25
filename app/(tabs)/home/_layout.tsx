@@ -1,6 +1,6 @@
 // app/(tabs)/index/_layout.tsx
 import React, { useState } from 'react';
-import { View, StyleSheet, StatusBar } from 'react-native';
+import { View, StyleSheet, StatusBar, Pressable } from 'react-native';
 import { useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -15,6 +15,7 @@ export default function HomeLayout() {
   const { isDark } = useThemeToggle();
   const [activeTab, setActiveTab] = useState('RallyFeed');
   const [radiusMiles, setRadiusMiles] = useState(25);
+  const [distanceOpen, setDistanceOpen] = useState(false);
   const insets = useSafeAreaInsets();
 
   const topSpacing = insets.top + 4;
@@ -57,8 +58,23 @@ export default function HomeLayout() {
           pointerEvents="none"
         />
       )}
+      {distanceOpen && (
+        <Pressable
+          style={styles.dropdownBackdrop}
+          onPress={() => setDistanceOpen(false)}
+          accessibilityLabel="Close distance picker"
+        />
+      )}
+
       <View style={[styles.tabsOverlay, { top: topSpacing + 16 }]}>
-        <TopTabs activeTab={activeTab} setActiveTab={setActiveTab} radiusMiles={radiusMiles} onRadiusChange={setRadiusMiles} />
+        <TopTabs
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          radiusMiles={radiusMiles}
+          onRadiusChange={setRadiusMiles}
+          distanceOpen={distanceOpen}
+          setDistanceOpen={setDistanceOpen}
+        />
       </View>
     </View>
   );
@@ -95,6 +111,10 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
+    zIndex: 99,
+  },
+  dropdownBackdrop: {
+    ...StyleSheet.absoluteFillObject,
     zIndex: 99,
   },
   tabsOverlay: {
