@@ -392,7 +392,16 @@ export default function EventSwipeCard({
     if (isFeatured && onFeaturedClick) {
       onFeaturedClick();
     }
-    router.push(`/event/${event.id}`);
+    // Hand off what we already have so the details screen can paint the cover
+    // image immediately instead of a blank loading screen while it fetches.
+    router.push({
+      pathname: '/event/[id]',
+      params: {
+        id: event.id,
+        previewCoverImage: event.coverImage || '',
+        previewTitle: event.title,
+      },
+    });
   };
 
   const handleShare = async () => {
@@ -432,8 +441,8 @@ export default function EventSwipeCard({
       style={[styles.container, { backgroundColor: theme.colors.background }]}
       onPress={handleCardPress}
     >
-      {/* Blurred Background Image - only in dark mode */}
-      {isDark && event.coverImage ? (
+      {/* Blurred Background Image */}
+      {event.coverImage ? (
         <ExpoImage
           source={{ uri: event.coverImage }}
           style={styles.blurredBackground}
@@ -443,29 +452,33 @@ export default function EventSwipeCard({
           cachePolicy="memory-disk"
           recyclingKey={event.coverImage}
         />
-      ) : isDark ? (
-        <View style={[styles.blurredBackground, { backgroundColor: theme.colors.surfaceVariant }]} />
-      ) : null}
-
-      {/* Gradient Overlay */}
-      {isDark ? (
-        <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.1)', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.7)', 'rgba(0,0,0,0.95)', 'rgba(0,0,0,1)']}
-          locations={[0, 0.3, 0.5, 0.7, 0.85, 1]}
-          style={styles.gradientOverlay}
-        />
       ) : (
-        <LinearGradient
-          colors={[
-            'rgba(139, 92, 246, 0.3)',
-            'rgba(96, 165, 250, 0.1)',
-            'rgba(248, 250, 252, 0)',
-          ]}
-          locations={[0, 0.3, 1]}
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-        />
+        <View style={[styles.blurredBackground, { backgroundColor: theme.colors.surfaceVariant }]} />
       )}
+
+      {/* Gradient Overlay - same opacity curve in both themes so the blurred photo reads equally far down */}
+      <LinearGradient
+        colors={isDark
+          ? ['transparent', 'rgba(0,0,0,0.1)', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.7)', 'rgba(0,0,0,0.95)', 'rgba(0,0,0,1)']
+          : ['transparent', 'rgba(248,250,252,0.1)', 'rgba(248,250,252,0.3)', 'rgba(248,250,252,0.7)', 'rgba(248,250,252,0.95)', 'rgba(248,250,252,1)']}
+        locations={[0, 0.3, 0.5, 0.7, 0.85, 1]}
+        style={styles.gradientOverlay}
+      />
+
+      {/* Top scrim behind the floating tab bar - lives on the card itself (not a fixed
+          overlay in the parent layout) so it travels with the photo during the swipe.
+          Starts almost fully opaque at y=0 (matching the solid color the PREVIOUS card's
+          bottom gradientOverlay fades to) so the paging seam between two cards lands on
+          matching flat color instead of two different photos meeting at a hard edge, then
+          eases out gradually (more stops = softer curve) instead of jumping straight in. */}
+      <LinearGradient
+        colors={isDark
+          ? ['rgba(0,0,0,1)', 'rgba(0,0,0,0.85)', 'rgba(0,0,0,0.55)', 'rgba(0,0,0,0.25)', 'transparent']
+          : ['rgba(248,250,252,1)', 'rgba(248,250,252,0.85)', 'rgba(248,250,252,0.55)', 'rgba(248,250,252,0.25)', 'rgba(248,250,252,0)']}
+        locations={[0, 0.25, 0.55, 0.8, 1]}
+        style={[styles.topScrim, { height: insets.top + 4 + 110 }]}
+        pointerEvents="none"
+      />
 
       {/* Subtle dust texture overlay */}
       <Svg style={styles.grainOverlay} pointerEvents="none">
@@ -951,6 +964,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: '100%',
+  },
+  topScrim: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
   },
   grainOverlay: {
     position: 'absolute',

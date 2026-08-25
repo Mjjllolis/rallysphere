@@ -3,7 +3,6 @@ import React, { useState } from 'react';
 import { View, StyleSheet, StatusBar } from 'react-native';
 import { useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useThemeToggle } from '../../_layout';
 import TopTabs from './_components/TopTabs';
 import HomeFeed from './_components/HomeFeed';
@@ -37,26 +36,8 @@ export default function HomeLayout() {
         <SavedFeed isActive={activeTab === 'Saved'} />
       </View>
 
-      {/* Floating tabs backdrop */}
-      {isDark ? (
-        <LinearGradient
-          colors={['rgba(0,0,0,0.8)', 'rgba(0,0,0,0.6)', 'transparent']}
-          locations={[0, 0.5, 1]}
-          style={[styles.tabsGradient, { height: topSpacing + 110 }]}
-          pointerEvents="none"
-        />
-      ) : (
-        <LinearGradient
-          colors={[
-            'rgba(139, 92, 246, 0.3)',
-            'rgba(96, 165, 250, 0.15)',
-            'rgba(248, 250, 252, 0)',
-          ]}
-          locations={[0, 0.5, 1]}
-          style={[styles.tabsGradient, { height: topSpacing + 110 }]}
-          pointerEvents="none"
-        />
-      )}
+      {/* Each EventSwipeCard now paints its own top scrim behind the tab bar, so it
+          travels with the photo during swipes instead of sitting fixed here. */}
       <View style={[styles.tabsOverlay, { top: topSpacing + 16 }]}>
         <TopTabs activeTab={activeTab} setActiveTab={setActiveTab} radiusMiles={radiusMiles} onRadiusChange={setRadiusMiles} />
       </View>
@@ -82,20 +63,6 @@ const styles = StyleSheet.create({
     zIndex: 0,
     opacity: 0,
     pointerEvents: 'none',
-  },
-  tabsGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 99,
-  },
-  tabsBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 99,
   },
   tabsOverlay: {
     position: 'absolute',

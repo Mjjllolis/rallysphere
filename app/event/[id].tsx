@@ -8,14 +8,14 @@ import {
   Card,
   Chip,
   IconButton,
-  useTheme
+  Provider as PaperProvider
 } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, Stack, useFocusEffect } from 'expo-router';
-import { useAuth, useThemeToggle } from '../_layout';
+import { useAuth, darkTheme } from '../_layout';
 import { getEventById, joinEvent, getUserRallyCredits, getClub, getUserProfile, storeWaiverSignature, getWaiverSignature, submitQuestionnaireResponse } from '../../lib/firebase';
 import type { Club } from '../../lib/firebase';
 import { leaveEventWithRefund } from '../../lib/finix';
@@ -29,14 +29,22 @@ import { generateAndShareWaiverPDF } from '../../lib/waiverPdf';
 import { buildEventShareContent } from '../../lib/eventShare';
 
 const { width } = Dimensions.get('window');
+const HERO_IMAGE_HORIZONTAL_PADDING = 20;
+const HERO_IMAGE_WIDTH = width - HERO_IMAGE_HORIZONTAL_PADDING * 2;
 
 export default function EventDetailScreen() {
-  const theme = useTheme();
-  const { isDark } = useThemeToggle();
+  // Event details always renders in dark styling (regardless of the app's light/dark
+  // setting) so text contrast against the photo header stays consistent for every user.
+  const theme = darkTheme;
+  const isDark = true;
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
-  const { id } = useLocalSearchParams();
+  const { id, previewCoverImage, previewTitle } = useLocalSearchParams();
   const eventId = id as string;
+  // Passed in from the feed card so the loading state can paint the real
+  // cover image right away instead of a blank screen while data fetches.
+  const previewImage = typeof previewCoverImage === 'string' && previewCoverImage ? previewCoverImage : undefined;
+  const previewEventTitle = typeof previewTitle === 'string' ? previewTitle : undefined;
 
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
@@ -71,6 +79,7 @@ export default function EventDetailScreen() {
   const signedWaiverSheetAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
   const keyboardHeight = useRef(new Animated.Value(0)).current;
   const cachedPdfUri = useRef<string | null>(null);
+  const skeletonPulse = useRef(new Animated.Value(0.4)).current;
 
   // Dismiss waiver modal with slide-down animation
   const dismissWaiverModal = () => {
@@ -127,6 +136,20 @@ export default function EventDetailScreen() {
       loadEventData();
     }
   }, [eventId]);
+
+  // Shimmer loop for the skeleton placeholders shown while the event is loading
+  useEffect(() => {
+    if (loading) {
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(skeletonPulse, { toValue: 1, duration: 700, useNativeDriver: true }),
+          Animated.timing(skeletonPulse, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+        ])
+      );
+      loop.start();
+      return () => loop.stop();
+    }
+  }, [loading]);
 
   // Silently refresh event data when screen regains focus (e.g. after editing)
   const hasLoadedOnce = useRef(false);
@@ -541,14 +564,79 @@ export default function EventDetailScreen() {
 
   if (loading || !event) {
     return (
+      <PaperProvider theme={darkTheme}>
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         {/* set slide animation here too so it applies even before data loads */}
         <Stack.Screen options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true, gestureDirection: 'horizontal' }} />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.onSurface} />
-          <Text variant="bodyLarge" style={{ color: theme.colors.onSurface, marginTop: 16 }}>Loading...</Text>
+
+        {/* Paint the cover image the feed card handed us right away, instead of a
+            blank black screen, while the real event data is still fetching. */}
+        {previewImage && (
+          <ExpoImage
+            source={{ uri: previewImage }}
+            style={styles.backgroundImage}
+            blurRadius={80}
+            cachePolicy="memory-disk"
+          />
+        )}
+        <LinearGradient
+          colors={['rgba(10,10,20,0.05)', 'rgba(10,10,20,0.3)', 'rgba(10,10,25,0.75)', 'rgba(10,10,25,1)']}
+          locations={[0, 0.4, 0.75, 1]}
+          style={styles.backgroundOverlay}
+        />
+
+        <View style={styles.heroSection}>
+          <View style={[styles.topControl, { paddingTop: insets.top + 8 }]}>
+            <BlurView intensity={40} tint="dark" style={styles.controlButtonBlur}>
+              <IconButton icon="arrow-left" iconColor="#FFFFFF" size={24} onPress={() => router.back()} />
+            </BlurView>
+          </View>
+
+          {previewImage ? (
+            <View style={styles.coverImageCard}>
+              <ExpoImage
+                source={{ uri: previewImage }}
+                style={styles.coverImage}
+                contentFit="cover"
+                cachePolicy="memory-disk"
+              />
+            </View>
+          ) : (
+            <Animated.View style={[styles.coverImageCard, styles.skeletonBlock, { opacity: skeletonPulse }]} />
+          )}
+        </View>
+
+        {/* Skeleton placeholders for the rest of the layout - we don't have this
+            data yet (only the feed card's image/title come along as a preview) */}
+        <View style={styles.skeletonContent}>
+          {previewEventTitle ? (
+            <Text variant="headlineMedium" style={[styles.eventTitle, { color: theme.colors.onSurface }]} numberOfLines={1}>
+              {previewEventTitle}
+            </Text>
+          ) : (
+            <Animated.View style={[styles.skeletonBlock, styles.skeletonTitle, { opacity: skeletonPulse }]} />
+          )}
+
+          <View style={styles.skeletonRow}>
+            <Animated.View style={[styles.skeletonBlock, styles.skeletonCircle, { opacity: skeletonPulse }]} />
+            <Animated.View style={[styles.skeletonBlock, styles.skeletonLineShort, { opacity: skeletonPulse }]} />
+          </View>
+
+          <View style={styles.skeletonRow}>
+            <Animated.View style={[styles.skeletonBlock, styles.skeletonCircle, { opacity: skeletonPulse }]} />
+            <View style={{ gap: 6 }}>
+              <Animated.View style={[styles.skeletonBlock, styles.skeletonLineMedium, { opacity: skeletonPulse }]} />
+              <Animated.View style={[styles.skeletonBlock, styles.skeletonLineShort, { opacity: skeletonPulse }]} />
+            </View>
+          </View>
+
+          <View style={styles.skeletonRow}>
+            <Animated.View style={[styles.skeletonBlock, styles.skeletonCircle, { opacity: skeletonPulse }]} />
+            <Animated.View style={[styles.skeletonBlock, styles.skeletonLineLong, { opacity: skeletonPulse }]} />
+          </View>
         </View>
       </View>
+      </PaperProvider>
     );
   }
 
@@ -568,6 +656,7 @@ export default function EventDetailScreen() {
   const isFull = event.maxAttendees && attendeeCountValue >= event.maxAttendees;
 
   return (
+    <PaperProvider theme={darkTheme}>
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* slide in from right, swipe to go back */}
       <Stack.Screen options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true, gestureDirection: 'horizontal' }} />
@@ -581,30 +670,25 @@ export default function EventDetailScreen() {
           cachePolicy="memory-disk"
         />
       )}
-      {/* Gradient overlay for better readability */}
+      {/* Gradient overlay - keeps the blurred cover colors glowing behind the hero across the
+          full screen, only settling to a solid backdrop near the very bottom of the viewport */}
       <LinearGradient
-        colors={isDark ? ['rgba(15,15,35,0.3)', 'rgba(15,15,35,0.85)', 'rgba(10,10,25,0.95)'] : ['rgba(255,255,255,0.3)', 'rgba(255,255,255,0.85)', 'rgba(245,245,245,0.95)']}
+        colors={isDark
+          ? ['rgba(10,10,20,0.05)', 'rgba(10,10,20,0.3)', 'rgba(10,10,25,0.75)', 'rgba(10,10,25,1)']
+          : ['rgba(248,250,252,0.05)', 'rgba(248,250,252,0.3)', 'rgba(248,250,252,0.75)', 'rgba(248,250,252,1)']}
+        locations={[0, 0.4, 0.75, 1]}
         style={styles.backgroundOverlay}
       />
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await loadEventData(true); setRefreshing(false); }} tintColor={theme.colors.onSurface} />}>
-        {/* Hero Section with Cover Image Only */}
+        {/* Hero Section: controls float above the blurred backdrop, image is an inset 4:5 card */}
         <View style={styles.heroSection}>
-          {/* Full Cover Image */}
-          <ExpoImage
-            source={event.coverImage ? { uri: event.coverImage } : require('../../assets/Background.png')}
-            style={styles.coverImage}
-            contentFit="cover"
-            transition={200}
-            cachePolicy="memory-disk"
-          />
-
-          {/* Back Button and Menu - floating at top */}
-          <View style={styles.topControl}>
-            <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.controlButtonBlur}>
+          {/* Back Button and Menu - above the image, over the blurred backdrop */}
+          <View style={[styles.topControl, { paddingTop: insets.top + 8 }]}>
+            <BlurView intensity={40} tint="dark" style={styles.controlButtonBlur}>
               <IconButton
                 icon="arrow-left"
-                iconColor={theme.colors.onSurface}
+                iconColor="#FFFFFF"
                 size={24}
                 onPress={() => router.back()}
               />
@@ -614,10 +698,10 @@ export default function EventDetailScreen() {
             {user && (isAttending || isWaitlisted || canManageEvent) && (
               <View>
                 <TouchableOpacity onPress={() => setMenuVisible(prev => !prev)} activeOpacity={0.7}>
-                  <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.controlButtonBlur}>
+                  <BlurView intensity={40} tint="dark" style={styles.controlButtonBlur}>
                     <IconButton
                       icon="dots-vertical"
-                      iconColor={theme.colors.onSurface}
+                      iconColor="#FFFFFF"
                       size={24}
                     />
                   </BlurView>
@@ -656,6 +740,17 @@ export default function EventDetailScreen() {
                 )}
               </View>
             )}
+          </View>
+
+          {/* Inset cover image card, 4:5, rounded on all corners so the blurred backdrop glows around it */}
+          <View style={styles.coverImageCard}>
+            <ExpoImage
+              source={event.coverImage ? { uri: event.coverImage } : require('../../assets/Background.png')}
+              style={styles.coverImage}
+              contentFit="cover"
+              transition={200}
+              cachePolicy="memory-disk"
+            />
           </View>
         </View>
 
@@ -725,31 +820,43 @@ export default function EventDetailScreen() {
                 </View>
               )}
               <Text variant="titleMedium" style={[styles.clubName, { color: theme.colors.onSurfaceVariant }]}>
-                by {event.clubName}
+                Hosted by {event.clubName}
               </Text>
               <IconButton icon="chevron-right" size={18} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0, marginLeft: -8 }} />
             </TouchableOpacity>
 
-            {/* Quick Info Row */}
-            <View style={styles.quickInfo}>
-              <View style={styles.quickInfoItem}>
-                <IconButton icon="calendar" iconColor={theme.colors.onSurface} size={18} style={styles.quickInfoIcon} />
-                <Text variant="bodyMedium" style={[styles.quickInfoText, { color: theme.colors.onSurfaceVariant }]}>
-                  {formatDate(event.startDate).split(',')[0]}
-                </Text>
+            {/* Quick Info Stack */}
+            <View style={styles.quickInfoStack}>
+              <View style={styles.quickInfoRow}>
+                <Ionicons name="calendar-outline" size={20} color={theme.colors.onSurface} style={styles.quickInfoRowIcon} />
+                <View>
+                  <Text variant="bodyLarge" style={[styles.quickInfoMainText, { color: theme.colors.onSurface }]}>
+                    {formatDate(event.startDate)}
+                  </Text>
+                  <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+                    {formatTime(event.startDate)}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.quickInfoItem}>
-                <IconButton icon="clock" iconColor={theme.colors.onSurface} size={18} style={styles.quickInfoIcon} />
-                <Text variant="bodyMedium" style={[styles.quickInfoText, { color: theme.colors.onSurfaceVariant }]}>
-                  {formatTime(event.startDate)}
+
+              <TouchableOpacity
+                activeOpacity={event.isVirtual ? 1 : 0.7}
+                style={styles.quickInfoRow}
+                onPress={() => {
+                  if (event.isVirtual) return;
+                  const address = encodeURIComponent(event.location);
+                  const url = Platform.select({
+                    ios: `maps:0,0?q=${address}`,
+                    android: `geo:0,0?q=${address}`,
+                  }) || `https://www.google.com/maps/search/?api=1&query=${address}`;
+                  Linking.openURL(url);
+                }}
+              >
+                <Ionicons name={event.isVirtual ? "videocam-outline" : "location-outline"} size={20} color={theme.colors.onSurface} style={styles.quickInfoRowIcon} />
+                <Text variant="bodyLarge" style={[styles.quickInfoMainText, { color: theme.colors.onSurface, flex: 1 }]} numberOfLines={2}>
+                  {event.isVirtual ? 'Virtual Event' : event.location}
                 </Text>
-              </View>
-              <View style={styles.quickInfoItem}>
-                <IconButton icon="account-group" iconColor={theme.colors.onSurface} size={18} style={styles.quickInfoIcon} />
-                <Text variant="bodyMedium" style={[styles.quickInfoText, { color: theme.colors.onSurfaceVariant }]}>
-                  {attendeeCountValue.toString()}{event.maxAttendees ? `/${event.maxAttendees.toString()}` : ''}
-                </Text>
-              </View>
+              </TouchableOpacity>
             </View>
 
             {/* Stacked preview of who's attending */}
@@ -1590,6 +1697,7 @@ export default function EventDetailScreen() {
         </TouchableOpacity>
       )}
     </View>
+    </PaperProvider>
   );
 }
 
@@ -1613,6 +1721,42 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
+  skeletonBlock: {
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderRadius: 8,
+  },
+  skeletonContent: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    gap: 16,
+  },
+  skeletonTitle: {
+    width: '70%',
+    height: 28,
+    borderRadius: 6,
+  },
+  skeletonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  skeletonCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+  skeletonLineShort: {
+    width: 100,
+    height: 14,
+  },
+  skeletonLineMedium: {
+    width: 160,
+    height: 16,
+  },
+  skeletonLineLong: {
+    width: 220,
+    height: 16,
+  },
   scrollView: {
     flex: 1,
   },
@@ -1625,19 +1769,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   heroSection: {
-    height: width * 1.25,
-    position: 'relative',
+    paddingBottom: 24,
+  },
+  coverImageCard: {
+    marginHorizontal: HERO_IMAGE_HORIZONTAL_PADDING,
+    width: HERO_IMAGE_WIDTH,
+    aspectRatio: 4 / 5,
+    borderRadius: 28,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    elevation: 14,
   },
   coverImage: {
     width: '100%',
-    height: width * 1.25,
+    height: '100%',
   },
   topControl: {
-    position: 'absolute',
-    top: 60,
-    left: 0,
-    right: 0,
     paddingHorizontal: 16,
+    marginBottom: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -1774,21 +1927,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  quickInfo: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 12,
-    flexWrap: 'wrap',
+  quickInfoStack: {
+    gap: 12,
+    marginBottom: 16,
   },
-  quickInfoItem: {
+  quickInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
   },
-  quickInfoIcon: {
-    margin: 0,
+  quickInfoRowIcon: {
+    width: 20,
   },
-  quickInfoText: {
-    marginLeft: -8,
+  quickInfoMainText: {
+    fontWeight: '600',
   },
   attendeeAvatarsGroup: {
     flexDirection: 'row',
