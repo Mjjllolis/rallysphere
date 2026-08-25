@@ -21,7 +21,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.rallysphere.app",
-      "buildNumber": "61",
+      "buildNumber": "63",
       "associatedDomains": [
         "applinks:rally-sphere.web.app"
       ],
