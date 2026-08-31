@@ -2,11 +2,18 @@
   <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
   <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
   <uses-permission android:name="android.permission.INTERNET"/>
-  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
-  <uses-permission android:name="android.permission.RECORD_AUDIO"/>
-  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
   <uses-permission android:name="android.permission.VIBRATE"/>
-  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+  <!--
+    Storage: we never write to shared external storage, and image picking goes
+    through the system photo picker (content URIs, no permission needed). Both
+    perms are declared uncapped by expo-file-system / expo-image-picker, so the
+    manifest merger re-adds them unless we override here.
+      - WRITE: removed outright (no-op on API 29+, unused below that).
+      - READ:  capped at API 32; ungrantable on 33+ anyway, and leaving it
+               uncapped trips Play's sensitive-permission review.
+  -->
+  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:node="replace"/>
+  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove"/>
   <queries>
     <intent>
       <action android:name="android.intent.action.VIEW"/>
@@ -29,6 +36,18 @@
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="rallysphere"/>
         <data android:scheme="exp+rally-sphere"/>
+      </intent-filter>
+      <!--
+        Android App Links — the counterpart to the iOS associated domain.
+        Verified against https://rally-sphere.web.app/.well-known/assetlinks.json
+        so shared event links (lib/eventShare.ts) open the app instead of the
+        browser. Path mirrors the AASA entry: /event/*.
+      -->
+      <intent-filter android:autoVerify="true">
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="https" android:host="rally-sphere.web.app" android:pathPrefix="/event"/>
       </intent-filter>
     </activity>
   </application>

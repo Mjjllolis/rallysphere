@@ -28,6 +28,12 @@
         "headers": [
           { "key": "Content-Type", "value": "application/json" }
         ]
+      },
+      {
+        "source": "/.well-known/assetlinks.json",
+        "headers": [
+          { "key": "Content-Type", "value": "application/json" }
+        ]
       }
     ],
     "predeploy": [
@@ -36,7 +42,8 @@
       "if [ -f public/fees.html ]; then cp public/fees.html dist/fees.html; fi",
       "if [ -f public/og-default.png ]; then cp public/og-default.png dist/og-default.png; fi",
       "if [ -f public/.well-known/apple-developer-merchantid-domain-association ]; then mkdir -p dist/.well-known && cp public/.well-known/apple-developer-merchantid-domain-association dist/.well-known/apple-developer-merchantid-domain-association; fi",
-      "if [ -f public/.well-known/apple-app-site-association ]; then mkdir -p dist/.well-known && cp public/.well-known/apple-app-site-association dist/.well-known/apple-app-site-association; fi"
+      "if [ -f public/.well-known/apple-app-site-association ]; then mkdir -p dist/.well-known && cp public/.well-known/apple-app-site-association dist/.well-known/apple-app-site-association; fi",
+      "if [ -f public/.well-known/assetlinks.json ]; then mkdir -p dist/.well-known && cp public/.well-known/assetlinks.json dist/.well-known/assetlinks.json; fi"
     ]
   },
   "functions": [

@@ -1,0 +1,15 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.rallysphere.app",
+      "sha256_cert_fingerprints": [
+        "BD:96:7D:FB:0B:EF:AA:7E:FD:3F:E7:54:3C:45:E6:5C:98:94:38:D8:71:A9:9F:B3:BD:BB:E9:B9:7A:0A:CD:97",
+        "7F:59:9F:98:6F:AD:E1:53:CA:79:F5:3E:9B:83:1E:40:0D:AB:0A:F7:6A:4F:FE:96:5C:48:06:41:45:87:04:D6"
+      ]
+    }
+  }
+]
