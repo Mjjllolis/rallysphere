@@ -4,21 +4,21 @@ App is in **Draft**. Org account (no 12-tester gate). Build 13 uploaded as draft
 
 ## Blockers
 
-- [ ] Create `safety@rallysphere.com` inbox — child-safety page points at it
 - [ ] Build account-deletion web page (Data safety requires a public URL, in-app flow alone isn't enough)
 - [ ] Ship build 14 with reporting/blocking — build 13 does NOT have it, can't check the child-safety Terms boxes until it's live
 
 ## Deploy
 
-- [ ] `cd rallyspherewebsite && vercel --prod` → `rallysphere.com/child-safety`
-- [ ] `firebase deploy --only hosting,firestore:rules` (slow — runs full `expo export` first)
+- [x] Website deployed — `rallysphere.com/child-safety` live and verified
+- [ ] `firebase deploy --only firestore:rules` — REQUIRED before build 14 ships, or Report writes fail permission-denied (fast; no expo export)
 - [ ] `git add android/app/build.gradle app.json && git commit -m "Bump versionCode to 13"`
 - [ ] Commit reporting/blocking work
 - [ ] `npm run release:android` → build 14
 
 ## Play Console
 
-- [ ] **Child safety standards** — URL `https://rallysphere.com/child-safety`, contact = developer email, both Terms boxes (only after build 14 is live)
+- [x] **Child safety standards** — URL added and verified live
+- [ ] Child safety: tick both Terms boxes (ONLY after build 14 with reporting is live)
 - [ ] **Advertising ID** — No (verified: no AD_ID in manifest, no ads SDK)
 - [ ] **Store listing** — icon, feature graphic, phone + 7"/10" tablet screenshots, short + full description
 - [ ] **Privacy policy URL** — `https://rallysphere.com/privacy`
