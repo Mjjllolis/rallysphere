@@ -280,5 +280,21 @@ service cloud.firestore {
         (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
          request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []));
     }
+
+    // Content reports (see lib/moderation.ts).
+    //
+    // Write-only from the client. Reports are reviewed out of band via the
+    // Firebase console or admin tooling running with the Admin SDK, which
+    // bypasses these rules — so no client read path is needed, and denying
+    // reads keeps one user from enumerating who reported whom.
+    match /reports/{reportId} {
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.reportedBy &&
+        request.resource.data.status == 'open' &&
+        request.resource.data.contentType in ['event', 'club', 'user', 'storeItem'] &&
+        request.resource.data.contentId is string;
+      // Reports are immutable and private once filed.
+      allow read, update, delete: if false;
+    }
   }
 }

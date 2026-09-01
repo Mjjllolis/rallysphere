@@ -19,6 +19,8 @@ import { useAuth, useThemeToggle } from '../_layout';
 import { getClub, joinClub, leaveClub, getEvents, getClubStoreItems, getUserRallyCredits, getUserProfile, isUserSubscribedToClub } from '../../lib/firebase';
 import type { Club, Event, StoreItem, UserRallyCredits, UserProfile } from '../../lib/firebase';
 import JoinClubModal from '../../components/JoinClubModal';
+import ReportModal from '../../components/ReportModal';
+import { blockUser } from '../../lib/moderation';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
 const { width } = Dimensions.get('window');
@@ -36,6 +38,7 @@ export default function ClubDetailScreen() {
   const [actionLoading, setActionLoading] = useState(false);
   const [joinModalVisible, setJoinModalVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [reportVisible, setReportVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<'events' | 'members' | 'details' | 'store'>('details');
   const [storeItems, setStoreItems] = useState<any[]>([]);
   const [userCredits, setUserCredits] = useState<UserRallyCredits | null>(null);
@@ -170,9 +173,35 @@ export default function ClubDetailScreen() {
     }
   };
 
+  const handleBlockOwner = () => {
+    const ownerId = club?.owner ?? club?.createdBy;
+    if (!ownerId) return;
+    Alert.alert(
+      'Block club owner?',
+      "You won't see clubs or events from this owner anymore. They won't be told you blocked them.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Block',
+          style: 'destructive',
+          onPress: async () => {
+            const result = await blockUser(ownerId);
+            if (result.success) {
+              Alert.alert('Owner blocked', 'Their content is now hidden from your feeds.', [
+                { text: 'OK', onPress: () => router.back() },
+              ]);
+            } else {
+              Alert.alert('Error', result.error ?? 'Could not block this owner.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleLeaveClub = async () => {
     if (!user || !club) return;
-    
+
     Alert.alert(
       'Leave Club',
       'Are you sure you want to leave this club?',
@@ -429,8 +458,10 @@ export default function ClubDetailScreen() {
                 </BlurView>
               )}
 
-              {/* Regular member: Menu with Leave option */}
-              {isJoined && !isAdmin && !isOwner && (
+              {/* Overflow menu. Open to every signed-in user, not just joined
+                  members — Report and Block have to be reachable from any club
+                  for Play's UGC policy. */}
+              {user && (
                 <View>
                   <TouchableOpacity onPress={() => setMenuVisible(prev => !prev)} activeOpacity={0.7}>
                     <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.controlButtonBlur}>
@@ -444,13 +475,33 @@ export default function ClubDetailScreen() {
 
                   {menuVisible && (
                     <View style={[styles.customMenu, { backgroundColor: isDark ? 'rgba(30,41,59,0.95)' : 'rgba(255,255,255,0.95)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
-                      <TouchableOpacity
-                        style={styles.customMenuItem}
-                        onPress={() => { setMenuVisible(false); handleLeaveClub(); }}
-                      >
-                        <IconButton icon="exit-to-app" size={18} iconColor={theme.colors.onSurface} style={{ margin: 0 }} />
-                        <Text style={[styles.customMenuText, { color: theme.colors.onSurface }]}>Leave Club</Text>
-                      </TouchableOpacity>
+                      {isJoined && !isAdmin && !isOwner && (
+                        <TouchableOpacity
+                          style={styles.customMenuItem}
+                          onPress={() => { setMenuVisible(false); handleLeaveClub(); }}
+                        >
+                          <IconButton icon="exit-to-app" size={18} iconColor={theme.colors.onSurface} style={{ margin: 0 }} />
+                          <Text style={[styles.customMenuText, { color: theme.colors.onSurface }]}>Leave Club</Text>
+                        </TouchableOpacity>
+                      )}
+                      {!isOwner && (
+                        <>
+                          <TouchableOpacity
+                            style={styles.customMenuItem}
+                            onPress={() => { setMenuVisible(false); setReportVisible(true); }}
+                          >
+                            <IconButton icon="flag-outline" size={18} iconColor={theme.colors.onSurface} style={{ margin: 0 }} />
+                            <Text style={[styles.customMenuText, { color: theme.colors.onSurface }]}>Report Club</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.customMenuItem}
+                            onPress={() => { setMenuVisible(false); handleBlockOwner(); }}
+                          >
+                            <IconButton icon="account-cancel-outline" size={18} iconColor="#EF4444" style={{ margin: 0 }} />
+                            <Text style={[styles.customMenuText, { color: '#EF4444' }]}>Block Club Owner</Text>
+                          </TouchableOpacity>
+                        </>
+                      )}
                     </View>
                   )}
                 </View>
@@ -1045,6 +1096,15 @@ export default function ClubDetailScreen() {
         clubName={club.name}
         requiresApproval={!club.isPublic}
         loading={actionLoading}
+      />
+
+      <ReportModal
+        visible={reportVisible}
+        onDismiss={() => setReportVisible(false)}
+        contentType="club"
+        contentId={clubId}
+        contentOwnerId={club.owner ?? club.createdBy}
+        contentLabel={club.name}
       />
     </View>
   );

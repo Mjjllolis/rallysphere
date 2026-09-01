@@ -175,6 +175,25 @@ export default function SettingsScreen({ visible, onClose }: SettingsScreenProps
               <TouchableOpacity
                 onPress={() => {
                   onClose();
+                  router.push('/profile/blocked-users');
+                }}
+              >
+                <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={[styles.settingItem, { borderColor: theme.colors.outline }]}>
+                  <View style={styles.settingContent}>
+                    <View style={styles.settingTextContainer}>
+                      <Text style={[styles.settingTitle, { color: theme.colors.onSurface }]}>Blocked Users</Text>
+                      <Text style={[styles.settingDescription, { color: theme.colors.onSurfaceVariant }]}>
+                        See who you've blocked and unblock them
+                      </Text>
+                    </View>
+                    <IconButton icon="chevron-right" size={24} iconColor={theme.colors.onSurface} />
+                  </View>
+                </BlurView>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => {
+                  onClose();
                   router.push('/profile/delete-account');
                 }}
               >

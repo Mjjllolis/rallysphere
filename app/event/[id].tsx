@@ -27,6 +27,8 @@ import RallyCreditsPaidModal from '../../components/RallyCreditsPaidModal';
 import EventRegistrationFlow, { RegistrationData } from '../../components/EventRegistrationFlow';
 import { generateAndShareWaiverPDF } from '../../lib/waiverPdf';
 import { buildEventShareContent } from '../../lib/eventShare';
+import ReportModal from '../../components/ReportModal';
+import { blockUser } from '../../lib/moderation';
 
 const { width } = Dimensions.get('window');
 const HERO_IMAGE_HORIZONTAL_PADDING = 20;
@@ -51,6 +53,7 @@ export default function EventDetailScreen() {
   const [actionLoading, setActionLoading] = useState(false);
   const [userCredits, setUserCredits] = useState<UserRallyCredits | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [reportVisible, setReportVisible] = useState(false);
   const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
   const [cancelSheetVisible, setCancelSheetVisible] = useState(false);
   const [showPayoutModal, setShowPayoutModal] = useState(false);
@@ -541,6 +544,31 @@ export default function EventDetailScreen() {
     }
   };
 
+  const handleBlockOrganizer = () => {
+    if (!event?.createdBy) return;
+    Alert.alert(
+      'Block organizer?',
+      "You won't see events or clubs from this organizer anymore. They won't be told you blocked them.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Block',
+          style: 'destructive',
+          onPress: async () => {
+            const result = await blockUser(event.createdBy);
+            if (result.success) {
+              Alert.alert('Organizer blocked', 'Their content is now hidden from your feeds.', [
+                { text: 'OK', onPress: () => router.back() },
+              ]);
+            } else {
+              Alert.alert('Error', result.error ?? 'Could not block this organizer.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const formatDate = (date: any) => {
     if (!date) return '';
     const eventDate = date.toDate ? date.toDate() : new Date(date);
@@ -694,8 +722,10 @@ export default function EventDetailScreen() {
               />
             </BlurView>
 
-            {/* Menu for additional options */}
-            {user && (isAttending || isWaitlisted || canManageEvent) && (
+            {/* Menu for additional options. Shown to every signed-in user, not
+                just attendees/managers — Report and Block have to be reachable
+                from any event for Play's UGC policy. */}
+            {user && (
               <View>
                 <TouchableOpacity onPress={() => setMenuVisible(prev => !prev)} activeOpacity={0.7}>
                   <BlurView intensity={40} tint="dark" style={styles.controlButtonBlur}>
@@ -735,6 +765,25 @@ export default function EventDetailScreen() {
                         <IconButton icon="close-circle-outline" size={18} iconColor="#EF4444" style={{ margin: 0 }} />
                         <Text style={[styles.customMenuText, { color: '#EF4444' }]}>Cancel Event</Text>
                       </TouchableOpacity>
+                    )}
+                    {/* Reporting your own event is noise, so hide it from the creator. */}
+                    {!isCreator && (
+                      <>
+                        <TouchableOpacity
+                          style={styles.customMenuItem}
+                          onPress={() => { setMenuVisible(false); setReportVisible(true); }}
+                        >
+                          <IconButton icon="flag-outline" size={18} iconColor={theme.colors.onSurface} style={{ margin: 0 }} />
+                          <Text style={[styles.customMenuText, { color: theme.colors.onSurface }]}>Report Event</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.customMenuItem}
+                          onPress={() => { setMenuVisible(false); handleBlockOrganizer(); }}
+                        >
+                          <IconButton icon="account-cancel-outline" size={18} iconColor="#EF4444" style={{ margin: 0 }} />
+                          <Text style={[styles.customMenuText, { color: '#EF4444' }]}>Block Organizer</Text>
+                        </TouchableOpacity>
+                      </>
                     )}
                   </View>
                 )}
@@ -1175,6 +1224,16 @@ export default function EventDetailScreen() {
           }}
         />
       )}
+
+      {/* Report Event */}
+      <ReportModal
+        visible={reportVisible}
+        onDismiss={() => setReportVisible(false)}
+        contentType="event"
+        contentId={eventId}
+        contentOwnerId={event?.createdBy}
+        contentLabel={event?.title}
+      />
 
       {/* Rally Credits Payout Modal */}
       {payoutInfo && (

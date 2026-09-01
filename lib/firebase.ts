@@ -851,6 +851,26 @@ export const createClub = async (clubData: any) => {
   }
 };
 
+/**
+ * uids the signed-in user has blocked (see lib/moderation.ts).
+ *
+ * Deliberately duplicated here rather than imported from moderation.ts, which
+ * imports auth/db from this module — pulling it back in would make the cycle.
+ * Degrades to [] on any failure so a bad read shows everything rather than an
+ * empty feed.
+ */
+const readBlockedUserIds = async (): Promise<string[]> => {
+  try {
+    const current = auth.currentUser;
+    if (!current) return [];
+    const snap = await getDoc(doc(db, 'users', current.uid));
+    const blocked = snap.exists() ? snap.data()?.blockedUsers : null;
+    return Array.isArray(blocked) ? blocked : [];
+  } catch {
+    return [];
+  }
+};
+
 export const getClubs = async (userId?: string) => {
   try {
     // Simple query without orderBy to avoid index requirements
@@ -869,11 +889,14 @@ export const getClubs = async (userId?: string) => {
     }
     
     const querySnapshot = await getDocs(q);
+    const blockedIds = new Set(await readBlockedUserIds());
     const clubs: Club[] = [];
-    
+
     querySnapshot.forEach((doc) => {
       const data = doc.data();
       const ownerUserId = data.clubOwner || data.owner || data.createdBy;
+      // Hide clubs from owners this user has blocked
+      if (ownerUserId && blockedIds.has(ownerUserId)) return;
       // Map database fields to app fields
       const club: Club = {
         id: doc.id,
@@ -1584,12 +1607,15 @@ export const getAllEvents = async (includeFeatured: boolean = false) => {
     );
 
     const querySnapshot = await getDocs(q);
+    const blockedIds = new Set(await readBlockedUserIds());
     const events: Event[] = [];
 
     querySnapshot.forEach((doc) => {
       const data = doc.data();
       // Hide cancelled events from public browse
       if (data.status === 'cancelled') return;
+      // Hide events from organizers this user has blocked
+      if (data.createdBy && blockedIds.has(data.createdBy)) return;
       events.push({ id: doc.id, ...data } as Event);
     });
 
