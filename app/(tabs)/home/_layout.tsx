@@ -22,7 +22,7 @@ export default function HomeLayout() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
 
-      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor="transparent" translucent />
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
       {/* All feeds mounted simultaneously - hidden when not active */}
       <View style={[styles.feedWrapper, activeTab === 'RallyFeed' ? styles.visible : styles.hidden]}>

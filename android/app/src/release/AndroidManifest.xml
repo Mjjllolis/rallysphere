@@ -1,0 +1,33 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:tools="http://schemas.android.com/tools">
+  <!--
+    Release-only manifest overrides. AGP merges this on top of src/main for the
+    release variant only, so debug builds (expo run:android, the EAS
+    "development" profile) are untouched and the dev menu's QR scanner keeps
+    working there.
+
+    expo-dev-client is linked into every Android variant: unlike Apple, where
+    expo-module.config.json's "debugOnly" flag is honored, expo-modules-autolinking
+    has no Android equivalent (ExpoModuleConfig.appleDebugOnly() is read only by
+    platforms/apple/apple.js). expo-dev-launcher then pulls in
+    play-services-code-scanner and mlkit:barcode-scanning (its android/build.gradle
+    lines 111-112) for the "scan QR to open" screen, and that AAR contributes a
+    hard-coded portrait GmsBarcodeScanningDelegateActivity, which Play flagged as
+    an orientation restriction on versionCode 14.
+
+    Dropping the modules via expoAutolinking.exclude in settings.gradle does not
+    work. expo-dev-client's android/build.gradle:43 declares
+    androidTestImplementation project(":expo-dev-launcher"), so dev-launcher cannot
+    be excluded on its own, and a multi-package exclude silently no-ops because
+    AutolinkigCommandBuilder space-joins the list into one argv entry while the
+    autolinking CLI expects a variadic list of separate entries.
+
+    Removing the activity here also un-roots ML Kit for R8: the merged manifest is
+    what kept roughly 326 mlkit references reachable in classes2.dex.
+  -->
+  <application>
+    <activity
+      android:name="com.google.mlkit.vision.codescanner.internal.GmsBarcodeScanningDelegateActivity"
+      tools:node="remove" />
+  </application>
+</manifest>

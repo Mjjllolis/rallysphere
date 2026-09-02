@@ -14,3 +14,11 @@ local.properties
 
 # Bundle artifacts
 *.jsbundle
+
+# Variant-specific manifest sources must stay committed. A bare `release`
+# pattern in the user's global gitignore (~/.gitignore) matches this directory
+# by name, which would silently drop app/src/release/AndroidManifest.xml from
+# the repo and therefore from EAS builds. Re-include it explicitly: the
+# directory has to be un-excluded before a file inside it can be.
+!app/src/release/
+!app/src/release/AndroidManifest.xml
