@@ -102,6 +102,31 @@ service cloud.firestore {
         // Users can only create/delete their own waitlist doc
         allow create, delete: if request.auth != null && request.auth.uid == userId;
       }
+
+      // Questions subcollection - registration/join questionnaire questions.
+      // Written by lib/firebase.ts (setEventQuestions / getEventQuestions).
+      match /questions/{questionId} {
+        // Any authenticated user can read questions (needed to complete registration)
+        allow read: if request.auth != null;
+        // Only the event creator can manage questions
+        allow write: if request.auth != null &&
+          request.auth.uid == get(/databases/$(database)/documents/events/$(eventId)).data.createdBy;
+      }
+
+      // Questionnaire responses subcollection - user answers to registration
+      // questions. Stored at events/{eventId}/questionnaireResponses/{userId}.
+      match /questionnaireResponses/{userId} {
+        // Users can read their own response
+        allow read: if request.auth != null && request.auth.uid == userId;
+        // Event creator or club admins can read all responses (manage-questionnaire screen)
+        allow read: if request.auth != null &&
+          (request.auth.uid == get(/databases/$(database)/documents/events/$(eventId)).data.createdBy ||
+           (exists(/databases/$(database)/documents/clubs/$(get(/databases/$(database)/documents/events/$(eventId)).data.clubId)) &&
+            (request.auth.uid in get(/databases/$(database)/documents/clubs/$(get(/databases/$(database)/documents/events/$(eventId)).data.clubId)).data.get('clubAdmins', []) ||
+             request.auth.uid in get(/databases/$(database)/documents/clubs/$(get(/databases/$(database)/documents/events/$(eventId)).data.clubId)).data.get('admins', []))));
+        // Users can only create/update their own response
+        allow create, update: if request.auth != null && request.auth.uid == userId;
+      }
     }
     
     // Featured events - read-only for all authenticated users
