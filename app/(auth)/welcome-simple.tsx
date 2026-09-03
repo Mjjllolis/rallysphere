@@ -10,6 +10,7 @@ import {
     Pressable,
     StatusBar,
     BackHandler,
+    ScrollView,
 } from 'react-native';
 import { Text, Button } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -75,6 +76,19 @@ export default function WelcomeScreen() {
             />
 
             <SafeAreaView style={styles.safeArea} pointerEvents="box-none">
+                {/*
+                  Scrollable so the footer's consent links stay reachable when the
+                  viewport is short. app.json sets orientation "default", and from
+                  Android 16 large screens ignore orientation locks regardless, so
+                  this screen has to survive landscape. contentContainerStyle keeps
+                  flexGrow: 1 + space-between, which renders identically to the old
+                  fixed layout whenever the content already fits.
+                */}
+                <ScrollView
+                    style={styles.scroll}
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                >
                 {/* Top Logo + Title */}
                 <Animated.View
                     style={[
@@ -130,6 +144,7 @@ export default function WelcomeScreen() {
                         </Text>
                     </View>
                 )}
+                </ScrollView>
             </SafeAreaView>
 
             {/* Auth sheet — rendered over the still-playing video */}
@@ -181,6 +196,12 @@ const styles = StyleSheet.create({
     },
     safeArea: {
         flex: 1,
+    },
+    scroll: {
+        flex: 1,
+    },
+    scrollContent: {
+        flexGrow: 1,
         justifyContent: 'space-between',
     },
     header: {
