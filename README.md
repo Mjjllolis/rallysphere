@@ -3,12 +3,118 @@
 A React Native application built with Expo for event management and community engagement.
 
 ## Table of Contents
+- [Developer Onboarding](#developer-onboarding)
 - [Finix Integration](#finix-integration)
 - [Setup](#setup)
 - [Environment Variables](#environment-variables)
 - [Security](#security)
 - [Finix Payouts Setup](#finix-payouts-setup)
 - [Development](#development)
+
+---
+
+## Developer Onboarding
+
+What a new developer needs to get RallySphere running locally. Budget an hour or
+two — most of it is waiting on access grants and a first native build.
+
+### 1. Access to request
+
+Ask a project owner for these before you start; several take a day to land.
+
+| Access | Needed for | Notes |
+|---|---|---|
+| GitHub repo | Everything | |
+| Firebase project `rally-sphere` | Firestore, Auth, Functions, Hosting | Editor role |
+| Expo / EAS org `ibemisha` | Dev builds and releases | Project id in `app.json` → `extra.eas.projectId` |
+| Apple Developer team `66YBRZM5J5` | iOS builds, TestFlight | App Store Connect app `6754649814` |
+| Google Play Console | Android releases | Only for shipping, not local dev |
+| Finix **sandbox** dashboard | Payments work | Sandbox only — nobody needs live keys to develop |
+
+### 2. Secrets to receive out-of-band
+
+These are gitignored and must be handed over securely (1Password, not Slack, and
+never a commit). Everything else you need is already in the repo.
+
+| File | Contents |
+|---|---|
+| `.env` (repo root) | `EXPO_PUBLIC_FIREBASE_*`, `EXPO_PUBLIC_GOOGLE_API_KEY`, per-platform app ids. Client-side only — **no Finix credentials belong here**, this file ships to devices |
+| `functions/.env` | `TEST_MODE`, `FINIX_APPLICATION_ID`, `FINIX_PLATFORM_MERCHANT_ID` (+ `_LIVE` variants). Non-secret config only |
+| `service-account-key.json` | Only if you'll run `scripts/*.js` or submit Android builds |
+
+> **Finix API credentials (`FINIX_USERNAME` / `FINIX_PASSWORD` / `FINIX_WEBHOOK_SECRET`)
+> live in Google Cloud Secret Manager, not in any `.env` file.** Read them with
+> `firebase functions:secrets:access NAME`; set them with `firebase functions:secrets:set NAME`.
+> (The [Environment Variables](#environment-variables) section below still shows the older
+> plaintext layout — Secret Manager is the current source of truth.)
+
+`firebase/GoogleService-Info.plist` and `firebase/google-services.json` **are committed** —
+you don't need to download them from the Firebase Console.
+
+### 3. Local prerequisites
+
+| Tool | Version | Notes |
+|---|---|---|
+| Node | 22.x | EAS production builds pin `22.14.0`. Cloud Functions themselves run on the Node 20 runtime — that's the deploy target, not your local version |
+| npm | 10.x | |
+| Expo CLI | via `npx` | Don't install globally; the repo pins `expo ~54` |
+| EAS CLI | ≥ 5.2.0 | `npm i -g eas-cli` |
+| Firebase CLI | latest | `npm i -g firebase-tools`, then `firebase login` |
+| Xcode + CocoaPods | CocoaPods 1.16.2 | iOS only. Deployment target 15.1 |
+| Android Studio + JDK 17 | minSdk 24 | Android only |
+
+### 4. First run
+
+```bash
+git clone <repo> && cd rallysphere
+npm install                 # patch-package runs on postinstall — don't skip it
+# drop in .env and functions/.env from step 2
+npx expo start
+```
+
+**Expo Go will not work.** The app uses native modules (`@react-native-firebase/app`,
+`app-check`, `expo-dev-client`), so you need a development build:
+
+```bash
+eas build --profile development --platform ios      # or android
+```
+
+Install that build once, then `npx expo start` connects to it for normal JS reloading.
+
+### 5. Cloud Functions
+
+```bash
+cd functions
+npm install
+npm run build               # tsc
+npm run serve               # build + firebase emulators:start --only functions
+npm run logs                # firebase functions:log
+```
+
+### 6. Verify your setup
+
+```bash
+npx expo doctor             # dependency + config sanity
+npm run prod:check          # PASS/WARN/FAIL checklist of local release readiness
+```
+
+`prod:check` only inspects local state — it tells you what *would* happen if you
+deployed now, not what's currently deployed.
+
+### 7. Things that will bite you
+
+- **`NPM_CONFIG_LEGACY_PEER_DEPS=true`** is set for EAS preview/production builds. If
+  a local `npm install` fails on peer deps, that's why.
+- **`patch-package`** applies fixes in `patches/` on postinstall. A dependency bump can
+  silently drop a patch — check the postinstall output.
+- **App Check** is initialized in `lib/appCheck.ts` and skipped on web and in Expo Go.
+  For a debug build you need a debug token registered in the Firebase Console; the
+  placeholder in that file is `'YOUR-DEBUG-TOKEN'`.
+- **Payments are sandbox-gated** by `TEST_MODE` in `functions/.env` plus a staff-only
+  `debug` flag threaded through every Finix call. Both must agree or you'll land half
+  an application in sandbox and half in live.
+- **Never commit** `.env`, `functions/.env`, `service-account-key.json`, or any `*.bak`.
+  See [Security](#security).
 
 ---
 
