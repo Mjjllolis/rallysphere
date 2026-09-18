@@ -4,7 +4,7 @@ import { View, Alert, StyleSheet, TouchableOpacity, LayoutChangeEvent, Keyboard,
 import { Text, useTheme, IconButton } from 'react-native-paper';
 import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
-import { createEvent, uploadImage, getClubs, saveEventQuestionnaire } from '../../lib/firebase';
+import { createEvent, uploadImage, getImageAspectRatio, getClubs, saveEventQuestionnaire } from '../../lib/firebase';
 import { useAuth, useThemeToggle } from '../../app/_layout';
 import GlassInput from '../GlassInput';
 import GlassSwitch from '../GlassSwitch';
@@ -149,8 +149,10 @@ export default function EventForm({ onColorsExtracted, onSuccess, onScrollToFiel
     setLoading(true);
     try {
       let coverImageUrl: string | undefined;
+      let coverImageAspectRatio: number | undefined;
 
       if (coverImage) {
+        coverImageAspectRatio = await getImageAspectRatio(coverImage);
         const imagePath = `events/covers/${Date.now()}_cover.jpg`;
         coverImageUrl = await uploadImage(coverImage, imagePath) || undefined;
       }
@@ -193,6 +195,7 @@ export default function EventForm({ onColorsExtracted, onSuccess, onScrollToFiel
         isVirtual: false,
         maxAttendees: maxAttendeesValue,
         coverImage: coverImageUrl,
+        coverImageAspectRatio,
         isPublic,
         requiresApproval: false,
         ticketPrice: ticketPriceValue,

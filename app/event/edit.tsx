@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getEventById, updateEvent, uploadImage, getClub } from '../../lib/firebase';
+import { getEventById, updateEvent, uploadImage, getImageAspectRatio, getClub } from '../../lib/firebase';
 import { useAuth, useThemeToggle } from '../_layout';
 import GlassInput from '../../components/GlassInput';
 import GlassSwitch from '../../components/GlassSwitch';
@@ -146,10 +146,12 @@ export default function EditEventScreen() {
     setSaving(true);
     try {
       let coverImageUrl: string | undefined = originalCoverImage || undefined;
+      let newCoverAspectRatio: number | undefined;
 
       // Upload new cover image if changed
       if (coverImage && coverImage !== originalCoverImage) {
         const imagePath = `events/covers/${Date.now()}_cover.jpg`;
+        newCoverAspectRatio = await getImageAspectRatio(coverImage);
         coverImageUrl = await uploadImage(coverImage, imagePath) || undefined;
       }
 
@@ -172,6 +174,7 @@ export default function EditEventScreen() {
         isVirtual: false,
         maxAttendees: maxAttendeesValue,
         coverImage: coverImageUrl,
+        ...(newCoverAspectRatio ? { coverImageAspectRatio: newCoverAspectRatio } : {}),
         isPublic,
         ticketPrice: ticketPriceValue,
         currency: formData.currency,
