@@ -3,7 +3,7 @@
     "name": "RallySphere",
     "slug": "rally-sphere",
     "scheme": "rallysphere",
-    "version": "1.0.2",
+    "version": "1.1.0",
     "orientation": "default",
     "icon": "./assets/Logo.png",
     "userInterfaceStyle": "automatic",
