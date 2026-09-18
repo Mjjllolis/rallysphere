@@ -39,7 +39,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.18)',
     },
     scrim: {
-        ...StyleSheet.absoluteFillObject,
+        ...StyleSheet.absoluteFill,
         backgroundColor: 'rgba(18,20,24,0.42)',
     },
     content: {

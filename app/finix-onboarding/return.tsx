@@ -1,7 +1,8 @@
 // app/finix-onboarding/return.tsx — Hosted onboarding return handler
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Text, Button, ActivityIndicator, useTheme, Card } from 'react-native-paper';
+import { Text, Button, useTheme, Card } from 'react-native-paper';
+import { ActivityIndicator } from '../../components/ActivityIndicator';
 import { router, useLocalSearchParams } from 'expo-router';
 import { getSubMerchantStatus, getClubOnboardingFormLink } from '../../lib/finix';
 import { updateClub, getClub } from '../../lib/firebase';

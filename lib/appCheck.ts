@@ -39,11 +39,12 @@ export async function initAppCheck(): Promise<void> {
   }
 
   try {
-    // Dynamically import to avoid issues on web/Expo Go
-    const appCheck = require('@react-native-firebase/app-check').default;
+    // Dynamically import to avoid issues on web/Expo Go.
+    // @react-native-firebase/app-check v23+ has no default export; use the modular API.
+    const { initializeAppCheck, ReactNativeFirebaseAppCheckProvider } = require('@react-native-firebase/app-check');
 
     // Initialize with platform-appropriate provider
-    const rnfbProvider = appCheck().newReactNativeFirebaseAppCheckProvider();
+    const rnfbProvider = new ReactNativeFirebaseAppCheckProvider();
 
     rnfbProvider.configure({
       android: {
@@ -56,7 +57,8 @@ export async function initAppCheck(): Promise<void> {
       },
     });
 
-    await appCheck().initializeAppCheck({
+    // undefined = the default Firebase app
+    await initializeAppCheck(undefined, {
       provider: rnfbProvider,
       isTokenAutoRefreshEnabled: true,
     });

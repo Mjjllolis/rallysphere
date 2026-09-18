@@ -127,6 +127,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   header: {
     paddingHorizontal: 16,
     paddingVertical: 16,

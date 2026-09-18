@@ -1,4 +1,4 @@
 import { Redirect } from 'expo-router';
 export default function WelcomeScreen() {
-    return <Redirect href="/(auth)/welcome-simple" />;
+    return <Redirect href="/welcome-simple" />;
 }

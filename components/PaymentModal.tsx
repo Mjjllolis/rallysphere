@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
-import { Modal, Portal, Text, Button, Divider, useTheme, ActivityIndicator } from 'react-native-paper';
+import { Modal, Portal, Text, Button, Divider, useTheme } from 'react-native-paper';
+import { ActivityIndicator } from './ActivityIndicator';
 import { WebView } from 'react-native-webview';
 import {
   getFinixTokenizationContext,

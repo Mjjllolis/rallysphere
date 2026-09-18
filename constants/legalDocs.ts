@@ -62,7 +62,7 @@ RallySphere does not knowingly collect personal information from children under 
 
 4. Platform Services & Scope
 
-RallySphere provides a digital ecosystem for recreational sports with a focus on pickleball and related activities. Through the Platform, Users may:
+RallySphere provides a digital ecosystem for recreational sports, fitness, and active communities, including pickleball. Through the Platform, Users may:
 
 • Create and manage personal player profiles.
 • Establish and promote club and group profiles.

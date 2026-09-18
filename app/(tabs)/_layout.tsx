@@ -7,8 +7,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyleSheet, Animated, View, Pressable } from "react-native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import CreateScreen from "../../components/CreateScreen";
+
+// expo-router 57 bundles react-navigation and doesn't re-export this type, so derive it from Tabs.
+type BottomTabBarProps = Parameters<NonNullable<React.ComponentProps<typeof Tabs>["tabBar"]>>[0];
 
 const AnimatedTabIcon = ({ name, color, focused, size = 28 }: any) => {
   const scale = useRef(new Animated.Value(1)).current;

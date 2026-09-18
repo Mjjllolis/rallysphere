@@ -1,4 +1,5 @@
 import { Redirect } from 'expo-router';
+import { HOME_HREF } from '../lib/routes';
 import { useAuth } from './_layout';
 import { useEffect, useState } from 'react';
 import { getDoc, doc, getFirestore } from 'firebase/firestore';
@@ -23,7 +24,7 @@ export default function Index() {
     }, [user]);
 
     if (isLoading || !checked) return null;
-    if (!user) return <Redirect href="/(auth)/welcome-simple" />;
+    if (!user) return <Redirect href="/welcome-simple" />;
     if (!profileComplete) return <Redirect href="/(auth)/profile-setup" />;
-    return <Redirect href="/(tabs)/home" />;
+    return <Redirect href={HOME_HREF} />;
 }

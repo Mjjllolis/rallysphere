@@ -11,10 +11,10 @@ import {
 import {
   Text,
   useTheme,
-  ActivityIndicator,
   Button,
   Divider,
 } from 'react-native-paper';
+import { ActivityIndicator } from '../components/ActivityIndicator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';

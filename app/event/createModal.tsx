@@ -20,7 +20,7 @@ export default function CreateModal({ visible, onClose }: CreateModalProps) {
       label: 'New Event',
       onPress: () => {
         onClose();
-        router.push('/(tabs)/create-event');
+        router.push('/create');
       },
     },
     {

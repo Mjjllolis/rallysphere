@@ -3,7 +3,8 @@ import {
   View, StyleSheet, Alert, Platform, TouchableOpacity,
   Animated, Dimensions, ScrollView, Modal, KeyboardAvoidingView, Image, Easing,
 } from 'react-native';
-import { Button, Text, ActivityIndicator, useTheme, Divider, IconButton } from 'react-native-paper';
+import { Button, Text, useTheme, Divider, IconButton } from 'react-native-paper';
+import { ActivityIndicator } from './ActivityIndicator';
 import { WebView } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Event, RallyCreditRedemption, UserRallyCredits } from '../lib/firebase';
@@ -557,7 +558,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
     <Modal visible={visible} onRequestClose={handleRequestClose} transparent animationType="none" statusBarTranslucent>
       {/* Backdrop fades in/out alongside the slide. Inner pressable handles dismiss-on-tap. */}
       <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
-        <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={onDismiss} />
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onDismiss} />
       </Animated.View>
 
       {/* Outer wrapper: native-driven open/close translateY. */}
@@ -898,7 +899,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
                       {!formReady && (
                         <View
                           style={[
-                            StyleSheet.absoluteFillObject,
+                            StyleSheet.absoluteFill,
                             styles.formInitOverlay,
                             { backgroundColor: theme.colors.surface },
                           ]}
@@ -979,7 +980,7 @@ export default function PaymentSheet({ visible, event, onDismiss, onSuccess }: P
 }
 
 const styles = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.85)' },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.85)' },
   sheetWrapper: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     shadowColor: '#000', shadowOffset: { width: 0, height: -4 },

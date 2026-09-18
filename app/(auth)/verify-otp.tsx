@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
+import { HOME_HREF } from '../../lib/routes';
 import {
     View,
     StyleSheet,
@@ -88,10 +89,10 @@ export default function VerifyOTPScreen() {
                     // resurfaces the sign-in flow — then push the event on top
                     // of that clean stack so Back from there goes to Home.
                     router.dismissAll();
-                    router.replace('/(tabs)/home');
+                    router.replace(HOME_HREF);
                     router.push(`/event/${redirectEventId}`);
                 } else {
-                    router.replace('/(tabs)/home');
+                    router.replace(HOME_HREF);
                 }
             } else {
                 Alert.alert('Invalid Code', result.error || 'The code you entered is incorrect.');

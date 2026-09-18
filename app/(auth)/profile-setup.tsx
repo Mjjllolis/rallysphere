@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { HOME_HREF } from '../../lib/routes';
 import {
     View,
     StyleSheet,
@@ -334,7 +335,7 @@ export default function ProfileSetupScreen() {
                     style: 'destructive',
                     onPress: async () => {
                         await logout();
-                        router.replace('/(auth)/welcome-simple');
+                        router.replace('/welcome-simple');
                     }
                 }
             ]
@@ -545,7 +546,7 @@ export default function ProfileSetupScreen() {
                                         // flow — then push the event on top of that clean
                                         // stack so Back from there goes to Home.
                                         router.dismissAll();
-                                        router.replace('/(tabs)/home');
+                                        router.replace(HOME_HREF);
                                         if (redirectEventId) {
                                             router.push(`/event/${redirectEventId}`);
                                         }

@@ -1,5 +1,6 @@
 // app/onboarding/index.tsx - Simplified Onboarding
 import React from 'react';
+import { HOME_HREF } from '../../lib/routes';
 import {
     View,
     Text,
@@ -25,7 +26,7 @@ export default function OnboardingPage() {
                 </Text>
                 <Button 
                     mode="contained" 
-                    onPress={() => router.replace('/(tabs)')}
+                    onPress={() => router.replace(HOME_HREF)}
                     style={styles.button}
                 >
                     Continue

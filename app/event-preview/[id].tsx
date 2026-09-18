@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f0f23',
   },
   coverImage: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   safeArea: {
     flex: 1,

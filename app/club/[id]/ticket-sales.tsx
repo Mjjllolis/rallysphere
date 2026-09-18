@@ -14,16 +14,16 @@ import {
   IconButton,
   Chip,
   Divider,
-  ActivityIndicator,
 } from 'react-native-paper';
+import { ActivityIndicator } from '../../../components/ActivityIndicator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../../_layout';
 import {
   getClubTicketPayments,
   getClub,
-  getEvent,
-  getUser,
+  getEventById,
+  getUserProfile,
 } from '../../../lib/firebase';
 import type { TicketPayment } from '../../../lib/firebase';
 
@@ -69,7 +69,7 @@ export default function TicketSalesScreen() {
 
             // Get event title
             try {
-              const eventResult = await getEvent(payment.eventId);
+              const eventResult = await getEventById(payment.eventId);
               if (eventResult.success && eventResult.event) {
                 enriched.eventTitle = eventResult.event.title;
               }
@@ -79,10 +79,11 @@ export default function TicketSalesScreen() {
 
             // Get user info
             try {
-              const userResult = await getUser(payment.userId);
-              if (userResult.success && userResult.user) {
-                enriched.userName = userResult.user.displayName || userResult.user.email;
-                enriched.userEmail = userResult.user.email;
+              const profile = await getUserProfile(payment.userId);
+              if (profile) {
+                enriched.userName =
+                  profile.displayName || `${profile.firstName || ''} ${profile.lastName || ''}`.trim() || profile.email;
+                enriched.userEmail = profile.email;
               }
             } catch (e) {
               // console.error('Error getting user:', e);

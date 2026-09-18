@@ -197,7 +197,7 @@ export default function EventSwipeCard({
     }
   };
   const [clubLogo, setClubLogo] = useState<string | undefined>(initialEvent.clubLogo);
-  const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null);
+  const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(initialEvent.coverImageAspectRatio ?? null);
 
   useEffect(() => {
     setEvent(initialEvent);
@@ -213,12 +213,16 @@ export default function EventSwipeCard({
 
   // Get cover image aspect ratio for proper rounded corners
   useEffect(() => {
+    if (event.coverImageAspectRatio) {
+      setImageAspectRatio(event.coverImageAspectRatio);
+      return;
+    }
     if (event.coverImage) {
       Image.getSize(event.coverImage, (w, h) => {
         setImageAspectRatio(w / h);
       }, () => {});
     }
-  }, [event.coverImage]);
+  }, [event.coverImage, event.coverImageAspectRatio]);
 
   // Fetch club logo if not present on event
   useEffect(() => {
@@ -499,14 +503,14 @@ export default function EventSwipeCard({
             styles.coverImageWrapper,
             imageAspectRatio ? { aspectRatio: imageAspectRatio } : { flex: 1 }
           ]}>
-            <ExpoImage
-              source={{ uri: event.coverImage }}
-              style={styles.coverImage}
-              contentFit="cover"
-              transition={200}
-              cachePolicy="memory-disk"
-              recyclingKey={event.coverImage}
-            />
+            <View style={styles.coverImageClip}>
+              <ExpoImage
+                source={{ uri: event.coverImage }}
+                style={styles.coverImage}
+                contentFit="cover"
+                cachePolicy="memory-disk"
+              />
+            </View>
           </View>
         ) : (
           <View style={[styles.coverImageWrapper, styles.coverPlaceholder, { flex: 1, backgroundColor: theme.colors.surfaceVariant }]}>
@@ -991,12 +995,17 @@ const styles = StyleSheet.create({
     width: '100%',
     maxHeight: '100%',
     borderRadius: 16,
-    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.6,
     shadowRadius: 16,
     elevation: 12,
+  },
+  coverImageClip: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 16,
+    overflow: 'hidden',
   },
   coverImage: {
     width: '100%',

@@ -5,7 +5,7 @@
 //   - useFrameworks: "static" (required by Firebase)
 //
 // 1. expo-firebase-core exposes a `$FirebaseSDKVersion` global so the pin
-//    can be overridden. We force it to 11.15.0 to match RNFBApp.
+//    can be overridden. We force it to 12.18.0 to match RNFBApp.
 // 2. @react-native-firebase needs `$RNFirebaseAsStaticFramework = true`
 //    under static frameworks, or its framework modules import non-modular
 //    React headers and fail to compile.
@@ -16,13 +16,14 @@ const { withDangerousMod } = require('@expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
-const FIREBASE_SDK_VERSION = '11.15.0';
+const FIREBASE_SDK_VERSION = '12.18.0';
 const TOP_MARKER = '# --- injected by with-firebase-sdk-version.js (top) ---';
 const POST_INSTALL_MARKER = '# --- injected by with-firebase-sdk-version.js (post_install) ---';
 
 const topInjection = `${TOP_MARKER}
 $FirebaseSDKVersion = '${FIREBASE_SDK_VERSION}'
 $RNFirebaseAsStaticFramework = true
+$RNFirebaseDisableSPM = true
 
 `;
 
@@ -44,8 +45,14 @@ const postInstallInjection = `
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
         config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+        # Xcode 27 rejects deployment targets below 16.4; raise stale pod targets.
+        if config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'].to_f < 16.4
+          config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.4'
+        end
         if target.name.start_with?('RNFB')
           config.build_settings['CLANG_ENABLE_MODULES'] = 'NO'
+          # SDK 57 builds these as static libs; AppDelegate.swift needs a Swift module to import RNFBAppCheck.
+          config.build_settings['DEFINES_MODULE'] = 'YES'
           config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
           config.build_settings['OTHER_CFLAGS'] = '$(inherited) -fno-modules'
         end

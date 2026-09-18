@@ -260,7 +260,7 @@ export default function ResponseTypePicker({
 
 const styles = StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   backdropTouchable: {
     flex: 1,

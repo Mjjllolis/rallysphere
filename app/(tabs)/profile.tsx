@@ -135,7 +135,7 @@ export default function ProfilePage() {
             <Text style={[styles.emptyStateTitle, { color: theme.colors.onSurface }]}>Please log in to view profile</Text>
             <TouchableOpacity
               style={styles.loginButton}
-              onPress={() => router.push('/(auth)/login')}
+              onPress={() => router.push('/welcome-simple')}
             >
               <BlurView intensity={60} tint={isDark ? "light" : "dark"} style={[styles.loginButtonBlur, { borderColor: theme.colors.outline }]}>
                 <Text style={[styles.loginButtonText, { color: theme.colors.onSurface }]}>Sign In</Text>

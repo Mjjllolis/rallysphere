@@ -17,11 +17,11 @@ import {
   IconButton,
   Chip,
   Divider,
-  ActivityIndicator,
   Portal,
   Modal,
   SegmentedButtons,
 } from 'react-native-paper';
+import { ActivityIndicator } from '../../../components/ActivityIndicator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../../_layout';

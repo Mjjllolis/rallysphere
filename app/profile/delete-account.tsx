@@ -8,14 +8,14 @@ import {
     TouchableOpacity,
 } from 'react-native';
 import {
-    Text,
-    Button,
-    TextInput,
-    useTheme,
-    Surface,
-    IconButton,
-    ActivityIndicator,
+  Text,
+  Button,
+  TextInput,
+  useTheme,
+  Surface,
+  IconButton,
 } from 'react-native-paper';
+import { ActivityIndicator } from '../../components/ActivityIndicator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { getOwnedClubs, deleteAccount, logout } from '../../lib/firebase';
@@ -65,7 +65,7 @@ export default function DeleteAccountScreen() {
 
                         if (result.success) {
                             // Navigate away — onAuthStateChanged will clear the user.
-                            router.replace('/(auth)/welcome-simple');
+                            router.replace('/welcome-simple');
                         } else if (result.error?.includes('requires-recent-login')) {
                             Alert.alert(
                                 'Sign in required',
@@ -76,7 +76,7 @@ export default function DeleteAccountScreen() {
                                         text: 'Sign out',
                                         onPress: async () => {
                                             await logout();
-                                            router.replace('/(auth)/welcome-simple');
+                                            router.replace('/welcome-simple');
                                         },
                                     },
                                 ]

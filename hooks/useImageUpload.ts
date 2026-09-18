@@ -3,9 +3,22 @@ import { useState } from 'react';
 import { Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
-import { uploadImage, generateImagePath } from '../lib/firebase';
+import { uploadImage } from '../lib/firebase';
 
 export type ImageType = 'club-logo' | 'club-header' | 'user-avatar';
+
+// Storage paths match what the club and profile screens already use.
+const generateImagePath = (type: ImageType, id: string, fileName?: string): string => {
+    const name = fileName || `${Date.now()}.jpg`;
+    switch (type) {
+        case 'club-logo':
+            return `clubs/logos/${id}_${name}`;
+        case 'club-header':
+            return `clubs/covers/${id}_${name}`;
+        case 'user-avatar':
+            return `users/avatars/${id}_avatar.jpg`;
+    }
+};
 
 interface UseImageUploadOptions {
     maxWidth?: number;
@@ -44,7 +57,7 @@ export const useImageUpload = (options: UseImageUploadOptions = {}): UseImageUpl
 
             // Launch image picker
             const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: [ImagePicker.MediaType.Images],
+                mediaTypes: ['images'],
                 allowsEditing: true,
                 aspect: aspect,
                 quality: quality,

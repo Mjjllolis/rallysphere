@@ -13,10 +13,10 @@ import {
   Text,
   IconButton,
   Switch,
-  ActivityIndicator,
   Chip,
   useTheme,
 } from 'react-native-paper';
+import { ActivityIndicator } from '../../../components/ActivityIndicator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { BlurView } from 'expo-blur';
@@ -312,7 +312,7 @@ export default function ManageSubscriptionsScreen() {
                           {subscription.status}
                         </Chip>
                         <Text style={styles.subscriberAmount}>
-                          ${subscription.amount?.toFixed(2) || '0.00'}/mo
+                          ${subscription.pricePerMonth?.toFixed(2) || '0.00'}/mo
                         </Text>
                       </View>
                     </View>

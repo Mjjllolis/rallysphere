@@ -4,7 +4,8 @@ import {
   Animated, Dimensions, ScrollView, Modal, Image, Linking, Easing,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Text, ActivityIndicator, IconButton, useTheme } from 'react-native-paper';
+import { Text, IconButton, useTheme } from 'react-native-paper';
+import { ActivityIndicator } from './ActivityIndicator';
 import { WebView } from 'react-native-webview';
 import type { StoreItem, RallyCreditRedemption, UserRallyCredits, ShippingAddress } from '../lib/firebase';
 import { getUserRallyCredits, getClubRallyRedemptions, spendRallyCredits } from '../lib/firebase';
