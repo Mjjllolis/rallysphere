@@ -12,13 +12,13 @@ import {
 } from 'react-native';
 import {
   Text,
-  ActivityIndicator,
   IconButton,
   useTheme,
 } from 'react-native-paper';
+import { ActivityIndicator } from '../../../components/ActivityIndicator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { getAllStoreItems, Timestamp } from '../../../lib/firebase';
+import { getAllStoreItems } from '../../../lib/firebase';
 import type { StoreItem } from '../../../lib/firebase';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';

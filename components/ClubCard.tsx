@@ -5,8 +5,8 @@ import {
   Text,
   useTheme,
   IconButton,
-  ActivityIndicator
 } from 'react-native-paper';
+import { ActivityIndicator } from './ActivityIndicator';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';

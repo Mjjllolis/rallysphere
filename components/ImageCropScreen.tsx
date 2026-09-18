@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   gridOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   gridLine: {
     position: 'absolute',

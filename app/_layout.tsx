@@ -1,6 +1,7 @@
 // app/_layout.tsx
 import '../lib/silence-logs';
 import React, { useEffect, useState, useRef, useCallback, createContext, useContext, useMemo } from 'react';
+import { HOME_HREF } from '../lib/routes';
 import { Platform, Linking, Alert, useColorScheme, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import SandboxBanner from '../components/SandboxBanner';
@@ -340,7 +341,7 @@ export default function RootLayout() {
         .replace(/\/$/, '');
       try {
         if (!path) {
-          router.replace('/(tabs)/home');
+          router.replace(HOME_HREF);
           return;
         }
         // A shared event link for a signed-out visitor: events can be
@@ -361,7 +362,7 @@ export default function RootLayout() {
         // once that redirect resolves. Replacing with Home first then
         // pushing the real destination guarantees a deterministic
         // Home-then-destination stack, so Back always goes to a clean Home.
-        router.replace('/(tabs)/home');
+        router.replace(HOME_HREF);
         router.push(`/${path}` as any);
       } catch (error) {
         console.log('[DeepLink] Failed to navigate:', error);

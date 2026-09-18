@@ -1,12 +1,14 @@
 // components/GlassInput.tsx
 import React from 'react';
-import { View, TextInput, StyleSheet, TextInputProps, Text } from 'react-native';
+import { View, TextInput, StyleSheet, TextInputProps, Text, StyleProp, ViewStyle } from 'react-native';
 import { IconButton, useTheme } from 'react-native-paper';
 import { BlurView } from 'expo-blur';
 import { useThemeToggle } from '../app/_layout';
 
-interface GlassInputProps extends TextInputProps {
-  label: string;
+interface GlassInputProps extends Omit<TextInputProps, 'style'> {
+  label?: string;
+  // Applied to the outer container, not the TextInput itself
+  style?: StyleProp<ViewStyle>;
   icon?: string;
   error?: string;
   compact?: boolean;
@@ -19,7 +21,7 @@ export default function GlassInput({ label, icon, error, style, compact, ...prop
 
   return (
     <View style={[styles.container, isMultiline && styles.containerMultiline, style]}>
-      <Text style={[styles.label, { color: theme.colors.onSurface }]}>{label}</Text>
+      {!!label && <Text style={[styles.label, { color: theme.colors.onSurface }]}>{label}</Text>}
       <View style={styles.inputWrapper}>
         {isDark ? (
           <BlurView intensity={40} tint="light" style={[styles.blur, { borderColor: theme.colors.outline }]}>

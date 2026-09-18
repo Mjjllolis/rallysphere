@@ -41,7 +41,7 @@ export default function PhoneAuthScreen() {
 
     const handleBack = () => {
         if (router.canGoBack()) router.back();
-        else router.replace('/(auth)/welcome-simple');
+        else router.replace('/welcome-simple');
     };
 
     return (

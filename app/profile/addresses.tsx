@@ -17,15 +17,14 @@ import {
   Modal,
   TextInput,
   Checkbox,
-  ActivityIndicator,
   Divider,
 } from 'react-native-paper';
+import { ActivityIndicator } from '../../components/ActivityIndicator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAuth } from '../_layout';
+import { getDoc, doc } from 'firebase/firestore';
 import {
-  getDoc,
-  doc,
   db,
   saveShippingAddress,
   updateShippingAddress,

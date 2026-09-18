@@ -20,9 +20,9 @@ import {
   IconButton,
   Portal,
   Modal,
-  ActivityIndicator,
   Chip,
 } from 'react-native-paper';
+import { ActivityIndicator } from '../../../components/ActivityIndicator';
 import { BlurView } from 'expo-blur';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';

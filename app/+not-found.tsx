@@ -1,4 +1,5 @@
 import { Redirect } from 'expo-router';
+import { HOME_HREF } from '../lib/routes';
 import { useAuth } from './_layout';
 
 export default function NotFoundScreen() {
@@ -8,5 +9,5 @@ export default function NotFoundScreen() {
     return null;
   }
 
-  return <Redirect href={user ? '/(tabs)/home' : '/(auth)/welcome-simple'} />;
+  return <Redirect href={user ? HOME_HREF : '/welcome-simple'} />;
 }

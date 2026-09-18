@@ -12,7 +12,8 @@ import {
   Linking,
   Platform,
 } from 'react-native';
-import { Text, ActivityIndicator, RadioButton, Portal, Modal, IconButton, useTheme } from 'react-native-paper';
+import { Text, RadioButton, Portal, Modal, IconButton, useTheme } from 'react-native-paper';
+import { ActivityIndicator } from '../../../components/ActivityIndicator';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -273,7 +274,7 @@ export default function StoreItemDetailScreen() {
 
           {/* Image Grid (Facebook Marketplace style) */}
           {item.images && item.images.length > 1 && (
-            <View style={styles.imageGrid}>
+            <View style={styles.imageGridContainer}>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}

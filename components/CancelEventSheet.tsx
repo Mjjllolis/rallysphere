@@ -14,7 +14,8 @@ import {
   Easing,
   Pressable,
 } from 'react-native';
-import { Text, ActivityIndicator, useTheme } from 'react-native-paper';
+import { Text, useTheme } from 'react-native-paper';
+import { ActivityIndicator } from './ActivityIndicator';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useThemeToggle } from '../app/_layout';
@@ -257,7 +258,7 @@ function Row({
 const styles = StyleSheet.create({
   root: { flex: 1, justifyContent: 'flex-end' },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.55)',
   },
   sheetWrap: {

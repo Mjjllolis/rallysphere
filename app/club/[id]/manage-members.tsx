@@ -13,11 +13,11 @@ import {
 import {
   Text,
   IconButton,
-  ActivityIndicator,
   Button,
   Menu,
   useTheme,
 } from 'react-native-paper';
+import { ActivityIndicator } from '../../../components/ActivityIndicator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { BlurView } from 'expo-blur';

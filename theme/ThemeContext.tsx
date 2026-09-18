@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { MD3DarkTheme, MD3LightTheme, Provider as PaperProvider } from "react-native-paper";
-import { DarkTheme as NavDark, DefaultTheme as NavLight } from "@react-navigation/native";
+import { DarkTheme as NavDark, DefaultTheme as NavLight } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import merge from "deepmerge";
 

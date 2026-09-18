@@ -109,7 +109,10 @@ export default function WelcomeScreen() {
                     {/* Tagline fades out with the sheet so it never ghosts behind the card */}
                     <Animated.View style={{ opacity: sheetAnim.interpolate({ inputRange: [0, 0.5], outputRange: [1, 0], extrapolate: 'clamp' }) }}>
                         <Text variant="headlineMedium" style={styles.title}>
-                            All-in-One Platform for{'\n'}Clubs and Players
+                            The all-in-one app for{'\n'}active communities.
+                        </Text>
+                        <Text style={styles.subtitle}>
+                            Host, discover & join events near you.
                         </Text>
                     </Animated.View>
                 </Animated.View>
@@ -213,6 +216,17 @@ const styles = StyleSheet.create({
         height: 130,
         marginBottom: 24,
     },
+    subtitle: {
+        marginTop: 8,
+        textAlign: 'center',
+        color: '#FFFFFF',
+        fontSize: 16,
+        lineHeight: 22,
+        paddingHorizontal: 20,
+        textShadowColor: 'rgba(0,0,0,0.45)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 6,
+    },
     title: {
         fontWeight: '600',
         textAlign: 'center',
@@ -263,7 +277,7 @@ const styles = StyleSheet.create({
         color: '#B8D4F0',
     },
     backdrop: {
-        ...StyleSheet.absoluteFillObject,
+        ...StyleSheet.absoluteFill,
     },
     backdropTint: {
         backgroundColor: 'rgba(0,0,0,0.45)',

@@ -11,9 +11,10 @@ import {
 import {
   Text,
   IconButton,
-  ActivityIndicator,
   useTheme,
 } from 'react-native-paper';
+import type { MD3Theme } from 'react-native-paper';
+import { ActivityIndicator } from '../../../components/ActivityIndicator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -27,7 +28,8 @@ import type { Club } from '../../../lib/firebase';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export default function AnalyticsDashboard() {
-  const theme = useTheme();
+  // The root themes (app/_layout.tsx) add success/warning on top of the MD3 palette.
+  const theme = useTheme<MD3Theme & { colors: MD3Theme['colors'] & { success: string; warning: string } }>();
   const { isDark } = useThemeToggle();
   const { user } = useAuth();
   const { id } = useLocalSearchParams();

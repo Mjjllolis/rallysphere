@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
     position: 'absolute', top: 0, left: 0, right: 0, height: '40%', overflow: 'hidden', zIndex: 0,
   },
   backgroundImage: { width: '100%', height: '100%' },
-  backgroundOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)' },
+  backgroundOverlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.3)' },
   backgroundFade: { position: 'absolute', bottom: 0, left: 0, right: 0, height: '50%' },
   headerContainer: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 100, pointerEvents: 'box-none' },
   backButton: { margin: 16, alignSelf: 'flex-start' },

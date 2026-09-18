@@ -1,7 +1,8 @@
 // app/profile/payment-methods.tsx
 import React, { useEffect, useState, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Modal, Image } from 'react-native';
-import { Text, useTheme, Surface, IconButton, ActivityIndicator } from 'react-native-paper';
+import { Text, useTheme, Surface, IconButton } from 'react-native-paper';
+import { ActivityIndicator } from '../../components/ActivityIndicator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -396,7 +397,7 @@ export default function PaymentMethodsScreen() {
               />
             )}
             {(finixContextLoading || !formReady) && (
-              <View style={[StyleSheet.absoluteFillObject, styles.formInitOverlay, { backgroundColor: theme.colors.background }]}>
+              <View style={[StyleSheet.absoluteFill, styles.formInitOverlay, { backgroundColor: theme.colors.background }]}>
                 <Image source={require('../../assets/Logo.png')} style={styles.formInitLogo} resizeMode="contain" />
                 <Text style={{ color: theme.colors.onSurfaceVariant, marginTop: 16 }}>
                   Initializing form…

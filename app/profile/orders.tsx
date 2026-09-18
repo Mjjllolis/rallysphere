@@ -11,10 +11,10 @@ import {
 } from 'react-native';
 import {
   Text,
-  ActivityIndicator,
   IconButton,
   useTheme,
 } from 'react-native-paper';
+import { ActivityIndicator } from '../../components/ActivityIndicator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAuth, useThemeToggle } from '../_layout';

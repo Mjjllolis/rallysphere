@@ -10,13 +10,13 @@ import {
     Alert,
 } from 'react-native';
 import {
-    Text,
-    Button,
-    useTheme,
-    Surface,
-    IconButton,
-    ActivityIndicator,
+  Text,
+  Button,
+  useTheme,
+  Surface,
+  IconButton,
 } from 'react-native-paper';
+import { ActivityIndicator } from '../../components/ActivityIndicator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { getUserProfile } from '../../lib/firebase';
