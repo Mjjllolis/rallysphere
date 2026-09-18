@@ -49,7 +49,7 @@ import {
   connectFunctionsEmulator
 } from 'firebase/functions';
 import Constants from 'expo-constants';
-import { Platform } from 'react-native';
+import { Platform, Image as RNImage } from 'react-native';
 
 // --- 1. Types for environment configuration ---
 type Extra = {
@@ -114,6 +114,7 @@ export interface Club {
   name: string;
   description: string;
   category: string;
+  university?: string;
   coverImage?: string;
   logo?: string;
   createdBy: string;
@@ -239,6 +240,7 @@ export interface Event {
   waitlistCount?: number;
   likes: string[];
   coverImage?: string;
+  coverImageAspectRatio?: number; // width / height, so cards can size the cover before it loads
   tags?: string[];
   requiresApproval: boolean;
   isPublic: boolean;
@@ -988,6 +990,7 @@ export const getClub = async (clubId: string) => {
         contactEmail: data.contactEmail,
         socialLinks: data.socialLinks,
         location: data.location,
+        university: data.university,
         locationCoords: data.locationCoords,
         // Finix payouts (hosted onboarding)
         finixIdentityId: data.finixIdentityId,
@@ -1010,7 +1013,6 @@ export const getClub = async (clubId: string) => {
         // bank stage unable to show done from server state.
         finixPayoutPiId: data.finixPayoutPiId,
         finixPayoutBankLast4: data.finixPayoutBankLast4,
-        finixOnboardingState: data.finixOnboardingState,
         finixOnboardingDraft: data.finixOnboardingDraft,
         finixTosAcceptedAt: data.finixTosAcceptedAt,
         subscriptionStatus: data.subscriptionStatus,
@@ -1064,11 +1066,20 @@ export const joinClub = async (clubId: string, userId: string, userEmail: string
 
 export const leaveClub = async (clubId: string, userId: string) => {
   try {
-    await updateDoc(doc(db, 'clubs', clubId), {
+    const clubRef = doc(db, 'clubs', clubId);
+    const clubData = (await getDoc(clubRef)).data() || {};
+
+    const update: Record<string, any> = {
       clubMembers: arrayRemove(userId),
       subscribers: arrayRemove(userId),
       updatedAt: serverTimestamp()
-    });
+    };
+    // Leaving also revokes admin rights. Only touch the admin arrays the user is
+    // actually in, so we don't create empty legacy `admins` fields on club docs.
+    if ((clubData.clubAdmins || []).includes(userId)) update.clubAdmins = arrayRemove(userId);
+    if ((clubData.admins || []).includes(userId)) update.admins = arrayRemove(userId);
+
+    await updateDoc(clubRef, update);
     return { success: true };
   } catch (error: any) {
     // console.error('Error leaving club:', error);
@@ -2318,6 +2329,16 @@ export const testStorageConnection = async (): Promise<{ success: boolean; error
     };
   }
 };
+
+// Width / height of a local or remote image, or undefined if it can't be measured
+export const getImageAspectRatio = (uri: string): Promise<number | undefined> =>
+  new Promise((resolve) => {
+    RNImage.getSize(
+      uri,
+      (w, h) => resolve(w > 0 && h > 0 ? w / h : undefined),
+      () => resolve(undefined)
+    );
+  });
 
 export const uploadImage = async (uri: string, path: string): Promise<string | null> => {
   try {

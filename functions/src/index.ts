@@ -4277,6 +4277,9 @@ const OG_DEFAULT_IMAGE = "https://rally-sphere.web.app/og-default.png";
 // code change or redeploy needed here.
 const APP_STORE_URL = "https://apps.apple.com/app/id6754649814";
 const APP_STORE_ID = "6754649814";
+// Google Play listing for the same app (the package name is the ID). The URL
+// resolves to Play's 404 page until the listing is published.
+const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.rallysphere.app";
 
 // Apple's public lookup API reports whether an App Store listing is actually
 // live — resultCount is 0 until the app's first version is approved and
@@ -4303,6 +4306,22 @@ async function isAppStoreLive(): Promise<boolean> {
   }
 }
 
+// Play has no lookup API like Apple's, but an unpublished package's store page
+// returns 404, so a plain GET tells us whether the listing is live. Same
+// fail-safe as above: any failure means "not live".
+async function isPlayStoreLive(): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2500);
+    const res = await fetch(PLAY_STORE_URL, { signal: controller.signal });
+    clearTimeout(timeout);
+    return res.status === 200;
+  } catch (error) {
+    console.error("Error checking Play Store availability:", error);
+    return false;
+  }
+}
+
 function escapeHtml(input: string): string {
   return input
     .replace(/&/g, "&amp;")
@@ -4313,7 +4332,9 @@ function escapeHtml(input: string): string {
 }
 
 export const eventPreview = functions.https.onRequest(async (req, res) => {
-  const eventId = req.path.split("/").filter(Boolean).pop() || "";
+  // The ID comes straight from the URL and is used inside an inline <script>,
+  // so keep only Firestore-ID characters.
+  const eventId = (req.path.split("/").filter(Boolean).pop() || "").replace(/[^A-Za-z0-9_-]/g, "");
   const appLink = `rallysphere://event/${eventId}`;
 
   let title = "RallySphere Event";
@@ -4321,6 +4342,7 @@ export const eventPreview = functions.https.onRequest(async (req, res) => {
   let image = OG_DEFAULT_IMAGE;
 
   const appStoreLivePromise = isAppStoreLive();
+  const playStoreLivePromise = isPlayStoreLive();
 
   try {
     const db = admin.firestore();
@@ -4343,7 +4365,7 @@ export const eventPreview = functions.https.onRequest(async (req, res) => {
     console.error("Error loading event for preview:", error);
   }
 
-  const appStoreLive = await appStoreLivePromise;
+  const [appStoreLive, playStoreLive] = await Promise.all([appStoreLivePromise, playStoreLivePromise]);
 
   const safeTitle = escapeHtml(title);
   const safeDescription = escapeHtml(description);
@@ -4373,7 +4395,9 @@ export const eventPreview = functions.https.onRequest(async (req, res) => {
   img { width: 100%; aspect-ratio: 1.91 / 1; object-fit: cover; border-radius: 16px; margin-bottom: 24px; }
   h1 { font-size: 22px; margin: 0 0 8px; }
   p { color: #9aa0b4; margin: 0 0 24px; line-height: 1.4; }
-  a.button { display: inline-block; background: #60A5FA; color: #fff; text-decoration: none; padding: 14px 28px; border-radius: 12px; font-weight: 600; }
+  a.button { display: inline-block; background: #60A5FA; color: #fff; text-decoration: none; padding: 14px 28px; border-radius: 12px; font-weight: 600; margin-right: 8px; margin-bottom: 8px; }
+  a.button.secondary { background: transparent; border: 1px solid #60A5FA; color: #60A5FA; }
+  p.status a { color: #60A5FA; }
   p.status { margin: 12px 0 0; font-size: 14px; }
 </style>
 </head>
@@ -4382,25 +4406,55 @@ export const eventPreview = functions.https.onRequest(async (req, res) => {
     <img src="${safeImage}" alt="${safeTitle}" />
     <h1>${safeTitle}</h1>
     <p>${safeDescription}</p>
-    <a class="button" href="#" onclick="openApp(); return false;">Open in RallySphere</a>
-    <p id="storeStatus" class="status" style="display:none;">Coming soon to the App Store</p>
+    <a id="storeButton" class="button" href="#" style="display:none;">Get the app</a>
+    <a id="openButton" class="button secondary" href="${safeAppLink}" onclick="openApp(); return false;">Open in RallySphere</a>
+    <p id="storeStatus" class="status" style="display:none;"></p>
   </div>
   <script>
-    var appStoreLive = ${appStoreLive ? "true" : "false"};
-    // Only runs on a deliberate tap of the button above — no auto-attempt on
-    // load. Try the app first; only act on the fallback if the tab is still
-    // visible a moment later (a successful app-open backgrounds Safari,
-    // which pauses this timer, so people who have the app never see it).
-    // The fallback itself only navigates to the App Store once Apple's own
-    // lookup confirms the listing is actually public — before that, tapping
-    // just reveals "Coming soon" in place rather than sending anyone to a
-    // dead Apple page.
+    var stores = {
+      ios: { name: "the App Store", url: ${JSON.stringify(APP_STORE_URL)}, live: ${appStoreLive ? "true" : "false"} },
+      android: { name: "Google Play", url: ${JSON.stringify(PLAY_STORE_URL)}, live: ${playStoreLive ? "true" : "false"} }
+    };
+    var ua = navigator.userAgent || "";
+    var platform = /iPhone|iPad|iPod/i.test(ua) ? "ios" : /Android/i.test(ua) ? "android" : null;
+    var store = platform ? stores[platform] : null;
+    var redirectTimer = null;
+    var statusEl = document.getElementById("storeStatus");
+    var storeButton = document.getElementById("storeButton");
+
+    // One link for everyone. If the app is installed, iOS universal links and
+    // Android app links open it before this page ever loads. Reaching this page
+    // therefore means the app probably isn't installed, so send phones to their
+    // own store automatically (a store page shows "Open" if the app is there
+    // after all). Desktop and unknown browsers get both store links.
+    if (store) {
+      if (store.live) {
+        storeButton.href = store.url;
+        storeButton.textContent = "Get RallySphere on " + store.name;
+        storeButton.style.display = "inline-block";
+        redirectTimer = setTimeout(function () { window.location.replace(store.url); }, 1200);
+      } else {
+        statusEl.textContent = "Coming soon to " + store.name;
+        statusEl.style.display = "block";
+      }
+    } else {
+      var links = [];
+      if (stores.ios.live) links.push('<a href="' + stores.ios.url + '">App Store</a>');
+      if (stores.android.live) links.push('<a href="' + stores.android.url + '">Google Play</a>');
+      statusEl.innerHTML = links.length ? "Get RallySphere: " + links.join(" · ") : "Coming soon to the App Store and Google Play";
+      statusEl.style.display = "block";
+    }
+
+    // Deliberate tap on "Open in RallySphere": try the app, and only fall back
+    // to the store if the tab is still visible a moment later (a successful
+    // app-open backgrounds the browser, which pauses this timer).
     function openApp() {
+      if (redirectTimer) { clearTimeout(redirectTimer); redirectTimer = null; }
       var fallbackTimer = setTimeout(function () {
-        if (appStoreLive) {
-          window.location.href = ${JSON.stringify(APP_STORE_URL)};
-        } else {
-          document.getElementById("storeStatus").style.display = "block";
+        if (store && store.live) {
+          window.location.href = store.url;
+        } else if (store) {
+          statusEl.style.display = "block";
         }
       }, 1500);
       document.addEventListener("visibilitychange", function onHide() {
@@ -4409,7 +4463,7 @@ export const eventPreview = functions.https.onRequest(async (req, res) => {
           document.removeEventListener("visibilitychange", onHide);
         }
       });
-      window.location.href = "${safeAppLink}";
+      window.location.href = ${JSON.stringify(appLink)};
     }
   </script>
 </body>

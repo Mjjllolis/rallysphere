@@ -4,6 +4,15 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // True when `field` on a club changes only by removing the caller's own uid
+    // (nobody added, nobody else removed).
+    function onlySelfRemoved(field) {
+      let before = resource.data.get(field, []).toSet();
+      let after = request.resource.data.get(field, []).toSet();
+      return after.difference(before).size() == 0 &&
+        before.difference(after).hasOnly([request.auth.uid]);
+    }
+
     // Users can read/write their own profile, authenticated users can read others' basic info
     match /users/{userId} {
       // Users can read any profile (for attendee lists, member lists, etc.)
@@ -36,6 +45,17 @@ service cloud.firestore {
       allow update: if request.auth != null &&
         resource.data.isPublic == true &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clubMembers', 'updatedAt']);
+      // Any member or subscriber can leave a club (public or private) by removing
+      // only themselves from clubMembers / subscribers, and from clubAdmins / admins
+      // if they were an admin (leaving revokes admin rights).
+      allow update: if request.auth != null &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clubMembers', 'subscribers', 'clubAdmins', 'admins', 'updatedAt']) &&
+        (request.auth.uid in resource.data.get('clubMembers', []) ||
+         request.auth.uid in resource.data.get('subscribers', [])) &&
+        onlySelfRemoved('clubMembers') &&
+        onlySelfRemoved('subscribers') &&
+        onlySelfRemoved('clubAdmins') &&
+        onlySelfRemoved('admins');
       // Admins OR owner can delete clubs
       allow delete: if request.auth != null &&
         (request.auth.uid in resource.data.get('clubAdmins', []) ||
@@ -55,6 +75,17 @@ service cloud.firestore {
       // Only event creator and club admins can update events
       allow update: if request.auth != null &&
         (request.auth.uid == resource.data.createdBy);
+      // Club admins / owner can edit their club's events. They can't re-attribute an event
+      // (createdBy) or move it to a different club (clubId).
+      allow update: if request.auth != null &&
+        resource.data.get('clubId', null) != null &&
+        exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
+        (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
+         request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []) ||
+         request.auth.uid == get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubOwner', '') ||
+         request.auth.uid == get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('owner', '')) &&
+        request.resource.data.get('createdBy', null) == resource.data.get('createdBy', null) &&
+        request.resource.data.get('clubId', null) == resource.data.get('clubId', null);
       // Like Events Permission
       allow update: if request.auth != null &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'updatedAt']) &&

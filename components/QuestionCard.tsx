@@ -277,7 +277,6 @@ export default function QuestionCard({
           <Text
             variant="bodySmall"
             style={[
-              styles.optionText,
               {
                 color: disabled
                   ? isDark
