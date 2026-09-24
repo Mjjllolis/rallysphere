@@ -14,7 +14,7 @@ import {
   Platform,
   ActionSheetIOS,
 } from 'react-native';
-import { Text, IconButton, Menu, useTheme } from 'react-native-paper';
+import { Text, IconButton, Menu, Portal, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
@@ -245,6 +245,8 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
+      {/* Portal.Host so the Android picture Menu renders inside this Modal, not behind it */}
+      <Portal.Host>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
           {/* Gray Gradient Background */}
@@ -457,6 +459,7 @@ export default function EditProfileScreen({ visible, onClose, onProfileUpdate }:
         onClose={() => setEmojiPickerVisible(false)}
         onSelectEmoji={handleSelectEmoji}
       />
+      </Portal.Host>
     </Modal>
   );
 }
