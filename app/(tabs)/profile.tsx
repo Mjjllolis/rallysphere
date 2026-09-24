@@ -19,9 +19,41 @@ const CLUB_COLUMNS = 4;
 const CLUB_GAP = 12;
 const CLUB_ITEM_WIDTH = (SCREEN_WIDTH - (SECTION_PADDING * 2) - (CLUB_GAP * (CLUB_COLUMNS - 1))) / CLUB_COLUMNS;
 
-const EVENT_COLUMNS = 3;
-const EVENT_GAP = 1;
-const EVENT_ITEM_WIDTH = (SCREEN_WIDTH / EVENT_COLUMNS) - (EVENT_GAP * 2 / 3);
+// Cycles through `length` items: holds on each for `holdMs`, then crossfades
+// (via `fade`) to the next over `fadeMs` in each direction. `startDelayMs`
+// offsets the first hold so multiple cards can be staggered instead of
+// fading in lockstep.
+function useCyclingIndex(length: number, holdMs: number, fadeMs: number, startDelayMs = 0) {
+  const [index, setIndex] = useState(0);
+  const fade = useRef(new Animated.Value(1)).current;
+
+  // Snap back if the list shrinks (e.g. a refresh removes an event) and the
+  // current index no longer points at anything.
+  useEffect(() => {
+    if (index >= length) setIndex(0);
+  }, [length, index]);
+
+  useEffect(() => {
+    if (length <= 1) return;
+
+    let interval: ReturnType<typeof setInterval> | undefined;
+    const startTimeout = setTimeout(() => {
+      interval = setInterval(() => {
+        Animated.timing(fade, { toValue: 0, duration: fadeMs, useNativeDriver: true }).start(() => {
+          setIndex(i => (i + 1) % length);
+          Animated.timing(fade, { toValue: 1, duration: fadeMs, useNativeDriver: true }).start();
+        });
+      }, holdMs + fadeMs * 2);
+    }, startDelayMs);
+
+    return () => {
+      clearTimeout(startTimeout);
+      if (interval) clearInterval(interval);
+    };
+  }, [length, holdMs, fadeMs, startDelayMs, fade]);
+
+  return { index, fade };
+}
 
 export default function ProfilePage() {
   const theme = useTheme();
@@ -34,10 +66,16 @@ export default function ProfilePage() {
   const scrollY = useRef(new Animated.Value(0)).current;
   const [rallyCredits, setRallyCredits] = useState<UserRallyCredits | null>(null);
   const [userClubs, setUserClubs] = useState<Club[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([]);
   const [pastEvents, setPastEvents] = useState<Event[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
   const [bioTruncated, setBioTruncated] = useState(false);
+  const [clubsCollapsed, setClubsCollapsed] = useState(false);
+
+  // Staggered so the two preview cards don't crossfade in lockstep.
+  const upcomingCycle = useCyclingIndex(upcomingEvents.length, 10000, 800, 0);
+  const pastCycle = useCyclingIndex(pastEvents.length, 10000, 800, 5800);
 
   const handleBioTextLayout = (e: { nativeEvent: { lines: any[] } }) => {
     if (!bioExpanded && e.nativeEvent.lines.length > 2) {
@@ -47,7 +85,7 @@ export default function ProfilePage() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadProfile(), loadRallyCredits(), loadUserClubs(), loadPastEvents()]);
+    await Promise.all([loadProfile(), loadRallyCredits(), loadUserClubs(), loadEvents()]);
     setRefreshing(false);
   };
 
@@ -56,7 +94,7 @@ export default function ProfilePage() {
       loadProfile();
       loadRallyCredits();
       loadUserClubs();
-      loadPastEvents();
+      loadEvents();
     }
   }, [user]);
 
@@ -89,19 +127,22 @@ export default function ProfilePage() {
     }
   };
 
-  const loadPastEvents = async () => {
+  const loadEvents = async () => {
     if (!user) return;
 
     const result = await getAllEvents();
     if (result.success) {
       const now = new Date();
-      // Filter events where user attended and event has ended
-      const past = result.events.filter(event => {
-        const endDate = event.endDate.toDate();
-        return event.attendees.includes(user.uid) && endDate < now;
-      });
-      // Sort by most recent first
-      past.sort((a, b) => b.endDate.toDate().getTime() - a.endDate.toDate().getTime());
+      const attending = result.events.filter(event => event.attendees.includes(user.uid));
+
+      // Split on start date to match the Tickets screen's Upcoming/Attended
+      // filters these cards link to.
+      const upcoming = attending.filter(event => event.startDate.toDate() >= now);
+      upcoming.sort((a, b) => a.startDate.toDate().getTime() - b.startDate.toDate().getTime());
+      setUpcomingEvents(upcoming);
+
+      const past = attending.filter(event => event.startDate.toDate() < now);
+      past.sort((a, b) => b.startDate.toDate().getTime() - a.startDate.toDate().getTime());
       setPastEvents(past);
     }
   };
@@ -147,12 +188,87 @@ export default function ProfilePage() {
     );
   }
 
+  const chipBackground = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)';
+
   // Subtle parallax effect for background image
   const backgroundTranslateY = scrollY.interpolate({
     inputRange: [0, 300],
     outputRange: [0, -50], // Gentle parallax - slower than scroll
     extrapolate: 'clamp',
   });
+
+  const renderClubsHeader = () => (
+    <TouchableOpacity style={styles.sectionHeader} onPress={() => setClubsCollapsed(prev => !prev)} activeOpacity={0.7}>
+      <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>My Clubs</Text>
+      <View style={styles.sectionHeaderRight}>
+        <Text style={[styles.sectionCount, { color: theme.colors.onSurfaceVariant }]}>{userClubs.length} clubs</Text>
+        <IconButton
+          icon={clubsCollapsed ? 'chevron-down' : 'chevron-up'}
+          size={20}
+          iconColor={theme.colors.onSurfaceVariant}
+          style={styles.sectionChevron}
+        />
+      </View>
+    </TouchableOpacity>
+  );
+
+  // Shared by the Upcoming/Past preview cards - shows the event at
+  // cycle.index and crossfades to the next one as the cycle advances.
+  const renderEventPreviewCard = (
+    events: Event[],
+    dateField: 'startDate' | 'endDate',
+    cycle: { index: number; fade: Animated.Value },
+    statusParam: string,
+    noneLabel: string,
+    noneSubtitle: string,
+    fallbackGradient: [string, string]
+  ) => {
+    // Clamp: after a refresh shrinks the list, the cycle's index can point past
+    // the end for one render before useCyclingIndex's reset effect runs.
+    const index = events.length > 0 ? cycle.index % events.length : 0;
+    const current = events[index];
+    return (
+      <TouchableOpacity
+        style={styles.upcomingPreviewCard}
+        activeOpacity={0.8}
+        onPress={() => router.push({ pathname: '/profile/tickets', params: { status: statusParam } })}
+      >
+        <BlurView intensity={20} tint={isDark ? 'dark' : 'light'} style={[styles.upcomingPreviewBlur, { borderColor: theme.colors.outline }]}>
+          <Animated.View style={[styles.upcomingPreviewImage, { opacity: cycle.fade }]}>
+            {current?.coverImage ? (
+              <ExpoImage
+                source={{ uri: current.coverImage }}
+                style={styles.upcomingPreviewImageFill}
+                contentFit="cover"
+                transition={400}
+                cachePolicy="memory-disk"
+              />
+            ) : (
+              <LinearGradient
+                colors={events.length > 0 ? fallbackGradient : (isDark ? ['#1e1e1e', '#2a2a2a'] : ['#e2e8f0', '#cbd5e1'])}
+                style={styles.upcomingPreviewImageFill}
+              >
+                <IconButton icon="calendar" size={22} iconColor={events.length > 0 ? '#fff' : theme.colors.onSurfaceDisabled} style={{ margin: 0 }} />
+              </LinearGradient>
+            )}
+          </Animated.View>
+
+          <Animated.View style={[styles.upcomingPreviewText, { opacity: cycle.fade }]}>
+            <Text style={[styles.upcomingPreviewTitle, { color: theme.colors.onSurface }]} numberOfLines={1}>
+              {events.length === 0 ? noneLabel : current.title}
+            </Text>
+            <Text style={[styles.upcomingPreviewSubtitle, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
+              {events.length === 0
+                ? noneSubtitle
+                : `${index + 1} of ${events.length} · ${current[dateField].toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+            </Text>
+          </Animated.View>
+
+          <IconButton icon="chevron-right" size={22} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0 }} />
+        </BlurView>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -295,14 +411,16 @@ export default function ProfilePage() {
               {/* User Details */}
               <View style={styles.detailsRow}>
                 {profile?.university && (
-                  <Text style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>
-                    🏫 {profile.university}
-                  </Text>
+                  <View style={[styles.detailChip, { backgroundColor: chipBackground, borderColor: theme.colors.outline }]}>
+                    <Text style={styles.detailChipIcon}>🏫</Text>
+                    <Text style={[styles.detailChipText, { color: theme.colors.onSurfaceVariant }]}>{profile.university}</Text>
+                  </View>
                 )}
                 {profile?.location && (
-                  <Text style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>
-                    📍 {profile.location}
-                  </Text>
+                  <View style={[styles.detailChip, { backgroundColor: chipBackground, borderColor: theme.colors.outline }]}>
+                    <Text style={styles.detailChipIcon}>📍</Text>
+                    <Text style={[styles.detailChipText, { color: theme.colors.onSurfaceVariant }]}>{profile.location}</Text>
+                  </View>
                 )}
                 {profile?.instagram && (
                   <TouchableOpacity
@@ -310,15 +428,15 @@ export default function ProfilePage() {
                       const instagramUrl = `https://instagram.com/${profile.instagram}`;
                       router.push(instagramUrl as any);
                     }}
-                    style={styles.instagramLink}
+                    style={[styles.detailChip, { backgroundColor: chipBackground, borderColor: theme.colors.outline }]}
                   >
                     <IconButton
                       icon="instagram"
-                      size={16}
-                      iconColor={theme.colors.onSurface}
+                      size={14}
+                      iconColor={theme.colors.onSurfaceVariant}
                       style={styles.instagramIcon}
                     />
-                    <Text style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>@{profile.instagram}</Text>
+                    <Text style={[styles.detailChipText, { color: theme.colors.onSurfaceVariant }]}>@{profile.instagram}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -338,89 +456,79 @@ export default function ProfilePage() {
 
           {/* My Clubs Section */}
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>My Clubs</Text>
-              <Text style={[styles.sectionCount, { color: theme.colors.onSurfaceVariant }]}>{userClubs.length} clubs</Text>
-            </View>
+            {renderClubsHeader()}
 
-            {userClubs.length === 0 ? (
-              <View style={styles.emptySection}>
-                <Text style={[styles.emptySectionText, { color: theme.colors.onSurfaceDisabled }]}>You haven't joined any clubs yet</Text>
-              </View>
-            ) : (
-              <View style={styles.clubCirclesContainer}>
-                {userClubs.map((club) => (
-                  <TouchableOpacity
-                    key={club.id}
-                    style={styles.clubCircleItem}
-                    onPress={() => router.push(`/club/${club.id}`)}
-                  >
-                    {club.logo ? (
-                      <ExpoImage source={{ uri: club.logo }} style={[styles.clubCircleImage, { borderColor: theme.colors.outline }]} transition={200} cachePolicy="memory-disk" />
-                    ) : (
-                      <LinearGradient
-                        colors={['#60A5FA', '#3B82F6']}
-                        style={[styles.clubCirclePlaceholder, { borderColor: theme.colors.outline }]}
-                      >
-                        <Text style={[styles.clubCircleInitial, { color: theme.colors.onSurface }]}>
-                          {club.name.charAt(0).toUpperCase()}
-                        </Text>
-                      </LinearGradient>
-                    )}
-                    <Text style={[styles.clubCircleName, { color: theme.colors.onSurface }]} numberOfLines={1}>{club.name}</Text>
-                    <View style={[
-                      styles.clubRoleBadge,
-                      { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' },
-                      getUserClubRole(club) === 'Owner' && styles.clubOwnerBadge,
-                      getUserClubRole(club) === 'Admin' && styles.clubAdminBadge,
-                      getUserClubRole(club) === 'Subscriber' && styles.clubSubscriberBadge,
-                    ]}>
-                      <Text style={[styles.clubRoleText, { color: theme.colors.onSurface }]}>{getUserClubRole(club)}</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
+            {!clubsCollapsed && (
+              userClubs.length === 0 ? (
+                <View style={styles.emptySection}>
+                  <Text style={[styles.emptySectionText, { color: theme.colors.onSurfaceDisabled }]}>You haven't joined any clubs yet</Text>
+                </View>
+              ) : (
+                <View style={styles.clubCirclesContainer}>
+                  {userClubs.map((club) => (
+                    <TouchableOpacity
+                      key={club.id}
+                      style={styles.clubCircleItem}
+                      onPress={() => router.push(`/club/${club.id}`)}
+                    >
+                      {club.logo ? (
+                        <ExpoImage source={{ uri: club.logo }} style={[styles.clubCircleImage, { borderColor: theme.colors.outline }]} transition={200} cachePolicy="memory-disk" />
+                      ) : (
+                        <LinearGradient
+                          colors={['#60A5FA', '#3B82F6']}
+                          style={[styles.clubCirclePlaceholder, { borderColor: theme.colors.outline }]}
+                        >
+                          <Text style={[styles.clubCircleInitial, { color: theme.colors.onSurface }]}>
+                            {club.name.charAt(0).toUpperCase()}
+                          </Text>
+                        </LinearGradient>
+                      )}
+                      <Text style={[styles.clubCircleName, { color: theme.colors.onSurface }]} numberOfLines={1}>{club.name}</Text>
+                      <View style={[
+                        styles.clubRoleBadge,
+                        { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' },
+                        getUserClubRole(club) === 'Owner' && styles.clubOwnerBadge,
+                        getUserClubRole(club) === 'Admin' && styles.clubAdminBadge,
+                        getUserClubRole(club) === 'Subscriber' && styles.clubSubscriberBadge,
+                      ]}>
+                        <Text style={[styles.clubRoleText, { color: theme.colors.onSurface }]}>{getUserClubRole(club)}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )
             )}
           </View>
 
-          {/* Past Events Section */}
+          {/* Upcoming Events Preview - links out to the full list on the Tickets page rather than listing every event here */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Upcoming Events</Text>
+            </View>
+            {renderEventPreviewCard(
+              upcomingEvents,
+              'startDate',
+              upcomingCycle,
+              'Upcoming',
+              'No upcoming events',
+              'Your next events will show up here',
+              ['#60A5FA', '#3B82F6']
+            )}
+          </View>
+
+          {/* Past Events Preview - same card style, staggered crossfade */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Past Events</Text>
-              <Text style={[styles.sectionCount, { color: theme.colors.onSurfaceVariant }]}>{pastEvents.length} events</Text>
             </View>
-
-            {pastEvents.length === 0 ? (
-              <View style={styles.emptySection}>
-                <Text style={[styles.emptySectionText, { color: theme.colors.onSurfaceDisabled }]}>No past events yet</Text>
-              </View>
-            ) : (
-              <View style={styles.eventsGrid}>
-                {pastEvents.map((event) => (
-                  <TouchableOpacity
-                    key={event.id}
-                    style={styles.eventGridItem}
-                    onPress={() => router.push(`/event/${event.id}`)}
-                  >
-                    {event.coverImage ? (
-                      <ExpoImage source={{ uri: event.coverImage }} style={styles.eventGridImage} contentFit="cover" transition={200} cachePolicy="memory-disk" />
-                    ) : (
-                      <LinearGradient
-                        colors={isDark ? ['#1e1e1e', '#2a2a2a'] : ['#e2e8f0', '#cbd5e1']}
-                        style={styles.eventGridPlaceholder}
-                      >
-                        <IconButton icon="calendar" size={28} iconColor={theme.colors.onSurfaceDisabled} style={{ margin: 0 }} />
-                      </LinearGradient>
-                    )}
-                    <View style={styles.eventGridOverlay}>
-                      <Text style={[styles.eventGridTitle, { color: '#fff' }]} numberOfLines={2}>{event.title}</Text>
-                      <Text style={[styles.eventGridDate, { color: 'rgba(255,255,255,0.7)' }]}>
-                        {event.endDate.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
+            {renderEventPreviewCard(
+              pastEvents,
+              'endDate',
+              pastCycle,
+              'Attended',
+              'No past events yet',
+              'Events you attend will show up here',
+              ['#A855F7', '#7C3AED']
             )}
           </View>
         </Animated.ScrollView>
@@ -545,7 +653,7 @@ const styles = StyleSheet.create({
   profileHeader: {
     alignItems: 'center',
     paddingTop: 20,
-    paddingBottom: 32,
+    paddingBottom: 20,
     paddingHorizontal: 20,
     position: 'relative',
     zIndex: 50,
@@ -638,10 +746,23 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
   },
-  detailText: {
-    fontSize: 14,
+  detailChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  detailChipIcon: {
+    fontSize: 12,
+  },
+  detailChipText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   editProfileButton: {
     borderRadius: 16,
@@ -669,25 +790,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 4,
   },
-  instagramLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: -8,
-  },
   instagramIcon: {
     margin: 0,
     padding: 0,
-    marginRight: -4,
+    width: 14,
+    height: 14,
   },
   section: {
     paddingHorizontal: 20,
-    marginBottom: 24,
+    marginBottom: 18,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   sectionTitle: {
     fontSize: 22,
@@ -697,12 +814,61 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  sectionHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sectionChevron: {
+    margin: 0,
+    marginLeft: -4,
+  },
   emptySection: {
     paddingVertical: 24,
     alignItems: 'center',
   },
   emptySectionText: {
     fontSize: 15,
+  },
+  // Upcoming events preview card
+  upcomingPreviewCard: {
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  upcomingPreviewBlur: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  upcomingPreviewImage: {
+    width: 52,
+    height: 52,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  upcomingPreviewImageFill: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  upcomingPreviewText: {
+    flex: 1,
+  },
+  upcomingPreviewTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  upcomingPreviewSubtitle: {
+    fontSize: 13,
+    marginTop: 2,
   },
   // Club circles styles
   clubCirclesContainer: {
@@ -756,44 +922,5 @@ const styles = StyleSheet.create({
   clubRoleText: {
     fontSize: 9,
     fontWeight: '600',
-  },
-  // Events grid styles (Instagram-like)
-  eventsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: -SECTION_PADDING,
-    gap: EVENT_GAP,
-  },
-  eventGridItem: {
-    width: EVENT_ITEM_WIDTH,
-    height: EVENT_ITEM_WIDTH,
-    position: 'relative',
-  },
-  eventGridImage: {
-    width: '100%',
-    height: '100%',
-  },
-  eventGridPlaceholder: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  eventGridOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 6,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-  },
-  eventGridTitle: {
-    fontSize: 11,
-    fontWeight: '600',
-    lineHeight: 14,
-  },
-  eventGridDate: {
-    fontSize: 9,
-    marginTop: 2,
   },
 });

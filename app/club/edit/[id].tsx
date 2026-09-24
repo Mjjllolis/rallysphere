@@ -13,6 +13,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { getClub, updateClub, uploadImage, testStorageConnection } from '../../../lib/firebase';
+import { invalidateHostClub } from '../../../hooks/useHostClubs';
 import { useAuth, useThemeToggle } from '../../_layout';
 import type { Club } from '../../../lib/firebase';
 import GlassInput from '../../../components/GlassInput';
@@ -277,6 +278,8 @@ export default function EditClubScreen() {
 
       const result = await updateClub(clubId, clubData);
       if (result.success) {
+        // Event cards cache club logos - drop ours so the new one shows right away
+        invalidateHostClub(clubId);
         Alert.alert(
           'Success!',
           'Club updated successfully!',

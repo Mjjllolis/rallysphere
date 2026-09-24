@@ -6,8 +6,10 @@ import {
   Dimensions,
   ViewToken,
   ActivityIndicator,
-  RefreshControl
+  RefreshControl,
+  Animated,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { Text, useTheme } from 'react-native-paper';
 import { useThemeToggle } from '../../../_layout';
@@ -43,6 +45,22 @@ const HomeFeed = ({ feedType, isActive }: HomeFeedProps) => {
   const [activeIndex, setActiveIndex] = useState(0);
   const [containerHeight, setContainerHeight] = useState(SCREEN_HEIGHT);
   const hasLoadedRef = useRef(false);
+  const insets = useSafeAreaInsets();
+  const skeletonPulse = useRef(new Animated.Value(0.4)).current;
+
+  // Shimmer loop for the initial-load skeleton, shaped like a real card so
+  // there's no layout jump once the feed swaps in.
+  useEffect(() => {
+    if (!loading) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(skeletonPulse, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(skeletonPulse, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [loading]);
 
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 50
@@ -190,13 +208,18 @@ const HomeFeed = ({ feedType, isActive }: HomeFeedProps) => {
   );
 
   if (loading) {
+    // Shaped like a real card (same cover-image box position/ratio, plus
+    // title/meta bars) so swapping in the loaded feed doesn't jump.
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ActivityIndicator size="large" color={theme.colors.onSurface} />
-        <Text variant="bodyLarge" style={{ marginTop: 16, color: theme.colors.onSurface }}>
-          Loading events...
-        </Text>
+        <Animated.View
+          style={[styles.skeletonCover, { opacity: skeletonPulse, backgroundColor: theme.colors.surfaceVariant }]}
+        />
+        <View style={[styles.skeletonBottomContent, { paddingBottom: Math.max(insets.bottom, 8) + 76 }]}>
+          <Animated.View style={[styles.skeletonBlock, styles.skeletonTitle, { opacity: skeletonPulse, backgroundColor: theme.colors.surfaceVariant }]} />
+          <Animated.View style={[styles.skeletonBlock, styles.skeletonLine, { opacity: skeletonPulse, backgroundColor: theme.colors.surfaceVariant }]} />
+        </View>
       </View>
     );
   }
@@ -266,8 +289,36 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  },
+  // Mirrors EventSwipeCard's coverImageOuter/coverImageWrapper positioning
+  // so the skeleton lines up with where the real cover image lands.
+  skeletonCover: {
+    position: 'absolute',
+    width: '88%',
+    alignSelf: 'center',
+    top: '18%',
+    bottom: '42%',
+    borderRadius: 16,
+  },
+  // Mirrors EventSwipeCard's bottomContent positioning.
+  skeletonBottomContent: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 24,
+    gap: 10,
+  },
+  skeletonBlock: {
+    borderRadius: 6,
+  },
+  skeletonTitle: {
+    width: '65%',
+    height: 26,
+  },
+  skeletonLine: {
+    width: '40%',
+    height: 16,
   },
   emptyContainer: {
     flex: 1,

@@ -16,7 +16,7 @@ import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, Stack, useFocusEffect } from 'expo-router';
 import { useAuth, darkTheme } from '../_layout';
-import { getEventById, joinEvent, getUserRallyCredits, getClub, getUserProfile, storeWaiverSignature, getWaiverSignature, submitQuestionnaireResponse } from '../../lib/firebase';
+import { getEventById, joinEvent, getUserRallyCredits, getClub, getUserProfile, storeWaiverSignature, getWaiverSignature, submitQuestionnaireResponse, removeCoHost } from '../../lib/firebase';
 import type { Club } from '../../lib/firebase';
 import { leaveEventWithRefund } from '../../lib/finix';
 import type { Event, UserRallyCredits, UserProfile } from '../../lib/firebase';
@@ -26,11 +26,16 @@ import CancelEventSheet from '../../components/CancelEventSheet';
 import RallyCreditsPaidModal from '../../components/RallyCreditsPaidModal';
 import EventRegistrationFlow, { RegistrationData } from '../../components/EventRegistrationFlow';
 import { generateAndShareWaiverPDF } from '../../lib/waiverPdf';
+import HostAvatarStack, { formatHostNames } from '../../components/HostAvatarStack';
+import { useHostClubs } from '../../hooks/useHostClubs';
 import { buildEventShareContent } from '../../lib/eventShare';
 
 const { width } = Dimensions.get('window');
 const HERO_IMAGE_HORIZONTAL_PADDING = 20;
 const HERO_IMAGE_WIDTH = width - HERO_IMAGE_HORIZONTAL_PADDING * 2;
+
+const ATTENDEE_PREVIEW_LIMIT = 10;
+const ATTENDEE_FADE_COUNT = 3;
 
 export default function EventDetailScreen() {
   // Event details always renders in dark styling (regardless of the app's light/dark
@@ -51,6 +56,7 @@ export default function EventDetailScreen() {
   const [actionLoading, setActionLoading] = useState(false);
   const [userCredits, setUserCredits] = useState<UserRallyCredits | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [hostsExpanded, setHostsExpanded] = useState(false);
   const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
   const [cancelSheetVisible, setCancelSheetVisible] = useState(false);
   const [showPayoutModal, setShowPayoutModal] = useState(false);
@@ -70,7 +76,7 @@ export default function EventDetailScreen() {
   const [showSignedWaiverModal, setShowSignedWaiverModal] = useState(false);
   const [showRegistrationFlow, setShowRegistrationFlow] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
-  const [clubLogo, setClubLogo] = useState<string | undefined>(undefined);
+  const [hostsRefreshKey, setHostsRefreshKey] = useState(0);
   const [club, setClub] = useState<Club | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const waiverSheetAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
@@ -80,6 +86,8 @@ export default function EventDetailScreen() {
   const keyboardHeight = useRef(new Animated.Value(0)).current;
   const cachedPdfUri = useRef<string | null>(null);
   const skeletonPulse = useRef(new Animated.Value(0.4)).current;
+  // Host + accepted co-host clubs with their current logos (refetched on pull-to-refresh)
+  const hosts = useHostClubs(event, hostsRefreshKey);
 
   // Dismiss waiver modal with slide-down animation
   const dismissWaiverModal = () => {
@@ -317,12 +325,7 @@ export default function EventDetailScreen() {
           const clubResult = await getClub(result.event.clubId);
           if (clubResult.success && clubResult.club) {
             setClub(clubResult.club);
-            if (clubResult.club.logo) {
-              setClubLogo(clubResult.club.logo);
-            }
           }
-        } else if (result.event.clubLogo) {
-          setClubLogo(result.event.clubLogo);
         }
       } else if (!silent) {
         Alert.alert('Error', 'Event not found');
@@ -526,6 +529,31 @@ export default function EventDetailScreen() {
     router.push(`/event/edit?eventId=${event.id}`);
   };
 
+  // Co-host club admins can't edit or cancel - stepping down is their only action
+  const handleStopCoHosting = (coHostClub: { id: string; name: string }) => {
+    if (!event) return;
+    Alert.alert(
+      'Stop Co-Hosting',
+      `${coHostClub.name} will no longer be listed as a host of ${event.title}. The host club can invite you again later.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Stop Co-Hosting',
+          style: 'destructive',
+          onPress: async () => {
+            const result = await removeCoHost(event.id, coHostClub.id);
+            if (!result.success) {
+              Alert.alert('Error', result.error || 'Failed to stop co-hosting');
+              return;
+            }
+            setHostsRefreshKey(k => k + 1);
+            await loadEventData(true);
+          },
+        },
+      ]
+    );
+  };
+
   const openVirtualLink = () => {
     if (event?.virtualLink) {
       Linking.openURL(event.virtualLink);
@@ -640,6 +668,8 @@ export default function EventDetailScreen() {
     );
   }
 
+  const hasCoHosts = hosts.length > 1;
+
   const isAttending = user ? event.attendees.includes(user.uid) : false;
   const isWaitlisted = user ? event.waitlist.includes(user.uid) : false;
   const isUpcoming = event.startDate && new Date(event.startDate.toDate ? event.startDate.toDate() : event.startDate) > new Date();
@@ -651,6 +681,11 @@ export default function EventDetailScreen() {
   const clubOwnerId = club && ((club as any).clubOwner || club.owner);
   const isClubAdmin = !!(user && club && (clubAdminList.includes(user.uid) || clubOwnerId === user.uid));
   const canManageEvent = isCreator || isClubAdmin;
+  // Co-host clubs (hosts[0] is the host club) this user administers. Hosts who
+  // also admin a co-host club manage the event from the host side instead.
+  const myCoHostClubs = user && !canManageEvent
+    ? hosts.slice(1).filter(h => h.adminIds?.includes(user.uid))
+    : [];
   const attendeeCountValue = event.attendeeCount ?? event.attendees?.length ?? 0;
   const waitlistCountValue = event.waitlistCount ?? event.waitlist?.length ?? 0;
   const isFull = event.maxAttendees && attendeeCountValue >= event.maxAttendees;
@@ -680,7 +715,7 @@ export default function EventDetailScreen() {
         style={styles.backgroundOverlay}
       />
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await loadEventData(true); setRefreshing(false); }} tintColor={theme.colors.onSurface} />}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); setHostsRefreshKey(k => k + 1); await loadEventData(true); setRefreshing(false); }} tintColor={theme.colors.onSurface} />}>
         {/* Hero Section: controls float above the blurred backdrop, image is an inset 4:5 card */}
         <View style={styles.heroSection}>
           {/* Back Button and Menu - above the image, over the blurred backdrop */}
@@ -695,7 +730,7 @@ export default function EventDetailScreen() {
             </BlurView>
 
             {/* Menu for additional options */}
-            {user && (isAttending || isWaitlisted || canManageEvent) && (
+            {user && (isAttending || isWaitlisted || canManageEvent || myCoHostClubs.length > 0) && (
               <View>
                 <TouchableOpacity onPress={() => setMenuVisible(prev => !prev)} activeOpacity={0.7}>
                   <BlurView intensity={40} tint="dark" style={styles.controlButtonBlur}>
@@ -727,6 +762,18 @@ export default function EventDetailScreen() {
                         <Text style={[styles.customMenuText, { color: theme.colors.onSurface }]}>{isWaitlisted ? 'Leave Waitlist' : 'Leave Event'}</Text>
                       </TouchableOpacity>
                     )}
+                    {myCoHostClubs.map(coHostClub => (
+                      <TouchableOpacity
+                        key={coHostClub.id}
+                        style={styles.customMenuItem}
+                        onPress={() => { setMenuVisible(false); handleStopCoHosting(coHostClub); }}
+                      >
+                        <IconButton icon="handshake-outline" size={18} iconColor="#EF4444" style={{ margin: 0 }} />
+                        <Text style={[styles.customMenuText, { color: '#EF4444' }]}>
+                          {myCoHostClubs.length > 1 ? `Stop Co-Hosting as ${coHostClub.name}` : 'Stop Co-Hosting'}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
                     {canManageEvent && event.status !== 'cancelled' && (
                       <TouchableOpacity
                         style={styles.customMenuItem}
@@ -797,33 +844,35 @@ export default function EventDetailScreen() {
             </View>
 
             <TouchableOpacity
-              onPress={() => router.push(`/club/${event.clubId}`)}
+              onPress={() => (hasCoHosts ? setHostsExpanded(v => !v) : router.push(`/club/${event.clubId}`))}
               style={styles.clubHeader}
               accessibilityRole="button"
-              accessibilityLabel={`View ${event.clubName} club page`}
+              accessibilityLabel={hasCoHosts ? 'Show hosting clubs' : `View ${event.clubName} club page`}
             >
-              {clubLogo ? (
-                <ExpoImage
-                  source={{ uri: clubLogo }}
-                  style={styles.clubHeaderLogo}
-                  contentFit="cover"
-                  transition={200}
-                  cachePolicy="memory-disk"
-                  accessible={true}
-                  accessibilityLabel={`${event.clubName} logo`}
-                />
-              ) : (
-                <View style={[styles.clubHeaderLogo, styles.clubHeaderLogoPlaceholder, { backgroundColor: theme.colors.surfaceVariant }]}>
-                  <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 14, fontWeight: '600' }}>
-                    {event.clubName.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-              )}
-              <Text variant="titleMedium" style={[styles.clubName, { color: theme.colors.onSurfaceVariant }]}>
-                Hosted by {event.clubName}
+              <HostAvatarStack hosts={hosts} size={32} />
+              <Text variant="titleMedium" style={[styles.clubName, { color: theme.colors.onSurfaceVariant, flexShrink: 1 }]} numberOfLines={2}>
+                Hosted by {formatHostNames(hosts.map(h => h.name))}
               </Text>
-              <IconButton icon="chevron-right" size={18} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0, marginLeft: -8 }} />
+              <IconButton icon={hasCoHosts && hostsExpanded ? 'chevron-down' : 'chevron-right'} size={18} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0, marginLeft: -8 }} />
             </TouchableOpacity>
+
+            {hasCoHosts && hostsExpanded && (
+              <View style={styles.hostList}>
+                {hosts.map(host => (
+                  <TouchableOpacity
+                    key={host.id}
+                    style={[styles.hostListItem, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: theme.colors.outline }]}
+                    onPress={() => router.push(`/club/${host.id}`)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View ${host.name} club page`}
+                  >
+                    <HostAvatarStack hosts={[host]} size={28} />
+                    <Text variant="bodyLarge" style={{ flex: 1, color: theme.colors.onSurface }} numberOfLines={1}>{host.name}</Text>
+                    <Ionicons name="chevron-forward" size={16} color={theme.colors.onSurfaceVariant} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
 
             {/* Quick Info Stack */}
             <View style={styles.quickInfoStack}>
@@ -859,33 +908,56 @@ export default function EventDetailScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Stacked preview of who's attending */}
+            {/* Who's attending: horizontal scroll, full strength for the first 10 then fading out */}
             {attendeeCountValue > 0 && (
-              <View style={styles.attendeeAvatarsGroup}>
-                {event.attendees.slice(0, 4).map((userId, index) => {
-                  const attendee = attendeesData.get(userId);
-                  return attendee?.avatar ? (
-                    <ExpoImage
-                      key={userId}
-                      source={{ uri: attendee.avatar }}
-                      style={[styles.stackedAttendeeAvatar, { marginLeft: index === 0 ? 0 : -12, zIndex: 4 - index, borderColor: theme.colors.background }]}
-                      transition={200}
-                      cachePolicy="memory-disk"
-                    />
-                  ) : (
-                    <View
-                      key={userId}
-                      style={[styles.stackedAttendeeAvatar, styles.stackedAttendeeAvatarInitials, { marginLeft: index === 0 ? 0 : -12, zIndex: 4 - index, borderColor: theme.colors.background }]}
-                    >
-                      <Text style={styles.stackedAttendeeAvatarInitialsText}>
-                        {attendee ? `${attendee.firstName?.[0] || ''}${attendee.lastName?.[0] || ''}`.toUpperCase() || '?' : '?'}
-                      </Text>
-                    </View>
-                  );
-                })}
+              <View style={styles.attendeePreview}>
                 <Text variant="titleSmall" style={[styles.attendeeCountText, { color: theme.colors.onSurfaceVariant }]}>
                   {attendeeCountValue} attending
                 </Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.attendeePreviewContent}
+                >
+                  {event.attendees.slice(0, ATTENDEE_PREVIEW_LIMIT + ATTENDEE_FADE_COUNT).map((userId, index) => {
+                    const attendee = attendeesData.get(userId);
+                    const fadeStep = index - ATTENDEE_PREVIEW_LIMIT + 1;
+                    const opacity = fadeStep > 0 ? Math.max(0.12, 0.6 - (fadeStep - 1) * 0.2) : 1;
+                    const initials = attendee
+                      ? `${attendee.firstName?.[0] || ''}${attendee.lastName?.[0] || ''}`.toUpperCase() || '?'
+                      : '?';
+                    return (
+                      <TouchableOpacity
+                        key={userId}
+                        style={{ opacity }}
+                        activeOpacity={0.7}
+                        onPress={() => router.push({
+                          pathname: `/user/${userId}` as any,
+                          params: {
+                            firstName: attendee?.firstName || '',
+                            lastName: attendee?.lastName || '',
+                            avatar: attendee?.avatar || '',
+                          },
+                        })}
+                        accessibilityRole="button"
+                        accessibilityLabel={`View ${attendee?.firstName || 'attendee'}'s profile`}
+                      >
+                        {attendee?.avatar ? (
+                          <ExpoImage
+                            source={{ uri: attendee.avatar }}
+                            style={styles.previewAvatar}
+                            transition={200}
+                            cachePolicy="memory-disk"
+                          />
+                        ) : (
+                          <View style={[styles.previewAvatar, styles.previewAvatarInitials]}>
+                            <Text style={styles.previewAvatarInitialsText}>{initials}</Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
               </View>
             )}
           </View>
@@ -1916,6 +1988,18 @@ const styles = StyleSheet.create({
     gap: 4,
     marginBottom: 16,
   },
+  hostList: {
+    gap: 8,
+    marginBottom: 16,
+  },
+  hostListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
   clubHeaderLogo: {
     width: 28,
     height: 28,
@@ -1942,29 +2026,31 @@ const styles = StyleSheet.create({
   quickInfoMainText: {
     fontWeight: '600',
   },
-  attendeeAvatarsGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  attendeePreview: {
     marginBottom: 12,
   },
-  stackedAttendeeAvatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    borderWidth: 2,
+  attendeePreviewContent: {
+    gap: 10,
+    paddingVertical: 4,
+    paddingRight: 20,
   },
-  stackedAttendeeAvatarInitials: {
+  previewAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+  },
+  previewAvatarInitials: {
     backgroundColor: '#60A5FA',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  stackedAttendeeAvatarInitialsText: {
+  previewAvatarInitialsText: {
     color: '#fff',
-    fontSize: 11,
+    fontSize: 18,
     fontWeight: 'bold',
   },
   attendeeCountText: {
-    marginLeft: 10,
+    marginBottom: 8,
   },
   content: {
     flex: 1,

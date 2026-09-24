@@ -25,8 +25,8 @@ const CLUB_GAP = 12;
 const CLUB_ITEM_WIDTH =
   (SCREEN_WIDTH - SECTION_PADDING * 2 - CLUB_GAP * (CLUB_COLUMNS - 1)) / CLUB_COLUMNS;
 const EVENT_COLUMNS = 3;
-const EVENT_GAP = 1;
-const EVENT_ITEM_WIDTH = SCREEN_WIDTH / EVENT_COLUMNS - (EVENT_GAP * 2) / 3;
+const EVENT_GAP = 10;
+const EVENT_ITEM_WIDTH = (SCREEN_WIDTH - SECTION_PADDING * 2 - EVENT_GAP * (EVENT_COLUMNS - 1)) / EVENT_COLUMNS;
 
 export default function UserProfileScreen() {
   // params for instant header render before profile loads
@@ -252,18 +252,20 @@ export default function UserProfileScreen() {
               <View style={styles.eventsGrid}>
                 {pastEvents.map((event) => (
                   <TouchableOpacity key={event.id} style={styles.eventGridItem} onPress={() => router.push(`/event/${event.id}`)}>
-                    {event.coverImage ? (
-                      <Image source={{ uri: event.coverImage }} style={styles.eventGridImage} />
-                    ) : (
-                      <LinearGradient colors={isDark ? ['#1e1e1e', '#2a2a2a'] : ['#e0e0e0', '#d0d0d0']} style={styles.eventGridPlaceholder}>
-                        <IconButton icon="calendar" size={28} iconColor={theme.colors.onSurfaceDisabled} style={{ margin: 0 }} />
-                      </LinearGradient>
-                    )}
-                    <View style={styles.eventGridOverlay}>
-                      <Text style={styles.eventGridTitle} numberOfLines={2}>{event.title}</Text>
-                      <Text style={styles.eventGridDate}>
-                        {event.endDate.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      </Text>
+                    <View style={styles.eventGridInner}>
+                      {event.coverImage ? (
+                        <Image source={{ uri: event.coverImage }} style={styles.eventGridImage} />
+                      ) : (
+                        <LinearGradient colors={isDark ? ['#1e1e1e', '#2a2a2a'] : ['#e0e0e0', '#d0d0d0']} style={styles.eventGridPlaceholder}>
+                          <IconButton icon="calendar" size={28} iconColor={theme.colors.onSurfaceDisabled} style={{ margin: 0 }} />
+                        </LinearGradient>
+                      )}
+                      <View style={styles.eventGridOverlay}>
+                        <Text style={styles.eventGridTitle} numberOfLines={2}>{event.title}</Text>
+                        <Text style={styles.eventGridDate}>
+                          {event.endDate.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </Text>
+                      </View>
                     </View>
                   </TouchableOpacity>
                 ))}
@@ -338,11 +340,23 @@ const styles = StyleSheet.create({
   },
   clubCircleInitial: { fontSize: 24, fontWeight: '700', color: 'white' },
   clubCircleName: { fontSize: 11, fontWeight: '600', marginTop: 6, textAlign: 'center' },
-  eventsGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -SECTION_PADDING, gap: EVENT_GAP },
-  eventGridItem: { width: EVENT_ITEM_WIDTH, height: EVENT_ITEM_WIDTH, position: 'relative' },
+  eventsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: EVENT_GAP },
+  eventGridItem: {
+    width: EVENT_ITEM_WIDTH,
+    height: EVENT_ITEM_WIDTH,
+    borderRadius: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  // Separate from eventGridItem so the rounded-corner clip (overflow:
+  // hidden) doesn't also clip the shadow above.
+  eventGridInner: { flex: 1, position: 'relative', borderRadius: 14, overflow: 'hidden' },
   eventGridImage: { width: '100%', height: '100%' },
   eventGridPlaceholder: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },
-  eventGridOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 6, backgroundColor: 'rgba(0,0,0,0.6)' },
+  eventGridOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 8, backgroundColor: 'rgba(0,0,0,0.6)' },
   eventGridTitle: { fontSize: 11, fontWeight: '600', color: 'white', lineHeight: 14 },
   eventGridDate: { fontSize: 9, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
 });
