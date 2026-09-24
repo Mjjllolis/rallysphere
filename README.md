@@ -4,6 +4,7 @@ A React Native application built with Expo for event management and community en
 
 ## Table of Contents
 - [Developer Onboarding](#developer-onboarding)
+- [Releasing](#releasing)
 - [Finix Integration](#finix-integration)
 - [Setup](#setup)
 - [Environment Variables](#environment-variables)
@@ -115,6 +116,52 @@ deployed now, not what's currently deployed.
   an application in sandbox and half in live.
 - **Never commit** `.env`, `functions/.env`, `service-account-key.json`, or any `*.bak`.
   See [Security](#security).
+
+---
+
+## Releasing
+
+Builds run on EAS and are auto-submitted to App Store Connect (TestFlight) and Google Play.
+You need to be logged in (`npx eas login`) and have `service-account-key.json` in the repo
+root for the Android submit.
+
+```bash
+npm run release                # iOS + Android, build number only
+npm run release patch          # 1.1.0 → 1.1.1, then build + submit
+npm run release minor          # 1.1.0 → 1.2.0, then build + submit
+npm run release major          # 1.1.0 → 2.0.0, then build + submit
+npm run release:ios minor      # one platform (also release:android)
+```
+
+What `scripts/release.sh` does:
+
+1. Checks EAS login and the Android service-account key.
+2. Shows the current (and new, if bumping) version and asks to confirm. Aborting changes nothing.
+3. If you passed `major` / `minor` / `patch`, writes the new version name to **all three** of
+   `app.json`, `ios/RallySphere/Info.plist` and `android/app/build.gradle`. The native
+   `ios/` and `android/` folders are committed, so EAS builds from them, not just `app.json`.
+4. Runs `eas build --profile production --auto-submit`. The iOS build number and Android
+   version code auto-increment (currently `appVersionSource: "local"`).
+5. Lists the changed version files. **Commit them** so the next release starts from there.
+
+Which codeword to use:
+
+- **none**: a new build of the same version (e.g. another TestFlight build to test a fix).
+- **patch**: bug-fix release.
+- **minor**: new features.
+- **major**: big redesign or breaking change.
+
+Apple won't accept new builds for a version that's already released on the App Store, so
+bump at least `patch` after each store release.
+
+Where builds land:
+
+- **iOS**: TestFlight. Pick the build in App Store Connect and submit it for review to release.
+- **Android**: Play Console **Production track as a draft** (`eas.json` → `submit.production`),
+  not Internal testing. Nothing goes live until you roll out the draft in Play Console.
+
+The automated `dev` → `staging` → `master` pipeline (GitHub Actions) is planned but not built
+yet. Setup steps are in [`RELEASE_PROCESS_TODO.md`](RELEASE_PROCESS_TODO.md).
 
 ---
 

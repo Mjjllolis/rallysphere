@@ -9,6 +9,13 @@ Setting up `master` / `staging` / `dev` with GitHub Actions. `master` stays the 
 - **Ship the build you tested.** Production = promoting the exact TestFlight / Play Internal build. No rebuild on `master`.
 - **CI = GitHub Actions** (repo is public → unlimited minutes + free environment approvals).
 
+## Releasing today (manual)
+
+Until the pipeline exists, release from your machine with `npm run release [major|minor|patch]`.
+It bumps the version name in `app.json`, `Info.plist` and `build.gradle`, then builds and auto-submits
+both platforms. Full usage is in the README → [Releasing](README.md#releasing). Commit the version
+files afterwards. Android currently lands as a **Production draft**, not Internal testing.
+
 ## Branch flow
 
 ```
@@ -29,6 +36,7 @@ feature/xyz (off master) ──PR──► dev ──PR──► staging ──P
 - [ ] **Firebase deploy service account** — GCP console (`rally-sphere`) → IAM → Service accounts → create `github-deploy`. Start with **Firebase Admin** + **Service Account User**; add **Cloud Functions Admin** / **Cloud Run Admin** if the first deploy fails on permissions. Create a JSON key → `gh secret set FIREBASE_SERVICE_ACCOUNT < key.json` → delete the local key file.
 - [ ] **Apple submit key on EAS** — CI can't do the interactive Apple ID login. `eas credentials` → iOS → **App Store Connect API Key** → add one (App Store Connect → Users and Access → Integrations → Keys, role App Manager).
 - [ ] **Play submit key on EAS** — `service-account-key.json` is gitignored so CI won't have it. `eas credentials` → Android → **Google Service Account Key** → upload it.
+- [ ] **Missing EAS env vars** — `EXPO_PUBLIC_FIREBASE_APP_ID_IOS` and `EXPO_PUBLIC_FIREBASE_APP_ID_ANDROID` are in local `.env` but **not** in EAS's `production` environment. EAS builds don't include `.env` (gitignored), so `lib/firebase.ts` falls back to the web app ID, which can break App Check. Add both: `npx eas env:create --environment production --name <NAME> --value <from .env> --visibility plaintext`
 - [ ] **GitHub environment** — repo Settings → Environments → new `production-backend` → Required reviewers: you.
 
 ## 2. Repo changes (Claude can do these on `chore/ci-pipelines`)
@@ -41,7 +49,9 @@ feature/xyz (off master) ──PR──► dev ──PR──► staging ──P
   - backend job (`production-backend` environment → needs your approval): `firebase deploy --only functions,firestore,storage`; skipped when `functions/`, `firestore.rules`, `firestore.indexes.json`, `storage.rules` didn't change
   - app job: `eas build --profile staging --platform all --auto-submit --non-interactive --no-wait`
   - Hosting stays manual (`firebase deploy --only hosting`)
+  - version codeword: `[major]` / `[minor]` / `[patch]` in the `dev` → `staging` PR title bumps the version name (same three files as `scripts/release.sh`) and commits it back to `staging` before building
 - [ ] `.github/workflows/release-tag.yml` — on push to `master`: tag `v<expo.version>`
+- [ ] Decide: should `npm run release` send Android to **Internal testing** instead of a Production draft? (`eas.json` → `submit.production.android.track`)
 - [ ] Settings screen — show `version (build)` so testers know which build they're on
 
 ## 3. One-time setup after the repo changes (you)
@@ -61,6 +71,7 @@ feature/xyz (off master) ──PR──► dev ──PR──► staging ──P
 ## 5. Cleanup
 
 - [ ] Fix the **101 app TypeScript errors** (biggest: `lib/firebase.ts` 18, `app/` screens, `components/GlassDateTimePicker.tsx` 10) → flip app `tsc` in `pr-check.yml` to blocking
+- [x] `scripts/release.sh` takes `major` / `minor` / `patch` and bumps the version everywhere; README → Releasing documents it
 - [ ] Update `scripts/release.sh` / README to point at the new flow (keep `npm run release` as a manual fallback)
 - [ ] Decide whether the repo should stay **public** (payments code, rules, Finix cert doc, admin scripts are visible). Going private: Actions still free (2,000 min/mo) but environment approvals need GitHub Pro (~$4/mo).
 
@@ -69,7 +80,7 @@ feature/xyz (off master) ──PR──► dev ──PR──► staging ──P
 ## Every release (checklist)
 
 1. [ ] Feature branches off `master` → PRs into `dev`
-2. [ ] Start of cycle: bump `expo.version` in `app.json` on `dev` (e.g. `1.0.1` → `1.0.2`) — Apple won't take new builds for an already-released version
+2. [ ] Start of cycle: bump the version name. Once the pipeline exists, put `[patch]` / `[minor]` / `[major]` in the `dev` → `staging` PR title. Until then, run `npm run release <codeword>`. Apple won't take new builds for an already-released version
 3. [ ] PR `dev` → `staging` → merge
 4. [ ] Approve the backend deploy in Actions (if it runs) — **this deploys to prod**
 5. [ ] Wait for EAS build → lands in TestFlight + Play Internal
