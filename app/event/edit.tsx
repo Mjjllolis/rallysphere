@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getEventById, updateEvent, uploadImage, getImageAspectRatio, getClub } from '../../lib/firebase';
+import { getEventById, updateEvent, uploadImage, getImageAspectRatio, getClub, getEventCoHostRequests, sendCoHostRequests, removeCoHost, withdrawCoHostRequest } from '../../lib/firebase';
 import { useAuth, useThemeToggle } from '../_layout';
 import GlassInput from '../../components/GlassInput';
 import GlassSwitch from '../../components/GlassSwitch';
@@ -14,7 +14,8 @@ import GlassImageCard from '../../components/GlassImageCard';
 import GlassButton from '../../components/GlassButton';
 import GlassDateTimePicker from '../../components/GlassDateTimePicker';
 import GlassTagInput from '../../components/GlassTagInput';
-import type { Club } from '../../lib/firebase';
+import CoHostInput from '../../components/CoHostInput';
+import type { Club, CoHostRequest } from '../../lib/firebase';
 
 export default function EditEventScreen() {
   const theme = useTheme();
@@ -39,6 +40,13 @@ export default function EditEventScreen() {
   });
 
   const [tags, setTags] = useState<string[]>([]);
+  // Co-hosts: accepted ones live on the event, pending ones are requests;
+  // newCoHostClubs are invites to send when saving. Removing a co-host or
+  // withdrawing an invite takes effect immediately (not on save).
+  const [coHostClubs, setCoHostClubs] = useState<{ id: string; name: string; logo?: string }[]>([]);
+  const [pendingCoHostRequests, setPendingCoHostRequests] = useState<CoHostRequest[]>([]);
+  const [newCoHostClubs, setNewCoHostClubs] = useState<Club[]>([]);
+  const [coHostActionId, setCoHostActionId] = useState<string | null>(null);
   const [isPublic, setIsPublic] = useState(true);
   const [hasWaiver, setHasWaiver] = useState(false);
   const [waiverText, setWaiverText] = useState('');
@@ -89,6 +97,9 @@ export default function EditEventScreen() {
           rallyCreditsAwarded: e.rallyCreditsAwarded ? String(e.rallyCreditsAwarded) : '',
         });
         setTags(e.tags || []);
+        setCoHostClubs(e.coHostClubs || []);
+        const requestsResult = await getEventCoHostRequests(eventId);
+        setPendingCoHostRequests(requestsResult.requests.filter(r => r.status === 'pending'));
         setIsPublic(e.isPublic ?? true);
         setHasWaiver(e.hasWaiver ?? false);
         setWaiverText(e.waiverText || '');
@@ -187,6 +198,12 @@ export default function EditEventScreen() {
 
       const result = await updateEvent(eventId, eventData);
       if (result.success) {
+        if (newCoHostClubs.length > 0) {
+          const inviteResult = await sendCoHostRequests(eventId, newCoHostClubs.map(c => c.id));
+          if (!inviteResult.success) {
+            Alert.alert('Warning', 'Event saved but co-host invites failed to send: ' + inviteResult.error);
+          }
+        }
         Alert.alert('Saved', 'Event updated successfully.', [
           { text: 'OK', onPress: () => router.back() }
         ]);
@@ -199,6 +216,46 @@ export default function EditEventScreen() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleRemoveCoHost = (coHost: { id: string; name: string }) => {
+    Alert.alert('Remove Co-Host', `Remove ${coHost.name} as a co-host? You can invite them again later.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          setCoHostActionId(coHost.id);
+          const result = await removeCoHost(eventId, coHost.id);
+          setCoHostActionId(null);
+          if (result.success) {
+            setCoHostClubs(prev => prev.filter(c => c.id !== coHost.id));
+          } else {
+            Alert.alert('Error', result.error || 'Failed to remove co-host');
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleWithdrawInvite = (request: CoHostRequest) => {
+    Alert.alert('Withdraw Invite', `Withdraw the co-host invite to ${request.clubName}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Withdraw',
+        style: 'destructive',
+        onPress: async () => {
+          setCoHostActionId(request.clubId);
+          const result = await withdrawCoHostRequest(request.id);
+          setCoHostActionId(null);
+          if (result.success) {
+            setPendingCoHostRequests(prev => prev.filter(r => r.id !== request.id));
+          } else {
+            Alert.alert('Error', result.error || 'Failed to withdraw invite');
+          }
+        },
+      },
+    ]);
   };
 
   const handleColorsExtracted = (colors: string[]) => {
@@ -315,6 +372,37 @@ export default function EditEventScreen() {
               placeholder="Type and press return to add tags..."
             />
 
+            {/* Co-hosts */}
+            {(coHostClubs.length > 0 || pendingCoHostRequests.length > 0) && (
+              <View style={styles.coHostStatus}>
+                {[
+                  ...coHostClubs.map(c => ({ id: c.id, name: c.name, label: 'Co-host', onPress: () => handleRemoveCoHost(c), action: 'Remove' })),
+                  ...pendingCoHostRequests.map(r => ({ id: r.clubId, name: r.clubName, label: 'Invite pending', onPress: () => handleWithdrawInvite(r), action: 'Withdraw' })),
+                ].map(row => (
+                  <View key={row.id} style={[styles.coHostRow, { borderColor: theme.colors.outline }]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.coHostName, { color: theme.colors.onSurface }]} numberOfLines={1}>{row.name}</Text>
+                      <Text style={[styles.coHostStatusText, { color: theme.colors.onSurfaceVariant }]}>{row.label}</Text>
+                    </View>
+                    <TouchableOpacity onPress={row.onPress} disabled={coHostActionId !== null} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Text style={styles.coHostActionText}>{coHostActionId === row.id ? '...' : row.action}</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+            <CoHostInput
+              label="Invite co-hosts"
+              helperText="Each club gets a request and shows as a co-host once an admin accepts."
+              selectedClubs={newCoHostClubs}
+              onSelectedClubsChange={setNewCoHostClubs}
+              excludeClubIds={[
+                ...(club ? [club.id] : []),
+                ...coHostClubs.map(c => c.id),
+                ...pendingCoHostRequests.map(r => r.clubId),
+              ]}
+            />
+
             <GlassInput
               label="Location *"
               value={formData.location}
@@ -428,6 +516,31 @@ export default function EditEventScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  coHostStatus: {
+    gap: 8,
+    marginBottom: 8,
+  },
+  coHostRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  coHostName: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  coHostStatusText: {
+    fontSize: 13,
+  },
+  coHostActionText: {
+    color: '#EF4444',
+    fontSize: 14,
+    fontWeight: '600',
   },
   loadingContainer: {
     flex: 1,

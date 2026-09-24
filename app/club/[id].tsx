@@ -1,6 +1,6 @@
 // app/club/[id].tsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Image, Linking, ImageBackground, Dimensions, TouchableOpacity, RefreshControl, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Image, Linking, ImageBackground, Dimensions, TouchableOpacity, RefreshControl, Platform, Share, ActivityIndicator } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import {
   Text,
@@ -16,12 +16,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { router, useLocalSearchParams, useFocusEffect, Stack } from 'expo-router';
 import { useAuth, useThemeToggle } from '../_layout';
-import { getClub, joinClub, leaveClub, getEvents, getClubStoreItems, getUserRallyCredits, getUserProfile, isUserSubscribedToClub } from '../../lib/firebase';
+import { getClub, joinClub, leaveClub, getEvents, getCoHostedEvents, getClubStoreItems, getUserRallyCredits, getUserProfile, isUserSubscribedToClub } from '../../lib/firebase';
 import type { Club, Event, StoreItem, UserRallyCredits, UserProfile } from '../../lib/firebase';
 import JoinClubModal from '../../components/JoinClubModal';
 import ReportModal from '../../components/ReportModal';
 import { blockUser } from '../../lib/moderation';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { Ionicons } from '@expo/vector-icons';
+import { buildClubShareContent } from '../../lib/clubShare';
+import ClubActionButton, { clubActionForeground } from '../../components/ClubActionButton';
 
 const { width } = Dimensions.get('window');
 
@@ -48,6 +51,9 @@ export default function ClubDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [descExpanded, setDescExpanded] = useState(false);
   const [descTruncated, setDescTruncated] = useState(false);
+  const [nameContainerWidth, setNameContainerWidth] = useState(0);
+  const [nameLastLineWidth, setNameLastLineWidth] = useState(0);
+  const [badgeGroupWidth, setBadgeGroupWidth] = useState(0);
 
   useEffect(() => {
     if (clubId) {
@@ -98,9 +104,11 @@ export default function ClubDetailScreen() {
     setMembersData(newData);
   };
 
-  const loadClubData = async () => {
+  // silent: refresh in place without swapping the page for the loading screen
+  // (used after join/leave and pull-to-refresh).
+  const loadClubData = async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       
       // Load club details
       const clubResult = await getClub(clubId);
@@ -112,10 +120,11 @@ export default function ClubDetailScreen() {
         return;
       }
       
-      // Load club events
-      const eventsResult = await getEvents(clubId);
+      // Load club events, plus other clubs' events this club accepted to co-host
+      const [eventsResult, coHostedResult] = await Promise.all([getEvents(clubId), getCoHostedEvents(clubId)]);
       if (eventsResult.success) {
-        setEvents(eventsResult.events);
+        const ownIds = new Set(eventsResult.events.map(e => e.id));
+        setEvents([...eventsResult.events, ...coHostedResult.events.filter(e => !ownIds.has(e.id))]);
       }
 
       // Load club store items
@@ -145,7 +154,7 @@ export default function ClubDetailScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadClubData();
+    await loadClubData({ silent: true });
     setRefreshing(false);
   };
 
@@ -157,8 +166,7 @@ export default function ClubDetailScreen() {
       const result = await joinClub(club.id, user.uid, user.email || '', user.displayName || '', message);
       if (result.success) {
         if (result.approved) {
-          Alert.alert('Success!', 'You have joined the club!');
-          await loadClubData(); // Refresh club data
+          await loadClubData({ silent: true });
         } else {
           Alert.alert('Request Sent!', 'Your join request has been sent to the club admins.');
         }
@@ -170,6 +178,15 @@ export default function ClubDetailScreen() {
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!club) return;
+    try {
+      await Share.share(buildClubShareContent(club));
+    } catch (error) {
+      Alert.alert('Error', 'Failed to share club');
     }
   };
 
@@ -215,8 +232,7 @@ export default function ClubDetailScreen() {
             try {
               const result = await leaveClub(club.id, user.uid);
               if (result.success) {
-                Alert.alert('Success', 'You have left the club');
-                await loadClubData(); // Refresh club data
+                await loadClubData({ silent: true });
               } else {
                 Alert.alert('Error', result.error || 'Failed to leave club');
               }
@@ -282,7 +298,7 @@ export default function ClubDetailScreen() {
               if (data.success) {
                 Alert.alert('Subscription Canceled', 'Your subscription will end at the end of the current billing period.');
                 setIsSubscribed(false);
-                await loadClubData();
+                await loadClubData({ silent: true });
               } else {
                 Alert.alert('Error', 'Failed to cancel subscription');
               }
@@ -324,6 +340,15 @@ export default function ClubDetailScreen() {
     }
   };
 
+  // Measures the name's natural (unconstrained) wrap — no padding is
+  // reserved for the badges, so long names keep wrapping exactly as they
+  // would on their own. We only use the last line's width to decide
+  // whether the badges can float in beside it.
+  const handleNameMeasure = (e: { nativeEvent: { lines: any[] } }) => {
+    const lines = e.nativeEvent.lines;
+    setNameLastLineWidth(lines[lines.length - 1]?.width ?? 0);
+  };
+
   if (loading || !club) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -340,6 +365,12 @@ export default function ClubDetailScreen() {
   const isAdmin = user ? club.admins.includes(user.uid) : false;
   const isOwner = user ? (club.owner === user.uid || club.createdBy === user.uid) : false;
   const isSubscriber = user ? (club.subscribers?.includes(user.uid) || false) : false;
+  const hasNameBadges = !!club.isPro;
+  const badgeGap = 8;
+  const badgeFitsBesideName =
+    nameContainerWidth > 0 &&
+    badgeGroupWidth > 0 &&
+    nameContainerWidth - nameLastLineWidth >= badgeGroupWidth + badgeGap;
 
   // Debug logging for credits display
   // console.log('[ClubDetail] Display conditions:', {
@@ -512,7 +543,7 @@ export default function ClubDetailScreen() {
 
         {/* Header Info Section */}
         <View style={styles.headerInfoSection}>
-          <View style={styles.avatarNameRow}>
+          <View style={styles.avatarRow}>
             {club.logo ? (
               <ExpoImage source={{ uri: club.logo }} style={styles.clubAvatar} transition={200} cachePolicy="memory-disk" />
             ) : (
@@ -520,29 +551,68 @@ export default function ClubDetailScreen() {
                 <Text style={[styles.clubAvatarInitialsText, { color: theme.colors.onSurface }]}>{getClubInitials(club.name)}</Text>
               </View>
             )}
-            <View style={styles.nameColumn}>
-              <View style={styles.nameRow}>
-                <Text variant="headlineMedium" style={[styles.clubName, { color: theme.colors.onSurface }]}>
-                  {club.name}
-                </Text>
-                <View style={styles.badgeGroup}>
-                  {club.isPro && (
-                    <Chip icon="crown" style={styles.proChip} textStyle={styles.proChipText} mode="flat">
-                      PRO
-                    </Chip>
-                  )}
-                  {!!club.category && (
-                    <Chip
-                      style={[styles.categoryChip, { borderColor: '#60A5FA', backgroundColor: isDark ? 'rgba(96,165,250,0.15)' : 'rgba(96,165,250,0.08)' }]}
-                      textStyle={styles.categoryChipText}
-                      mode="outlined"
-                    >
-                      {club.category.toUpperCase()}
-                    </Chip>
-                  )}
-                </View>
-              </View>
+            <View style={styles.headerActions}>
+              {user && (
+                isJoined ? (
+                  <ClubActionButton
+                    isDark={isDark}
+                    variant="secondary"
+                    onPress={isAdmin || isOwner ? undefined : handleLeaveClub}
+                    accessibilityLabel="Joined"
+                  >
+                    <Text style={[styles.glassButtonText, { color: clubActionForeground('secondary', isDark) }]}>Joined</Text>
+                    <Ionicons name="checkmark" size={16} color={clubActionForeground('secondary', isDark)} />
+                  </ClubActionButton>
+                ) : (
+                  <ClubActionButton
+                    isDark={isDark}
+                    onPress={() => {
+                      if (!club.isPublic) {
+                        setJoinModalVisible(true);
+                      } else {
+                        handleJoinClub();
+                      }
+                    }}
+                    disabled={actionLoading}
+                    accessibilityLabel="Join Club"
+                  >
+                    {actionLoading ? (
+                      <ActivityIndicator size="small" color={clubActionForeground('primary', isDark)} />
+                    ) : (
+                      <Text style={[styles.glassButtonText, { color: clubActionForeground('primary', isDark) }]}>Join Club</Text>
+                    )}
+                  </ClubActionButton>
+                )
+              )}
+              <ClubActionButton isDark={isDark} variant="secondary" circle onPress={handleShare} accessibilityLabel={`Share ${club.name}`}>
+                <Ionicons name="share-outline" size={18} color={clubActionForeground('secondary', isDark)} />
+              </ClubActionButton>
             </View>
+          </View>
+
+          <View
+            style={styles.nameColumn}
+            onLayout={(e) => setNameContainerWidth(e.nativeEvent.layout.width)}
+          >
+            <Text
+              variant="headlineMedium"
+              style={[styles.clubName, { color: theme.colors.onSurface }]}
+              onTextLayout={handleNameMeasure}
+            >
+              {club.name}
+            </Text>
+            {hasNameBadges && (
+              <View
+                style={[styles.badgeGroup, badgeFitsBesideName ? styles.badgeGroupFloating : styles.badgeGroupBelow]}
+                onLayout={(e) => setBadgeGroupWidth(e.nativeEvent.layout.width)}
+              >
+                {club.isPro && (
+                  <Chip icon="crown" style={styles.proChip} textStyle={styles.proChipText} mode="flat">
+                    PRO
+                  </Chip>
+                )}
+              </View>
+            )}
           </View>
 
           {!!club.description && (
@@ -600,40 +670,6 @@ export default function ClubDetailScreen() {
               </Text>
             </View>
 
-            {user && (
-              isJoined ? (
-                isAdmin || isOwner ? (
-                  <View style={styles.joinedPill}>
-                    <Text style={styles.joinedPillText}>Joined</Text>
-                    <IconButton icon="check" size={16} iconColor="#1D4ED8" style={{ margin: 0 }} />
-                  </View>
-                ) : (
-                  <TouchableOpacity onPress={() => setMenuVisible(prev => !prev)} activeOpacity={0.8}>
-                    <View style={styles.joinedPill}>
-                      <Text style={styles.joinedPillText}>Joined</Text>
-                      <IconButton icon="check" size={16} iconColor="#1D4ED8" style={{ margin: 0 }} />
-                    </View>
-                  </TouchableOpacity>
-                )
-              ) : (
-                <Button
-                  mode="contained"
-                  onPress={() => {
-                    if (!club.isPublic) {
-                      setJoinModalVisible(true);
-                    } else {
-                      handleJoinClub();
-                    }
-                  }}
-                  loading={actionLoading}
-                  style={styles.joinButtonCompact}
-                  contentStyle={styles.joinButtonCompactContent}
-                  labelStyle={styles.joinButtonCompactLabel}
-                >
-                  Join Club
-                </Button>
-              )
-            )}
           </View>
 
           {/* Subscription Buttons */}
@@ -990,6 +1026,14 @@ export default function ClubDetailScreen() {
 
                         {/* Event details always visible */}
                         <View style={[styles.eventCardDropdown, { backgroundColor: isDark ? theme.colors.surface : '#f8fafc', borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }]}>
+                          {event.clubId !== clubId && (
+                            <View style={styles.eventCardDetailRow}>
+                              <IconButton icon="handshake-outline" size={16} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0 }} />
+                              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, flex: 1 }} numberOfLines={1}>
+                                Co-hosted with {event.clubName}
+                              </Text>
+                            </View>
+                          )}
                           {event.location && (
                             <View style={styles.eventCardDetailRow}>
                               <IconButton icon="map-marker" size={16} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0 }} />
@@ -1212,10 +1256,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
   },
-  avatarNameRow: {
+  avatarRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
   },
   clubAvatar: {
     width: 84,
@@ -1223,7 +1267,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 3,
     borderColor: '#fff',
-    marginTop: -56,
+    marginTop: -40,
     backgroundColor: '#fff',
   },
   clubAvatarInitials: {
@@ -1236,30 +1280,45 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   nameColumn: {
-    flex: 1,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    position: 'relative',
+    marginTop: 12,
   },
   clubName: {
-    flexShrink: 1,
-    minWidth: 0,
     fontWeight: 'bold',
   },
   badgeGroup: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    flexShrink: 0,
-    marginLeft: 8,
+    // Without this, badgeGroup (a flex-column child with no explicit
+    // width) stretches to fill nameColumn's full width by default,
+    // which also throws off its onLayout measurement — this keeps it
+    // shrink-wrapped to its actual content in both layout modes below.
+    alignSelf: 'flex-end',
   },
-  categoryChip: {
-    alignSelf: 'center',
+  // Used when there's room beside the name's last line to tuck the badges
+  // in without disturbing the name's own natural wrapping.
+  badgeGroupFloating: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
   },
-  categoryChipText: {
-    color: '#60A5FA',
-    fontSize: 11,
+  // Fallback when the name's last line leaves no room for the badges —
+  // they drop to their own row below instead of overlapping the text.
+  badgeGroupBelow: {
+    flexWrap: 'wrap',
+    marginTop: 6,
+  },
+  // The avatar overlaps the cover by 40px, leaving ~44px below it —
+  // this centers the join/share controls in that visible strip.
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingTop: 4,
+  },
+  glassButtonText: {
+    fontSize: 15,
     fontWeight: 'bold',
   },
   descriptionWrap: {
@@ -1319,30 +1378,6 @@ const styles = StyleSheet.create({
   },
   memberCountText: {
     marginLeft: 10,
-  },
-  joinedPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(96,165,250,0.15)',
-    borderRadius: 20,
-    paddingLeft: 16,
-    paddingRight: 6,
-  },
-  joinedPillText: {
-    color: '#1D4ED8',
-    fontWeight: 'bold',
-    fontSize: 15,
-  },
-  joinButtonCompact: {
-    borderRadius: 20,
-  },
-  joinButtonCompactContent: {
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-  },
-  joinButtonCompactLabel: {
-    fontSize: 14,
-    fontWeight: 'bold',
   },
   subscriptionSection: {
     marginTop: 16,

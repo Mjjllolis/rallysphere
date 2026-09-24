@@ -224,6 +224,8 @@ export interface Event {
   clubId: string;
   clubName: string;
   clubLogo?: string;  // Club's logo URL
+  coHostClubs?: { id: string; name: string; logo?: string }[];  // Accepted co-hosting clubs (written by respondToCoHostRequest)
+  coHostClubIds?: string[];  // Same clubs as coHostClubs, for array-contains queries
   createdBy: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -2125,6 +2127,160 @@ export const getEventQuestionnaireResponses = async (
   } catch (error: any) {
     // console.error('Error getting questionnaire responses:', error);
     return { success: false, error: error.message };
+  }
+};
+
+// --- Co-Hosting Functions ---
+
+// pending -> accepted | declined | closed (event cancelled/deleted before an answer)
+// accepted -> removed (host took them off) | left (co-host stepped down)
+export type CoHostRequestStatus = 'pending' | 'accepted' | 'declined' | 'closed' | 'removed' | 'left';
+
+/**
+ * A request from an event's host club asking another club to co-host.
+ * Doc ID is `${eventId}_${clubId}` so each club has one request per event.
+ * Only Cloud Functions write these (clients can read, and withdraw a pending one).
+ *
+ * Host side (event creator + host club admins) can edit/cancel the event,
+ * invite co-hosts and remove them. Co-host club admins can only step down.
+ */
+export interface CoHostRequest {
+  id: string;
+  eventId: string;
+  eventTitle: string;
+  eventCoverImage?: string;
+  eventStartDate: Timestamp;
+  hostClubId: string;
+  hostClubName: string;
+  hostClubLogo?: string;
+  clubId: string;  // Invited club
+  clubName: string;
+  clubLogo?: string;
+  status: CoHostRequestStatus;
+  requestedBy: string;
+  createdAt: Timestamp;
+  respondedAt?: Timestamp;
+  respondedBy?: string;
+  removedAt?: Timestamp;
+  removedBy?: string;
+}
+
+export const coHostRequestId = (eventId: string, clubId: string) => `${eventId}_${clubId}`;
+
+/**
+ * Invite clubs to co-host an event (host side only, enforced server-side).
+ * Clubs already co-hosting or with a pending invite are skipped.
+ */
+export const sendCoHostRequests = async (eventId: string, clubIds: string[]) => {
+  try {
+    const fn = httpsCallable(functions, 'sendCoHostRequests');
+    const result = await fn({ eventId, clubIds });
+    const data = result.data as { sent: number; skipped: number };
+    return { success: true, sent: data.sent, skipped: data.skipped };
+  } catch (error: any) {
+    return { success: false, error: error.details?.message || error.message || 'Failed to send co-host invites' };
+  }
+};
+
+const sortRequestsNewestFirst = (requests: CoHostRequest[]) =>
+  requests.sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0));
+
+/**
+ * Requests a club has received (other clubs asking it to co-host).
+ */
+export const getIncomingCoHostRequests = async (clubId: string) => {
+  try {
+    const snap = await getDocs(query(collection(db, 'coHostRequests'), where('clubId', '==', clubId)));
+    const requests = snap.docs.map((d) => ({ id: d.id, ...d.data() } as CoHostRequest));
+    return { success: true, requests: sortRequestsNewestFirst(requests) };
+  } catch (error: any) {
+    return { success: false, error: error.message, requests: [] as CoHostRequest[] };
+  }
+};
+
+/**
+ * Requests a club has sent for its own events.
+ */
+export const getSentCoHostRequests = async (clubId: string) => {
+  try {
+    const snap = await getDocs(query(collection(db, 'coHostRequests'), where('hostClubId', '==', clubId)));
+    const requests = snap.docs.map((d) => ({ id: d.id, ...d.data() } as CoHostRequest));
+    return { success: true, requests: sortRequestsNewestFirst(requests) };
+  } catch (error: any) {
+    return { success: false, error: error.message, requests: [] as CoHostRequest[] };
+  }
+};
+
+/**
+ * All requests for one event (host side - used by the edit screen).
+ */
+export const getEventCoHostRequests = async (eventId: string) => {
+  try {
+    const snap = await getDocs(query(collection(db, 'coHostRequests'), where('eventId', '==', eventId)));
+    const requests = snap.docs.map((d) => ({ id: d.id, ...d.data() } as CoHostRequest));
+    return { success: true, requests: sortRequestsNewestFirst(requests) };
+  } catch (error: any) {
+    return { success: false, error: error.message, requests: [] as CoHostRequest[] };
+  }
+};
+
+/**
+ * Withdraw a request that hasn't been answered yet (host side).
+ */
+export const withdrawCoHostRequest = async (requestId: string) => {
+  try {
+    await deleteDoc(doc(db, 'coHostRequests', requestId));
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Accept or decline a co-host request. Caller must be an admin/owner of the
+ * invited club (enforced server-side); accepting adds the club to the event.
+ */
+export const respondToCoHostRequest = async (
+  requestId: string,
+  accept: boolean
+): Promise<{ success: boolean; status?: CoHostRequestStatus; reason?: string; error?: string }> => {
+  try {
+    const fn = httpsCallable(functions, 'respondToCoHostRequest');
+    const result = await fn({ requestId, accept });
+    const data = result.data as { status: CoHostRequestStatus; reason?: string };
+    return { success: true, status: data.status, reason: data.reason };
+  } catch (error: any) {
+    return { success: false, error: error.details?.message || error.message || 'Failed to respond to request' };
+  }
+};
+
+/**
+ * Take a co-host club off an event. Hosts use this to remove a co-host;
+ * co-host club admins use it to step down. Returns 'removed' or 'left'.
+ */
+export const removeCoHost = async (
+  eventId: string,
+  clubId: string
+): Promise<{ success: boolean; status?: 'removed' | 'left'; error?: string }> => {
+  try {
+    const fn = httpsCallable(functions, 'removeCoHost');
+    const result = await fn({ eventId, clubId });
+    return { success: true, status: (result.data as { status: 'removed' | 'left' }).status };
+  } catch (error: any) {
+    return { success: false, error: error.details?.message || error.message || 'Failed to remove co-host' };
+  }
+};
+
+/**
+ * Events another club hosts where this club is an accepted co-host.
+ */
+export const getCoHostedEvents = async (clubId: string) => {
+  try {
+    const snap = await getDocs(query(collection(db, 'events'), where('coHostClubIds', 'array-contains', clubId)));
+    const events = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Event));
+    return { success: true, events };
+  } catch (error: any) {
+    return { success: false, error: error.message, events: [] as Event[] };
   }
 };
 

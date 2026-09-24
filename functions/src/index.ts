@@ -3587,6 +3587,18 @@ export const cancelEvent = functions.https.onCall(
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
+    // Close co-host invites nobody answered yet so they don't sit in the
+    // invited clubs' Requests tab. Accepted co-hosts stay on the cancelled event.
+    const pendingCoHostSnap = await db.collection("coHostRequests").where("eventId", "==", eventId).get();
+    const pendingCoHostDocs = pendingCoHostSnap.docs.filter((d) => d.data().status === "pending");
+    if (pendingCoHostDocs.length > 0) {
+      const coHostBatch = db.batch();
+      for (const d of pendingCoHostDocs) {
+        coHostBatch.update(d.ref, { status: "closed", respondedAt: admin.firestore.FieldValue.serverTimestamp() });
+      }
+      await coHostBatch.commit();
+    }
+
     return {
       success: true,
       paidRefunded,
@@ -4331,47 +4343,287 @@ function escapeHtml(input: string): string {
     .replace(/'/g, "&#39;");
 }
 
-export const eventPreview = functions.https.onRequest(async (req, res) => {
-  // The ID comes straight from the URL and is used inside an inline <script>,
-  // so keep only Firestore-ID characters.
-  const eventId = (req.path.split("/").filter(Boolean).pop() || "").replace(/[^A-Za-z0-9_-]/g, "");
-  const appLink = `rallysphere://event/${eventId}`;
+// --- Co-hosting ---
+//
+// Roles on a co-hosted event:
+//  - Host: the event creator plus admins/owner of event.clubId. They own the
+//    event - edit, cancel, invite co-hosts and remove (kick) co-hosts.
+//  - Co-host: admins/owner of a club in event.coHostClubIds. Their club is
+//    shown on the event and it appears on their club page, but they can't
+//    edit or cancel it - the only thing they can do is stop co-hosting.
+//
+// Invites live in coHostRequests/{eventId}_{clubId} and every state change
+// (send, accept/decline, remove/leave) happens in the functions below, so the
+// event's co-host list and the request docs can't drift apart.
 
-  let title = "RallySphere Event";
-  let description = "Open this event in the RallySphere app.";
-  let image = OG_DEFAULT_IMAGE;
+// Clubs store names/admins under both old and new field names - read both.
+function clubDisplayName(club: any): string {
+  return club?.clubName || club?.name || "Club";
+}
 
-  const appStoreLivePromise = isAppStoreLive();
-  const playStoreLivePromise = isPlayStoreLive();
+function isClubAdminData(club: any, uid: string): boolean {
+  if (!club) return false;
+  const admins: string[] = [...(club.clubAdmins || []), ...(club.admins || [])];
+  return admins.includes(uid) || club.clubOwner === uid || club.owner === uid;
+}
 
-  try {
-    const db = admin.firestore();
-    const eventDoc = await db.collection("events").doc(eventId).get();
-    // This reads via the Admin SDK, which bypasses Firestore's security
-    // rules (the same rules that restrict a private event's title/image to
-    // authenticated members in the app). Only use the real event details
-    // here if the event is actually public — a private event keeps the
-    // generic fallback above instead of leaking its details to anyone with
-    // the link.
-    if (eventDoc.exists && eventDoc.data()?.isPublic === true) {
-      const event = eventDoc.data() as any;
-      title = event.title || title;
-      description = event.clubName ? `by ${event.clubName}` : description;
-      if (event.coverImage) {
-        image = event.coverImage;
-      }
+// Host-side permission: event creator or an admin/owner of the host club.
+function isEventHost(event: any, hostClub: any, uid: string): boolean {
+  return event?.createdBy === uid || isClubAdminData(hostClub, uid);
+}
+
+/**
+ * Invite clubs to co-host an event. Caller must be on the host side.
+ * Clubs that are already co-hosts or have a pending invite are skipped, and
+ * clubs that previously declined, left or were removed can be invited again.
+ */
+export const sendCoHostRequests = functions.https.onCall(
+  { enforceAppCheck: false },
+  async (request: any) => {
+    const auth = request.auth;
+    if (!auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
     }
-  } catch (error) {
-    console.error("Error loading event for preview:", error);
+
+    const { eventId, clubIds } = request.data || {};
+    if (!eventId || !Array.isArray(clubIds) || clubIds.some((id) => typeof id !== "string" || !id)) {
+      throw new functions.https.HttpsError("invalid-argument", "Missing required fields: eventId, clubIds");
+    }
+    if (clubIds.length > 20) {
+      throw new functions.https.HttpsError("invalid-argument", "Invite at most 20 clubs at a time");
+    }
+
+    const db = admin.firestore();
+    const eventSnap = await db.collection("events").doc(eventId).get();
+    if (!eventSnap.exists) {
+      throw new functions.https.HttpsError("not-found", "Event not found");
+    }
+    const event = eventSnap.data() as any;
+    if (event.status === "cancelled") {
+      throw new functions.https.HttpsError("failed-precondition", "This event has been cancelled");
+    }
+
+    const hostClubSnap = await db.collection("clubs").doc(event.clubId).get();
+    const hostClub = hostClubSnap.data();
+    if (!isEventHost(event, hostClub, auth.uid)) {
+      throw new functions.https.HttpsError("permission-denied", "Only the event's hosts can invite co-hosts");
+    }
+
+    const currentCoHosts: string[] = event.coHostClubIds || [];
+    const candidates = [...new Set(clubIds as string[])].filter(
+      (id) => id !== event.clubId && !currentCoHosts.includes(id)
+    );
+    if (candidates.length === 0) {
+      return { sent: 0, skipped: clubIds.length };
+    }
+
+    const requestRefs = candidates.map((id) => db.collection("coHostRequests").doc(`${eventId}_${id}`));
+    const clubRefs = candidates.map((id) => db.collection("clubs").doc(id));
+    const [requestSnaps, clubSnaps] = await Promise.all([db.getAll(...requestRefs), db.getAll(...clubRefs)]);
+
+    const batch = db.batch();
+    let sent = 0;
+    candidates.forEach((clubId, i) => {
+      const existingStatus = requestSnaps[i].exists ? requestSnaps[i].data()?.status : null;
+      if (!clubSnaps[i].exists || existingStatus === "pending" || existingStatus === "accepted") return;
+
+      const club = clubSnaps[i].data() as any;
+      // Written fresh so a re-invite doesn't carry over the old response fields
+      const invite: Record<string, any> = {
+        eventId,
+        eventTitle: event.title,
+        eventStartDate: event.startDate,
+        hostClubId: event.clubId,
+        hostClubName: hostClub ? clubDisplayName(hostClub) : event.clubName,
+        clubId,
+        clubName: clubDisplayName(club),
+        status: "pending",
+        requestedBy: auth.uid,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      if (event.coverImage) invite.eventCoverImage = event.coverImage;
+      if (hostClub?.logo) invite.hostClubLogo = hostClub.logo;
+      if (club.logo) invite.clubLogo = club.logo;
+      batch.set(requestRefs[i], invite);
+      sent++;
+    });
+    if (sent > 0) await batch.commit();
+
+    return { sent, skipped: clubIds.length - sent };
   }
+);
 
-  const [appStoreLive, playStoreLive] = await Promise.all([appStoreLivePromise, playStoreLivePromise]);
+/**
+ * Accept or decline a co-host request. Caller must be an admin/owner of the
+ * invited club. Accepting adds the club to the event's coHostClubs/coHostClubIds.
+ */
+export const respondToCoHostRequest = functions.https.onCall(
+  { enforceAppCheck: false },
+  async (request: any) => {
+    const auth = request.auth;
+    if (!auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
 
+    const { requestId, accept } = request.data || {};
+    if (!requestId || typeof accept !== "boolean") {
+      throw new functions.https.HttpsError("invalid-argument", "Missing required fields: requestId, accept");
+    }
+
+    const db = admin.firestore();
+    const requestRef = db.collection("coHostRequests").doc(requestId);
+
+    return db.runTransaction(async (tx) => {
+      const requestSnap = await tx.get(requestRef);
+      if (!requestSnap.exists) {
+        throw new functions.https.HttpsError("not-found", "Co-host request not found");
+      }
+      const coHostRequest = requestSnap.data() as any;
+      if (coHostRequest.status !== "pending") {
+        throw new functions.https.HttpsError("failed-precondition", "This request has already been answered");
+      }
+
+      const clubSnap = await tx.get(db.collection("clubs").doc(coHostRequest.clubId));
+      if (!clubSnap.exists) {
+        throw new functions.https.HttpsError("not-found", "Club not found");
+      }
+      const club = clubSnap.data() as any;
+      if (!isClubAdminData(club, auth.uid)) {
+        throw new functions.https.HttpsError("permission-denied", "Only club admins can respond to co-host requests");
+      }
+
+      const eventRef = db.collection("events").doc(coHostRequest.eventId);
+      const eventSnap = await tx.get(eventRef);
+      const responded = {
+        respondedBy: auth.uid,
+        respondedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      if (!accept) {
+        tx.update(requestRef, { status: "declined", ...responded });
+        return { status: "declined" };
+      }
+
+      // The event was deleted or cancelled after the invite went out - close the
+      // request instead of leaving it pending forever.
+      if (!eventSnap.exists || eventSnap.data()?.status === "cancelled") {
+        tx.update(requestRef, { status: "closed", ...responded });
+        return { status: "closed", reason: "event_unavailable" };
+      }
+
+      // Use the club's current name/logo rather than what was captured at invite time.
+      const entry: { id: string; name: string; logo?: string } = { id: coHostRequest.clubId, name: clubDisplayName(club) };
+      if (club.logo) entry.logo = club.logo;
+      const existing = ((eventSnap.data()?.coHostClubs || []) as { id: string }[])
+        .filter((c) => c.id !== coHostRequest.clubId);
+
+      tx.update(eventRef, {
+        coHostClubs: [...existing, entry],
+        coHostClubIds: admin.firestore.FieldValue.arrayUnion(coHostRequest.clubId),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      tx.update(requestRef, { status: "accepted", ...responded });
+      return { status: "accepted" };
+    });
+  }
+);
+
+/**
+ * Take a co-host club off an event. Either side can call it:
+ *  - a host (event creator / host club admin) removing the co-host -> "removed"
+ *  - an admin of the co-host club stepping down themselves -> "left"
+ */
+export const removeCoHost = functions.https.onCall(
+  { enforceAppCheck: false },
+  async (request: any) => {
+    const auth = request.auth;
+    if (!auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const { eventId, clubId } = request.data || {};
+    if (!eventId || !clubId) {
+      throw new functions.https.HttpsError("invalid-argument", "Missing required fields: eventId, clubId");
+    }
+
+    const db = admin.firestore();
+    const eventRef = db.collection("events").doc(eventId);
+    const requestRef = db.collection("coHostRequests").doc(`${eventId}_${clubId}`);
+
+    return db.runTransaction(async (tx) => {
+      const eventSnap = await tx.get(eventRef);
+      if (!eventSnap.exists) {
+        throw new functions.https.HttpsError("not-found", "Event not found");
+      }
+      const event = eventSnap.data() as any;
+      const [hostClubSnap, coHostClubSnap, requestSnap] = await Promise.all([
+        tx.get(db.collection("clubs").doc(event.clubId)),
+        tx.get(db.collection("clubs").doc(clubId)),
+        tx.get(requestRef),
+      ]);
+
+      // Host side takes precedence if the caller happens to admin both clubs
+      const isHost = isEventHost(event, hostClubSnap.data(), auth.uid);
+      const isCoHostAdmin = isClubAdminData(coHostClubSnap.data(), auth.uid);
+      if (!isHost && !isCoHostAdmin) {
+        throw new functions.https.HttpsError(
+          "permission-denied",
+          "Only the event's hosts or the co-host club's admins can do this"
+        );
+      }
+      // Check both fields - events co-hosted before coHostClubIds existed only
+      // have the club in coHostClubs, and those still need to be removable.
+      const isCoHost =
+        ((event.coHostClubIds || []) as string[]).includes(clubId) ||
+        ((event.coHostClubs || []) as { id: string }[]).some((c) => c.id === clubId);
+      if (!isCoHost) {
+        throw new functions.https.HttpsError("failed-precondition", "This club isn't a co-host of the event");
+      }
+
+      const status = isHost ? "removed" : "left";
+      tx.update(eventRef, {
+        coHostClubs: ((event.coHostClubs || []) as { id: string }[]).filter((c) => c.id !== clubId),
+        coHostClubIds: admin.firestore.FieldValue.arrayRemove(clubId),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      if (requestSnap.exists) {
+        if (isHost) {
+          // A host removing a co-host clears the invite entirely so it drops
+          // out of their Sent list (re-inviting writes a fresh one anyway).
+          tx.delete(requestRef);
+        } else {
+          // Keep a "left" record so the host can see the co-host stepped down
+          tx.update(requestRef, {
+            status,
+            removedBy: auth.uid,
+            removedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+      }
+      return { status };
+    });
+  }
+);
+
+// Renders the shared Open Graph preview page used by eventPreview and
+// clubPreview — link unfurls read the meta tags, and people who tap through
+// get a card with an "Open in RallySphere" button.
+function sendPreviewPage(
+  res: any,
+  { title, description, image, appLink, path, appStoreLive }: {
+    title: string;
+    description: string;
+    image: string;
+    appLink: string;
+    path: string;
+    appStoreLive: boolean;
+  }
+) {
   const safeTitle = escapeHtml(title);
   const safeDescription = escapeHtml(description);
   const safeImage = escapeHtml(image);
   const safeAppLink = escapeHtml(appLink);
-  const pageUrl = escapeHtml(`https://rally-sphere.web.app${req.path}`);
+  const pageUrl = escapeHtml(`https://rally-sphere.web.app${path}`);
 
   res.set("Cache-Control", "public, max-age=300, s-maxage=600");
   res.status(200).send(`<!DOCTYPE html>
@@ -4468,4 +4720,84 @@ export const eventPreview = functions.https.onRequest(async (req, res) => {
   </script>
 </body>
 </html>`);
+}
+
+export const eventPreview = functions.https.onRequest(async (req, res) => {
+  const eventId = req.path.split("/").filter(Boolean).pop() || "";
+  const appLink = `rallysphere://event/${eventId}`;
+
+  let title = "RallySphere Event";
+  let description = "Open this event in the RallySphere app.";
+  let image = OG_DEFAULT_IMAGE;
+
+  const appStoreLivePromise = isAppStoreLive();
+
+  try {
+    const db = admin.firestore();
+    const eventDoc = await db.collection("events").doc(eventId).get();
+    // This reads via the Admin SDK, which bypasses Firestore's security
+    // rules (the same rules that restrict a private event's title/image to
+    // authenticated members in the app). Only use the real event details
+    // here if the event is actually public — a private event keeps the
+    // generic fallback above instead of leaking its details to anyone with
+    // the link.
+    if (eventDoc.exists && eventDoc.data()?.isPublic === true) {
+      const event = eventDoc.data() as any;
+      title = event.title || title;
+      description = event.clubName ? `by ${event.clubName}` : description;
+      if (event.coverImage) {
+        image = event.coverImage;
+      }
+    }
+  } catch (error) {
+    console.error("Error loading event for preview:", error);
+  }
+
+  sendPreviewPage(res, {
+    title,
+    description,
+    image,
+    appLink,
+    path: req.path,
+    appStoreLive: await appStoreLivePromise,
+  });
+});
+
+export const clubPreview = functions.https.onRequest(async (req, res) => {
+  const clubId = req.path.split("/").filter(Boolean).pop() || "";
+  const appLink = `rallysphere://club/${clubId}`;
+
+  let title = "RallySphere Club";
+  let description = "Open this club in the RallySphere app.";
+  let image = OG_DEFAULT_IMAGE;
+
+  const appStoreLivePromise = isAppStoreLive();
+
+  try {
+    const db = admin.firestore();
+    const clubDoc = await db.collection("clubs").doc(clubId).get();
+    // Same Admin-SDK caveat as eventPreview: only surface a club's details
+    // when it's public, so private clubs don't leak through the link.
+    if (clubDoc.exists && clubDoc.data()?.isPublic === true) {
+      const club = clubDoc.data() as any;
+      title = club.clubName || club.name || title;
+      description = club.description || "Join this club on RallySphere.";
+      if (club.coverImage) {
+        image = club.coverImage;
+      } else if (club.logo) {
+        image = club.logo;
+      }
+    }
+  } catch (error) {
+    console.error("Error loading club for preview:", error);
+  }
+
+  sendPreviewPage(res, {
+    title,
+    description,
+    image,
+    appLink,
+    path: req.path,
+    appStoreLive: await appStoreLivePromise,
+  });
 });

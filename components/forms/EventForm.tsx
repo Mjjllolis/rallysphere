@@ -4,7 +4,7 @@ import { View, Alert, StyleSheet, TouchableOpacity, LayoutChangeEvent, Keyboard,
 import { Text, useTheme, IconButton } from 'react-native-paper';
 import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
-import { createEvent, uploadImage, getImageAspectRatio, getClubs, saveEventQuestionnaire } from '../../lib/firebase';
+import { createEvent, uploadImage, getImageAspectRatio, getClubs, saveEventQuestionnaire, sendCoHostRequests } from '../../lib/firebase';
 import { useAuth, useThemeToggle } from '../../app/_layout';
 import GlassInput from '../GlassInput';
 import GlassSwitch from '../GlassSwitch';
@@ -13,6 +13,7 @@ import GlassImageCard from '../GlassImageCard';
 import GlassButton from '../GlassButton';
 import GlassDateTimePicker from '../GlassDateTimePicker';
 import GlassTagInput from '../GlassTagInput';
+import CoHostInput from '../CoHostInput';
 import QuestionnaireBuilderSheet from '../QuestionnaireBuilderSheet';
 import LocationAutocompleteInput, { SelectedLocation } from '../LocationAutocompleteInput';
 import type { Club, Question, Questionnaire } from '../../lib/firebase';
@@ -59,6 +60,7 @@ export default function EventForm({ onColorsExtracted, onSuccess, onScrollToFiel
   const [selectedLocation, setSelectedLocation] = useState<SelectedLocation | null>(null);
 
   const [tags, setTags] = useState<string[]>([]);
+  const [coHostClubs, setCoHostClubs] = useState<Club[]>([]);
   const [isPublic, setIsPublic] = useState(true);
   const [hasWaiver, setHasWaiver] = useState(false);
   const [hasQuestionnaire, setHasQuestionnaire] = useState(false);
@@ -94,6 +96,7 @@ export default function EventForm({ onColorsExtracted, onSuccess, onScrollToFiel
     const club = availableClubs.find(c => c.name === clubName);
     if (club) {
       setSelectedClub(club);
+      setCoHostClubs(prev => prev.filter(c => c.id !== club.id));
     }
   };
 
@@ -217,6 +220,13 @@ export default function EventForm({ onColorsExtracted, onSuccess, onScrollToFiel
             Alert.alert('Warning', 'Event created but questionnaire failed to save: ' + saveResult.error);
           }
         }
+        // Co-hosts only show on the event once their club accepts the request
+        if (coHostClubs.length > 0) {
+          const inviteResult = await sendCoHostRequests(result.eventId, coHostClubs.map(c => c.id));
+          if (!inviteResult.success) {
+            Alert.alert('Warning', 'Event created but co-host invites failed to send: ' + inviteResult.error);
+          }
+        }
         onSuccess();
         router.push(`/event/${result.eventId}`);
       } else {
@@ -284,6 +294,18 @@ export default function EventForm({ onColorsExtracted, onSuccess, onScrollToFiel
           onTagsChange={setTags}
           placeholder="Type and press return to add tags..."
           onFocus={handleFieldFocus('tags')}
+        />
+      </View>
+
+      {/* Co-hosts Section */}
+      <View onLayout={handleFieldLayout('coHosts')}>
+        <CoHostInput
+          label="Co-hosts (optional)"
+          helperText="Each club gets a request and shows as a co-host once an admin accepts."
+          selectedClubs={coHostClubs}
+          onSelectedClubsChange={setCoHostClubs}
+          excludeClubIds={selectedClub ? [selectedClub.id] : []}
+          onFocus={handleFieldFocus('coHosts')}
         />
       </View>
 

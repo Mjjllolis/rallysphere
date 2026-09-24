@@ -24,8 +24,10 @@ import {
   getClub,
   getClubAnalytics,
   getClubJoinRequests,
+  getIncomingCoHostRequests,
 } from '../../../lib/firebase';
 import type { Club } from '../../../lib/firebase';
+import { subscribeClubBadges } from '../../../lib/clubBadges';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -39,11 +41,22 @@ export default function ClubManageDashboard() {
   const [club, setClub] = useState<Club | null>(null);
   const [analytics, setAnalytics] = useState<any>(null);
   const [pendingRequests, setPendingRequests] = useState(0);
+  const [pendingCoHostRequests, setPendingCoHostRequests] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadData();
+  }, [clubId]);
+
+  // Sub-pages publish their pending counts as they change, so the badges are
+  // already up to date by the time the admin navigates back here.
+  useEffect(() => {
+    return subscribeClubBadges((changedClubId, badge, count) => {
+      if (changedClubId !== clubId) return;
+      if (badge === 'coHostRequests') setPendingCoHostRequests(count);
+      else setPendingRequests(count);
+    });
   }, [clubId]);
 
   const loadData = async () => {
@@ -68,14 +81,24 @@ export default function ClubManageDashboard() {
         setAnalytics(analyticsResult.analytics);
       }
 
-      const requestsResult = await getClubJoinRequests(clubId, 'pending');
-      if (requestsResult.success) {
-        setPendingRequests(requestsResult.requests.length);
-      }
+      await loadBadgeCounts();
     } catch (error) {
       // console.error('Error loading dashboard data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadBadgeCounts = async () => {
+    const [requestsResult, coHostResult] = await Promise.all([
+      getClubJoinRequests(clubId, 'pending'),
+      getIncomingCoHostRequests(clubId),
+    ]);
+    if (requestsResult.success) {
+      setPendingRequests(requestsResult.requests.length);
+    }
+    if (coHostResult.success) {
+      setPendingCoHostRequests(coHostResult.requests.filter(r => r.status === 'pending').length);
     }
   };
 
@@ -103,6 +126,7 @@ export default function ClubManageDashboard() {
     { title: 'Event Check-in', description: 'Check in attendees and award credits', icon: 'qrcode-scan', route: `/club/${clubId}/event-checkin` },
     { title: 'Questionnaires', description: 'View questionnaire responses from event attendees', icon: 'clipboard-text-outline', route: `/club/${clubId}/manage-questionnaire` },
     { title: 'Member Management', description: 'Manage members and join requests', icon: 'account-group', route: `/club/${clubId}/manage-members`, badge: pendingRequests },
+    { title: 'Co-Hosting', description: 'Review co-host requests and events you co-host', icon: 'handshake-outline', route: `/club/${clubId}/co-hosting`, badge: pendingCoHostRequests },
     { title: 'Subscribers', description: 'Manage subscriber settings and pricing', icon: 'star-circle', route: `/club/${clubId}/manage-subscriptions`, badge: club?.subscribers?.length || 0, comingSoon: true },
     { title: 'Analytics', description: 'View club performance metrics', icon: 'chart-line', route: `/club/${clubId}/analytics` },
     { title: 'Rally Credit Rewards', description: 'Set up rewards members can redeem', icon: 'star-settings', route: `/club/${clubId}/rally-credit-redemptions` },

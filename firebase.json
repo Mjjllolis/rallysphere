@@ -12,6 +12,14 @@
         "function": "eventPreview"
       },
       {
+        "source": "/club/**",
+        "function": "clubPreview"
+      },
+      {
+        "source": "/club/**",
+        "function": "clubPreview"
+      },
+      {
         "source": "/child-safety",
         "destination": "/child-safety.html"
       },

@@ -14,7 +14,15 @@ import {
   ScrollView,
   TextInput,
   KeyboardAvoidingView,
+  LayoutAnimation,
+  UIManager,
 } from 'react-native';
+
+// Enable LayoutAnimation on Android so the cover image's aspect-ratio
+// correction (once its real size loads) eases in instead of popping.
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image as ExpoImage } from 'expo-image';
 import { Text, Chip, IconButton, useTheme } from 'react-native-paper';
@@ -24,9 +32,11 @@ import { router } from 'expo-router';
 import Svg, { Defs, Pattern as SvgPattern, Rect as SvgRect } from 'react-native-svg';
 import type { Event } from '../../../../lib/firebase';
 import { useAuth, useThemeToggle } from '../../../_layout';
-import { joinEvent, getEventById, bookmarkEvent, unbookmarkEvent, getUserBookmarks, likeEvent, unlikeEvent, getUserLikes, getClub, storeWaiverSignature, submitQuestionnaireResponse } from '../../../../lib/firebase';
+import { joinEvent, getEventById, bookmarkEvent, unbookmarkEvent, getUserBookmarks, likeEvent, unlikeEvent, getUserLikes, storeWaiverSignature, submitQuestionnaireResponse } from '../../../../lib/firebase';
 import PaymentSheet from '../../../../components/PaymentSheet';
 import EventRegistrationFlow, { RegistrationData } from '../../../../components/EventRegistrationFlow';
+import HostAvatarStack, { formatHostNames } from '../../../../components/HostAvatarStack';
+import { useHostClubs } from '../../../../hooks/useHostClubs';
 import { buildEventShareContent } from '../../../../lib/eventShare';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -196,13 +206,26 @@ export default function EventSwipeCard({
       setIsJoining(false);
     }
   };
-  const [clubLogo, setClubLogo] = useState<string | undefined>(initialEvent.clubLogo);
-  const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(initialEvent.coverImageAspectRatio ?? null);
+  // Default to a common portrait photo ratio instead of null, so the cover
+  // image box is already close to its final shape on first paint - before
+  // this, starting at null fell back to a full-bleed flex:1 box that then
+  // snapped to the real ratio once Image.getSize resolved, visibly resizing.
+  const [imageAspectRatio, setImageAspectRatio] = useState(4 / 5);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  // Live club names/logos, so a club that changed its logo shows the new one
+  const hosts = useHostClubs(event);
+  const imageSkeletonPulse = useRef(new Animated.Value(0.4)).current;
 
   useEffect(() => {
     setEvent(initialEvent);
-    setClubLogo(initialEvent.clubLogo);
   }, [initialEvent]);
+
+  // Only reset the skeleton when the photo itself changes - a feed refresh
+  // hands us a new event object with the same URL, and expo-image won't fire
+  // onLoad again for it, which would leave the skeleton stuck over the photo.
+  useEffect(() => {
+    setImageLoaded(false);
+  }, [event.coverImage]);
 
   useEffect(() => {
     if (user) {
@@ -211,7 +234,8 @@ export default function EventSwipeCard({
     }
   }, [user, event.id]);
 
-  // Get cover image aspect ratio for proper rounded corners
+  // Get cover image aspect ratio for proper rounded corners - animate the
+  // correction from the default guess so it eases in instead of popping.
   useEffect(() => {
     if (event.coverImageAspectRatio) {
       setImageAspectRatio(event.coverImageAspectRatio);
@@ -219,23 +243,25 @@ export default function EventSwipeCard({
     }
     if (event.coverImage) {
       Image.getSize(event.coverImage, (w, h) => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         setImageAspectRatio(w / h);
       }, () => {});
     }
   }, [event.coverImage, event.coverImageAspectRatio]);
 
-  // Fetch club logo if not present on event
+  // Shimmer loop for the cover image skeleton, shown until the real photo
+  // has finished loading in.
   useEffect(() => {
-    const fetchClubLogo = async () => {
-      if (!clubLogo && event.clubId) {
-        const result = await getClub(event.clubId);
-        if (result.success && result.club?.logo) {
-          setClubLogo(result.club.logo);
-        }
-      }
-    };
-    fetchClubLogo();
-  }, [event.clubId, clubLogo]);
+    if (imageLoaded) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(imageSkeletonPulse, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(imageSkeletonPulse, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [imageLoaded]);
 
   const loadBookmarkStatus = async () => {
     if (!user) return;
@@ -499,16 +525,20 @@ export default function EventSwipeCard({
       {/* Main Cover Image - Maintains aspect ratio and centered */}
       <View style={styles.coverImageOuter}>
         {event.coverImage ? (
-          <View style={[
-            styles.coverImageWrapper,
-            imageAspectRatio ? { aspectRatio: imageAspectRatio } : { flex: 1 }
-          ]}>
+          <View style={[styles.coverImageWrapper, { aspectRatio: imageAspectRatio }]}>
+            {!imageLoaded && (
+              <Animated.View
+                style={[styles.coverImageSkeleton, { opacity: imageSkeletonPulse, backgroundColor: theme.colors.surfaceVariant }]}
+              />
+            )}
             <View style={styles.coverImageClip}>
               <ExpoImage
                 source={{ uri: event.coverImage }}
                 style={styles.coverImage}
                 contentFit="cover"
                 cachePolicy="memory-disk"
+              onLoad={() => setImageLoaded(true)}
+              onError={() => setImageLoaded(true)}
               />
             </View>
           </View>
@@ -544,28 +574,12 @@ export default function EventSwipeCard({
             onPress={(e) => { e.stopPropagation(); router.push(`/club/${event.clubId}`); }}
             activeOpacity={0.7}
           >
-            {clubLogo ? (
-              <ExpoImage
-                source={{ uri: clubLogo }}
-                style={styles.clubLogo}
-                contentFit="cover"
-                transition={200}
-                cachePolicy="memory-disk"
-                recyclingKey={clubLogo}
-                accessible={true}
-                accessibilityLabel={`${event.clubName} logo`}
-              />
-            ) : (
-              <View style={[styles.clubLogo, styles.clubLogoPlaceholder, { backgroundColor: theme.colors.surfaceVariant }]}>
-                <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12, fontWeight: '600' }}>
-                  {event.clubName.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            )}
+            <HostAvatarStack hosts={hosts} size={24} showRing={false} />
             <Text variant="bodyLarge" style={[styles.clubName, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
-              {event.clubName}
+              {formatHostNames(hosts.map(h => h.name))}
             </Text>
-            <IconButton icon="chevron-right" size={16} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0 }} />
+            {/* Negative margin offsets the row gap + IconButton's built-in padding */}
+            <IconButton icon="chevron-right" size={16} iconColor={theme.colors.onSurfaceVariant} style={{ margin: 0, marginLeft: -12 }} />
           </TouchableOpacity>
 
           <View style={styles.compactDetailsRow}>
@@ -1011,6 +1025,14 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  coverImageSkeleton: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1,
+  },
   coverPlaceholder: {
     justifyContent: 'center',
     alignItems: 'center',
@@ -1061,7 +1083,9 @@ const styles = StyleSheet.create({
   },
   clubName: {
     textAlign: 'left',
-    flex: 1,
+    // Shrink (for truncation) but don't grow, so the chevron sits right
+    // after the name instead of being pushed to the far edge.
+    flexShrink: 1,
   },
   compactDetailsRow: {
     flexDirection: 'row',

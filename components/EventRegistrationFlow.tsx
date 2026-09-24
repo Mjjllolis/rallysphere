@@ -449,8 +449,8 @@ export default function EventRegistrationFlow({
     const inputStyle = [
       styles.textInput,
       {
-        color: theme.colors.onSurface,
-        borderColor: error ? '#EF4444' : theme.colors.outline,
+        color: isDark ? '#FFFFFF' : '#374151',
+        borderColor: error ? '#EF4444' : (isDark ? 'rgba(255,255,255,0.1)' : '#E5E7EB'),
         backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
       },
     ];
@@ -544,7 +544,9 @@ export default function EventRegistrationFlow({
                 style={[
                   styles.choiceOption,
                   {
-                    borderColor: answer === choice ? theme.colors.primary : theme.colors.outline,
+                    borderColor: answer === choice
+                      ? theme.colors.primary
+                      : (isDark ? 'rgba(255,255,255,0.1)' : '#E5E7EB'),
                     backgroundColor: answer === choice
                       ? isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)'
                       : 'transparent',
@@ -557,7 +559,7 @@ export default function EventRegistrationFlow({
                   onPress={() => updateResponse(question.id, choice)}
                   color={theme.colors.primary}
                 />
-                <Text style={[styles.choiceText, { color: theme.colors.onSurface }]}>
+                <Text style={[styles.choiceText, { color: isDark ? '#FFFFFF' : '#374151' }]}>
                   {choice}
                 </Text>
               </TouchableOpacity>
@@ -583,7 +585,9 @@ export default function EventRegistrationFlow({
                   style={[
                     styles.choiceOption,
                     {
-                      borderColor: isSelected ? theme.colors.primary : theme.colors.outline,
+                      borderColor: isSelected
+                        ? theme.colors.primary
+                        : (isDark ? 'rgba(255,255,255,0.1)' : '#E5E7EB'),
                       backgroundColor: isSelected
                         ? isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)'
                         : 'transparent',
@@ -600,7 +604,7 @@ export default function EventRegistrationFlow({
                     }}
                     color={theme.colors.primary}
                   />
-                  <Text style={[styles.choiceText, { color: theme.colors.onSurface }]}>
+                  <Text style={[styles.choiceText, { color: isDark ? '#FFFFFF' : '#374151' }]}>
                     {choice}
                   </Text>
                 </TouchableOpacity>
@@ -634,7 +638,7 @@ export default function EventRegistrationFlow({
                       ? '#10B981'
                       : isCurrent
                       ? theme.colors.primary
-                      : theme.colors.outline,
+                      : (isDark ? 'rgba(255,255,255,0.1)' : '#E5E7EB'),
                   },
                 ]}
               >
@@ -647,7 +651,7 @@ export default function EventRegistrationFlow({
                   style={[
                     styles.progressLine,
                     {
-                      backgroundColor: isCompleted ? '#10B981' : theme.colors.outline,
+                      backgroundColor: isCompleted ? '#10B981' : (isDark ? 'rgba(255,255,255,0.1)' : '#E5E7EB'),
                     },
                   ]}
                 />
@@ -878,7 +882,7 @@ export default function EventRegistrationFlow({
         >
           {/* Handle */}
           <View style={styles.handleContainer}>
-            <View style={[styles.handle, { backgroundColor: theme.colors.outline }]} />
+            <View style={[styles.handle, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E5E7EB' }]} />
           </View>
 
           {/* Header */}
@@ -888,14 +892,14 @@ export default function EventRegistrationFlow({
                 icon="arrow-left"
                 size={24}
                 onPress={handleBack}
-                iconColor={theme.colors.onSurface}
+                iconColor={isDark ? '#FFFFFF' : '#374151'}
               />
             ) : (
               <IconButton
                 icon="close"
                 size={24}
                 onPress={handleClose}
-                iconColor={theme.colors.onSurface}
+                iconColor={isDark ? '#FFFFFF' : '#374151'}
               />
             )}
             {renderProgressIndicator()}
@@ -941,7 +945,7 @@ export default function EventRegistrationFlow({
 
           {/* Footer - hide while loading */}
           {!loadingQuestions && (
-          <View style={[styles.footer, { borderTopColor: theme.colors.outline }]}>
+          <View style={[styles.footer, { borderTopColor: isDark ? 'rgba(255,255,255,0.1)' : '#E5E7EB' }]}>
             <View style={styles.footerButtonRow}>
               {/* Cancel button */}
               <TouchableOpacity

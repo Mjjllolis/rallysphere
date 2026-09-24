@@ -54,6 +54,9 @@ app-example
 # Firebase backup files
 *.backup
 
+# Firebase CLI deploy cache (regenerated on every deploy)
+.firebase/
+
 # Firebase service account keys (sensitive!)
 service-account-key.json
 

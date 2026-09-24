@@ -23,6 +23,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth, useThemeToggle } from '../../_layout';
+import { publishClubBadge } from '../../../lib/clubBadges';
 import {
   getClub,
   getClubJoinRequests,
@@ -48,6 +49,12 @@ export default function ManageMembersScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTab, setSelectedTab] = useState<'members' | 'requests'>('members');
   const [loading, setLoading] = useState(true);
+
+  // Keep the dashboard's Member Management badge in sync as requests are handled
+  useEffect(() => {
+    if (loading) return;
+    publishClubBadge(clubId, 'joinRequests', joinRequests.length);
+  }, [joinRequests, loading]);
   const [refreshing, setRefreshing] = useState(false);
   const [menuVisible, setMenuVisible] = useState<{ [key: string]: boolean }>({});
   const [actionLoading, setActionLoading] = useState(false);

@@ -4,13 +4,21 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // True when `field` on a club changes only by removing the caller's own uid
-    // (nobody added, nobody else removed).
-    function onlySelfRemoved(field) {
-      let before = resource.data.get(field, []).toSet();
-      let after = request.resource.data.get(field, []).toSet();
-      return after.difference(before).size() == 0 &&
-        before.difference(after).hasOnly([request.auth.uid]);
+    // Admin or owner of a club (checks both old and new field names)
+    function isClubAdmin(clubId) {
+      let club = get(/databases/$(database)/documents/clubs/$(clubId)).data;
+      return request.auth.uid in club.get('clubAdmins', []) ||
+        request.auth.uid in club.get('admins', []) ||
+        request.auth.uid == club.get('clubOwner', '') ||
+        request.auth.uid == club.get('owner', '');
+    }
+
+    // Host side of an event: its creator or an admin/owner of its club.
+    // Co-host clubs' admins are deliberately not included - they can only
+    // step down, via the removeCoHost Cloud Function.
+    function isEventHost(eventId) {
+      let event = get(/databases/$(database)/documents/events/$(eventId)).data;
+      return request.auth.uid == event.createdBy || isClubAdmin(event.clubId);
     }
 
     // Users can read/write their own profile, authenticated users can read others' basic info
@@ -71,21 +79,15 @@ service cloud.firestore {
       // Club members can read private events
       allow read: if request.auth != null;
       // Only authenticated users can create events
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.createdBy;
-      // Only event creator and club admins can update events
+      // Co-hosts can't be set directly - they're added by respondToCoHostRequest once the invited club accepts
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.createdBy &&
+        request.resource.data.get('coHostClubs', []).size() == 0 &&
+        request.resource.data.get('coHostClubIds', []).size() == 0;
+      // Event creator and host club admins can edit events. Co-host lists only
+      // change through the co-host Cloud Functions, and ownership can't move.
       allow update: if request.auth != null &&
-        (request.auth.uid == resource.data.createdBy);
-      // Club admins / owner can edit their club's events. They can't re-attribute an event
-      // (createdBy) or move it to a different club (clubId).
-      allow update: if request.auth != null &&
-        resource.data.get('clubId', null) != null &&
-        exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
-        (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
-         request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []) ||
-         request.auth.uid == get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubOwner', '') ||
-         request.auth.uid == get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('owner', '')) &&
-        request.resource.data.get('createdBy', null) == resource.data.get('createdBy', null) &&
-        request.resource.data.get('clubId', null) == resource.data.get('clubId', null);
+        (request.auth.uid == resource.data.createdBy || isClubAdmin(resource.data.clubId)) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['coHostClubs', 'coHostClubIds', 'clubId', 'createdBy']);
       // Like Events Permission
       allow update: if request.auth != null &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'updatedAt']) &&
@@ -134,8 +136,7 @@ service cloud.firestore {
         allow create, delete: if request.auth != null && request.auth.uid == userId;
       }
 
-      // Questions subcollection - registration/join questionnaire questions.
-      // Written by lib/firebase.ts (setEventQuestions / getEventQuestions).
+      // Questions subcollection - registration/join questionnaire questions
       match /questions/{questionId} {
         // Any authenticated user can read questions (needed to complete registration)
         allow read: if request.auth != null;
@@ -144,19 +145,16 @@ service cloud.firestore {
           request.auth.uid == get(/databases/$(database)/documents/events/$(eventId)).data.createdBy;
       }
 
-      // Questionnaire responses subcollection - user answers to registration
-      // questions. Stored at events/{eventId}/questionnaireResponses/{userId}.
+      // Questionnaire responses subcollection - user answers to registration questions
       match /questionnaireResponses/{userId} {
         // Users can read their own response
         allow read: if request.auth != null && request.auth.uid == userId;
-        // Event creator or club admins can read all responses (manage-questionnaire screen)
+        // Event creator or club admins/owner can read all responses (manage-questionnaire screen)
         allow read: if request.auth != null &&
           (request.auth.uid == get(/databases/$(database)/documents/events/$(eventId)).data.createdBy ||
-           (exists(/databases/$(database)/documents/clubs/$(get(/databases/$(database)/documents/events/$(eventId)).data.clubId)) &&
-            (request.auth.uid in get(/databases/$(database)/documents/clubs/$(get(/databases/$(database)/documents/events/$(eventId)).data.clubId)).data.get('clubAdmins', []) ||
-             request.auth.uid in get(/databases/$(database)/documents/clubs/$(get(/databases/$(database)/documents/events/$(eventId)).data.clubId)).data.get('admins', []))));
-        // Users can only create/update their own response
-        allow create, update: if request.auth != null && request.auth.uid == userId;
+           isClubAdmin(get(/databases/$(database)/documents/events/$(eventId)).data.clubId));
+        // Users can only write their own response (delete runs when leaving the event)
+        allow create, update, delete: if request.auth != null && request.auth.uid == userId;
       }
     }
     
@@ -199,6 +197,24 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/clubs/$(resource.data.clubId)) &&
         (request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('clubAdmins', []) ||
          request.auth.uid in get(/databases/$(database)/documents/clubs/$(resource.data.clubId)).data.get('admins', []));
+    }
+
+    // Co-host requests - a host club inviting another club to co-host an event.
+    // Doc ID is {eventId}_{clubId}. Sending, answering and removing all go through
+    // Cloud Functions (sendCoHostRequests, respondToCoHostRequest, removeCoHost),
+    // so clients can't create or change these docs directly.
+    match /coHostRequests/{requestId} {
+      // Admins of either club, the event's hosts, or whoever sent it, can read
+      allow read: if request.auth != null &&
+        (resource.data.requestedBy == request.auth.uid ||
+         isClubAdmin(resource.data.clubId) ||
+         isClubAdmin(resource.data.hostClubId) ||
+         isEventHost(resource.data.eventId));
+      // The host side can withdraw a request that hasn't been answered
+      allow delete: if request.auth != null && resource.data.status == 'pending' &&
+        (resource.data.requestedBy == request.auth.uid ||
+         isClubAdmin(resource.data.hostClubId) ||
+         isEventHost(resource.data.eventId));
     }
 
     // Store Items - RallyStore products

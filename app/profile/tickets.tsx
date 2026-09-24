@@ -16,7 +16,7 @@ import {
 } from 'react-native-paper';
 import { ActivityIndicator } from '../../components/ActivityIndicator';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth, useThemeToggle } from '../_layout';
 import { getUserTicketOrders, getUserAttendingEvents } from '../../lib/firebase';
 import type { TicketOrder } from '../../lib/firebase';
@@ -60,13 +60,24 @@ export default function TicketsScreen() {
   const { user } = useAuth();
   const theme = useTheme();
   const { isDark } = useThemeToggle();
+  const { status: initialStatus } = useLocalSearchParams<{ status?: string }>();
 
   const [tickets, setTickets] = useState<TicketOrder[]>([]);
   const [filteredTickets, setFilteredTickets] = useState<TicketOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('All');
+  const [selectedStatus, setSelectedStatus] = useState(
+    initialStatus && STATUS_FILTERS.includes(initialStatus) ? initialStatus : 'All'
+  );
+
+  // Follow the param if this screen is already mounted and gets pushed again
+  // with a different status (e.g. Upcoming card, then Past Events card).
+  useEffect(() => {
+    if (initialStatus && STATUS_FILTERS.includes(initialStatus)) {
+      setSelectedStatus(initialStatus);
+    }
+  }, [initialStatus]);
 
   useEffect(() => {
     if (user) {
