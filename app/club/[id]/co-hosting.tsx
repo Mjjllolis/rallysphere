@@ -8,7 +8,8 @@ import {
   RefreshControl,
   Alert,
 } from 'react-native';
-import { Text, IconButton, ActivityIndicator, useTheme } from 'react-native-paper';
+import { Text, IconButton, useTheme } from 'react-native-paper';
+import { ActivityIndicator } from '../../../components/ActivityIndicator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { BlurView } from 'expo-blur';

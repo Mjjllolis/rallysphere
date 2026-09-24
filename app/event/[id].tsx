@@ -757,8 +757,10 @@ export default function EventDetailScreen() {
               />
             </BlurView>
 
-            {/* Menu for additional options */}
-            {user && (isAttending || isWaitlisted || canManageEvent || myCoHostClubs.length > 0) && (
+            {/* Menu for additional options. Shown to every signed-in user, not
+                just attendees/managers — Report and Block have to be reachable
+                from any event for Play's UGC policy. */}
+            {user && (
               <View>
                 <TouchableOpacity onPress={() => setMenuVisible(prev => !prev)} activeOpacity={0.7}>
                   <BlurView intensity={40} tint="dark" style={styles.controlButtonBlur}>

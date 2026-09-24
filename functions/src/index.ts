@@ -4610,13 +4610,14 @@ export const removeCoHost = functions.https.onCall(
 // get a card with an "Open in RallySphere" button.
 function sendPreviewPage(
   res: any,
-  { title, description, image, appLink, path, appStoreLive }: {
+  { title, description, image, appLink, path, appStoreLive, playStoreLive }: {
     title: string;
     description: string;
     image: string;
     appLink: string;
     path: string;
     appStoreLive: boolean;
+    playStoreLive: boolean;
   }
 ) {
   const safeTitle = escapeHtml(title);
@@ -4723,7 +4724,9 @@ function sendPreviewPage(
 }
 
 export const eventPreview = functions.https.onRequest(async (req, res) => {
-  const eventId = req.path.split("/").filter(Boolean).pop() || "";
+  // The ID comes straight from the URL and is used inside an inline <script>,
+  // so keep only Firestore-ID characters.
+  const eventId = (req.path.split("/").filter(Boolean).pop() || "").replace(/[^A-Za-z0-9_-]/g, "");
   const appLink = `rallysphere://event/${eventId}`;
 
   let title = "RallySphere Event";
@@ -4731,6 +4734,7 @@ export const eventPreview = functions.https.onRequest(async (req, res) => {
   let image = OG_DEFAULT_IMAGE;
 
   const appStoreLivePromise = isAppStoreLive();
+  const playStoreLivePromise = isPlayStoreLive();
 
   try {
     const db = admin.firestore();
@@ -4760,11 +4764,14 @@ export const eventPreview = functions.https.onRequest(async (req, res) => {
     appLink,
     path: req.path,
     appStoreLive: await appStoreLivePromise,
+    playStoreLive: await playStoreLivePromise,
   });
 });
 
 export const clubPreview = functions.https.onRequest(async (req, res) => {
-  const clubId = req.path.split("/").filter(Boolean).pop() || "";
+  // The ID comes straight from the URL and is used inside an inline <script>,
+  // so keep only Firestore-ID characters.
+  const clubId = (req.path.split("/").filter(Boolean).pop() || "").replace(/[^A-Za-z0-9_-]/g, "");
   const appLink = `rallysphere://club/${clubId}`;
 
   let title = "RallySphere Club";
@@ -4772,6 +4779,7 @@ export const clubPreview = functions.https.onRequest(async (req, res) => {
   let image = OG_DEFAULT_IMAGE;
 
   const appStoreLivePromise = isAppStoreLive();
+  const playStoreLivePromise = isPlayStoreLive();
 
   try {
     const db = admin.firestore();
@@ -4799,5 +4807,6 @@ export const clubPreview = functions.https.onRequest(async (req, res) => {
     appLink,
     path: req.path,
     appStoreLive: await appStoreLivePromise,
+    playStoreLive: await playStoreLivePromise,
   });
 });

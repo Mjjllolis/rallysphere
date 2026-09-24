@@ -43,13 +43,14 @@
         Android App Links — the counterpart to the iOS associated domain.
         Verified against https://rally-sphere.web.app/.well-known/assetlinks.json
         so shared event links (lib/eventShare.ts) open the app instead of the
-        browser. Path mirrors the AASA entry: /event/*.
+        browser. Paths mirror the AASA entries: /event/* and /club/*.
       -->
       <intent-filter android:autoVerify="true">
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="https" android:host="rally-sphere.web.app" android:pathPrefix="/event"/>
+        <data android:scheme="https" android:host="rally-sphere.web.app" android:pathPrefix="/club"/>
       </intent-filter>
     </activity>
   </application>

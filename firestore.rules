@@ -21,6 +21,15 @@ service cloud.firestore {
       return request.auth.uid == event.createdBy || isClubAdmin(event.clubId);
     }
 
+    // True when `field` on a club changes only by removing the caller's own uid
+    // (nobody added, nobody else removed).
+    function onlySelfRemoved(field) {
+      let before = resource.data.get(field, []).toSet();
+      let after = request.resource.data.get(field, []).toSet();
+      return after.difference(before).size() == 0 &&
+        before.difference(after).hasOnly([request.auth.uid]);
+    }
+
     // Users can read/write their own profile, authenticated users can read others' basic info
     match /users/{userId} {
       // Users can read any profile (for attendee lists, member lists, etc.)
